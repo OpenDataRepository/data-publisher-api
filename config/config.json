@@ -1,0 +1,143 @@
+{
+  "development": {
+    "username": "adet_db",
+    "password": "",
+    "database": "adet_api",
+    "host": "127.0.0.1",
+    "dialect": "mongod",
+    "logging": true,
+    "passport": {
+      "oauthBaseURL": "https://adet.stoneumbrella.com",
+      "platformURL": "https://agora.science/platform",
+      "authorizationURL": "https://adet.stoneumbrella.com/oauth/authorize",
+      "tokenURL": "https://adet.stoneumbrella.com/oauth/token",
+      "clientID": "rKPpB1b1qxreq3zeaI4qUvrm69DYPqEXTKRVEpXP",
+      "clientSecret": "Fcu9nMIs2UwHAUMamrJzPoa1xfJ861X4JaEyMlmI",
+      "callbackURL": "http://localhost:3000/user/code"
+    },
+    "jwt_opts": {
+      "secretOrKey": "09j9a0sfkasdf809oijljkhasdfy91hilasdfhasfdasfdp9y81t",
+      "issuer": "adet.stoneumbrella.com",
+      "audience": "adet.stoneumbrella.com",
+      "session_length": "96000000"
+    },
+    "redis_server": {
+      "port": 6379,
+      "ip_address": "127.0.0.1"
+    },
+    "mongo_server": {
+      "port": 27017,
+      "uri": "mongodb://localhost",
+      "db_name": "adet_db"
+    }
+  },
+  "development_no_logging": {
+    "username": "adet_db",
+    "password": "",
+    "database": "adet_api",
+    "host": "127.0.0.1",
+    "dialect": "mongod",
+    "logging": false,
+    "jwt_opts": {
+      "secret": "",
+      "issuer": "http://locahost:3000/v01",
+      "audience": "http://adet.local:8100",
+      "session_length": "96000000"
+    },
+    "redis_server": {
+      "port": 6379,
+      "ip_address": "127.0.0.1"
+    },
+    "mongo_server": {
+      "port": 27017,
+      "uri": "mongodb://localhost",
+      "db_name": "adet_db"
+    }
+  },
+  "test": {
+    "username": "",
+    "password": "",
+    "database": "",
+    "host": "127.0.0.1",
+    "dialect": "mongod",
+    "passport_secret": ""
+  },
+  "staging": {
+    "username": "adet_db",
+    "password": "",
+    "database": "adet_api",
+    "host": "127.0.0.1",
+    "dialect": "mongod",
+    "jwt_opts": {
+      "secret": "",
+      "issuer": "http://locahost:3000/v01",
+      "audience": "http://adet.local:8100",
+      "session_length": "9600"
+    },
+    "redis_server": {
+      "port": 6379,
+      "ip_address": "127.0.0.1"
+    },
+    "mongo_server": {
+      "port": 27017,
+      "uri": "mongodb://localhost",
+      "db_name": "adet_db"
+    }
+  },
+  "localnode": {
+    "username": "adet_db",
+    "password": "",
+    "database": "adet_api",
+    "host": "127.0.0.1",
+    "dialect": "mongod",
+    "jwt_opts": {
+      "secret": "",
+      "issuer": "http://locahost:3000/v01",
+      "audience": "http://adet.local:8100",
+      "session_length": "96000000"
+    },
+    "redis_server": {
+      "port": 6379,
+      "ip_address": "127.0.0.1"
+    },
+    "mongo_server": {
+      "port": 27017,
+      "uri": "mongodb://localhost",
+      "db_name": "adet_db"
+    }
+  },
+  "production": {
+    "node_port": "8891",
+    "username": "adet_db",
+    "password": "",
+    "database": "adet_api",
+    "host": "127.0.0.1",
+    "dialect": "mongod",
+    "passport": {
+      "oauthBaseURL": "https://agora.science",
+      "platformURL": "https://agora.science/platform",
+      "authorizationURL": "https://agora.science/oauth/authorize",
+      "tokenURL": "https://agora.science/oauth/token",
+      "clientID": "rKPpB1b1qxreq3zeaI4qUvrm69DYPqEXTKRVEpXP",
+      "clientSecret": "Fcu9nMIs2UwHAUMamrJzPoa1xfJ861X4JaEyMlmI",
+      "callbackURL": "https://api.agora.science/user/code"
+    },
+    "jwt_opts": {
+      "secretOrKey": "af9adsf2qjasdfafjhla89fhjasfasdfajh89huafds89",
+      "ignoreExpiration": "true",
+      "issuer": "api.agora.science",
+      "audience": "api.agora.science",
+      "maxAge": "18hr",
+      "expiresIn": "18hr"
+    },
+    "redis_server": {
+      "port": 6379,
+      "ip_address": "127.0.0.1"
+    },
+    "mongo_server": {
+      "port": 27017,
+      "uri": "mongodb://localhost",
+      "db_name": "adet_db"
+    }
+  }
+}
