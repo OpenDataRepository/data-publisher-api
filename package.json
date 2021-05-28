@@ -1,28 +1,14 @@
 {
-  "name": "adet-gear-server",
+  "name": "data-publisher-api",
   "version": "0.0.0",
   "private": true,
   "scripts": {
     "start": "node ./bin/www"
   },
   "dependencies": {
-    "bull": "^3.13.0",
-    "chai": "^4.2.0",
-    "cookie-parser": "^1.4.5",
-    "cors": "^2.8.5",
+    "cookie-parser": "~1.4.4",
     "debug": "~2.6.9",
     "express": "~4.16.1",
-    "flatted": "^2.0.2",
-    "http-errors": "~1.6.3",
-    "http-status": "^1.4.2",
-    "jade": "~1.11.0",
-    "jsonwebtoken": "^8.5.1",
-    "moment": "^2.24.0",
-    "mongodb": "^3.5.5",
-    "morgan": "~1.9.1",
-    "passport": "^0.4.1",
-    "passport-jwt": "^4.0.0",
-    "passport-oauth2": "^1.5.0",
-    "superagent": "^5.2.2"
+    "morgan": "~1.9.1"
   }
 }
