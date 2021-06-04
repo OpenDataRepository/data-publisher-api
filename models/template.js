@@ -5,7 +5,7 @@ var Template;
 module.exports = function() {
   if (Template === undefined) {
     let db = MongoDB.db();
-    Template = db.collection('template');
+    Template = db.collection('templates');
   }
   return Template;
 }
