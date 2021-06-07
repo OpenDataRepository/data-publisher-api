@@ -15,8 +15,14 @@ app.use(express.urlencoded({ extended: false }));
 app.use('/', indexRouter);
 app.use('/users', usersRouter);
 
-//TODO: Catch uncaught routes and return 404
+app.use(function(req, res, next) {
+  res.sendStatus(404);
+});
 
-//TODO: Catch internal server errors and return 500
+app.use(function(err, req, res, next) {
+  // render the error page
+  console.error(err.stack)
+  res.sendStatus(500)
+});
 
 module.exports = app;

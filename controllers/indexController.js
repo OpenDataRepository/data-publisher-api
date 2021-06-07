@@ -169,7 +169,7 @@ exports.template_get = async function(req, res, next) {
       let template = await response.next();
       res.json({template});
     } else {
-      res.status(404).send('404 Resource Not Found')
+      res.sendStatus(404);
     }
   } catch(err) {
     return next(err);
