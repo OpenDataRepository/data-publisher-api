@@ -21,6 +21,147 @@ exports.template_get = async function(req, res, next) {
             'localField': "fields",
             'as': "fields"
           }
+      },
+      {
+        '$lookup':
+          {
+            'from': "templates",
+            'let': { 'parents': "$related_templates"},
+            'pipeline': [
+              { '$match':
+                  { '$expr':
+                      { '$and':
+                          [
+                            { '$in': [ "$_id",  "$$parents" ] },
+                          ]
+                      }
+                  }
+              },
+              {
+                '$lookup':
+                  {
+                    'from': "template_fields",
+                    'foreignField': "_id",
+                    'localField': "fields",
+                    'as': "fields"
+                  },
+              },
+              {
+                '$lookup':
+                  {
+                    'from': "templates",
+                    'let': { 'parents': "$related_templates"},
+                    'pipeline': [
+                      { '$match':
+                          { '$expr':
+                              { '$and':
+                                  [
+                                    { '$in': [ "$_id",  "$$parents" ] },
+                                  ]
+                              }
+                          }
+                      },
+                      {
+                        '$lookup':
+                          {
+                            'from': "template_fields",
+                            'foreignField': "_id",
+                            'localField': "fields",
+                            'as': "fields"
+                          },
+                      },
+                      {
+                        '$lookup':
+                          {
+                            'from': "templates",
+                            'let': { 'parents': "$related_templates"},
+                            'pipeline': [
+                              { '$match':
+                                  { '$expr':
+                                      { '$and':
+                                          [
+                                            { '$in': [ "$_id",  "$$parents" ] },
+                                          ]
+                                      }
+                                  }
+                              },
+                              {
+                                '$lookup':
+                                  {
+                                    'from': "template_fields",
+                                    'foreignField': "_id",
+                                    'localField': "fields",
+                                    'as': "fields"
+                                  },
+                              },
+                              {
+                                '$lookup':
+                                  {
+                                    'from': "templates",
+                                    'let': { 'parents': "$related_templates"},
+                                    'pipeline': [
+                                      { '$match':
+                                          { '$expr':
+                                              { '$and':
+                                                  [
+                                                    { '$in': [ "$_id",  "$$parents" ] },
+                                                  ]
+                                              }
+                                          }
+                                      },
+                                      {
+                                        '$lookup':
+                                          {
+                                            'from': "template_fields",
+                                            'foreignField': "_id",
+                                            'localField': "fields",
+                                            'as': "fields"
+                                          },
+                                      },
+                                      {
+                                        '$lookup':
+                                          {
+                                            'from': "templates",
+                                            'let': { 'parents': "$related_templates"},
+                                            'pipeline': [
+                                              { '$match':
+                                                  { '$expr':
+                                                      { '$and':
+                                                          [
+                                                            { '$in': [ "$_id",  "$$parents" ] },
+                                                          ]
+                                                      }
+                                                  }
+                                              },
+                                              {
+                                                '$lookup':
+                                                  {
+                                                    'from': "template_fields",
+                                                    'foreignField': "_id",
+                                                    'localField': "fields",
+                                                    'as': "fields"
+                                                  },
+                                              },
+
+                                            ],
+                                            'as': "related_templates"
+                                          }
+                                      }
+                                    ],
+                                    'as': "related_templates"
+                                  }
+                              }
+                            ],
+                            'as': "related_templates"
+                          }
+                      }
+                    ],
+                    'as': "related_templates"
+                  }
+              }
+            ],
+            'as': "related_templates"
+          }
       }
     ]
     let response = await Template.aggregate(pipeline);
