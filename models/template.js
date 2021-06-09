@@ -1,9 +1,11 @@
 const MongoDB = require('../lib/mongoDB');
+const TemplateFieldModel = require('./template_field');
 const { v4: uuidv4 } = require('uuid');
 
 var Template;
+var TemplateField;
 
-exports.templateCollection = function() {
+function templateCollection() {
   if (Template === undefined) {
     let db = MongoDB.db();
     Template = db.collection('templates');
@@ -11,7 +13,14 @@ exports.templateCollection = function() {
   return Template;
 }
 
-exports.createTemplate = function(input_template) {
+exports.init = function() {
+  Template = templateCollection()
+  TemplateField = TemplateFieldModel.templateCollection();
+}
+
+exports.templateCollection = templateCollection
+
+exports.newTemplate = async function(input_template) {
   
   let name = "";
   let description = "";
@@ -34,11 +43,29 @@ exports.createTemplate = function(input_template) {
     if (!Array.isArray(input_template.fields)){
       throw new TypeError('fields property must be of type array');
     }
+    for (field of input_template.fields) {
+      if (typeof(field) !== 'string') {
+        throw new TypeError("each field in fields must be of type string");
+      }
+      let response = await TemplateField.find({"uuid": field});
+      if (!(await response.hasNext())) {
+        throw new TypeError("field '" + field + "' in fields does not exist");
+      }
+    }
     fields = input_template.fields
   }
   if (input_template.related_templates) {
     if (!Array.isArray(input_template.related_templates)){
       throw new TypeError('related_templates property must be of type array');
+    }
+    for (related_template of input_template.related_templates) {
+      if (typeof(related_template) !== 'string') {
+        throw new TypeError("each related_template in related_templates must be of type string");
+      }
+      let response = await Template.find({"uuid": related_template});
+      if (!(await response.hasNext())) {
+        throw new TypeError("related_template '" + related_template + "' in related_templates does not exist");
+      }
     }
     related_templates = input_template.related_templates
   }

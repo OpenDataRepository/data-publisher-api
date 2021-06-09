@@ -1,5 +1,4 @@
 const TemplateModel = require('../models/template');
-const { v4: uuidv4 } = require('uuid');
 const ObjectId = require('mongodb').ObjectId;
 
 var Template;
@@ -10,6 +9,7 @@ exports.init = function() {
 
 exports.template_get = async function(req, res, next) {
   try {
+    // TODO: Fix pipeline to query on uuid instead of _id
     let pipeline = [
       {
         '$match': { '_id': new ObjectId(req.params.id) }
@@ -181,7 +181,7 @@ exports.template_create = async function(req, res, next) {
   console.log('template create called')
   let insert_template;
   try {
-    insert_template = TemplateModel.createTemplate(req.body);
+    insert_template = await TemplateModel.newTemplate(req.body);
   } catch (err) {
     if (err instanceof TypeError) {
       res.status(400).send({error: err.message})
