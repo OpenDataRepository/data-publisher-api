@@ -5,7 +5,7 @@ const ObjectId = require('mongodb').ObjectId;
 var Template;
 
 exports.init = function() {
-  Template = TemplateModel();
+  Template = TemplateModel.templateCollection();
 }
 
 exports.template_get = async function(req, res, next) {
@@ -179,17 +179,16 @@ exports.template_get = async function(req, res, next) {
 
 exports.template_create = async function(req, res, next) {
   console.log('template create called')
-  // TODO: sanitize input. Name and description should be of type string. Fields should be an array of ids, and each id
-  // should be a reference to a real template_field. Same with related_fields
-  let insert_template = {
-    name: req.body.name,
-    description: req.body.description,
-    fields: req.body.fields,
-    related_templates: req.body.related_templates,
-    updated_at: new Date(),
-    uuid: uuidv4()
+  let insert_template;
+  try {
+    insert_template = TemplateModel.createTemplate(req.body);
+  } catch (err) {
+    if (err instanceof TypeError) {
+      res.status(400).send({error: err.message})
+    } else {
+      return next(err);
+    }
   }
-
 
   try {
     let result = await Template.insertOne(insert_template);
@@ -199,22 +198,3 @@ exports.template_create = async function(req, res, next) {
     return next(err);
   }
 }
-
-// function filter_template_input(input_template) {
-//   let insert_template = {
-//     name: req.body.name,
-//     description: req.body.description,
-//     fields: req.body.fields,
-//     related_templates: req.body.related_templates,
-//     updated_at: new Date(),
-//     uuid: uuidv4()
-//   }
-
-//   if (input_template.name) {
-//     insert_template.name = input_template.name
-//   }
-//   if (input_template.description) {
-//     insert_template.name = input_template.name
-//   }
-
-// }
