@@ -20,7 +20,6 @@ app.use(function(req, res, next) {
 });
 
 app.use(function(err, req, res, next) {
-  // render the error page
   console.error(err.stack)
   res.sendStatus(500)
 });
