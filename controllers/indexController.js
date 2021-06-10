@@ -26,13 +26,13 @@ exports.template_get = async function(req, res, next) {
         '$lookup':
           {
             'from': "templates",
-            'let': { 'parents': "$related_templates"},
+            'let': { 'search_uuids': "$related_templates"},
             'pipeline': [
               { '$match':
                   { '$expr':
                       { '$and':
                           [
-                            { '$in': [ "$_id",  "$$parents" ] },
+                            { '$in': [ "$uuid",  "$$search_uuids" ] },
                           ]
                       }
                   }
@@ -50,13 +50,13 @@ exports.template_get = async function(req, res, next) {
                 '$lookup':
                   {
                     'from': "templates",
-                    'let': { 'parents': "$related_templates"},
+                    'let': { 'search_uuids': "$related_templates"},
                     'pipeline': [
                       { '$match':
                           { '$expr':
                               { '$and':
                                   [
-                                    { '$in': [ "$_id",  "$$parents" ] },
+                                    { '$in': [ "$uuid",  "$$search_uuids" ] },
                                   ]
                               }
                           }
@@ -74,13 +74,13 @@ exports.template_get = async function(req, res, next) {
                         '$lookup':
                           {
                             'from': "templates",
-                            'let': { 'parents': "$related_templates"},
+                            'let': { 'search_uuids': "$related_templates"},
                             'pipeline': [
                               { '$match':
                                   { '$expr':
                                       { '$and':
                                           [
-                                            { '$in': [ "$_id",  "$$parents" ] },
+                                            { '$in': [ "$uuid",  "$$search_uuids" ] },
                                           ]
                                       }
                                   }
@@ -98,13 +98,13 @@ exports.template_get = async function(req, res, next) {
                                 '$lookup':
                                   {
                                     'from': "templates",
-                                    'let': { 'parents': "$related_templates"},
+                                    'let': { 'search_uuids': "$related_templates"},
                                     'pipeline': [
                                       { '$match':
                                           { '$expr':
                                               { '$and':
                                                   [
-                                                    { '$in': [ "$_id",  "$$parents" ] },
+                                                    { '$in': [ "$uuid",  "$$search_uuids" ] },
                                                   ]
                                               }
                                           }
@@ -122,13 +122,13 @@ exports.template_get = async function(req, res, next) {
                                         '$lookup':
                                           {
                                             'from': "templates",
-                                            'let': { 'parents': "$related_templates"},
+                                            'let': { 'search_uuids': "$related_templates"},
                                             'pipeline': [
                                               { '$match':
                                                   { '$expr':
                                                       { '$and':
                                                           [
-                                                            { '$in': [ "$_id",  "$$parents" ] },
+                                                            { '$in': [ "$uuid",  "$$search_uuids" ] },
                                                           ]
                                                       }
                                                   }
