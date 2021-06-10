@@ -9,16 +9,15 @@ exports.init = function() {
 
 exports.template_get = async function(req, res, next) {
   try {
-    // TODO: Fix pipeline to query on uuid instead of _id
     let pipeline = [
       {
-        '$match': { '_id': new ObjectId(req.params.id) }
+        '$match': { 'uuid': req.params.id }
       },
       {
         '$lookup':
           {
             'from': "template_fields",
-            'foreignField': "_id",
+            'foreignField': "uuid",
             'localField': "fields",
             'as': "fields"
           }
@@ -42,7 +41,7 @@ exports.template_get = async function(req, res, next) {
                 '$lookup':
                   {
                     'from': "template_fields",
-                    'foreignField': "_id",
+                    'foreignField': "uuid",
                     'localField': "fields",
                     'as': "fields"
                   },
@@ -66,7 +65,7 @@ exports.template_get = async function(req, res, next) {
                         '$lookup':
                           {
                             'from': "template_fields",
-                            'foreignField': "_id",
+                            'foreignField': "uuid",
                             'localField': "fields",
                             'as': "fields"
                           },
@@ -90,7 +89,7 @@ exports.template_get = async function(req, res, next) {
                                 '$lookup':
                                   {
                                     'from': "template_fields",
-                                    'foreignField': "_id",
+                                    'foreignField': "uuid",
                                     'localField': "fields",
                                     'as': "fields"
                                   },
@@ -114,7 +113,7 @@ exports.template_get = async function(req, res, next) {
                                         '$lookup':
                                           {
                                             'from': "template_fields",
-                                            'foreignField': "_id",
+                                            'foreignField': "uuid",
                                             'localField': "fields",
                                             'as': "fields"
                                           },
@@ -138,7 +137,7 @@ exports.template_get = async function(req, res, next) {
                                                 '$lookup':
                                                   {
                                                     'from': "template_fields",
-                                                    'foreignField': "_id",
+                                                    'foreignField': "uuid",
                                                     'localField': "fields",
                                                     'as': "fields"
                                                   },
