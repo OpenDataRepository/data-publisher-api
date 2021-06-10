@@ -7,11 +7,16 @@ exports.init = function() {
   Template = TemplateModel.templateCollection();
 }
 
-exports.template_get = async function(req, res, next) {
+exports.template_draft_get = async function(req, res, next) {
   try {
+    // TODO: When permissions come into play, aggregate drafts for sub-templates/fields that the user has permission for,
+    // and published templates for the ones they don't
     let pipeline = [
       {
-        '$match': { 'uuid': req.params.id }
+        '$match': { 
+          'uuid': req.params.id,
+          'publish_date': {'$exists': false}
+        }
       },
       {
         '$lookup':
@@ -29,13 +34,20 @@ exports.template_get = async function(req, res, next) {
             'let': { 'search_uuids': "$related_templates"},
             'pipeline': [
               { '$match':
-                  { '$expr':
-                      { '$and':
-                          [
-                            { '$in': [ "$uuid",  "$$search_uuids" ] },
-                          ]
+                { 
+                  '$and': 
+                  [
+                    {
+                      '$expr':
+                      { 
+                        '$in': [ "$uuid",  "$$search_uuids" ] 
                       }
-                  }
+                    },
+                    {
+                      'publish_date': {'$exists': false}
+                    }
+                  ]
+                }
               },
               {
                 '$lookup':
@@ -53,14 +65,21 @@ exports.template_get = async function(req, res, next) {
                     'let': { 'search_uuids': "$related_templates"},
                     'pipeline': [
                       { '$match':
-                          { '$expr':
-                              { '$and':
-                                  [
-                                    { '$in': [ "$uuid",  "$$search_uuids" ] },
-                                  ]
+                        { 
+                          '$and': 
+                          [
+                            {
+                              '$expr':
+                              { 
+                                '$in': [ "$uuid",  "$$search_uuids" ] 
                               }
-                          }
-                      },
+                            },
+                            {
+                              'publish_date': {'$exists': false}
+                            }
+                          ]
+                        }
+                      },                      
                       {
                         '$lookup':
                           {
@@ -77,14 +96,21 @@ exports.template_get = async function(req, res, next) {
                             'let': { 'search_uuids': "$related_templates"},
                             'pipeline': [
                               { '$match':
-                                  { '$expr':
-                                      { '$and':
-                                          [
-                                            { '$in': [ "$uuid",  "$$search_uuids" ] },
-                                          ]
+                                { 
+                                  '$and': 
+                                  [
+                                    {
+                                      '$expr':
+                                      { 
+                                        '$in': [ "$uuid",  "$$search_uuids" ] 
                                       }
-                                  }
-                              },
+                                    },
+                                    {
+                                      'publish_date': {'$exists': false}
+                                    }
+                                  ]
+                                }
+                              },  
                               {
                                 '$lookup':
                                   {
@@ -101,14 +127,21 @@ exports.template_get = async function(req, res, next) {
                                     'let': { 'search_uuids': "$related_templates"},
                                     'pipeline': [
                                       { '$match':
-                                          { '$expr':
-                                              { '$and':
-                                                  [
-                                                    { '$in': [ "$uuid",  "$$search_uuids" ] },
-                                                  ]
+                                        { 
+                                          '$and': 
+                                          [
+                                            {
+                                              '$expr':
+                                              { 
+                                                '$in': [ "$uuid",  "$$search_uuids" ] 
                                               }
-                                          }
-                                      },
+                                            },
+                                            {
+                                              'publish_date': {'$exists': false}
+                                            }
+                                          ]
+                                        }
+                                      },  
                                       {
                                         '$lookup':
                                           {
@@ -125,14 +158,21 @@ exports.template_get = async function(req, res, next) {
                                             'let': { 'search_uuids': "$related_templates"},
                                             'pipeline': [
                                               { '$match':
-                                                  { '$expr':
-                                                      { '$and':
-                                                          [
-                                                            { '$in': [ "$uuid",  "$$search_uuids" ] },
-                                                          ]
+                                                { 
+                                                  '$and': 
+                                                  [
+                                                    {
+                                                      '$expr':
+                                                      { 
+                                                        '$in': [ "$uuid",  "$$search_uuids" ] 
                                                       }
-                                                  }
-                                              },
+                                                    },
+                                                    {
+                                                      'publish_date': {'$exists': false}
+                                                    }
+                                                  ]
+                                                }
+                                              },  
                                               {
                                                 '$lookup':
                                                   {
