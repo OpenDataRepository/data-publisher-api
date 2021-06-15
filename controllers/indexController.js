@@ -237,3 +237,31 @@ exports.template_create = async function(req, res, next) {
     return next(err);
   }
 }
+
+exports.template_publish = async function(req, res, next) {
+  try {
+    let response = await Template.find({"uuid": req.params.uuid, 'publish_date': {'$exists': false}});
+    let count = response.count();
+    if(!count) {
+      res.status(400).send("There is no draft for a template with uuid " + req.params.uuid);
+      return;
+    } else if (count > 1) {
+      console.error('indexController.template_publish: Multiple drafts found for template with uuid ' + req.params.uuid);
+      res.sendStatus(500);
+      return;
+    }
+    response = await Template.updateOne(
+      {"uuid": req.params.uuid, 'publish_date': {'$exists': false}}, 
+      {"$set": {"publish_date": new Date()}}
+    );
+    if (response.result.nModified === 1) {
+      res.sendStatus(200);
+    } else {
+      console.error('indexController.template_publish: number of documents modified: ' + response.result.nModified);
+      res.sendStatus(500);
+    }
+  } catch(err) {
+    return next(err);
+  }
+  
+}
