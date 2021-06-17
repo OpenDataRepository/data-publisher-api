@@ -1,5 +1,6 @@
 const TemplateModel = require('../models/template');
 const ObjectId = require('mongodb').ObjectId;
+const MongoDB = require('../lib/mongoDB');
 
 var Template;
 
@@ -236,6 +237,43 @@ exports.template_create = async function(req, res, next) {
   } catch(err) {
     return next(err);
   }
+}
+
+exports.template_update = async function(req, res, next) {
+  const session = MongoDB.newSession();
+  try {
+    await session.withTransaction(async () => {
+      await TemplateModel.validateAndCreateOrUpdateTemplate(req.body, req.params.id);
+    });
+    session.endSession();
+    res.sendStatus(200);
+  } catch(err) {
+    //console.log(err);
+    session.endSession();
+    if (err instanceof TypeError) {
+      res.status(400).send({error: err.message})
+    } else {
+      return next(err);
+    }
+  }
+
+  // const session = MongoDB.newSession();
+  // try {
+  //   await session.startTransaction()
+  //   await TemplateModel.validateAndCreateOrUpdateTemplate(req.body, req.params.id);
+  //   session.endSession();
+  //   res.sendStatus(200);
+  // } catch(err) {
+  //   console.log('error caught');
+  //   await session.abortTransaction();
+  //   session.endSession();
+  //   if (err instanceof TypeError) {
+  //     res.status(400).send({error: err.message});
+  //     return;
+  //   } else {
+  //     return next(err);
+  //   }
+  // }
 }
 
 exports.template_publish = async function(req, res, next) {

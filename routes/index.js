@@ -9,6 +9,7 @@ router.get('/', function(req, res, next) {
 
 router.get('/template/:id/draft', indexController.template_draft_get);
 router.post('/template', indexController.template_create);
+router.put('/template/:id', indexController.template_update);
 router.post('/template/:id/publish', indexController.template_publish);
 
 module.exports = router;
