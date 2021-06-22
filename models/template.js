@@ -19,7 +19,7 @@ exports.init = function() {
   TemplateField = TemplateFieldModel.templateCollection();
 }
 
-async function validateAndCreateOrUpdateTemplate(template, uuid) {
+async function validateAndCreateOrUpdateTemplate(template, session, uuid) {
 
   // Template must be an object
   if (!Util.isObject(template)) {
@@ -41,7 +41,10 @@ async function validateAndCreateOrUpdateTemplate(template, uuid) {
     }
     
     // Template uuid must exist
-    let cursor = await Template.find({"uuid": template.uuid});
+    let cursor = await Template.find(
+      {"uuid": template.uuid},
+      {session}
+      );
     if (!(await cursor.hasNext())) {
       throw new TypeError(`No template exists with uuid ${template.uuid}`);
     }
@@ -74,7 +77,7 @@ async function validateAndCreateOrUpdateTemplate(template, uuid) {
       throw new TypeError('fields property must be of type array');
     }
     for (let i = 0; i < template.fields.length; i++) {
-      await TemplateFieldModel.validateAndCreateOrUpdateField(template.fields[i]);
+      await TemplateFieldModel.validateAndCreateOrUpdateField(template.fields[i], session);
       // After validating and updating the field, replace the imbedded field with a uuid reference
       template.fields[i] = template.fields[i].uuid
     }
@@ -86,7 +89,7 @@ async function validateAndCreateOrUpdateTemplate(template, uuid) {
       throw new TypeError('related_templates property must be of type array');
     }
     for (let i = 0; i < template.fields.length; i++) {
-      await validateAndCreateOrUpdateTemplate(template.related_templates[i]);
+      await validateAndCreateOrUpdateTemplate(template.related_templates[i], session);
       // After validating and updating the related_template, replace the imbedded related_template with a uuid reference
       template.related_templates[i] = template.related_templates[i].uuid
     }
@@ -115,7 +118,7 @@ async function validateAndCreateOrUpdateTemplate(template, uuid) {
   let response = await Template.updateOne(
     {"uuid": template.uuid, 'publish_date': {'$exists': false}}, 
     {$set: new_template}, 
-    {'upsert': true}
+    {'upsert': true, session}
   );
   if (response.modifiedCount != 1 && response.upsertedCount != 1) {
     throw `Template.validateAndCreateOrUpdateTemplate: Modified: ${response.modifiedCount}. Upserted: ${response.upsertedCount}`;

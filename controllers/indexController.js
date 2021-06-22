@@ -220,12 +220,19 @@ exports.template_draft_get = async function(req, res, next) {
   }
 }
 
+// TODO: Make create and update use transactions properly with sessions and all
 // TODO: move the transactions from create, update, publish to a Template Model call. They don't belong in the controller
 exports.template_create = async function(req, res, next) {
   const session = MongoDB.newSession();
   try {
     await session.withTransaction(async () => {
-      await TemplateModel.validateAndCreateOrUpdateTemplate(req.body);
+      try {
+        await TemplateModel.validateAndCreateOrUpdateTemplate(req.body, session);
+      } catch(err) {
+        console.log('aborting transaction...');
+        await session.abortTransaction();
+        throw err;
+      }
     });
     session.endSession();
     res.sendStatus(200);
@@ -243,7 +250,13 @@ exports.template_update = async function(req, res, next) {
   const session = MongoDB.newSession();
   try {
     await session.withTransaction(async () => {
-      await TemplateModel.validateAndCreateOrUpdateTemplate(req.body, req.params.id);
+      try {
+        await TemplateModel.validateAndCreateOrUpdateTemplate(req.body, session, req.params.id);
+      } catch(err) {
+        console.log('aborting transaction...');
+        await session.abortTransaction();
+        throw err;
+      }
     });
     session.endSession();
     res.sendStatus(200);
@@ -263,7 +276,6 @@ exports.template_publish = async function(req, res, next) {
     var published;
     await session.withTransaction(async () => {
       try {
-        // TODO: See https://docs.mongodb.com/manual/core/transactions/. Need to use the session for every db call in the transaction.
         [_, published] = await TemplateModel.publishTemplate(req.params.id, session);
       } catch(err) {
         console.log('aborting transaction...');

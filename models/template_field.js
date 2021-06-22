@@ -12,7 +12,7 @@ function templateCollection() {
   return TemplateField;
 }
 
-async function validateAndCreateOrUpdateField(field, uuid) {
+async function validateAndCreateOrUpdateField(field, session, uuid) {
 
   // Field must be an object
   if (!Util.isObject(field)) {
@@ -34,7 +34,10 @@ async function validateAndCreateOrUpdateField(field, uuid) {
     }
 
     // Field uuid must exist
-    let cursor = await TemplateField.find({"uuid": field.uuid});
+    let cursor = await TemplateField.find(
+      {"uuid": field.uuid},
+      {session}
+    );
     if (!(await cursor.hasNext())) {
       throw new TypeError(`No field exists with uuid ${field.uuid}`);
     }
@@ -80,7 +83,7 @@ async function validateAndCreateOrUpdateField(field, uuid) {
   let response = await TemplateField.updateOne(
     {"uuid": field.uuid, 'publish_date': {'$exists': false}}, 
     {$set: new_field}, 
-    {'upsert': true}
+    {'upsert': true, session}
   );
   if (response.modifiedCount != 1 && response.upsertedCount != 1) {
     throw `TemplateField.validateAndCreateOrUpdateTemplateField: Modified: ${response.modifiedCount}. Upserted: ${response.upsertedCount}`;
