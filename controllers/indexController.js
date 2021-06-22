@@ -12,6 +12,9 @@ exports.template_draft_get = async function(req, res, next) {
   try {
     // TODO: When permissions come into play, aggregate drafts for sub-templates/fields that the user has permission for,
     // and published templates for the ones they don't
+
+    // TODO: After implementing publish, and after implementing latest publish get, implement this query such that it will fetch 
+    // the last published template if no draft is to be found. 
     let pipeline = [
       {
         '$match': { 
@@ -213,29 +216,26 @@ exports.template_draft_get = async function(req, res, next) {
       res.sendStatus(404);
     }
   } catch(err) {
-    return next(err);
+    next(err);
   }
 }
 
+// TODO: move the transactions from create, update, publish to a Template Model call. They don't belong in the controller
 exports.template_create = async function(req, res, next) {
-  console.log('template create called')
-  let insert_template;
+  const session = MongoDB.newSession();
   try {
-    insert_template = await TemplateModel.newTemplate(req.body);
-  } catch (err) {
+    await session.withTransaction(async () => {
+      await TemplateModel.validateAndCreateOrUpdateTemplate(req.body);
+    });
+    session.endSession();
+    res.sendStatus(200);
+  } catch(err) {
+    session.endSession();
     if (err instanceof TypeError) {
       res.status(400).send({error: err.message})
     } else {
-      return next(err);
+      next(err);
     }
-  }
-
-  try {
-    let result = await Template.insertOne(insert_template);
-    let uuid = result.ops[0].uuid;
-    res.json({uuid});
-  } catch(err) {
-    return next(err);
   }
 }
 
@@ -248,58 +248,41 @@ exports.template_update = async function(req, res, next) {
     session.endSession();
     res.sendStatus(200);
   } catch(err) {
-    //console.log(err);
     session.endSession();
     if (err instanceof TypeError) {
       res.status(400).send({error: err.message})
     } else {
-      return next(err);
+      next(err);
     }
   }
-
-  // const session = MongoDB.newSession();
-  // try {
-  //   await session.startTransaction()
-  //   await TemplateModel.validateAndCreateOrUpdateTemplate(req.body, req.params.id);
-  //   session.endSession();
-  //   res.sendStatus(200);
-  // } catch(err) {
-  //   console.log('error caught');
-  //   await session.abortTransaction();
-  //   session.endSession();
-  //   if (err instanceof TypeError) {
-  //     res.status(400).send({error: err.message});
-  //     return;
-  //   } else {
-  //     return next(err);
-  //   }
-  // }
 }
 
 exports.template_publish = async function(req, res, next) {
+  const session = MongoDB.newSession();
   try {
-    let response = await Template.find({"uuid": req.params.uuid, 'publish_date': {'$exists': false}});
-    let count = response.count();
-    if(!count) {
-      res.status(400).send("There is no draft for a template with uuid " + req.params.uuid);
-      return;
-    } else if (count > 1) {
-      console.error('indexController.template_publish: Multiple drafts found for template with uuid ' + req.params.uuid);
-      res.sendStatus(500);
-      return;
-    }
-    response = await Template.updateOne(
-      {"uuid": req.params.uuid, 'publish_date': {'$exists': false}}, 
-      {"$set": {"publish_date": new Date()}}
-    );
-    if (response.result.nModified === 1) {
+    var published;
+    await session.withTransaction(async () => {
+      try {
+        // TODO: See https://docs.mongodb.com/manual/core/transactions/. Need to use the session for every db call in the transaction.
+        [_, published] = await TemplateModel.publishTemplate(req.params.id, session);
+      } catch(err) {
+        console.log('aborting transaction...');
+        await session.abortTransaction();
+        throw err;
+      }
+    });
+    session.endSession();
+    if (published) {
       res.sendStatus(200);
     } else {
-      console.error('indexController.template_publish: number of documents modified: ' + response.result.nModified);
-      res.sendStatus(500);
+      res.status(400).send({error: 'No changes to publish'});
     }
   } catch(err) {
-    return next(err);
+    session.endSession();
+    if (err instanceof TypeError) {
+      res.status(400).send({error: err.message})
+    } else {
+      next(err);
+    }
   }
-  
 }

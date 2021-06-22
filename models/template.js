@@ -19,70 +19,6 @@ exports.init = function() {
   TemplateField = TemplateFieldModel.templateCollection();
 }
 
-exports.templateCollection = templateCollection
-
-exports.newTemplate = async function(input_template) {
-  
-  let name = "";
-  let description = "";
-  let fields = [];
-  let related_templates = [];
-
-  if (input_template.name) {
-    if (typeof(input_template.name) !== 'string'){
-      throw new TypeError('name property must be of type string');
-    }
-    name = input_template.name
-  }
-  if (input_template.description) {
-    if (typeof(input_template.description) !== 'string'){
-      throw new TypeError('description property must be of type string');
-    }
-    description = input_template.description
-  }
-  if (input_template.fields) {
-    if (!Array.isArray(input_template.fields)){
-      throw new TypeError('fields property must be of type array');
-    }
-    for (field of input_template.fields) {
-      if (typeof(field) !== 'string') {
-        throw new TypeError("each field in fields must be of type string");
-      }
-      let response = await TemplateField.find({"uuid": field});
-      if (!(await response.hasNext())) {
-        throw new TypeError("field '" + field + "' in fields does not exist");
-      }
-    }
-    fields = input_template.fields
-  }
-  if (input_template.related_templates) {
-    if (!Array.isArray(input_template.related_templates)){
-      throw new TypeError('related_templates property must be of type array');
-    }
-    for (related_template of input_template.related_templates) {
-      if (typeof(related_template) !== 'string') {
-        throw new TypeError("each related_template in related_templates must be of type string");
-      }
-      let response = await Template.find({"uuid": related_template});
-      if (!(await response.hasNext())) {
-        throw new TypeError("related_template '" + related_template + "' in related_templates does not exist");
-      }
-    }
-    related_templates = input_template.related_templates
-  }
-
-  let insert_template = {
-    name: name,
-    description: description,
-    fields: fields,
-    related_templates: related_templates,
-    updated_at: new Date(),
-    uuid: uuidv4()
-  }
-
-  return insert_template;
-}
-
 async function validateAndCreateOrUpdateTemplate(template, uuid) {
 
   // Template must be an object
@@ -186,4 +122,129 @@ async function validateAndCreateOrUpdateTemplate(template, uuid) {
   } 
 }
 
+async function latestPublishedTemplate(uuid, session) {
+  let cursor = await Template.find(
+    {"uuid": uuid, 'publish_date': {'$exists': true}}, 
+    {session}
+  ).sort({'publish_date': -1})
+  .limit(1);
+  if (!(await cursor.hasNext())) {
+    return null;
+  }
+  return await cursor.next();
+}
+
+async function templateDraft(uuid, session) {
+  let cursor = await Template.find(
+    {"uuid": uuid, 'publish_date': {'$exists': false}}, 
+    {session}
+  );
+
+  if(!(await cursor.hasNext())) {
+    return null;
+  } 
+  let draft = await cursor.next();
+  if (await cursor.hasNext()) {
+    throw `Template.templateDraft: Multiple drafts found for template with uuid ${uuid}`;
+  }
+  return draft;
+}
+
+// Publishes the template with the provided uuid
+//   If a draft exists of the template, then:
+//     if that draft has changes from the latest published (including changes to it's sub-properties):
+//       publish it, and return the new internal_id
+//     else: 
+//       return the internal_id of the latest published
+//   else:
+//     return the internal_id of the latest_published
+// Input: 
+//   uuid: the uuid of a template to be published
+//   session: the mongo session that must be used to make transactions atomic
+// Returns:
+//   internal_id: the internal id of the published template
+//   published: true if a new published version is created. false otherwise
+// Note: This does not delete the current draft. It only creates a published version of it. 
+async function publishTemplate(uuid, session) {
+
+  var return_id;
+
+  // Check if a draft with this uuid exists
+  let template_draft = await templateDraft(uuid, session);
+  if(!template_draft) {
+    // There is no draft of this uuid. Get the latest published template instead.
+    let published_template = await latestPublishedTemplate(uuid, session);
+    if (!published_template) {
+      throw `Template.publishTemplate: Template with uuid ${uuid} does not exist`;
+    }
+    return [published_template.internal_id, false];
+  }
+
+  let new_template = template_draft;
+  let changes = false;
+  console.log(`uuid ${uuid}: changes set to false`)
+
+  // For each template field, publish that field, then replace the uuid with the internal_id.
+  // It is possible there weren't any changes to publish, so keep track of whether we actually published anything.
+  for (let i = 0; i < new_template.fields.length; i++) {
+    let published;
+    [new_template.fields[i], published] = await TemplateFieldModel.publishField(new_template.fields[i], session);
+    changes = changes || published; 
+  } 
+  console.log(`uuid ${uuid}: after checking fields, changes set to ${changes}`)
+
+  // For each template's related_templates, publish that related_template, then replace the uuid with the internal_id.
+  // It is possible there weren't any changes to publish, so keep track of whether we actually published anything.
+  for(let i = 0; i < new_template.related_templates.length; i++) {
+    let published;
+    [new_template.related_templates[i], published] = await publishTemplate(new_template.related_templates[i], session);
+    changes = changes || published; 
+  }
+  console.log(`uuid ${uuid}: after checking related_templates, changes set to ${changes}`)
+
+  // We're trying to figure out if there is anything worth publishing. If none of the sub-properties were published, 
+  // see if there are any changes to the top-level template from the previous published version
+  if(!changes) {
+    let published_template = await latestPublishedTemplate(uuid, session);
+    if (published_template) {
+      return_id = published_template._id;
+      if (new_template.name != published_template.name || 
+        new_template.description != published_template.description ||
+          !Util.arrayEqual(new_template.fields, published_template.fields) || 
+          !Util.arrayEqual(new_template.related_templates, published_template.related_templates)) {
+        changes = true;
+      }
+    } else {
+      changes = true;
+    }
+  }
+  console.log(`uuid ${uuid}: after checking all object properties, changes set to ${changes}`)
+
+  // If there are changes, publish the current draft
+  if(changes) {
+    let publish_time = new Date();
+    new_template.updated_at = publish_time;
+    new_template.publish_date = publish_time;
+    delete new_template._id;
+    let response = await Template.insertOne(new_template, {session});
+    if (response.insertedCount != 1) {
+      throw `Template.publishTemplate: should be 1 inserted document. Instead: ${response.insertedCount}`;
+    }
+    return_id = response.insertedId;
+    response = await Template.updateOne(
+      {"uuid": uuid, 'publish_date': {'$exists': false}},
+      {'$set': {'updated_at': publish_time}},
+      {session}
+    )
+    if (response.modifiedCount != 1) {
+      throw `Template.publishTemplate: should be 1 inserted document. Instead: ${response.modifiedCount}`;
+    }
+  }
+
+  return [return_id, changes];
+
+}
+
+exports.templateCollection = templateCollection
 exports.validateAndCreateOrUpdateTemplate = validateAndCreateOrUpdateTemplate;
+exports.publishTemplate = publishTemplate;
