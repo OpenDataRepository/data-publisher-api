@@ -20,6 +20,9 @@ exports.init = function() {
   TemplateField = TemplateFieldModel.templateCollection();
 }
 
+// If a uuid is provided, update the template with the provided uuid.
+// Otherwise, create a new template.
+// In both cases, validate the given template as well.
 async function validateAndCreateOrUpdateTemplate(template, session, uuid) {
 
   // Template must be an object
@@ -251,22 +254,19 @@ async function publishTemplate(uuid, session) {
 
 }
 
-// Fetches the latest published template before the given date with the given uuid. Also looks up fields or related_templates
+// Fetches the last template with the given uuid published before the given date. 
+// Also recursively looks up fields and related_templates.
 async function latestPublishedTemplateBeforeDateWithJoins(uuid, date) {
   // Validate uuid and date are valid
   if (!uuidValidate(uuid)) {
     throw new Util.InputError('The uuid provided is not in proper uuid format.');
   }
-  if (isNaN(date)) {
+  if (!Util.isValidDate(date)) {
     throw new Util.InputError('The date provided is not a valid date.');
   }
 
-  // 1. Build the raw pipeline for 2 nodes.
-  // TODO: 
-  // 2. Build the code to create a 2-node search.
-  // 3. Modify the code to create a 3-node search
-  // 4. Modify the code to create a node search as deep as desired
-
+  // Construct a mongodb aggregation pipeline that will recurse into related templates up to 5 levels deep.
+  // Thus, the tree will have a depth of 6 nodes
   let pipeline = [
     {
       '$match': { 
@@ -284,165 +284,61 @@ async function latestPublishedTemplateBeforeDateWithJoins(uuid, date) {
       '$limit' : 1
     },
     {
-      '$lookup':
-        {
-          'from': "template_fields",
-          'foreignField': "_id",
-          'localField': "fields",
-          'as': "fields"
-        }
-    },
-    {
-      '$lookup':
-        {
-          'from': "templates",
-          'let': { 'ids': "$related_templates"},
-          'pipeline': [
-            { '$match':
-                { '$expr':
-                    { '$and':
-                        [
-                          { '$in': [ "$_id",  "$$ids" ] },
-                        ]
-                    }
-                }
-            },
-            {
-              '$lookup':
-                {
-                  'from': "template_fields",
-                  'foreignField': "_id",
-                  'localField': "fields",
-                  'as': "fields"
-                },
-            },
-            {
-              '$lookup':
-                {
-                  'from': "templates",
-                  'let': { 'ids': "$related_templates"},
-                  'pipeline': [
-                    { '$match':
-                        { '$expr':
-                            { '$and':
-                                [
-                                  { '$in': [ "$_id",  "$$ids" ] },
-                                ]
-                            }
-                        }
-                    },
-                    {
-                      '$lookup':
-                        {
-                          'from': "template_fields",
-                          'foreignField': "_id",
-                          'localField': "fields",
-                          'as': "fields"
-                        },
-                    },
-                    {
-                      '$lookup':
-                        {
-                          'from': "templates",
-                          'let': { 'ids': "$related_templates"},
-                          'pipeline': [
-                            { '$match':
-                                { '$expr':
-                                    { '$and':
-                                        [
-                                          { '$in': [ "$_id",  "$$ids" ] },
-                                        ]
-                                    }
-                                }
-                            },
-                            {
-                              '$lookup':
-                                {
-                                  'from': "template_fields",
-                                  'foreignField': "_id",
-                                  'localField': "fields",
-                                  'as': "fields"
-                                },
-                            },
-                            {
-                              '$lookup':
-                                {
-                                  'from': "templates",
-                                  'let': { 'ids': "$related_templates"},
-                                  'pipeline': [
-                                    { '$match':
-                                        { '$expr':
-                                            { '$and':
-                                                [
-                                                  { '$in': [ "$_id",  "$$ids" ] },
-                                                ]
-                                            }
-                                        }
-                                    },
-                                    {
-                                      '$lookup':
-                                        {
-                                          'from': "template_fields",
-                                          'foreignField': "_id",
-                                          'localField': "fields",
-                                          'as': "fields"
-                                        },
-                                    },
-                                    {
-                                      '$lookup':
-                                        {
-                                          'from': "templates",
-                                          'let': { 'ids': "$related_templates"},
-                                          'pipeline': [
-                                            { '$match':
-                                                { '$expr':
-                                                    { '$and':
-                                                        [
-                                                          { '$in': [ "$_id",  "$$ids" ] },
-                                                        ]
-                                                    }
-                                                }
-                                            },
-                                            {
-                                              '$lookup':
-                                                {
-                                                  'from': "template_fields",
-                                                  'foreignField': "_id",
-                                                  'localField': "fields",
-                                                  'as': "fields"
-                                                },
-                                            },
-
-                                          ],
-                                          'as': "related_templates"
-                                        }
-                                    }
-                                  ],
-                                  'as': "related_templates"
-                                }
-                            }
-                          ],
-                          'as': "related_templates"
-                        }
-                    }
-                  ],
-                  'as': "related_templates"
-                }
-            }
-          ],
-          'as': "related_templates"
-        }
+      '$lookup': {
+        'from': "template_fields",
+        'foreignField': "_id",
+        'localField': "fields",
+        'as': "fields"
+      }
     }
   ]
+
+  let current_pipeline = pipeline;
+
+  let pipeline_addon = {
+    '$lookup': {
+      'from': "templates",
+      'let': { 'ids': "$related_templates"},
+      'pipeline': [
+        { 
+          '$match': { 
+            '$expr': { 
+              '$and': [
+                { '$in': [ "$_id",  "$$ids" ] },
+              ]
+            }
+          }
+        },
+        {
+          '$lookup': {
+            'from': "template_fields",
+            'foreignField': "_id",
+            'localField': "fields",
+            'as': "fields"
+          },
+        }
+      ],
+      'as': "related_templates"
+    }
+  }
+
+  for(let i = 0; i < 5; i++) {
+    // go one level deeper into related_templates
+    current_pipeline.push(pipeline_addon);
+    current_pipeline = pipeline_addon['$lookup']['pipeline'];
+    // create a copy
+    pipeline_addon = JSON.parse(JSON.stringify(pipeline_addon));
+  }
   let response = await Template.aggregate(pipeline);
   if (await response.hasNext()){
     return await response.next();
   } else {
-    throw new Util.NotFoundError('No published template exists with the uuid provided.');
+    throw new Util.NotFoundError('No template exists with the uuid provided which was published before the provided date.');
   }
 }
 
-// Fetches the latest published template with the given uuid. Also looks up fields or related_templates
+// Fetches the last published template with the given uuid. 
+// Also recursively looks up fields and related_templates.
 async function latestPublishedTemplateWithJoins(uuid) {
   return await latestPublishedTemplateBeforeDateWithJoins(uuid, new Date());
 }

@@ -232,7 +232,17 @@ exports.template_get_latest_published = async function(req, res, next) {
   }
 }
 
+exports.template_get_published_before_timestamp = async function(req, res, next) {
+  try {
+    let template = await TemplateModel.publishedTemplateBeforeDate(req.params.id, new Date(req.params.timestamp));
+    res.json(template);
+  } catch(err) {
+    next(err);
+  }
+}
+
 // TODO: move the transactions from create, update, publish to a Template Model call. They don't belong in the controller
+// TODO: Also desperately need unit tests.
 exports.template_create = async function(req, res, next) {
   const session = MongoDB.newSession();
   try {
