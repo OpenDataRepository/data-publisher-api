@@ -220,7 +220,18 @@ exports.template_draft_get = async function(req, res, next) {
   }
 }
 
-// TODO: Make create and update use transactions properly with sessions and all
+exports.template_get_latest_published = async function(req, res, next) {
+  // TODO: 
+  // 1. Handle custom errors InputError and NotFoundError in the error handler in app.js
+  // 2. Convert the type errors everywhere in this code to using InputError and NotFoundError
+  try {
+    let template = await TemplateModel.latestPublishedTemplate(req.params.id);
+    res.json(template);
+  } catch(err) {
+    next(err);
+  }
+}
+
 // TODO: move the transactions from create, update, publish to a Template Model call. They don't belong in the controller
 exports.template_create = async function(req, res, next) {
   const session = MongoDB.newSession();
