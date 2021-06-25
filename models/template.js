@@ -184,7 +184,7 @@ async function publishTemplate(uuid, session) {
     // There is no draft of this uuid. Get the latest published template instead.
     let published_template = await latestPublishedTemplate(uuid, session);
     if (!published_template) {
-      throw `Template.publishTemplate: Template with uuid ${uuid} does not exist`;
+      throw new Util.NotFoundError(`Template.publishTemplate: Template with uuid ${uuid} does not exist`);
     }
     return [published_template.internal_id, false];
   }
@@ -246,7 +246,7 @@ async function publishTemplate(uuid, session) {
       {session}
     )
     if (response.modifiedCount != 1) {
-      throw `Template.publishTemplate: should be 1 inserted document. Instead: ${response.modifiedCount}`;
+      throw `Template.publishTemplate: should be 1 modified document. Instead: ${response.modifiedCount}`;
     }
   }
 
@@ -343,8 +343,161 @@ async function latestPublishedTemplateWithJoins(uuid) {
   return await latestPublishedTemplateBeforeDateWithJoins(uuid, new Date());
 }
 
+async function uuidFor_id(_id, session) {
+  let cursor = await Template.find(
+    {"_id": _id}, 
+    {session}
+  );
+  if (!(await cursor.hasNext())) {
+    return null;
+  }
+  let document = await cursor.next();
+  return document.uuid;
+}
+
+// TODO: When permissions come into play, aggregate drafts for sub-templates/fields that the user has permission for,
+// and published templates for the ones they don't
+
+// Fetches the template draft with the given uuid.
+// Also recursively looks up fields and related_templates.
+// If a draft of a given template doesn't exist, a new one will be created using the last published template
+async function templateDraftFetchOrCreate(uuid, session) {
+
+  if (!uuidValidate(uuid)) {
+    throw new Util.InputError('The uuid provided is not in proper uuid format.');
+  }
+
+  // For each template in the tree:
+  //   a. If a draft of this template exists:
+  //        1. fetch it.
+  //        2. Follow steps in b
+  //        3. Update the current draft with this one.
+  //        4. Return this draft
+  //      Else if a published version of this template exists:
+  //        1. Create a draft from the published
+  //          a. For each of the published _id references, replace those _ids with uuids
+  //        2. follow steps in b
+  //        3. Insert the draft
+  //        4. Return the draft
+  //      Else, neither a draft nor a published template with this uuid exists:
+  //        1. Return a NotFound error
+  //   b. For each of the uuid references:
+  //        1. Recurse, and follow the above steps. 
+  //        2. If any of the references return nothing, remove the reference to them
+  //        3. Update the current draft with this draft
+
+  // See if a draft of this template exists. 
+  let template_draft = await templateDraft(uuid, session);
+  let draft_existing = template_draft ? true: false;
+
+  // If a draft of this template does not exist, create a new template_draft from the last published
+  if(!template_draft) {
+    
+    template_draft = await latestPublishedTemplate(uuid, session);
+
+    // If not even a published version of this template was found, return null
+    if(!template_draft) {
+      return null;
+    }
+
+    // Remove the internal_id and publish_date from this template, as we plan to insert this as a draft now. 
+    delete template_draft._id;
+    delete template_draft.publish_date;
+
+    // Replace each of the field _ids with uuids.
+    let fields = [];
+    for(_id of template_draft.fields) {
+      let uuid = TemplateFieldModel.uuidFor_id(_id);
+      if(uuid) {
+        fields.push(uuid);
+      }
+    }
+    template_draft.fields = fields;
+
+    // Replace each of the related_template _ids with uuids. 
+    let related_templates = [];
+    for(_id of template_draft.related_templates) {
+      let uuid = uuidFor_id(_id);
+      if(uuid) {
+        related_templates.push(uuid);
+      }
+    }
+    template_draft.related_templates = related_templates;
+  }
+
+  // Now recurse into each field, replacing each uuid with an imbedded object
+  let fields = [];
+  let field_uuids = [];
+  for(let i = 0; i < template_draft.fields.length; i++) {
+    let field = TemplateFieldModel.templateFieldDraft(template_draft.fields[i], session);
+    if (field) {
+      fields.push(field);
+      field_uuids.push(field.uuid);
+    }
+  }
+
+  // Now recurse into each related_template, replacing each uuid with an imbedded object
+  let related_templates = [];
+  let related_template_uuids = [];
+  for(let i = 0; i < template_draft.related_templates.length; i++) {
+    let related_template = TemplateFieldModel.templateFieldDraft(template_draft.related_templates[i], session);
+    if (related_template) {
+      related_templates.push(related_template);
+      related_template_uuids.push(related_template.uuid);
+    }
+  }
+
+  // If we are fetching an existing draft, then any existing references that are bad pointers need to be removed
+  if(draft_existing) {
+    let update = {};
+
+    if(template_draft.fields.length != field_uuids.length) {
+      update.fields = field_uuids;
+    } 
+    if (template_draft.related_templates.length != related_template_uuids.length) {
+      update.related_templates = related_template_uuids;
+    }
+
+    if(update.fields || update.related_templates) {
+      template_draft.updated_at = new Date()
+      update.updated_at = template_draft.updated_at;
+      let response = await Template.updateOne(
+        {'_id': template_draft._id},
+        {
+          '$set': update
+        },
+        {session}
+      );
+      if (response.modifiedCount != 1) {
+        throw `Template.templateDraftFetchOrCreate: should be 1 modified document. Instead: ${response.modifiedCount}`;
+      }
+    }
+  }
+  // If we are creating a new draft from a published_draft, then we also need to insert this draft. 
+  else {
+    template_draft.fields = field_uuids;
+    template_draft.related_templates = related_template_uuids;
+    template_draft.updated_at = new Date();
+
+    let response = await Template.insertOne(
+      template_draft,
+      {session}
+    )
+    if (response.insertedCount != 1) {
+      throw `Template.templateDraftFetchOrCreate: should be 1 inserted document. Instead: ${response.insertedCount}`;
+    }
+  }
+
+  template_draft.fields = fields;
+  template_draft.related_templates = related_templates;
+
+  return template_draft;
+
+}
+
 exports.templateCollection = templateCollection;
 exports.validateAndCreateOrUpdateTemplate = validateAndCreateOrUpdateTemplate;
 exports.publishTemplate = publishTemplate;
 exports.latestPublishedTemplate = latestPublishedTemplateWithJoins;
 exports.publishedTemplateBeforeDate = latestPublishedTemplateBeforeDateWithJoins;
+exports.templateDraft = templateDraftFetchOrCreate;

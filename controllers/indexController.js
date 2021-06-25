@@ -1,6 +1,7 @@
 const TemplateModel = require('../models/template');
 const ObjectId = require('mongodb').ObjectId;
 const MongoDB = require('../lib/mongoDB');
+const Util = require('../lib/util');
 
 var Template;
 
@@ -9,213 +10,26 @@ exports.init = function() {
 }
 
 exports.template_draft_get = async function(req, res, next) {
+  const session = MongoDB.newSession();
   try {
-    // TODO: When permissions come into play, aggregate drafts for sub-templates/fields that the user has permission for,
-    // and published templates for the ones they don't
-
-    // TODO: After implementing publish, and after implementing latest publish get, implement this query such that it will fetch 
-    // the last published template if no draft is to be found. 
-    let pipeline = [
-      {
-        '$match': { 
-          'uuid': req.params.id,
-          'publish_date': {'$exists': false}
-        }
-      },
-      {
-        '$lookup':
-          {
-            'from': "template_fields",
-            'foreignField': "uuid",
-            'localField': "fields",
-            'as': "fields"
-          }
-      },
-      {
-        '$lookup':
-          {
-            'from': "templates",
-            'let': { 'search_uuids': "$related_templates"},
-            'pipeline': [
-              { '$match':
-                { 
-                  '$and': 
-                  [
-                    {
-                      '$expr':
-                      { 
-                        '$in': [ "$uuid",  "$$search_uuids" ] 
-                      }
-                    },
-                    {
-                      'publish_date': {'$exists': false}
-                    }
-                  ]
-                }
-              },
-              {
-                '$lookup':
-                  {
-                    'from': "template_fields",
-                    'foreignField': "uuid",
-                    'localField': "fields",
-                    'as': "fields"
-                  },
-              },
-              {
-                '$lookup':
-                  {
-                    'from': "templates",
-                    'let': { 'search_uuids': "$related_templates"},
-                    'pipeline': [
-                      { '$match':
-                        { 
-                          '$and': 
-                          [
-                            {
-                              '$expr':
-                              { 
-                                '$in': [ "$uuid",  "$$search_uuids" ] 
-                              }
-                            },
-                            {
-                              'publish_date': {'$exists': false}
-                            }
-                          ]
-                        }
-                      },                      
-                      {
-                        '$lookup':
-                          {
-                            'from': "template_fields",
-                            'foreignField': "uuid",
-                            'localField': "fields",
-                            'as': "fields"
-                          },
-                      },
-                      {
-                        '$lookup':
-                          {
-                            'from': "templates",
-                            'let': { 'search_uuids': "$related_templates"},
-                            'pipeline': [
-                              { '$match':
-                                { 
-                                  '$and': 
-                                  [
-                                    {
-                                      '$expr':
-                                      { 
-                                        '$in': [ "$uuid",  "$$search_uuids" ] 
-                                      }
-                                    },
-                                    {
-                                      'publish_date': {'$exists': false}
-                                    }
-                                  ]
-                                }
-                              },  
-                              {
-                                '$lookup':
-                                  {
-                                    'from': "template_fields",
-                                    'foreignField': "uuid",
-                                    'localField': "fields",
-                                    'as': "fields"
-                                  },
-                              },
-                              {
-                                '$lookup':
-                                  {
-                                    'from': "templates",
-                                    'let': { 'search_uuids': "$related_templates"},
-                                    'pipeline': [
-                                      { '$match':
-                                        { 
-                                          '$and': 
-                                          [
-                                            {
-                                              '$expr':
-                                              { 
-                                                '$in': [ "$uuid",  "$$search_uuids" ] 
-                                              }
-                                            },
-                                            {
-                                              'publish_date': {'$exists': false}
-                                            }
-                                          ]
-                                        }
-                                      },  
-                                      {
-                                        '$lookup':
-                                          {
-                                            'from': "template_fields",
-                                            'foreignField': "uuid",
-                                            'localField': "fields",
-                                            'as': "fields"
-                                          },
-                                      },
-                                      {
-                                        '$lookup':
-                                          {
-                                            'from': "templates",
-                                            'let': { 'search_uuids': "$related_templates"},
-                                            'pipeline': [
-                                              { '$match':
-                                                { 
-                                                  '$and': 
-                                                  [
-                                                    {
-                                                      '$expr':
-                                                      { 
-                                                        '$in': [ "$uuid",  "$$search_uuids" ] 
-                                                      }
-                                                    },
-                                                    {
-                                                      'publish_date': {'$exists': false}
-                                                    }
-                                                  ]
-                                                }
-                                              },  
-                                              {
-                                                '$lookup':
-                                                  {
-                                                    'from': "template_fields",
-                                                    'foreignField': "uuid",
-                                                    'localField': "fields",
-                                                    'as': "fields"
-                                                  },
-                                              },
-
-                                            ],
-                                            'as': "related_templates"
-                                          }
-                                      }
-                                    ],
-                                    'as': "related_templates"
-                                  }
-                              }
-                            ],
-                            'as': "related_templates"
-                          }
-                      }
-                    ],
-                    'as': "related_templates"
-                  }
-              }
-            ],
-            'as': "related_templates"
-          }
+    var template
+    await session.withTransaction(async () => {
+      try {
+        template = await TemplateModel.templateDraft(req.params.id);
+      } catch(err) {
+        console.log('aborting transaction...');
+        await session.abortTransaction();
+        throw err;
       }
-    ]
-    let response = await Template.aggregate(pipeline);
-    if (await response.hasNext()){
-      let template = await response.next();
-      res.json({template});
+    });
+    if(template) {
+      res.json(template);
     } else {
-      res.sendStatus(404);
+      throw new Util.NotFoundError();
     }
+    session.endSession();
   } catch(err) {
+    session.endSession();
     next(err);
   }
 }
@@ -225,7 +39,7 @@ exports.template_get_latest_published = async function(req, res, next) {
   // 1. Handle custom errors InputError and NotFoundError in the error handler in app.js
   // 2. Convert the type errors everywhere in this code to using InputError and NotFoundError
   try {
-    let template = await TemplateModel.latestPublishedTemplate(req.params.id);
+    let template = await TemplateModel.templateDraft(req.params.id);
     res.json(template);
   } catch(err) {
     next(err);
@@ -308,14 +122,10 @@ exports.template_publish = async function(req, res, next) {
     if (published) {
       res.sendStatus(200);
     } else {
-      res.status(400).send({error: 'No changes to publish'});
+      throw new Util.InputError('No changes to publish');
     }
   } catch(err) {
     session.endSession();
-    if (err instanceof TypeError) {
-      res.status(400).send({error: err.message})
-    } else {
-      next(err);
-    }
+    next(err);
   }
 }

@@ -120,6 +120,44 @@ async function templateFieldDraft(uuid, session) {
   return draft;
 }
 
+async function templateFieldDraftFetchOrCreate(uuid, session) {
+
+  if (!uuidValidate(uuid)) {
+    throw new Util.InputError('The uuid provided is not in proper uuid format.');
+  }
+  
+  // See if a draft of this template field exists. 
+  let template_field_draft = await templateFieldDraft(uuid, session);
+
+  // If a draft of this template field already exists, return it.
+  if (template_field_draft) {
+    return template_field_draft;
+  }
+
+  // If a draft of this template field does not exist, create a new template_field_draft from the last published
+  template_field_draft = await latestPublishedTemplate(uuid, session);
+  // If not even a published version of this template field was found, return null
+  if(!template_field_draft) {
+    return null;
+  }
+
+  // Remove the internal_id and publish_date from this template, as we plan to insert this as a draft now. 
+  delete template_draft._id;
+  delete template_draft.publish_date;
+  template_draft.updated_at = new Date()
+
+  let response = await TemplateField.insertOne(
+    template_field_draft,
+    {session}
+  )
+  if (response.insertedCount != 1) {
+    throw `TemplateField.templateFieldDraftFetchOrCreate: should be 1 inserted document. Instead: ${response.insertedCount}`;
+  }
+  
+  return template_draft;
+
+}
+
 // Publishes the field with the provided uuid
 //   If a draft exists of the field, then:
 //     if that draft has changes from the latest published:
@@ -145,7 +183,7 @@ async function publishField(uuid, session) {
     // There is no draft of this uuid. Get the latest published field instead.
     let published_field = await latestPublishedTemplateField(uuid, session);
     if (!published_field) {
-      throw `TemplateField.publishField: Field with uuid ${uuid} does not exist`
+      throw new Util.NotFoundError(`TemplateField.publishField: Field with uuid ${uuid} does not exist`);
     }
     return [published_field.internal_id, false];
   }
@@ -192,6 +230,20 @@ async function publishField(uuid, session) {
   return [return_id, changes];
 }
 
+async function uuidFor_id(_id, session) {
+  let cursor = await TemplateField.find(
+    {"_id": _id}, 
+    {session}
+  );
+  if (!(await cursor.hasNext())) {
+    return null;
+  }
+  let document = await cursor.next();
+  return document.uuid;
+}
+
 exports.templateCollection = templateCollection;
 exports.validateAndCreateOrUpdateField = validateAndCreateOrUpdateField;
 exports.publishField = publishField;
+exports.uuidFor_id = uuidFor_id;
+exports.templateFieldDraft = templateFieldDraftFetchOrCreate
