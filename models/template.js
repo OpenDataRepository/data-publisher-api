@@ -271,10 +271,7 @@ async function latestPublishedTemplateBeforeDateWithJoins(uuid, date) {
     {
       '$match': { 
         'uuid': uuid,
-        '$and': [
-          {'publish_date': {'$exists': true}},
-          {'publish_date': {'$lte': date}}
-        ]
+        'publish_date': {'$lte': date}
       }
     },
     {

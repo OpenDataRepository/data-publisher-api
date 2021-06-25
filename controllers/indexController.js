@@ -39,7 +39,7 @@ exports.template_get_latest_published = async function(req, res, next) {
   // 1. Handle custom errors InputError and NotFoundError in the error handler in app.js
   // 2. Convert the type errors everywhere in this code to using InputError and NotFoundError
   try {
-    let template = await TemplateModel.templateDraft(req.params.id);
+    let template = await TemplateModel.latestPublishedTemplate(req.params.id);
     res.json(template);
   } catch(err) {
     next(err);
