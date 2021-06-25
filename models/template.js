@@ -407,6 +407,8 @@ async function templateDraftFetchOrCreate(uuid, session) {
       let uuid = TemplateFieldModel.uuidFor_id(_id);
       if(uuid) {
         fields.push(uuid);
+      } else {
+        console.log(`Failed to find a template field with internal id ${_id}. Therefore, removing the reference to it from template with uuid ${template_draft.uuid}`);
       }
     }
     template_draft.fields = fields;
@@ -417,6 +419,8 @@ async function templateDraftFetchOrCreate(uuid, session) {
       let uuid = uuidFor_id(_id);
       if(uuid) {
         related_templates.push(uuid);
+      } else {
+        console.log(`Failed to find a template with internal id ${_id}. Therefore, removing the reference to it from template with uuid ${template_draft.uuid}`);
       }
     }
     template_draft.related_templates = related_templates;
@@ -426,10 +430,12 @@ async function templateDraftFetchOrCreate(uuid, session) {
   let fields = [];
   let field_uuids = [];
   for(let i = 0; i < template_draft.fields.length; i++) {
-    let field = TemplateFieldModel.templateFieldDraft(template_draft.fields[i], session);
+    let field = await TemplateFieldModel.templateFieldDraft(template_draft.fields[i], session);
     if (field) {
       fields.push(field);
       field_uuids.push(field.uuid);
+    } else {
+      console.log(`Failed to find a template field with uuid ${field}. Therefore, removing the reference to it from template with uuid ${template_draft.uuid}`);
     }
   }
 
@@ -437,10 +443,12 @@ async function templateDraftFetchOrCreate(uuid, session) {
   let related_templates = [];
   let related_template_uuids = [];
   for(let i = 0; i < template_draft.related_templates.length; i++) {
-    let related_template = TemplateFieldModel.templateFieldDraft(template_draft.related_templates[i], session);
+    let related_template = await templateDraftFetchOrCreate(template_draft.related_templates[i], session);
     if (related_template) {
       related_templates.push(related_template);
       related_template_uuids.push(related_template.uuid);
+    } else {
+      console.log(`Failed to find a template with uuid ${uuid}. Therefore, removing the reference to it from template with uuid ${template_draft.uuid}`);
     }
   }
 
@@ -487,6 +495,7 @@ async function templateDraftFetchOrCreate(uuid, session) {
 
   template_draft.fields = fields;
   template_draft.related_templates = related_templates;
+  delete template_draft._id;
 
   return template_draft;
 

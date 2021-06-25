@@ -55,7 +55,7 @@ exports.template_get_published_before_timestamp = async function(req, res, next)
   }
 }
 
-// TODO: move the transactions from create, update, publish to a Template Model call. They don't belong in the controller
+// TODO: move the transactions from all of the endpoints to the model. They don't belong in the controller
 // TODO: Also desperately need unit tests.
 exports.template_create = async function(req, res, next) {
   const session = MongoDB.newSession();
@@ -105,6 +105,9 @@ exports.template_update = async function(req, res, next) {
   }
 }
 
+// TODO: Publish should also take a timestamp of when the latest save to any portion of the template was,
+// and this pubish function should recursively find the latest update and compare the sumbitted timestamp for equality
+// TODO: After publishing, create new drafts of every template that embeds this one. Eventually this will need to be kicked off into a queue.
 exports.template_publish = async function(req, res, next) {
   const session = MongoDB.newSession();
   try {

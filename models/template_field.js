@@ -104,7 +104,6 @@ async function latestPublishedTemplateField(uuid, session) {
 }
 
 async function templateFieldDraft(uuid, session) {
-  console.log('calling templateFieldDraft');
   let cursor = await TemplateField.find(
     {"uuid": uuid, 'publish_date': {'$exists': false}},
     {session}
@@ -116,7 +115,6 @@ async function templateFieldDraft(uuid, session) {
   if (await cursor.hasNext()) {
     throw `TemplateField.templateFieldDraft: Multiple drafts found for field with uuid ${uuid}`;
   }
-  console.log('returning from templateFieldDraft');
   return draft;
 }
 
@@ -131,11 +129,12 @@ async function templateFieldDraftFetchOrCreate(uuid, session) {
 
   // If a draft of this template field already exists, return it.
   if (template_field_draft) {
+    delete template_field_draft._id;
     return template_field_draft;
   }
 
   // If a draft of this template field does not exist, create a new template_field_draft from the last published
-  template_field_draft = await latestPublishedTemplate(uuid, session);
+  template_field_draft = await latestPublishedTemplateField(uuid, session);
   // If not even a published version of this template field was found, return null
   if(!template_field_draft) {
     return null;
