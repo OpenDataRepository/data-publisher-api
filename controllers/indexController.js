@@ -3,12 +3,6 @@ const ObjectId = require('mongodb').ObjectId;
 const MongoDB = require('../lib/mongoDB');
 const Util = require('../lib/util');
 
-var Template;
-
-exports.init = function() {
-  Template = TemplateModel.templateCollection();
-}
-
 exports.template_draft_get = async function(req, res, next) {
   const session = MongoDB.newSession();
   try {
@@ -35,9 +29,6 @@ exports.template_draft_get = async function(req, res, next) {
 }
 
 exports.template_get_latest_published = async function(req, res, next) {
-  // TODO: 
-  // 1. Handle custom errors InputError and NotFoundError in the error handler in app.js
-  // 2. Convert the type errors everywhere in this code to using InputError and NotFoundError
   try {
     let template = await TemplateModel.latestPublishedTemplate(req.params.id);
     res.json(template);
@@ -73,11 +64,7 @@ exports.template_create = async function(req, res, next) {
     res.sendStatus(200);
   } catch(err) {
     session.endSession();
-    if (err instanceof TypeError) {
-      res.status(400).send({error: err.message})
-    } else {
-      next(err);
-    }
+    next(err);
   }
 }
 
@@ -97,11 +84,7 @@ exports.template_update = async function(req, res, next) {
     res.sendStatus(200);
   } catch(err) {
     session.endSession();
-    if (err instanceof TypeError) {
-      res.status(400).send({error: err.message})
-    } else {
-      next(err);
-    }
+    next(err);
   }
 }
 
@@ -136,7 +119,6 @@ exports.template_publish = async function(req, res, next) {
 // TODO:
 // Implement for save and publish, and draft fetch;
 // If a draft has a reference to nothing we will not allow it to be saved or published. 
-// If the draft is fetched again, it will be updated to delete the reference to nothing. 
 exports.template_draft_delete = async function(req, res, next) {
   try {
     await TemplateModel.templateDraftDelete(req.params.id);

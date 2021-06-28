@@ -27,13 +27,13 @@ async function validateAndCreateOrUpdateTemplate(template, session, uuid) {
 
   // Template must be an object
   if (!Util.isObject(template)) {
-    throw new TypeError("each template must be an object");
+    throw new Util.InputError(`template provided is not an object: ${template}`);
   }
 
   // Input uuid and template uuid must match
   if (uuid) {
     if (template.uuid != uuid) {
-      throw new TypeError(`uuid provided (${uuid}) and template uuid (${template.uuid}) do not match`);
+      throw new Util.InputError(`uuid provided (${uuid}) and template uuid (${template.uuid}) do not match`);
     }
   }
 
@@ -41,7 +41,7 @@ async function validateAndCreateOrUpdateTemplate(template, session, uuid) {
   if (template.uuid) {
     // Template must have a valid uuid. 
     if (typeof(template.uuid) !== 'string'|| !uuidValidate(template.uuid)) {
-      throw new TypeError("each template must have a valid uuid property");
+      throw new Util.InputError("each template must have a valid uuid property");
     }
     
     // Template uuid must exist
@@ -50,7 +50,7 @@ async function validateAndCreateOrUpdateTemplate(template, session, uuid) {
       {session}
       );
     if (!(await cursor.hasNext())) {
-      throw new TypeError(`No template exists with uuid ${template.uuid}`);
+      throw new Util.NotFoundError(`No template exists with uuid ${template.uuid}`);
     }
   }
   // Otherwise, this is a create, so generate a new uuid
@@ -65,23 +65,31 @@ async function validateAndCreateOrUpdateTemplate(template, session, uuid) {
   let related_templates = [];
   if (template.name) {
     if (typeof(template.name) !== 'string'){
-      throw new TypeError('name property must be of type string');
+      throw new Util.InputError('name property must be of type string');
     }
     name = template.name
   }
   if (template.description) {
     if (typeof(template.description) !== 'string'){
-      throw new TypeError('description property must be of type string');
+      throw new Util.InputError('description property must be of type string');
     }
     description = template.description
   }
   // Reursively handle each of the fields
   if (template.fields) {
     if (!Array.isArray(template.fields)){
-      throw new TypeError('fields property must be of type array');
+      throw new Util.InputError('fields property must be of type array');
     }
     for (let i = 0; i < template.fields.length; i++) {
-      await TemplateFieldModel.validateAndCreateOrUpdateField(template.fields[i], session);
+      try {
+        await TemplateFieldModel.validateAndCreateOrUpdateField(template.fields[i], session);
+      } catch(err) {
+        if (err instanceof Util.NotFoundError) {
+          throw new Util.InputError(err.message);
+        } else {
+          throw err;
+        }
+      }
       // After validating and updating the field, replace the imbedded field with a uuid reference
       template.fields[i] = template.fields[i].uuid
     }
@@ -90,10 +98,18 @@ async function validateAndCreateOrUpdateTemplate(template, session, uuid) {
   // Reursively handle each of the related_templates
   if (template.related_templates) {
     if (!Array.isArray(template.related_templates)){
-      throw new TypeError('related_templates property must be of type array');
+      throw new Util.InputError('related_templates property must be of type array');
     }
     for (let i = 0; i < template.fields.length; i++) {
-      await validateAndCreateOrUpdateTemplate(template.related_templates[i], session);
+      try {
+        await validateAndCreateOrUpdateTemplate(template.related_templates[i], session);
+      } catch(err) {
+        if (err instanceof Util.NotFoundError) {
+          throw new Util.InputError(err.message);
+        } else {
+          throw err;
+        }
+      }
       // After validating and updating the related_template, replace the imbedded related_template with a uuid reference
       template.related_templates[i] = template.related_templates[i].uuid
     }
@@ -191,7 +207,6 @@ async function publishTemplate(uuid, session) {
 
   let new_template = template_draft;
   let changes = false;
-  console.log(`uuid ${uuid}: changes set to false`)
 
   // For each template field, publish that field, then replace the uuid with the internal_id.
   // It is possible there weren't any changes to publish, so keep track of whether we actually published anything.
@@ -200,7 +215,6 @@ async function publishTemplate(uuid, session) {
     [new_template.fields[i], published] = await TemplateFieldModel.publishField(new_template.fields[i], session);
     changes = changes || published; 
   } 
-  console.log(`uuid ${uuid}: after checking fields, changes set to ${changes}`)
 
   // For each template's related_templates, publish that related_template, then replace the uuid with the internal_id.
   // It is possible there weren't any changes to publish, so keep track of whether we actually published anything.
@@ -209,7 +223,6 @@ async function publishTemplate(uuid, session) {
     [new_template.related_templates[i], published] = await publishTemplate(new_template.related_templates[i], session);
     changes = changes || published; 
   }
-  console.log(`uuid ${uuid}: after checking related_templates, changes set to ${changes}`)
 
   // We're trying to figure out if there is anything worth publishing. If none of the sub-properties were published, 
   // see if there are any changes to the top-level template from the previous published version
@@ -227,7 +240,6 @@ async function publishTemplate(uuid, session) {
       changes = true;
     }
   }
-  console.log(`uuid ${uuid}: after checking all object properties, changes set to ${changes}`)
 
   // If there are changes, publish the current draft
   if(changes) {

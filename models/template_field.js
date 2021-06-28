@@ -16,13 +16,13 @@ async function validateAndCreateOrUpdateField(field, session, uuid) {
 
   // Field must be an object
   if (!Util.isObject(field)) {
-    throw new TypeError("each field must be an object");
+    throw new Util.InputError(`field provided is not an object: ${field}`);
   }
 
   // Input uuid and field uuid must match
   if (uuid) {
     if (field.uuid != uuid) {
-      throw new TypeError(`uuid provided (${uuid}) and field uuid (${field.uuid}) do not match`);
+      throw new Util.InputError(`uuid provided (${uuid}) and field uuid (${field.uuid}) do not match`);
     }
   }
 
@@ -30,7 +30,7 @@ async function validateAndCreateOrUpdateField(field, session, uuid) {
   if (field.uuid) {
     // Field uuid must be a valid uuid
     if (typeof(field.uuid) !== 'string' || !uuidValidate(field.uuid)) {
-      throw new TypeError("each field must have a valid uuid property");
+      throw new Util.InputError("each field must have a valid uuid property");
     }
 
     // Field uuid must exist
@@ -39,7 +39,7 @@ async function validateAndCreateOrUpdateField(field, session, uuid) {
       {session}
     );
     if (!(await cursor.hasNext())) {
-      throw new TypeError(`No field exists with uuid ${field.uuid}`);
+      throw new Util.NotFoundError(`No field exists with uuid ${field.uuid}`);
     }
   } 
   // Otherwise, this is a create, so generate a new uuid
@@ -52,13 +52,13 @@ async function validateAndCreateOrUpdateField(field, session, uuid) {
   let description = "";
   if (field.name) {
     if (typeof(field.name) !== 'string'){
-      throw new TypeError('field name property must be of type string');
+      throw new Util.InputError('field name property must be of type string');
     }
     name = field.name
   }
   if (field.description) {
     if (typeof(field.description) !== 'string'){
-      throw new TypeError('field description property must be of type string');
+      throw new Util.InputError('field description property must be of type string');
     }
     description = field.description
   }
@@ -173,7 +173,7 @@ async function templateFieldDraftFetchOrCreate(uuid, session) {
 //   published: true if a new published version is created. false otherwise
 // Note: This does not delete the current draft. It only creates a published version of it. 
 async function publishField(uuid, session) {
-  console.log('start publishField...');
+  console.log(`TemplateField.publishField: called for uuid ${uuid}`);
   var return_id;
 
   // Check if a draft with this uuid exists
@@ -209,13 +209,13 @@ async function publishField(uuid, session) {
     new_field.updated_at = publish_time;
     new_field.publish_date = publish_time;
     delete new_field._id;
-    console.log('inserting new field...');
+    console.log(`TemplateField.publishField: inserting new field: ${new_field}`);
     let response = await TemplateField.insertOne(new_field, {session});
     if (response.insertedCount != 1) {
       throw `TemplateField.publishField: should be 1 inserted document. Instead: ${response.insertedCount}`;
     }
     return_id = response.insertedId;
-    console.log('updating field draft...');
+    console.log(`TemplateField.publishField: updating field drat with uuid: ${uuid}`);
     response = await TemplateField.updateOne(
       {"uuid": uuid, 'publish_date': {'$exists': false}},
       {'$set': {'updated_at': publish_time}},
@@ -225,7 +225,6 @@ async function publishField(uuid, session) {
       throw `TemplateField.publishField: should be 1 inserted document. Instead: ${response.modifiedCount}`;
     }
   }
-  console.log('returning from publishField');
   return [return_id, changes];
 }
 

@@ -21,13 +21,14 @@ app.use(function(req, res, next) {
 });
 
 app.use(function(err, req, res, next) {
-  console.error(err)
   if(err instanceof Util.NotFoundError) {
     res.sendStatus(404);
   } else if(err instanceof Util.InputError) {
-    res.status(400).send(err.msg);
+    res.status(400).send(err.message);
+  } else {
+    console.error(err)
+    res.sendStatus(500)
   }
-  res.sendStatus(500)
 });
 
 module.exports = app;
