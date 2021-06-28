@@ -132,3 +132,16 @@ exports.template_publish = async function(req, res, next) {
     next(err);
   }
 }
+
+// TODO:
+// Implement for save and publish, and draft fetch;
+// If a draft has a reference to nothing we will not allow it to be saved or published. 
+// If the draft is fetched again, it will be updated to delete the reference to nothing. 
+exports.template_draft_delete = async function(req, res, next) {
+  try {
+    await TemplateModel.templateDraftDelete(req.params.id);
+  } catch(err) {
+    next(err);
+  }
+  res.sendStatus(200);
+}

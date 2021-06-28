@@ -501,6 +501,17 @@ async function templateDraftFetchOrCreate(uuid, session) {
 
 }
 
+exports.templateDraftDelete = async function(uuid) {
+
+  let response = await Template.deleteMany({ uuid, publish_date: {'$exists': false} });
+  if (!response.deletedCount) {
+    throw new Util.NotFoundError();
+  }
+  if (response.deletedCount > 1) {
+    console.error(`templateDraftDelete: Template with uuid '${uuid}' had more than one draft to delete.`);
+  }
+}
+
 exports.templateCollection = templateCollection;
 exports.validateAndCreateOrUpdateTemplate = validateAndCreateOrUpdateTemplate;
 exports.publishTemplate = publishTemplate;

@@ -13,5 +13,6 @@ router.get('/template/:id/:timestamp', indexController.template_get_published_be
 router.post('/template', indexController.template_create);
 router.put('/template/:id', indexController.template_update);
 router.post('/template/:id/publish', indexController.template_publish);
+router.delete('/template/:id/draft', indexController.template_draft_delete);
 
 module.exports = router;
