@@ -23,6 +23,7 @@ exports.init = function() {
 // If a uuid is provided, update the template with the provided uuid.
 // Otherwise, create a new template.
 // In both cases, validate the given template as well.
+// Return the uuid of the template created / updatex
 async function validateAndCreateOrUpdateTemplate(template, session, uuid) {
 
   // Template must be an object
@@ -143,6 +144,10 @@ async function validateAndCreateOrUpdateTemplate(template, session, uuid) {
   if (response.modifiedCount != 1 && response.upsertedCount != 1) {
     throw `Template.validateAndCreateOrUpdateTemplate: Modified: ${response.modifiedCount}. Upserted: ${response.upsertedCount}`;
   } 
+
+  // If successfull, return the uuid of the created / updated template
+  return template.uuid;
+
 }
 
 // Fetches the latest published template with the given uuid. Does not look up fields or related_templates
@@ -521,6 +526,93 @@ exports.templateDraftDelete = async function(uuid) {
   }
   if (response.deletedCount > 1) {
     console.error(`templateDraftDelete: Template with uuid '${uuid}' had more than one draft to delete.`);
+  }
+}
+
+// Wraps the actual request to create with a transaction
+exports.template_create = async function(template) {
+  const session = MongoDB.newSession();
+  let inserted_uuid;
+  try {
+    await session.withTransaction(async () => {
+      try {
+        inserted_uuid = await validateAndCreateOrUpdateTemplate(template, session);
+      } catch(err) {
+        console.log('aborting transaction...');
+        await session.abortTransaction();
+        throw err;
+      }
+    });
+    session.endSession();
+    return inserted_uuid;
+  } catch(err) {
+    session.endSession();
+    throw err;
+  }
+}
+
+// Wraps the actual request to update with a transaction
+exports.template_update = async function(uuid, template) {
+  const session = MongoDB.newSession();
+  try {
+    await session.withTransaction(async () => {
+      try {
+        await validateAndCreateOrUpdateTemplate(template, session, uuid);
+      } catch(err) {
+        console.log('aborting transaction...');
+        await session.abortTransaction();
+        throw err;
+      }
+    });
+    session.endSession();
+  } catch(err) {
+    session.endSession();
+    throw err;
+  }
+}
+
+// Wraps the actual request to get with a transaction
+exports.template_draft_get = async function(uuid) {
+  const session = MongoDB.newSession();
+  try {
+    var template
+    await session.withTransaction(async () => {
+      try {
+        template = await templateDraftFetchOrCreate(uuid, session);
+      } catch(err) {
+        console.log('aborting transaction...');
+        await session.abortTransaction();
+        throw err;
+      }
+    });
+    session.endSession();
+    return template;
+  } catch(err) {
+    session.endSession();
+    throw err;
+  }
+}
+
+exports.template_publish = async function(uuid) {
+  const session = MongoDB.newSession();
+  try {
+    var published;
+    await session.withTransaction(async () => {
+      try {
+        [_, published] = await publishTemplate(uuid, session);
+      } catch(err) {
+        console.log('aborting transaction...');
+        await session.abortTransaction();
+        throw err;
+      }
+    });
+    if (!published) {
+      throw new Util.InputError('No changes to publish');
+    }
+    session.endSession();
+  } catch(err) {
+    session.endSession();
+    throw err;
   }
 }
 
