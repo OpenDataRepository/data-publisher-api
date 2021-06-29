@@ -4,7 +4,7 @@ const Util = require('../lib/util');
 
 var TemplateField;
 
-function templateCollection() {
+function collection() {
   if (TemplateField === undefined) {
     let db = MongoDB.db();
     TemplateField = db.collection('template_fields');
@@ -240,7 +240,7 @@ async function uuidFor_id(_id, session) {
   return document.uuid;
 }
 
-exports.templateCollection = templateCollection;
+exports.collection = collection;
 exports.validateAndCreateOrUpdateField = validateAndCreateOrUpdateField;
 exports.publishField = publishField;
 exports.uuidFor_id = uuidFor_id;

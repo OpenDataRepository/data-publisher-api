@@ -5,7 +5,7 @@ const Util = require('../lib/util');
 
 exports.template_draft_get = async function(req, res, next) {
   try {
-    let template = await TemplateModel.template_draft_get(req.params.id);
+    let template = await TemplateModel.templateDraftGetWithTransaction(req.params.id);
     if(template) {
       res.json(template);
     } else {
@@ -37,7 +37,7 @@ exports.template_get_published_before_timestamp = async function(req, res, next)
 // TODO: Also desperately need unit tests.
 exports.template_create = async function(req, res, next) {
   try {
-    let inserted_uuid = await TemplateModel.template_create(req.body);
+    let inserted_uuid = await TemplateModel.templateCreateWithTransaction(req.body);
     res.json({inserted_uuid});
   } catch(err) {
     next(err);
@@ -46,7 +46,7 @@ exports.template_create = async function(req, res, next) {
 
 exports.template_update = async function(req, res, next) {
   try {
-    await TemplateModel.template_update(req.params.id, req.body);
+    await TemplateModel.templateUpdateWithTransaction(req.params.id, req.body);
     res.sendStatus(200);
   } catch(err) {
     next(err);
@@ -58,7 +58,7 @@ exports.template_update = async function(req, res, next) {
 // TODO: After publishing, create new drafts of every template that embeds this one. Eventually this will need to be kicked off into a queue.
 exports.template_publish = async function(req, res, next) {
   try {
-    await TemplateModel.template_publish(req.params.id);
+    await TemplateModel.templatePublishWithTransaction(req.params.id);
     res.sendStatus(200);
   } catch(err) {
     next(err);

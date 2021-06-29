@@ -7,7 +7,7 @@ var Template;
 var TemplateField;
 
 // Returns a reference to the template Mongo Collection
-function templateCollection() {
+function collection() {
   if (Template === undefined) {
     let db = MongoDB.db();
     Template = db.collection('templates');
@@ -16,8 +16,8 @@ function templateCollection() {
 }
 
 exports.init = function() {
-  Template = templateCollection()
-  TemplateField = TemplateFieldModel.templateCollection();
+  Template = collection()
+  TemplateField = TemplateFieldModel.collection();
 }
 
 // If a uuid is provided, update the template with the provided uuid.
@@ -530,7 +530,7 @@ exports.templateDraftDelete = async function(uuid) {
 }
 
 // Wraps the actual request to create with a transaction
-exports.template_create = async function(template) {
+exports.templateCreateWithTransaction = async function(template) {
   const session = MongoDB.newSession();
   let inserted_uuid;
   try {
@@ -552,7 +552,7 @@ exports.template_create = async function(template) {
 }
 
 // Wraps the actual request to update with a transaction
-exports.template_update = async function(uuid, template) {
+exports.templateUpdateWithTransaction = async function(uuid, template) {
   const session = MongoDB.newSession();
   try {
     await session.withTransaction(async () => {
@@ -572,7 +572,7 @@ exports.template_update = async function(uuid, template) {
 }
 
 // Wraps the actual request to get with a transaction
-exports.template_draft_get = async function(uuid) {
+exports.templateDraftGetWithTransaction = async function(uuid) {
   const session = MongoDB.newSession();
   try {
     var template
@@ -593,7 +593,8 @@ exports.template_draft_get = async function(uuid) {
   }
 }
 
-exports.template_publish = async function(uuid) {
+// Wraps the actual request to publish with a transaction
+exports.templatePublishWithTransaction = async function(uuid) {
   const session = MongoDB.newSession();
   try {
     var published;
@@ -616,9 +617,5 @@ exports.template_publish = async function(uuid) {
   }
 }
 
-exports.templateCollection = templateCollection;
-exports.validateAndCreateOrUpdateTemplate = validateAndCreateOrUpdateTemplate;
-exports.publishTemplate = publishTemplate;
 exports.latestPublishedTemplate = latestPublishedTemplateWithJoins;
 exports.publishedTemplateBeforeDate = latestPublishedTemplateBeforeDateWithJoins;
-exports.templateDraft = templateDraftFetchOrCreate;
