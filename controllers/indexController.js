@@ -1,5 +1,4 @@
 const TemplateModel = require('../models/template');
-const ObjectId = require('mongodb').ObjectId;
 const MongoDB = require('../lib/mongoDB');
 const Util = require('../lib/util');
 
