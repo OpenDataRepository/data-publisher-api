@@ -4,7 +4,7 @@ const Util = require('../lib/util');
 
 exports.template_draft_get = async function(req, res, next) {
   try {
-    let template = await TemplateModel.templateDraftGetWithTransaction(req.params.id);
+    let template = await TemplateModel.templateDraftGetWithTransaction(req.params.uuid);
     if(template) {
       res.json(template);
     } else {
@@ -17,7 +17,7 @@ exports.template_draft_get = async function(req, res, next) {
 
 exports.template_get_latest_published = async function(req, res, next) {
   try {
-    let template = await TemplateModel.latestPublishedTemplate(req.params.id);
+    let template = await TemplateModel.latestPublishedTemplate(req.params.uuid);
     res.json(template);
   } catch(err) {
     next(err);
@@ -26,7 +26,7 @@ exports.template_get_latest_published = async function(req, res, next) {
 
 exports.template_get_published_before_timestamp = async function(req, res, next) {
   try {
-    let template = await TemplateModel.publishedTemplateBeforeDate(req.params.id, new Date(req.params.timestamp));
+    let template = await TemplateModel.publishedTemplateBeforeDate(req.params.uuid, new Date(req.params.timestamp));
     res.json(template);
   } catch(err) {
     next(err);
@@ -45,7 +45,10 @@ exports.template_create = async function(req, res, next) {
 
 exports.template_update = async function(req, res, next) {
   try {
-    await TemplateModel.templateUpdateWithTransaction(req.params.id, req.body);
+    if(!Util.objectContainsUUID(req.body, req.params.uuid)) {
+      throw new Util.InputError(`UUID provided and the body uuid do not match.`)
+    }
+    await TemplateModel.templateUpdateWithTransaction(req.body);
     res.sendStatus(200);
   } catch(err) {
     next(err);
@@ -57,7 +60,7 @@ exports.template_update = async function(req, res, next) {
 // TODO: After publishing, create new drafts of every template that embeds this one. Eventually this will need to be kicked off into a queue.
 exports.template_publish = async function(req, res, next) {
   try {
-    await TemplateModel.templatePublishWithTransaction(req.params.id);
+    await TemplateModel.templatePublishWithTransaction(req.params.uuid);
     res.sendStatus(200);
   } catch(err) {
     next(err);
@@ -69,7 +72,7 @@ exports.template_publish = async function(req, res, next) {
 // If a draft has a reference to nothing we will not allow it to be saved or published. 
 exports.template_draft_delete = async function(req, res, next) {
   try {
-    await TemplateModel.templateDraftDelete(req.params.id);
+    await TemplateModel.templateDraftDelete(req.params.uuid);
   } catch(err) {
     next(err);
   }

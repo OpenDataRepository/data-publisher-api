@@ -24,18 +24,11 @@ exports.init = function() {
 // Otherwise, create a new template.
 // In both cases, validate the given template as well.
 // Return the uuid of the template created / updatex
-async function validateAndCreateOrUpdateTemplate(template, session, uuid) {
+async function validateAndCreateOrUpdateTemplate(template, session) {
 
   // Template must be an object
   if (!Util.isObject(template)) {
     throw new Util.InputError(`template provided is not an object: ${template}`);
-  }
-
-  // Input uuid and template uuid must match
-  if (uuid) {
-    if (template.uuid != uuid) {
-      throw new Util.InputError(`uuid provided (${uuid}) and template uuid (${template.uuid}) do not match`);
-    }
   }
 
   // If a template uuid is provided, this is an update
@@ -118,7 +111,7 @@ async function validateAndCreateOrUpdateTemplate(template, session, uuid) {
   }
 
   // Ensure there is only one draft of this template. If there are multiple drafts, that is a critical error.
-  cursor = await Template.find({"uuid": uuid, 'publish_date': {'$exists': false}});
+  cursor = await Template.find({"uuid": template.uuid, 'publish_date': {'$exists': false}});
   if ((await cursor.count()) > 1) {
     throw new Exception(`Template.validateAndCreateOrUpdateTemplate: Multiple drafts found of template with uuid ${template.uuid}`);
   } 
@@ -552,12 +545,12 @@ exports.templateCreateWithTransaction = async function(template) {
 }
 
 // Wraps the actual request to update with a transaction
-exports.templateUpdateWithTransaction = async function(uuid, template) {
+exports.templateUpdateWithTransaction = async function(template) {
   const session = MongoDB.newSession();
   try {
     await session.withTransaction(async () => {
       try {
-        await validateAndCreateOrUpdateTemplate(template, session, uuid);
+        await validateAndCreateOrUpdateTemplate(template, session);
       } catch(err) {
         console.log('aborting transaction...');
         await session.abortTransaction();

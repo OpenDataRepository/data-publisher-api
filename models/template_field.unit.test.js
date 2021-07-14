@@ -1,29 +1,60 @@
-const TF = require('./template_field');
 const Util = require('../lib/util');
+const rewire = require("rewire");
+const TF = rewire('./template_field');
 
-jest.mock('MongoDB');
-
-// TODO: After adding the describe blocks, there is an error. Figure this out.
-// TODO: add the next test using mocks. Reference https://stackoverflow.com/questions/43265944/is-there-any-way-to-mock-private-functions-with-jest
-
+// TODO: I need to check for explicit errors. "Rejects" is just too vague
+// TODO: also continue these unit tests
 describe('validateAndCreateOrUpdateField', () => {
   describe('common between create and update', () => {
     test('field must be an object', async() => {
-      await expect(TF.validateAndCreateOrUpdateField(null, null, null)).rejects.toThrowError(Util.InputError);
+      await expect(TF.validateAndCreateOrUpdateField(null, null)).rejects;
+    });
+    test('field name must be valid', async() => {
+      await expect(TF.validateAndCreateOrUpdateField({uuid: "34", name: 5}, null)).rejects;
+    });
+    test('field description must be valid', async() => {
+      await expect(TF.validateAndCreateOrUpdateField({uuid: "34", description: 5}, null)).rejects;
+    });
+    test('there must be no more than one draft of this field', async () => {
+      const findMock = jest.fn();
+      findMock.mockReturnValueOnce({
+        hasNext: async function() {
+          return true;
+        }
+      }).mockReturnValueOnce({
+        count: async function() {
+          return 2;
+        }
+      });
+      let revert = TF.__set__("TemplateField", {
+        find: findMock
+      });
+      await expect(TF.validateAndCreateOrUpdateField({uuid: "34"}, null)).rejects;
+      revert();
     });
   });
 
   describe('update', () => {
-    test('provided uuid and field uuid must match', async () => {
-      await expect(TF.validateAndCreateOrUpdateField({uuid: "a"}, null, "b")).rejects.toThrowError(Util.InputError);
+    test('field uuid must be valid', async () => {
+      await expect(TF.validateAndCreateOrUpdateField({uuid: 5}, null, 5)).rejects;
+      await expect(TF.validateAndCreateOrUpdateField({uuid: "5"}, null, 5)).rejects;
+      await expect(TF.validateAndCreateOrUpdateField({uuid: "5"}, null, 5)).rejects;
     });
-    test('field uuid is valid', async () => {
-      await expect(TF.validateAndCreateOrUpdateField({uuid: 5}, null, 5)).rejects.toThrowError(Util.InputError);
+    test('field uuid must exist', async () => {
+      let revert = TF.__set__("TemplateField", {
+        find: async function() {
+          return {
+            hasNext: async function() {
+              return false;
+            }
+          }
+        }
+      });
+      await expect(TF.validateAndCreateOrUpdateField({uuid: "34"}, null)).rejects;
+      revert();
     });
-    test('field uuid is valid', async () => {
-      await expect(TF.validateAndCreateOrUpdateField({uuid: "34"}, null, "34")).rejects.toThrowError(Util.InputError);
-    });
-
   });
+
+  // TODO: Test that for create a valid new uuid is generated
 
 });

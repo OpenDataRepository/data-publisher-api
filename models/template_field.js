@@ -12,18 +12,14 @@ function collection() {
   return TemplateField;
 }
 
-async function validateAndCreateOrUpdateField(field, session, uuid) {
+// Updates the field with the given uuid if provided in the field object. 
+// If no uuid is included in the field object., create a new field.
+// Also validate input. 
+async function validateAndCreateOrUpdateField(field, session) {
 
   // Field must be an object
   if (!Util.isObject(field)) {
     throw new Util.InputError(`field provided is not an object: ${field}`);
-  }
-
-  // Input uuid and field uuid must match
-  if (uuid) {
-    if (field.uuid != uuid) {
-      throw new Util.InputError(`uuid provided (${uuid}) and field uuid (${field.uuid}) do not match`);
-    }
   }
 
   // If a field uuid is provided, this is an update
@@ -41,6 +37,12 @@ async function validateAndCreateOrUpdateField(field, session, uuid) {
     if (!(await cursor.hasNext())) {
       throw new Util.NotFoundError(`No field exists with uuid ${field.uuid}`);
     }
+
+    // Ensure there is only one draft of this field. If there are multiple drafts, that is a critical error.
+    cursor = await TemplateField.find({"uuid": uuid, 'publish_date': {'$exists': false}});
+    if ((await cursor.count()) > 1) {
+      throw new Exception(`Multiple drafts found of field with uuid ${field.uuid}`);
+    } 
   } 
   // Otherwise, this is a create, so generate a new uuid
   else {
@@ -62,12 +64,6 @@ async function validateAndCreateOrUpdateField(field, session, uuid) {
     }
     description = field.description
   }
-
-  // Ensure there is only one draft of this field. If there are multiple drafts, that is a critical error.
-  cursor = await TemplateField.find({"uuid": uuid, 'publish_date': {'$exists': false}});
-  if ((await cursor.count()) > 1) {
-    throw new Exception(`Multiple drafts found of field with uuid ${field.uuid}`);
-  } 
 
   // Update the template field in the database
   let new_field = {

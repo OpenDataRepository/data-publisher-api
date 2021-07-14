@@ -7,12 +7,12 @@ router.get('/', function(req, res, next) {
   res.send('not implemented');
 });
 
-router.get('/template/:id/draft', indexController.template_draft_get);
-router.get('/template/:id/latest_published', indexController.template_get_latest_published);
-router.get('/template/:id/:timestamp', indexController.template_get_published_before_timestamp);
+router.get('/template/:uuid/draft', indexController.template_draft_get);
+router.get('/template/:uuid/latest_published', indexController.template_get_latest_published);
+router.get('/template/:uuid/:timestamp', indexController.template_get_published_before_timestamp);
 router.post('/template', indexController.template_create);
-router.put('/template/:id', indexController.template_update);
-router.post('/template/:id/publish', indexController.template_publish);
-router.delete('/template/:id/draft', indexController.template_draft_delete);
+router.put('/template/:uuid', indexController.template_update);
+router.post('/template/:uuid/publish', indexController.template_publish);
+router.delete('/template/:uuid/draft', indexController.template_draft_delete);
 
 module.exports = router;

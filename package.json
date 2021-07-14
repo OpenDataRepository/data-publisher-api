@@ -12,6 +12,7 @@
     "express": "~4.16.1",
     "mongodb": "^3.6.9",
     "morgan": "~1.9.1",
+    "rewire": "^5.0.0",
     "uuid": "^8.3.2"
   },
   "devDependencies": {
