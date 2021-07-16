@@ -34,7 +34,7 @@ async function validateAndCreateOrUpdateTemplate(template, session) {
   // If a template uuid is provided, this is an update
   if (template.uuid) {
     // Template must have a valid uuid. 
-    if (typeof(template.uuid) !== 'string'|| !uuidValidate(template.uuid)) {
+    if (!uuidValidate(template.uuid)) {
       throw new Util.InputError("each template must have a valid uuid property");
     }
     

@@ -25,8 +25,8 @@ async function validateAndCreateOrUpdateField(field, session) {
   // If a field uuid is provided, this is an update
   if (field.uuid) {
     // Field uuid must be a valid uuid
-    if (typeof(field.uuid) !== 'string' || !uuidValidate(field.uuid)) {
-      throw new Util.InputError("each field must have a valid uuid property");
+    if (!uuidValidate(field.uuid)) {
+      throw new Util.InputError("uuid must conform to standard uuid format");
     }
 
     // Field uuid must exist
@@ -38,10 +38,12 @@ async function validateAndCreateOrUpdateField(field, session) {
       throw new Util.NotFoundError(`No field exists with uuid ${field.uuid}`);
     }
 
-    // Ensure there is only one draft of this field. If there are multiple drafts, that is a critical error.
-    cursor = await TemplateField.find({"uuid": uuid, 'publish_date': {'$exists': false}});
+    // There should be a maximum of one draft per uuid
+    cursor = await TemplateField.find(
+      {"uuid": field.uuid, 
+      'publish_date': {'$exists': false}});
     if ((await cursor.count()) > 1) {
-      throw new Exception(`Multiple drafts found of field with uuid ${field.uuid}`);
+      throw new Error(`Multiple drafts found of field with uuid ${field.uuid}`);
     } 
   } 
   // Otherwise, this is a create, so generate a new uuid
@@ -87,7 +89,6 @@ async function validateAndCreateOrUpdateField(field, session) {
 }
 
 async function latestPublishedTemplateField(uuid, session) {
-  console.log('calling latestPublishedTemplateField');
   let cursor = await TemplateField.find(
     {"uuid": uuid, 'publish_date': {'$exists': true}},
     {session}
@@ -95,7 +96,6 @@ async function latestPublishedTemplateField(uuid, session) {
   if (!(await cursor.hasNext())) {
     return null;
   }
-  console.log('returning from latestPublishedTemplateField');
   return await cursor.next();
 }
 
@@ -137,9 +137,9 @@ async function templateFieldDraftFetchOrCreate(uuid, session) {
   }
 
   // Remove the internal_id and publish_date from this template, as we plan to insert this as a draft now. 
-  delete template_draft._id;
-  delete template_draft.publish_date;
-  template_draft.updated_at = new Date()
+  delete template_field_draft._id;
+  delete template_field_draft.publish_date;
+  template_field_draft.updated_at = new Date()
 
   let response = await TemplateField.insertOne(
     template_field_draft,
@@ -149,7 +149,7 @@ async function templateFieldDraftFetchOrCreate(uuid, session) {
     throw `TemplateField.templateFieldDraftFetchOrCreate: should be 1 inserted document. Instead: ${response.insertedCount}`;
   }
   
-  return template_draft;
+  return template_field_draft;
 
 }
 
@@ -172,21 +172,22 @@ async function publishField(uuid, session) {
   console.log(`TemplateField.publishField: called for uuid ${uuid}`);
   var return_id;
 
+  let published_field = await latestPublishedTemplateField(uuid, session);
+
   // Check if a draft with this uuid exists
   let field_draft = await templateFieldDraft(uuid, session);
   if(!field_draft) {
     // There is no draft of this uuid. Get the latest published field instead.
-    let published_field = await latestPublishedTemplateField(uuid, session);
     if (!published_field) {
-      throw new Util.NotFoundError(`TemplateField.publishField: Field with uuid ${uuid} does not exist`);
+      throw new Util.NotFoundError(`Field with uuid ${uuid} does not exist`);
     }
-    return [published_field.internal_id, false];
+    // There is no draft of this uuid. Return the internal id of the published last published version instead
+    return [published_field._id, false];
   }
 
   let changes = false;
 
   // We're trying to figure out if there is anything worth publishing. See if there are any changes to the field draft from the previous published version
-  let published_field = await latestPublishedTemplateField(uuid, session);
   // If there was a previously published field, see if anything was changed between this one and that one. 
   if (published_field) {
     return_id = published_field._id;
@@ -211,7 +212,7 @@ async function publishField(uuid, session) {
       throw `TemplateField.publishField: should be 1 inserted document. Instead: ${response.insertedCount}`;
     }
     return_id = response.insertedId;
-    console.log(`TemplateField.publishField: updating field drat with uuid: ${uuid}`);
+    console.log(`TemplateField.publishField: updating field with uuid: ${uuid}`);
     response = await TemplateField.updateOne(
       {"uuid": uuid, 'publish_date': {'$exists': false}},
       {'$set': {'updated_at': publish_time}},
