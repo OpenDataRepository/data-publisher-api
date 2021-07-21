@@ -2,7 +2,7 @@ var express = require('express');
 var logger = require('morgan');
 const Util = require('./lib/util');
 require('dotenv').config();
-require('./lib/init')();
+const init = require('./lib/init');
 
 var indexRouter = require('./routes/index');
 var usersRouter = require('./routes/users');
@@ -31,4 +31,5 @@ app.use(function(err, req, res, next) {
   }
 });
 
-module.exports = app;
+module.exports.app = app;
+module.exports.init = init;

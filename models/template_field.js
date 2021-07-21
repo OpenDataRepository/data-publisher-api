@@ -4,9 +4,12 @@ const Util = require('../lib/util');
 
 var TemplateField;
 
-function collection() {
+async function collection() {
   if (TemplateField === undefined) {
     let db = MongoDB.db();
+    try {
+      await db.createCollection('template_fields');
+    } catch(e) {}
     TemplateField = db.collection('template_fields');
   }
   return TemplateField;

@@ -7,17 +7,20 @@ var Template;
 var TemplateField;
 
 // Returns a reference to the template Mongo Collection
-function collection() {
+async function collection() {
   if (Template === undefined) {
     let db = MongoDB.db();
+    try {
+      await db.createCollection('templates');
+    } catch(e) {}
     Template = db.collection('templates');
   }
   return Template;
 }
 
-exports.init = function() {
-  Template = collection()
-  TemplateField = TemplateFieldModel.collection();
+exports.init = async function() {
+  Template = await collection();
+  TemplateField = await TemplateFieldModel.collection();
 }
 
 // If a uuid is provided, update the template with the provided uuid.
@@ -57,20 +60,20 @@ async function validateAndCreateOrUpdateTemplate(template, session) {
   let description = "";
   let fields = [];
   let related_templates = [];
-  if (template.name) {
+  if (template.name !== undefined) {
     if (typeof(template.name) !== 'string'){
       throw new Util.InputError('name property must be of type string');
     }
     name = template.name
   }
-  if (template.description) {
+  if (template.description !== undefined) {
     if (typeof(template.description) !== 'string'){
       throw new Util.InputError('description property must be of type string');
     }
     description = template.description
   }
   // Reursively handle each of the fields
-  if (template.fields) {
+  if (template.fields !== undefined) {
     if (!Array.isArray(template.fields)){
       throw new Util.InputError('fields property must be of type array');
     }
@@ -90,11 +93,11 @@ async function validateAndCreateOrUpdateTemplate(template, session) {
     fields = template.fields
   }
   // Reursively handle each of the related_templates
-  if (template.related_templates) {
+  if (template.related_templates !== undefined) {
     if (!Array.isArray(template.related_templates)){
       throw new Util.InputError('related_templates property must be of type array');
     }
-    for (let i = 0; i < template.fields.length; i++) {
+    for (let i = 0; i < template.related_templates.length; i++) {
       try {
         await validateAndCreateOrUpdateTemplate(template.related_templates[i], session);
       } catch(err) {
