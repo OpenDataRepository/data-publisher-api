@@ -4,7 +4,7 @@
  * Module dependencies.
  */
 
-var { app, init: appInit } = require('app');
+var { app, init: appInit } = require('../app');
 var debug = require('debug')('data-publisher-api:server');
 var http = require('http');
 
