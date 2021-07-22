@@ -559,6 +559,47 @@ describe("publish (and get published and draft after a publish)", () => {
       expect(response.statusCode).toBe(400);
     });
 
+    test("Internal refrence invalid", async () => {
+      let data = {
+        "name":"temp1",
+        "related_templates": [{
+          "name": "temp2"
+        }]
+      };
+
+      let uuid = await createSuccessTest(data);
+
+      let response = await request(app)
+        .get(`/template/${uuid}/draft`)
+        .set('Accept', 'application/json');
+      expect(response.statusCode).toBe(200);
+      expect(response.body).toMatchObject(data);
+
+      // Delete the internal draft
+      response = await request(app)
+        .delete(`/template/${response.body.related_templates[0].uuid}/draft`)
+        .set('Accept', 'application/json');
+      expect(response.statusCode).toBe(200);
+
+      // Expect publish of parent draft to fail because of invalid reference 
+      response = await request(app)
+        .post(`/template/${uuid}/publish`)
+        .set('Accept', 'application/json');
+      expect(response.statusCode).toBe(400);
+
+      // Fetch parent draft again, thus purging reference to internal draft
+      response = await request(app)
+        .get(`/template/${uuid}/draft`)
+        .set('Accept', 'application/json');
+      expect(response.statusCode).toBe(200);
+
+      // Expect publish of parent draft to succeed because invalid reference has been removed
+      response = await request(app)
+        .post(`/template/${uuid}/publish`)
+        .set('Accept', 'application/json');
+      expect(response.statusCode).toBe(200);
+    });
+
   })
 
 

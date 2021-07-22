@@ -33,7 +33,6 @@ exports.template_get_published_before_timestamp = async function(req, res, next)
   }
 }
 
-// TODO: Also desperately need unit tests.
 exports.template_create = async function(req, res, next) {
   try {
     let inserted_uuid = await TemplateModel.templateCreateWithTransaction(req.body);
@@ -55,6 +54,7 @@ exports.template_update = async function(req, res, next) {
   }
 }
 
+// TODO: If a draft has a reference to nothing we will not allow it to be published. 
 // TODO: Publish should also take a timestamp of when the latest save to any portion of the template was,
 // and this pubish function should recursively find the latest update and compare the sumbitted timestamp for equality
 // TODO: After publishing, create new drafts of every template that embeds this one. Eventually this will need to be kicked off into a queue.
@@ -67,9 +67,6 @@ exports.template_publish = async function(req, res, next) {
   }
 }
 
-// TODO:
-// Implement for save and publish, and draft fetch;
-// If a draft has a reference to nothing we will not allow it to be saved or published. 
 exports.template_draft_delete = async function(req, res, next) {
   try {
     await TemplateModel.templateDraftDelete(req.params.uuid);

@@ -201,7 +201,7 @@ async function publishTemplate(uuid, session) {
     // There is no draft of this uuid. Get the latest published template instead.
     let published_template = await latestPublishedTemplate(uuid, session);
     if (!published_template) {
-      throw new Util.NotFoundError(`Template.publishTemplate: Template with uuid ${uuid} does not exist`);
+      throw new Util.NotFoundError(`Template with uuid ${uuid} does not exist`);
     }
     return [published_template.internal_id, false];
   }
@@ -213,7 +213,15 @@ async function publishTemplate(uuid, session) {
   // It is possible there weren't any changes to publish, so keep track of whether we actually published anything.
   for (let i = 0; i < new_template.fields.length; i++) {
     let published;
-    [new_template.fields[i], published] = await TemplateFieldModel.publishField(new_template.fields[i], session);
+    try {
+      [new_template.fields[i], published] = await TemplateFieldModel.publishField(new_template.fields[i], session);
+    } catch(err) {
+      if (err instanceof Util.NotFoundError) {
+        throw new Util.InputError("Internal reference within this draft is invalid. Fetch/update draft to cleanse it.");
+      } else {
+        throw err;
+      }
+    }
     changes = changes || published; 
   } 
 
@@ -221,7 +229,15 @@ async function publishTemplate(uuid, session) {
   // It is possible there weren't any changes to publish, so keep track of whether we actually published anything.
   for(let i = 0; i < new_template.related_templates.length; i++) {
     let published;
-    [new_template.related_templates[i], published] = await publishTemplate(new_template.related_templates[i], session);
+    try {
+      [new_template.related_templates[i], published] = await publishTemplate(new_template.related_templates[i], session);
+    } catch(err) {
+      if (err instanceof Util.NotFoundError) {
+        throw new Util.InputError("Internal reference within this draft is invalid. Fetch/update draft to cleanse it.");
+      } else {
+        throw err;
+      }
+    }
     changes = changes || published; 
   }
 
