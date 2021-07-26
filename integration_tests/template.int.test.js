@@ -345,6 +345,40 @@ describe("update (and get draft after an update)", () => {
       expect(response.body).toMatchObject(data);
 
     });
+
+    // test("Updating a parent does not update a child if the child has no changes", async () => {
+    //   let data = {
+    //     "name": "parent",
+    //     "related_templates": [{
+    //       "name": "child"
+    //     }]
+    //   }
+    //   let parent_uuid = await createSuccessTest(data);
+
+    //   let response = await request(app)
+    //     .get(`/template/${parent_uuid}/draft`)
+    //     .set('Accept', 'application/json');
+    //   expect(response.statusCode).toBe(200);
+
+    //   data = response.body;
+    //   let child_uuid = data.related_templates[0].uuid;
+    //   let update_time = data.related_templates[0].updated_at;
+
+    //   data.description = "added a description";
+
+    //   response = await request(app)
+    //     .put(`/template/${parent_uuid}`)
+    //     .send(data)
+    //     .set('Accept', 'application/json');
+    //   expect(response.statusCode).toBe(200);
+
+    //   response = await request(app)
+    //     .get(`/template/${child_uuid}/draft`)
+    //     .set('Accept', 'application/json');
+    //   expect(response.statusCode).toBe(200);
+
+    //   expect(response.body.updated_at).toEqual(update_time)
+    // })
   
   })
 
@@ -726,3 +760,151 @@ test("delete a draft, not a published version", async () => {
   expect(response.body).toMatchObject(data);
 
 });
+
+describe("templateLastUpdate", () => {
+
+  describe("success", () => {
+    test("basic draft, no fields or related templates", async () => {
+      let timestamp = new Date();
+      let data = {
+        "name":"1"
+      };
+      let uuid = await createSuccessTest(data);
+
+      let response = await request(app)
+        .get(`/template/${uuid}/last_update`);
+      expect(response.statusCode).toBe(200);
+      expect((new Date(response.body)).getTime()).toBeGreaterThan(timestamp.getTime());
+    });
+
+    test("sub template updated later than parent template", async () => {
+      // let timestamp_before_create = new Date();
+      let data = {
+        "name": "1",
+        "related_templates": [{
+          "name": "2",
+          "related_templates": [{
+            "name": "3"
+            // "related_templates": [{
+            //   "name": "4"
+            // }]
+          }]
+        }]
+      };
+      let uuid = await createSuccessTest(data);
+
+      let response = await request(app)
+        .get(`/template/${uuid}/draft`)
+        .set('Accept', 'application/json');
+      expect(response.statusCode).toBe(200);
+      data = response.body;
+
+      let timestamp_between_create_and_update = new Date();
+
+      // Update 3. 1 and 2 dates should be 3, but 4s should be older
+      let data3 = data.related_templates[0].related_templates[0];
+      data3.description = "added a description";
+
+      // maybe another time: test that updating a parent doesn't update a child
+      //let data4_updated_at = data3.related_templates[0].updated_at;
+
+      response = await request(app)
+        .put(`/template/${data3.uuid}`)
+        .send(data3)
+        .set('Accept', 'application/json');
+      expect(response.statusCode).toBe(200);
+
+      let timestamp_after_update = new Date();
+
+      response = await request(app)
+        .get(`/template/${uuid}/last_update`);
+      expect(response.statusCode).toBe(200);
+      expect((new Date(response.body)).getTime()).toBeGreaterThan(timestamp_between_create_and_update.getTime());
+      expect((new Date(response.body)).getTime()).toBeLessThan(timestamp_after_update.getTime());
+
+      response = await request(app)
+        .get(`/template/${data3.uuid}/last_update`);
+      expect(response.statusCode).toBe(200);
+      expect((new Date(response.body)).getTime()).toBeGreaterThan(timestamp_between_create_and_update.getTime());
+      expect((new Date(response.body)).getTime()).toBeLessThan(timestamp_after_update.getTime());
+      
+      // response = await request(app)
+      //   .get(`/template/${data3.related_templates[0].uuid}/last_update`);
+      // expect(response.statusCode).toBe(200);
+      // expect((new Date(response.body)).getTime()).toBeGreaterThan(timestamp_before_create.getTime());
+      // expect((new Date(response.body)).getTime()).toBeLessThan(timestamp_between_create_and_update.getTime());
+
+    });
+
+    test("grandchild updated, but child deleted. Updated time should still be grandchild updated", async () => {
+      let data = {
+        "name": "1",
+        "related_templates": [{
+          "name": "2",
+          "related_templates": [{
+            "name": "3"
+          }]
+        }]
+      };
+      let uuid = await createSuccessTest(data);
+
+      // create
+      let response = await request(app)
+        .get(`/template/${uuid}/draft`)
+        .set('Accept', 'application/json');
+      expect(response.statusCode).toBe(200);
+      data = response.body;
+
+      let data2 = data.related_templates[0];
+      let data3 = data2.related_templates[0];
+
+      // publish
+      response = await request(app)
+        .post(`/template/${uuid}/publish`)
+        .set('Accept', 'application/json');
+      expect(response.statusCode).toBe(200);
+
+      // Update grandchild
+      data3.description = "added a description";
+
+      response = await request(app)
+        .put(`/template/${data3.uuid}`)
+        .send(data3)
+        .set('Accept', 'application/json');
+      expect(response.statusCode).toBe(200);
+
+      response = await request(app)
+        .get(`/template/${data3.uuid}/draft`)
+        .set('Accept', 'application/json');
+      expect(response.statusCode).toBe(200);
+      let update_3_timestamp = response.body.updated_at;
+
+      // Delete child draft
+      response = await request(app)
+        .delete(`/template/${data2.uuid}/draft`)
+        .set('Accept', 'application/json');
+      expect(response.statusCode).toBe(200);
+
+      // Now get the update timestamp for the grandparent. It should be that of the grandchild.
+      response = await request(app)
+        .get(`/template/${uuid}/last_update`);
+      expect(response.statusCode).toBe(200);
+      expect(response.body).toEqual(update_3_timestamp);
+      
+    });
+  });
+
+  describe("failure", () => {
+    test("invalid uuid", async () => {
+      let response = await request(app)
+        .get(`/template/18/last_update`)
+        .set('Accept', 'application/json');
+      expect(response.statusCode).toBe(400);
+
+      response = await request(app)
+        .get(`/template/${ValidUUID}/last_update`)
+        .set('Accept', 'application/json');
+      expect(response.statusCode).toBe(404);
+    })
+  });
+})

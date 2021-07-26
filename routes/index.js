@@ -9,6 +9,7 @@ router.get('/', function(req, res, next) {
 
 router.get('/template/:uuid/draft', indexController.template_draft_get);
 router.get('/template/:uuid/latest_published', indexController.template_get_latest_published);
+router.get('/template/:uuid/last_update', indexController.template_get_last_update);
 router.get('/template/:uuid/:timestamp', indexController.template_get_published_before_timestamp);
 router.post('/template', indexController.template_create);
 router.put('/template/:uuid', indexController.template_update);

@@ -23,6 +23,101 @@ exports.init = async function() {
   TemplateField = await TemplateFieldModel.collection();
 }
 
+// Fetches the latest published template with the given uuid. 
+// Does not look up fields or related_templates
+async function latestPublishedTemplate(uuid, session) {
+  let cursor = await Template.find(
+    {"uuid": uuid, 'publish_date': {'$exists': true}}, 
+    {session}
+  ).sort({'publish_date': -1})
+  .limit(1);
+  if (!(await cursor.hasNext())) {
+    return null;
+  }
+  return await cursor.next();
+}
+
+// Fetches the template draft with the given uuid. 
+// Does not look up fields or related_templates
+async function templateDraft(uuid, session) {
+  let cursor = await Template.find(
+    {"uuid": uuid, 'publish_date': {'$exists': false}}, 
+    {session}
+  );
+
+  if(!(await cursor.hasNext())) {
+    return null;
+  } 
+  let draft = await cursor.next();
+  if (await cursor.hasNext()) {
+    throw `Template.templateDraft: Multiple drafts found for template with uuid ${uuid}`;
+  }
+  return draft;
+}
+
+// Creates a draft from the published version.
+async function createDraftFromPublished(published) {
+
+  let draft = published;
+
+  delete draft._id;
+  draft.updated_at = draft.publish_date;
+  delete draft.publish_date;
+
+  // Replace each of the field _ids with uuids.
+  let fields = [];
+  for(_id of draft.fields) {
+    let uuid = await TemplateFieldModel.uuidFor_id(_id);
+    if(uuid) {
+      fields.push(uuid);
+    } else {
+      console.log(`Failed to find a template field with internal id ${_id}. Therefore, removing the reference to it from template with uuid ${draft.uuid}`);
+    }
+  }
+  draft.fields = fields;
+
+  // Replace each of the related_template _ids with uuids. 
+  let related_templates = [];
+  for(_id of draft.related_templates) {
+    let uuid = await uuidFor_id(_id);
+    if(uuid) {
+      related_templates.push(uuid);
+    } else {
+      console.log(`Failed to find a template with internal id ${_id}. Therefore, removing the reference to it from template with uuid ${draft.uuid}`);
+    }
+  }
+  draft.related_templates = related_templates;
+
+  return draft;
+
+}
+
+// Fetches a template draft 
+// If it does not exist, creates a draft from the latest published, saves that in the database and returns it.
+// Does not lookup fields or related_templates
+async function fetchDraftOrCreateFromPublished(uuid, session) {
+  let template_draft = await templateDraft(uuid, session);
+  if(template_draft) {
+    return template_draft;
+  }
+
+  let published_template = await latestPublishedTemplate(uuid, session);
+  if(!published_template) {
+    return null;
+  }
+  template_draft = await createDraftFromPublished(published_template);
+
+  let response = await Template.insertOne(
+    template_draft,
+    {session}
+  )
+  if (response.insertedCount != 1) {
+    throw new Error(`Template.fetchDraftOrCreateFromPublished: should be 1 inserted document. Instead: ${response.insertedCount}`);
+  }
+
+  return template_draft;
+}
+
 // If a uuid is provided, update the template with the provided uuid.
 // Otherwise, create a new template.
 // In both cases, validate the given template as well.
@@ -144,36 +239,6 @@ async function validateAndCreateOrUpdateTemplate(template, session) {
   // If successfull, return the uuid of the created / updated template
   return template.uuid;
 
-}
-
-// Fetches the latest published template with the given uuid. Does not look up fields or related_templates
-async function latestPublishedTemplate(uuid, session) {
-  let cursor = await Template.find(
-    {"uuid": uuid, 'publish_date': {'$exists': true}}, 
-    {session}
-  ).sort({'publish_date': -1})
-  .limit(1);
-  if (!(await cursor.hasNext())) {
-    return null;
-  }
-  return await cursor.next();
-}
-
-// Fetches the template draft with the given uuid. Does not look up fields or related_templates
-async function templateDraft(uuid, session) {
-  let cursor = await Template.find(
-    {"uuid": uuid, 'publish_date': {'$exists': false}}, 
-    {session}
-  );
-
-  if(!(await cursor.hasNext())) {
-    return null;
-  } 
-  let draft = await cursor.next();
-  if (await cursor.hasNext()) {
-    throw `Template.templateDraft: Multiple drafts found for template with uuid ${uuid}`;
-  }
-  return draft;
 }
 
 // Publishes the template with the provided uuid
@@ -384,14 +449,15 @@ async function uuidFor_id(_id, session) {
 // TODO: When permissions come into play, aggregate drafts for sub-templates/fields that the user has permission for,
 // and published templates for the ones they don't
 
-// Fetches the template draft with the given uuid.
-// Also recursively looks up fields and related_templates.
-// If a draft of a given template doesn't exist, a new one will be created using the last published template
+// Fetches the template draft with the given uuid, recursively looking up fields and related_templates.
+// If a draft of a given template doesn't exist, a new one will be created using the last published template.
 async function templateDraftFetchOrCreate(uuid, session) {
 
   if (!uuidValidate(uuid)) {
     throw new Util.InputError('The uuid provided is not in proper uuid format.');
   }
+
+  // TODO: refactor to use fetchDraftOrCreateFromPublished
 
   // For each template in the tree:
   //   a. If a draft of this template exists:
@@ -530,6 +596,51 @@ async function templateDraftFetchOrCreate(uuid, session) {
 
 }
 
+// TODO: write integration tests for this function
+// TODO: refactor fethch to use fetchDraftOrCreateFromPublished
+// TODO: refactor publish to chck for the update timestamp and write an integration test.
+// This function will provide the timestamp of the last update made to this template and all of it's sub-properties
+async function templateLastUpdate(uuid, session) {
+
+  if (!uuidValidate(uuid)) {
+    throw new Util.InputError('The uuid provided is not in proper uuid format.');
+  }
+
+  let draft = await fetchDraftOrCreateFromPublished(uuid, session);
+  if(!draft) {
+    throw new Util.NotFoundError();
+  }
+
+  let last_update = draft.updated_at;
+  for(uuid of draft.fields) {
+    try {
+      let update = await templateFieldLastUpdate(uuid);
+      if (update > last_update){
+        last_update = update;
+      }
+    } catch (err) {
+      if (!(err instanceof Util.NotFoundError)) {
+        throw err;
+      }
+    }
+  }
+  for(uuid of draft.related_templates) {
+    try {
+      let update = await templateLastUpdate(uuid, session);
+      if (update > last_update){
+        last_update = update;
+      }
+    } catch (err) {
+      if (!(err instanceof Util.NotFoundError)) {
+        throw err;
+      }
+    }
+  }
+
+  return last_update;
+
+}
+
 exports.templateDraftDelete = async function(uuid) {
 
   let response = await Template.deleteMany({ uuid, publish_date: {'$exists': false} });
@@ -623,6 +734,28 @@ exports.templatePublishWithTransaction = async function(uuid) {
       throw new Util.InputError('No changes to publish');
     }
     session.endSession();
+  } catch(err) {
+    session.endSession();
+    throw err;
+  }
+}
+
+// Wraps the actual request to getUpdate with a transaction
+exports.templateLastUpdateWithTransaction = async function(uuid) {
+  const session = MongoDB.newSession();
+  try {
+    var update;
+    await session.withTransaction(async () => {
+      try {
+        update = await templateLastUpdate(uuid, session);
+      } catch(err) {
+        console.log('aborting transaction...');
+        await session.abortTransaction();
+        throw err;
+      }
+    });
+    session.endSession();
+    return update;
   } catch(err) {
     session.endSession();
     throw err;

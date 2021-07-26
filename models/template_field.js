@@ -141,8 +141,8 @@ async function templateFieldDraftFetchOrCreate(uuid, session) {
 
   // Remove the internal_id and publish_date from this template, as we plan to insert this as a draft now. 
   delete template_field_draft._id;
+  template_field_draft.updated_at = template_field_draft.publish_date;
   delete template_field_draft.publish_date;
-  template_field_draft.updated_at = new Date()
 
   let response = await TemplateField.insertOne(
     template_field_draft,
@@ -240,8 +240,17 @@ async function uuidFor_id(_id, session) {
   return document.uuid;
 }
 
+async function templateFieldLastupdate(uuid, session) {
+  let draft = await templateFieldDraftFetchOrCreate(uuid, session);
+  if(!draft) {
+    throw new Util.NotFoundError();
+  }
+  return draft.updated_at;
+}
+
 exports.collection = collection;
 exports.validateAndCreateOrUpdateField = validateAndCreateOrUpdateField;
 exports.publishField = publishField;
 exports.uuidFor_id = uuidFor_id;
 exports.templateFieldDraft = templateFieldDraftFetchOrCreate
+exports.templateFieldLastupdate = templateFieldLastupdate
