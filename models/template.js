@@ -457,8 +457,6 @@ async function templateDraftFetchOrCreate(uuid, session) {
     throw new Util.InputError('The uuid provided is not in proper uuid format.');
   }
 
-  // TODO: refactor to use fetchDraftOrCreateFromPublished
-
   // For each template in the tree:
   //   a. If a draft of this template exists:
   //        1. fetch it.
@@ -479,46 +477,9 @@ async function templateDraftFetchOrCreate(uuid, session) {
   //        3. Update the current draft with this draft
 
   // See if a draft of this template exists. 
-  let template_draft = await templateDraft(uuid, session);
-  let draft_existing = template_draft ? true: false;
-
-  // If a draft of this template does not exist, create a new template_draft from the last published
-  if(!template_draft) {
-    
-    template_draft = await latestPublishedTemplate(uuid, session);
-
-    // If not even a published version of this template was found, return null
-    if(!template_draft) {
-      return null;
-    }
-
-    // Remove the internal_id and publish_date from this template, as we plan to insert this as a draft now. 
-    delete template_draft._id;
-    delete template_draft.publish_date;
-
-    // Replace each of the field _ids with uuids.
-    let fields = [];
-    for(_id of template_draft.fields) {
-      let uuid = TemplateFieldModel.uuidFor_id(_id);
-      if(uuid) {
-        fields.push(uuid);
-      } else {
-        console.log(`Failed to find a template field with internal id ${_id}. Therefore, removing the reference to it from template with uuid ${template_draft.uuid}`);
-      }
-    }
-    template_draft.fields = fields;
-
-    // Replace each of the related_template _ids with uuids. 
-    let related_templates = [];
-    for(_id of template_draft.related_templates) {
-      let uuid = uuidFor_id(_id);
-      if(uuid) {
-        related_templates.push(uuid);
-      } else {
-        console.log(`Failed to find a template with internal id ${_id}. Therefore, removing the reference to it from template with uuid ${template_draft.uuid}`);
-      }
-    }
-    template_draft.related_templates = related_templates;
+  let template_draft = await fetchDraftOrCreateFromPublished(uuid, session);
+  if (!template_draft) {
+    return null;
   }
 
   // Now recurse into each field, replacing each uuid with an imbedded object
@@ -547,44 +508,28 @@ async function templateDraftFetchOrCreate(uuid, session) {
     }
   }
 
-  // If we are fetching an existing draft, then any existing references that are bad pointers need to be removed
-  if(draft_existing) {
-    let update = {};
+  // Any existing references that are bad pointers need to be removed
+  let update = {};
 
-    if(template_draft.fields.length != field_uuids.length) {
-      update.fields = field_uuids;
-    } 
-    if (template_draft.related_templates.length != related_template_uuids.length) {
-      update.related_templates = related_template_uuids;
-    }
-
-    if(update.fields || update.related_templates) {
-      template_draft.updated_at = new Date()
-      update.updated_at = template_draft.updated_at;
-      let response = await Template.updateOne(
-        {'_id': template_draft._id},
-        {
-          '$set': update
-        },
-        {session}
-      );
-      if (response.modifiedCount != 1) {
-        throw `Template.templateDraftFetchOrCreate: should be 1 modified document. Instead: ${response.modifiedCount}`;
-      }
-    }
+  if(template_draft.fields.length != field_uuids.length) {
+    update.fields = field_uuids;
+  } 
+  if (template_draft.related_templates.length != related_template_uuids.length) {
+    update.related_templates = related_template_uuids;
   }
-  // If we are creating a new draft from a published_draft, then we also need to insert this draft. 
-  else {
-    template_draft.fields = field_uuids;
-    template_draft.related_templates = related_template_uuids;
-    template_draft.updated_at = new Date();
 
-    let response = await Template.insertOne(
-      template_draft,
+  if(update.fields || update.related_templates) {
+    template_draft.updated_at = new Date()
+    update.updated_at = template_draft.updated_at;
+    let response = await Template.updateOne(
+      {'_id': template_draft._id},
+      {
+        '$set': update
+      },
       {session}
-    )
-    if (response.insertedCount != 1) {
-      throw `Template.templateDraftFetchOrCreate: should be 1 inserted document. Instead: ${response.insertedCount}`;
+    );
+    if (response.modifiedCount != 1) {
+      throw `Template.templateDraftFetchOrCreate: should be 1 modified document. Instead: ${response.modifiedCount}`;
     }
   }
 
