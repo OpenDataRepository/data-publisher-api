@@ -15,9 +15,54 @@ async function collection() {
   return TemplateField;
 }
 
+// Creates a draft from the published version.
+function createDraftFromPublished(published) {
+  let draft = published;
+
+  delete draft._id;
+  draft.updated_at = draft.publish_date;
+  delete draft.publish_date;
+
+  return draft;
+}
+
+// Fetches the latest published field with the given uuid. 
+async function latestPublishedField(uuid, session) {
+  let cursor = await TemplateField.find(
+    {"uuid": uuid, 'publish_date': {'$exists': true}}, 
+    {session}
+  ).sort({'publish_date': -1})
+  .limit(1);
+  if (!(await cursor.hasNext())) {
+    return null;
+  }
+  return await cursor.next();
+}
+
+async function fetchPublishAndConvertToDraft(uuid, session) {
+  let published_field = await latestPublishedField(uuid, session);
+  if(!published_field) {
+    return null;
+  }
+
+  return (await createDraftFromPublished(published_field));
+}
+
+async function templateFieldDraftDelete(uuid) {
+
+  let response = await TemplateField.deleteMany({ uuid, publish_date: {'$exists': false} });
+  if (!response.deletedCount) {
+    throw new Util.NotFoundError();
+  }
+  if (response.deletedCount > 1) {
+    console.error(`templateDraftDelete: Template with uuid '${uuid}' had more than one draft to delete.`);
+  }
+}
+
 // Updates the field with the given uuid if provided in the field object. 
 // If no uuid is included in the field object., create a new field.
 // Also validate input. 
+// Returns true if there was something to update. Valse otherwise
 async function validateAndCreateOrUpdateField(field, session) {
 
   // Field must be an object
@@ -78,6 +123,17 @@ async function validateAndCreateOrUpdateField(field, session) {
     updated_at: new Date()
   }
 
+  // If this draft is identical to the latest published, delete it.
+  let old_field = await fetchPublishAndConvertToDraft(field.uuid);
+  if (old_field) {
+    let changes = !fieldEquals(new_field, old_field);
+    if (!changes) {
+      // Delete the current draft
+      await templateFieldDraftDelete(field.uuid);
+      return false;
+    }
+  }
+
   // If a draft of this field already exists: overwrite it, using it's same uuid
   // If a draft of this field doesn't exist: create a new draft
   // Fortunately both cases can be handled with a single MongoDB UpdateOne query using 'upsert: true'
@@ -87,8 +143,9 @@ async function validateAndCreateOrUpdateField(field, session) {
     {'upsert': true, session}
   );
   if (response.modifiedCount != 1 && response.upsertedCount != 1) {
-    throw `TemplateField.validateAndCreateOrUpdateTemplateField: Modified: ${response.modifiedCount}. Upserted: ${response.upsertedCount}`;
+    throw new Error(`TemplateField.validateAndCreateOrUpdateTemplateField: Modified: ${response.modifiedCount}. Upserted: ${response.upsertedCount}`);
   } 
+  return true;
 }
 
 async function latestPublishedTemplateField(uuid, session) {
@@ -203,27 +260,18 @@ async function publishField(uuid, session) {
   }
 
   // If there are changes, publish the current draft
-  let new_field = field_draft;
   if(changes) {
     let publish_time = new Date();
-    new_field.updated_at = publish_time;
-    new_field.publish_date = publish_time;
-    delete new_field._id;
-    console.log(`TemplateField.publishField: inserting new field: ${new_field}`);
-    let response = await TemplateField.insertOne(new_field, {session});
-    if (response.insertedCount != 1) {
-      throw `TemplateField.publishField: should be 1 inserted document. Instead: ${response.insertedCount}`;
-    }
-    return_id = response.insertedId;
     console.log(`TemplateField.publishField: updating field with uuid: ${uuid}`);
-    response = await TemplateField.updateOne(
-      {"uuid": uuid, 'publish_date': {'$exists': false}},
-      {'$set': {'updated_at': publish_time}},
+    let response = await TemplateField.updateOne(
+      {"_id": field_draft._id},
+      {'$set': {'updated_at': publish_time, 'publish_date': publish_time}},
       {session}
     )
     if (response.modifiedCount != 1) {
-      throw `TemplateField.publishField: should be 1 inserted document. Instead: ${response.modifiedCount}`;
+      throw new Error(`TemplateField.publishField: should be 1 updated document. Instead: ${response.modifiedCount}`);
     }
+    return_id = field_draft._id;
   }
   return [return_id, changes];
 }

@@ -54,15 +54,11 @@ exports.template_update = async function(req, res, next) {
   }
 }
 
-// TODO: Publish should also take a timestamp of when the latest save to any portion of the template was,
-// and this pubish function should recursively find the latest update and compare the sumbitted timestamp for equality
-
-// TODO: write an endpoint which will get the latest updated timestamp from a template and it's sub-properties
-
-// TODO: After publishing, create new drafts of every template that embeds this one. Eventually this will need to be kicked off into a queue.
 exports.template_publish = async function(req, res, next) {
   try {
     await TemplateModel.templatePublishWithTransaction(req.params.uuid);
+    // TODO: Eventually this will need to be kicked off into a queue.
+    await TemplateModel.templateUpdateTemplatesThatReferenceThisWithTransaction(req.params.uuid);
     res.sendStatus(200);
   } catch(err) {
     next(err);
