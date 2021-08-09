@@ -226,8 +226,6 @@ async function templateFieldDraftFetchOrCreate(uuid, session) {
 //   session: the mongo session that must be used to make transactions atomic
 // Returns:
 //   internal_id: the internal id of the published field
-//   published: true if a new published version is created. false otherwise
-// Note: This does not delete the current draft. It only creates a published version of it. 
 async function publishField(uuid, session) {
   console.log(`TemplateField.publishField: called for uuid ${uuid}`);
   var return_id;
@@ -273,7 +271,7 @@ async function publishField(uuid, session) {
     }
     return_id = field_draft._id;
   }
-  return [return_id, changes];
+  return return_id;
 }
 
 async function uuidFor_id(_id, session) {
@@ -288,6 +286,18 @@ async function uuidFor_id(_id, session) {
   return document.uuid;
 }
 
+async function publishDateFor_id(_id, session) {
+  let cursor = await TemplateField.find(
+    {"_id": _id}, 
+    {session}
+  );
+  if (!(await cursor.hasNext())) {
+    return null;
+  }
+  let document = await cursor.next();
+  return document.publish_date;
+}
+
 async function templateFieldLastupdate(uuid, session) {
   let draft = await templateFieldDraftFetchOrCreate(uuid, session);
   if(!draft) {
@@ -300,5 +310,6 @@ exports.collection = collection;
 exports.validateAndCreateOrUpdateField = validateAndCreateOrUpdateField;
 exports.publishField = publishField;
 exports.uuidFor_id = uuidFor_id;
-exports.templateFieldDraft = templateFieldDraftFetchOrCreate
-exports.templateFieldLastupdate = templateFieldLastupdate
+exports.templateFieldDraft = templateFieldDraftFetchOrCreate;
+exports.templateFieldLastupdate = templateFieldLastupdate;
+exports.publishDateFor_id = publishDateFor_id;

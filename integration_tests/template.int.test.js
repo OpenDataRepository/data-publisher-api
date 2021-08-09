@@ -558,6 +558,89 @@ describe("publish (and get published and draft after a publish)", () => {
 
     });
 
+    test("Complex publish - publish parent who's child changed previously and no other changes are present", async () => {
+
+      let data = {
+        "name":"1",
+        "related_templates":[{
+          "name": "2"
+        }]
+      };
+      // Create initial data
+      let uuid = await createSuccessTest(data);
+
+      // Publish
+      let response = await request(app)
+        .post(`/template/${uuid}/publish`)
+        .set('Accept', 'application/json');
+      expect(response.statusCode).toBe(200);
+
+      response = await request(app)
+        .get(`/template/${uuid}/latest_published`)
+        .set('Accept', 'application/json');
+      expect(response.statusCode).toBe(200);
+      expect(response.body).toMatchObject(data);
+
+      data = response.body;
+
+      // Make a change in the third level of data
+      data.related_templates[0].description = "2 has a new description";
+      let uuid2 = data.related_templates[0].uuid;
+
+      // Update second template
+      response = await request(app)
+        .put(`/template/${uuid2}`)
+        .send(data.related_templates[0])
+        .set('Accept', 'application/json');
+      expect(response.statusCode).toBe(200);
+
+      // Record the date before we publish the change to the second template
+      let publish_date_2 = (new Date()).getTime();
+
+      // Publish again
+      response = await request(app)
+        .post(`/template/${uuid2}/publish`)
+        .set('Accept', 'application/json');
+      expect(response.statusCode).toBe(200);
+      
+      response = await request(app)
+        .get(`/template/${uuid2}/latest_published`)
+        .set('Accept', 'application/json');
+
+      // Now we want to get a draft of the parent and publish that draft as it is. It should be successful since the child changed.
+      
+      response = await request(app)
+        .get(`/template/${uuid}/draft`)
+        .set('Accept', 'application/json');
+      expect(response.statusCode).toBe(200);
+      data = response.body;
+      
+      // Update with change
+      response = await request(app)
+        .put(`/template/${uuid}`)
+        .send(data)
+        .set('Accept', 'application/json');
+      expect(response.statusCode).toBe(200);
+
+      // Record the date before we publish the parent template again
+      let publish_date_3 = (new Date()).getTime();
+
+      // Publish again
+      response = await request(app)
+        .post(`/template/${uuid}/publish`)
+        .set('Accept', 'application/json');
+      expect(response.statusCode).toBe(200);
+      
+      response = await request(app)
+        .get(`/template/${uuid}/latest_published`)
+        .set('Accept', 'application/json');
+      data = response.body;
+
+      expect(new Date(data.publish_date).getTime()).toBeGreaterThan(publish_date_3);
+      expect(new Date(data.related_templates[0].publish_date).getTime()).toBeGreaterThan(publish_date_2);
+      expect(new Date(data.related_templates[0].publish_date).getTime()).toBeLessThan(publish_date_3);
+    });
+
   })
 
   describe("Failure cases", () => {
