@@ -4,7 +4,6 @@ const { v4: uuidv4, validate: uuidValidate } = require('uuid');
 const Util = require('../lib/util');
 
 var Template;
-var TemplateField;
 
 // Returns a reference to the template Mongo Collection
 async function collection() {
@@ -195,6 +194,85 @@ async function draftDifferentFromLastPublished(draft) {
   return false;
 }
 
+async function templateUUIDsThatReference(uuid) {
+  // Get the last 3 _ids associated with this uuid. Then use those _ids to find the uuids of the templates referencing this template.
+
+  // First, get the three _ids last published by this uuid
+  let pipeline = [
+    {
+      '$match': { 
+        uuid,
+        "publish_date": {"$exists": true}
+      }
+    },
+    {
+      '$sort' : { 'publish_date' : -1}
+    },
+    {
+      '$limit' : 3
+    },
+    {
+      '$group' : { '_id': null, 'ids' : { "$push": "$_id"}}
+    }
+  ]
+  let response = (await Template.aggregate(pipeline).toArray());
+  let ids;
+  try {
+    ids = response[0].ids;
+  } catch(error) {
+    return [];
+  }
+
+  // Look for the uuids of the templates that reference those _ids
+  pipeline = [
+    {
+      '$match': { 
+        'related_templates': {"$in": ids}
+      }
+    },
+    {
+      '$project' : { 'uuid' : true, "_id": false }
+    },
+    {
+      '$group' : { '_id' : "$uuid"}
+    },
+    {
+      '$group' : { '_id': null, 'uuids' : { "$push": "$_id"}}
+    }
+  ]
+  response = (await Template.aggregate(pipeline).toArray());
+  let uuids;
+  try {
+    uuids = response[0].uuids;
+  } catch(error) {
+    return [];
+  }
+  return uuids;
+}
+
+async function createDraftFromLastPublished(uuid, session) {
+  let draft = await templateDraftFetchOrCreate(uuid, session);
+  await validateAndCreateOrUpdateTemplate(draft, session);
+}
+
+async function createDraftFromLastPublishedWithSession(uuid) {
+  const session = MongoDB.newSession();
+  try {
+    await session.withTransaction(async () => {
+      try {
+        await createDraftFromLastPublished(uuid, session);
+      } catch(err) {
+        await session.abortTransaction();
+        throw err;
+      }
+    });
+    session.endSession();
+  } catch(err) {
+    session.endSession();
+    throw err;
+  }
+}
+
 // If a uuid is provided, update the template with the provided uuid.
 // Otherwise, create a new template.
 // If the updated template is the same as the last published, delete the draft instead of updating. 
@@ -206,7 +284,10 @@ async function validateAndCreateOrUpdateTemplate(template, session) {
 
   // Template must be an object
   if (!Util.isObject(template)) {
-    throw new Util.InputError(`template provided is not an object: ${template}`);
+    // if (uuidValidate(template.uuid)) {
+    //   return [false, template]
+    // }
+    throw new Util.InputError(`template provided is not an object or a valid uuid: ${template}`);
   }
 
   // If a template uuid is provided, this is an update
@@ -435,7 +516,7 @@ async function publishTemplate(uuid, session) {
   // If there are changes, publish the current draft
   if(changes) {
     let publish_time = new Date();
-    response = await Template.updateOne(
+    let response = await Template.updateOne(
       {"_id": template_draft._id},
       {'$set': {'updated_at': publish_time, 'publish_date': publish_time, fields, related_templates}},
       {session}
@@ -691,7 +772,6 @@ exports.templateCreateWithTransaction = async function(template) {
       try {
         [_, inserted_uuid] = await validateAndCreateOrUpdateTemplate(template, session);
       } catch(err) {
-        console.log('aborting transaction...');
         await session.abortTransaction();
         throw err;
       }
@@ -712,7 +792,6 @@ exports.templateUpdateWithTransaction = async function(template) {
       try {
         await validateAndCreateOrUpdateTemplate(template, session);
       } catch(err) {
-        console.log('aborting transaction...');
         await session.abortTransaction();
         throw err;
       }
@@ -733,7 +812,6 @@ exports.templateDraftGetWithTransaction = async function(uuid) {
       try {
         template = await templateDraftFetchOrCreate(uuid, session);
       } catch(err) {
-        console.log('aborting transaction...');
         await session.abortTransaction();
         throw err;
       }
@@ -755,7 +833,6 @@ exports.templatePublishWithTransaction = async function(uuid) {
       try {
         [_, published] = await publishTemplate(uuid, session);
       } catch(err) {
-        console.log('aborting transaction...');
         await session.abortTransaction();
         throw err;
       }
@@ -779,7 +856,6 @@ exports.templateLastUpdateWithTransaction = async function(uuid) {
       try {
         update = await templateLastUpdate(uuid, session);
       } catch(err) {
-        console.log('aborting transaction...');
         await session.abortTransaction();
         throw err;
       }
@@ -792,9 +868,23 @@ exports.templateLastUpdateWithTransaction = async function(uuid) {
   }
 }
 
-// Wraps the actual request to templateUpdateTemplatesThatReferenceThis with a transaction
-exports.templateUpdateTemplatesThatReferenceThisWithTransaction = async function(uuid) {
+exports.templateUpdateTemplatesThatReferenceThis = async function(uuid) {
+  // Get a list of templates that reference them.
+  let uuids = await templateUUIDsThatReference(uuid);
+  // For each template, create a draft if it doesn't exist
+  for(uuid of uuids) {
+    // TODO: when time starts being a problem, move this into a queue OR just remove the await statement.
+    try {
+      await createDraftFromLastPublishedWithSession(uuid);
+    } catch(err) {
+      console.error(err);
+    }
+  }
 
+}
+
+exports.templateDraftExisting = async function(uuid) {
+  return (await templateDraft(uuid)) ? true : false;
 }
 
 exports.latestPublishedTemplate = latestPublishedTemplateWithJoins;

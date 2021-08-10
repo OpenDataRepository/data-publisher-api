@@ -603,10 +603,6 @@ describe("publish (and get published and draft after a publish)", () => {
         .set('Accept', 'application/json');
       expect(response.statusCode).toBe(200);
       
-      response = await request(app)
-        .get(`/template/${uuid2}/latest_published`)
-        .set('Accept', 'application/json');
-
       // Now we want to get a draft of the parent and publish that draft as it is. It should be successful since the child changed.
       
       response = await request(app)
@@ -719,6 +715,65 @@ describe("publish (and get published and draft after a publish)", () => {
 
   })
 
+  test("Updating dependent templates", async () => {
+
+    let related_template_data = {
+      "name": "a child template",
+      "fields": [{
+        "name": "a child field"
+      }]
+    };
+    let data = {
+      "name":"basic template",
+      "description":"",
+      "related_templates":[related_template_data]
+    };
+    let uuid = await createSuccessTest(data);
+
+    let response = await request(app)
+      .post(`/template/${uuid}/publish`)
+      .set('Accept', 'application/json');
+    expect(response.statusCode).toBe(200);
+  
+    // Check that a published version now exists
+    response = await request(app)
+      .get(`/template/${uuid}/latest_published`)
+      .set('Accept', 'application/json');
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toMatchObject(data);
+
+    // Check that the related template was also published
+    related_template_data = response.body.related_templates[0];
+    let related_template_uuid = related_template_data.uuid;
+    response = await request(app)
+      .get(`/template/${related_template_uuid}/latest_published`)
+      .set('Accept', 'application/json');
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toMatchObject(related_template_data);
+
+    // Now update and publish the sub-template
+    related_template_data.description = "new descripiton";
+
+    response = await request(app)
+      .put(`/template/${related_template_uuid}`)
+      .send(related_template_data)
+      .set('Accept', 'application/json');
+    expect(response.statusCode).toBe(200);
+
+    response = await request(app)
+      .post(`/template/${related_template_uuid}/publish`)
+      .set('Accept', 'application/json');
+    expect(response.statusCode).toBe(200);
+
+    // Now the important part. Test that publish also created a draft of the parent template
+    response = await request(app)
+      .get(`/template/${uuid}/draft_existing`)
+      .set('Accept', 'application/json');
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toBe(true);
+
+  });
+
 
 });
 
@@ -818,7 +873,6 @@ test("delete a draft, not a published version", async () => {
   response = await request(app)
     .put(`/template/${uuid}`)
     .send(data)
-  console.log(response.body);
   expect(response.statusCode).toBe(200);
 
   // Verify that the draft is what we changed it to

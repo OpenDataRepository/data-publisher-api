@@ -59,6 +59,10 @@ async function templateFieldDraftDelete(uuid) {
   }
 }
 
+function fieldEquals(field1, field2) {
+  return field1.name == field2.name && field1.description == field2.description;
+}
+
 // Updates the field with the given uuid if provided in the field object. 
 // If no uuid is included in the field object., create a new field.
 // Also validate input. 
@@ -129,7 +133,13 @@ async function validateAndCreateOrUpdateField(field, session) {
     let changes = !fieldEquals(new_field, old_field);
     if (!changes) {
       // Delete the current draft
-      await templateFieldDraftDelete(field.uuid);
+      try {
+        await templateFieldDraftDelete(field.uuid);
+      } catch(err) {
+        if (!(err instanceof Util.NotFoundError)) {
+          throw err;
+        }
+      }
       return false;
     }
   }

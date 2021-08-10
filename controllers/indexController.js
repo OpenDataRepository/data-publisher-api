@@ -2,6 +2,10 @@ const TemplateModel = require('../models/template');
 const MongoDB = require('../lib/mongoDB');
 const Util = require('../lib/util');
 
+// TODO: Move template controllers items into a template controller.
+// TODO: Create and test template field endpoints
+
+
 exports.template_draft_get = async function(req, res, next) {
   try {
     let template = await TemplateModel.templateDraftGetWithTransaction(req.params.uuid);
@@ -57,8 +61,7 @@ exports.template_update = async function(req, res, next) {
 exports.template_publish = async function(req, res, next) {
   try {
     await TemplateModel.templatePublishWithTransaction(req.params.uuid);
-    // TODO: Eventually this will need to be kicked off into a queue.
-    await TemplateModel.templateUpdateTemplatesThatReferenceThisWithTransaction(req.params.uuid);
+    await TemplateModel.templateUpdateTemplatesThatReferenceThis(req.params.uuid);
     res.sendStatus(200);
   } catch(err) {
     next(err);
@@ -82,4 +85,14 @@ exports.template_get_last_update = async function(req, res, next) {
     next(err);
   }
   res.send(last_update);
+}
+
+exports.template_draft_existing = async function(req, res, next) {
+  var exists;
+  try {
+    exists = await TemplateModel.templateDraftExisting(req.params.uuid);
+  } catch(err) {
+    next(err);
+  }
+  res.send(exists);
 }
