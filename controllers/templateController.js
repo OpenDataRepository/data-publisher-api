@@ -1,12 +1,7 @@
 const TemplateModel = require('../models/template');
-const MongoDB = require('../lib/mongoDB');
 const Util = require('../lib/util');
 
-// TODO: Move template controllers items into a template controller.
-// TODO: Create and test template field endpoints
-
-
-exports.template_draft_get = async function(req, res, next) {
+exports.draft_get = async function(req, res, next) {
   try {
     let template = await TemplateModel.templateDraftGetWithTransaction(req.params.uuid);
     if(template) {
@@ -19,7 +14,7 @@ exports.template_draft_get = async function(req, res, next) {
   }
 }
 
-exports.template_get_latest_published = async function(req, res, next) {
+exports.get_latest_published = async function(req, res, next) {
   try {
     let template = await TemplateModel.latestPublishedTemplate(req.params.uuid);
     res.json(template);
@@ -28,7 +23,7 @@ exports.template_get_latest_published = async function(req, res, next) {
   }
 }
 
-exports.template_get_published_before_timestamp = async function(req, res, next) {
+exports.get_published_before_timestamp = async function(req, res, next) {
   try {
     let template = await TemplateModel.publishedTemplateBeforeDate(req.params.uuid, new Date(req.params.timestamp));
     res.json(template);
@@ -37,7 +32,7 @@ exports.template_get_published_before_timestamp = async function(req, res, next)
   }
 }
 
-exports.template_create = async function(req, res, next) {
+exports.create = async function(req, res, next) {
   try {
     let inserted_uuid = await TemplateModel.templateCreateWithTransaction(req.body);
     res.json({inserted_uuid});
@@ -46,7 +41,7 @@ exports.template_create = async function(req, res, next) {
   }
 }
 
-exports.template_update = async function(req, res, next) {
+exports.update = async function(req, res, next) {
   try {
     if(!Util.objectContainsUUID(req.body, req.params.uuid)) {
       throw new Util.InputError(`UUID provided and the body uuid do not match.`)
@@ -58,7 +53,7 @@ exports.template_update = async function(req, res, next) {
   }
 }
 
-exports.template_publish = async function(req, res, next) {
+exports.publish = async function(req, res, next) {
   try {
     await TemplateModel.templatePublishWithTransaction(req.params.uuid);
     await TemplateModel.templateUpdateTemplatesThatReferenceThis(req.params.uuid);
@@ -68,7 +63,7 @@ exports.template_publish = async function(req, res, next) {
   }
 }
 
-exports.template_draft_delete = async function(req, res, next) {
+exports.draft_delete = async function(req, res, next) {
   try {
     await TemplateModel.templateDraftDelete(req.params.uuid);
   } catch(err) {
@@ -77,7 +72,7 @@ exports.template_draft_delete = async function(req, res, next) {
   res.sendStatus(200);
 }
 
-exports.template_get_last_update = async function(req, res, next) {
+exports.get_last_update = async function(req, res, next) {
   var last_update;
   try {
     last_update = await TemplateModel.templateLastUpdateWithTransaction(req.params.uuid);
@@ -87,7 +82,7 @@ exports.template_get_last_update = async function(req, res, next) {
   res.send(last_update);
 }
 
-exports.template_draft_existing = async function(req, res, next) {
+exports.draft_existing = async function(req, res, next) {
   var exists;
   try {
     exists = await TemplateModel.templateDraftExisting(req.params.uuid);
