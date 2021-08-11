@@ -66,7 +66,9 @@ function fieldEquals(field1, field2) {
 // Updates the field with the given uuid if provided in the field object. 
 // If no uuid is included in the field object., create a new field.
 // Also validate input. 
-// Returns true if there was something to update. Valse otherwise
+// Return:
+// 1. A boolean: true if there were changes from the last published.
+// 2. The uuid of the template field created / updated
 async function validateAndCreateOrUpdateField(field, session) {
 
   // Field must be an object
@@ -140,7 +142,7 @@ async function validateAndCreateOrUpdateField(field, session) {
           throw err;
         }
       }
-      return false;
+      return [false, field.uuid];
     }
   }
 
@@ -155,7 +157,7 @@ async function validateAndCreateOrUpdateField(field, session) {
   if (response.modifiedCount != 1 && response.upsertedCount != 1) {
     throw new Error(`TemplateField.validateAndCreateOrUpdateTemplateField: Modified: ${response.modifiedCount}. Upserted: ${response.upsertedCount}`);
   } 
-  return true;
+  return [true, field.uuid];
 }
 
 async function latestPublishedTemplateField(uuid, session) {
@@ -236,6 +238,7 @@ async function templateFieldDraftFetchOrCreate(uuid, session) {
 //   session: the mongo session that must be used to make transactions atomic
 // Returns:
 //   internal_id: the internal id of the published field
+//   published: true if a new published version is created. false otherwise
 async function publishField(uuid, session) {
   console.log(`TemplateField.publishField: called for uuid ${uuid}`);
   var return_id;
@@ -249,7 +252,7 @@ async function publishField(uuid, session) {
     if (!published_field) {
       throw new Util.NotFoundError(`Field with uuid ${uuid} does not exist`);
     }
-    // There is no draft of this uuid. Return the internal id of the published last published version instead
+    // There is no draft of this uuid. Return the internal id of the last published version instead
     return [published_field._id, false];
   }
 
@@ -281,7 +284,7 @@ async function publishField(uuid, session) {
     }
     return_id = field_draft._id;
   }
-  return return_id;
+  return [return_id, changes];
 }
 
 async function uuidFor_id(_id, session) {
@@ -323,3 +326,127 @@ exports.uuidFor_id = uuidFor_id;
 exports.templateFieldDraft = templateFieldDraftFetchOrCreate;
 exports.templateFieldLastupdate = templateFieldLastupdate;
 exports.publishDateFor_id = publishDateFor_id;
+exports.latestPublished = latestPublishedTemplateField;
+
+// Wraps the request to create with a transaction
+exports.create = async function(field) {
+  const session = MongoDB.newSession();
+  let inserted_uuid;
+  try {
+    await session.withTransaction(async () => {
+      try {
+        [_, inserted_uuid] = await validateAndCreateOrUpdateField(field, session);
+      } catch(err) {
+        await session.abortTransaction();
+        throw err;
+      }
+    });
+    session.endSession();
+    return inserted_uuid;
+  } catch(err) {
+    session.endSession();
+    throw err;
+  }
+}
+
+// Wraps the request to get with a transaction
+exports.draftGet = async function(uuid) {
+  const session = MongoDB.newSession();
+  try {
+    var field;
+    await session.withTransaction(async () => {
+      try {
+        field = await templateFieldDraftFetchOrCreate(uuid, session);
+      } catch(err) {
+        await session.abortTransaction();
+        throw err;
+      }
+    });
+    session.endSession();
+    return field;
+  } catch(err) {
+    session.endSession();
+    throw err;
+  }
+}
+
+// Wraps the request to update with a transaction
+exports.update = async function(field) {
+  const session = MongoDB.newSession();
+  try {
+    await session.withTransaction(async () => {
+      try {
+        await validateAndCreateOrUpdateField(field, session);
+      } catch(err) {
+        await session.abortTransaction();
+        throw err;
+      }
+    });
+    session.endSession();
+  } catch(err) {
+    session.endSession();
+    throw err;
+  }
+}
+
+// Wraps the request to publish with a transaction
+exports.publish = async function(uuid) {
+  const session = MongoDB.newSession();
+  try {
+    var published;
+    await session.withTransaction(async () => {
+      try {
+        [_, published] = await publishField(uuid, session);
+      } catch(err) {
+        await session.abortTransaction();
+        throw err;
+      }
+    });
+    if (!published) {
+      throw new Util.InputError('No changes to publish');
+    }
+    session.endSession();
+  } catch(err) {
+    session.endSession();
+    throw err;
+  }
+}
+
+// Fetches the latest published field with the given uuid. 
+exports.publishedBeforeDate = async function(uuid, date) {
+  let cursor = await TemplateField.find(
+    {"uuid": uuid, 'publish_date': {'$lte': date}}
+  ).sort({'publish_date': -1})
+  .limit(1);
+  if (!(await cursor.hasNext())) {
+    return null;
+  }
+  return await cursor.next();
+}
+
+exports.draftDelete = async function(uuid) {
+  if (!uuidValidate(uuid)) {
+    throw new Util.InputError('The uuid provided is not in proper uuid format.');
+  }
+
+  let response = await TemplateField.deleteMany({ uuid, publish_date: {'$exists': false} });
+  if (!response.deletedCount) {
+    throw new Util.NotFoundError();
+  }
+  if (response.deletedCount > 1) {
+    console.error(`template field draftDelete: Template Field with uuid '${uuid}' had more than one draft to delete.`);
+  }
+}
+
+exports.lastUpdate = async function(uuid) {
+  if (!uuidValidate(uuid)) {
+    throw new Util.InputError('The uuid provided is not in proper uuid format.');
+  }
+
+  let draft = await templateFieldDraftFetchOrCreate(uuid);
+  if(!draft) {
+    throw new Util.NotFoundError();
+  }
+
+  return draft.updated_at;
+}

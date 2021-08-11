@@ -95,12 +95,13 @@ describe("create (and get draft after a create)", () => {
 
       // Now test that the related template was also created separately
       let response = await request(app)
-      .get(`/template/${uuid}/draft`)
-      .set('Accept', 'application/json');
+        .get(`/template/${uuid}/draft`)
+        .set('Accept', 'application/json');
+        
       let related_template_uuid = response.body.related_templates[0].uuid;
       response = await request(app)
-      .get(`/template/${related_template_uuid}/draft`)
-      .set('Accept', 'application/json');
+        .get(`/template/${related_template_uuid}/draft`)
+        .set('Accept', 'application/json');
       expect(response.statusCode).toBe(200);
       expect(response.body).toMatchObject(related_template_data);
     });
@@ -190,7 +191,7 @@ describe("create (and get draft after a create)", () => {
         name: 5
       };
       let invalidDescription = {
-        name: 5
+        description: 5
       };
       await failureTest(invalidName, 400);
       await failureTest(invalidDescription, 400);
@@ -786,7 +787,13 @@ test("get published for a certain date", async () => {
 
   let beforeFirstPublish = new Date();
 
+  // Test that if only a draft exists, it is not fetched
   let response = await request(app)
+    .get(`/template/${uuid}/${beforeFirstPublish.toISOString()}`)
+    .set('Accept', 'application/json');
+  expect(response.statusCode).toBe(404);
+
+  response = await request(app)
     .post(`/template/${uuid}/publish`)
     .set('Accept', 'application/json');
   expect(response.statusCode).toBe(200);

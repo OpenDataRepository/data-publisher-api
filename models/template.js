@@ -178,7 +178,7 @@ async function draftDifferentFromLastPublished(draft) {
   // Finally, if any of the dependencies have been published more recently than this template, then there are changes
   let last_publish_date = latest_published.publish_date;
   for(let field of draft.fields) {
-    let field_last_published = (await TemplateFieldModel.latestPublishedTemplateField(field)).publish_date;
+    let field_last_published = (await TemplateFieldModel.latestPublished(field)).publish_date;
     if (Util.compareTimeStamp(field_last_published, last_publish_date) > 0) {
       return true;
     }
@@ -463,7 +463,7 @@ async function publishTemplate(uuid, session) {
   // It is possible there weren't any changes to publish, so keep track of whether we actually published anything.
   for (let field of template_draft.fields) {
     try {
-      field = await TemplateFieldModel.publishField(field, session);
+      [field, _] = await TemplateFieldModel.publishField(field, session);
       fields.push(field);
     } catch(err) {
       if (err instanceof Util.NotFoundError) {
@@ -725,7 +725,7 @@ async function templateLastUpdate(uuid, session) {
   let last_update = draft.updated_at;
   for(uuid of draft.fields) {
     try {
-      let update = await templateFieldLastUpdate(uuid);
+      let update = await TemplateFieldModel.lastUpdate(uuid);
       if (update > last_update){
         last_update = update;
       }
@@ -753,6 +753,10 @@ async function templateLastUpdate(uuid, session) {
 }
 
 async function templateDraftDelete(uuid) {
+
+  if (!uuidValidate(uuid)) {
+    throw new Util.InputError('The uuid provided is not in proper uuid format.');
+  }
 
   let response = await Template.deleteMany({ uuid, publish_date: {'$exists': false} });
   if (!response.deletedCount) {
