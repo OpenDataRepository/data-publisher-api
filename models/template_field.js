@@ -27,7 +27,7 @@ function createDraftFromPublished(published) {
 }
 
 // Fetches the latest published field with the given uuid. 
-async function latestPublishedField(uuid, session) {
+async function latestPublished(uuid, session) {
   let cursor = await TemplateField.find(
     {"uuid": uuid, 'publish_date': {'$exists': true}}, 
     {session}
@@ -39,8 +39,8 @@ async function latestPublishedField(uuid, session) {
   return await cursor.next();
 }
 
-async function fetchPublishAndConvertToDraft(uuid, session) {
-  let published_field = await latestPublishedField(uuid, session);
+async function fetchPublishedAndConvertToDraft(uuid, session) {
+  let published_field = await latestPublished(uuid, session);
   if(!published_field) {
     return null;
   }
@@ -48,7 +48,7 @@ async function fetchPublishAndConvertToDraft(uuid, session) {
   return (await createDraftFromPublished(published_field));
 }
 
-async function templateFieldDraftDelete(uuid) {
+async function draftDelete(uuid) {
 
   let response = await TemplateField.deleteMany({ uuid, publish_date: {'$exists': false} });
   if (!response.deletedCount) {
@@ -69,7 +69,7 @@ function fieldEquals(field1, field2) {
 // Return:
 // 1. A boolean: true if there were changes from the last published.
 // 2. The uuid of the template field created / updated
-async function validateAndCreateOrUpdateField(field, session) {
+async function validateAndCreateOrUpdate(field, session) {
 
   // Field must be an object
   if (!Util.isObject(field)) {
@@ -130,13 +130,13 @@ async function validateAndCreateOrUpdateField(field, session) {
   }
 
   // If this draft is identical to the latest published, delete it.
-  let old_field = await fetchPublishAndConvertToDraft(field.uuid);
+  let old_field = await fetchPublishedAndConvertToDraft(field.uuid);
   if (old_field) {
     let changes = !fieldEquals(new_field, old_field);
     if (!changes) {
       // Delete the current draft
       try {
-        await templateFieldDraftDelete(field.uuid);
+        await draftDelete(field.uuid);
       } catch(err) {
         if (!(err instanceof Util.NotFoundError)) {
           throw err;
@@ -160,18 +160,7 @@ async function validateAndCreateOrUpdateField(field, session) {
   return [true, field.uuid];
 }
 
-async function latestPublishedTemplateField(uuid, session) {
-  let cursor = await TemplateField.find(
-    {"uuid": uuid, 'publish_date': {'$exists': true}},
-    {session}
-  ).sort({'publish_date': -1}).limit(1);
-  if (!(await cursor.hasNext())) {
-    return null;
-  }
-  return await cursor.next();
-}
-
-async function templateFieldDraft(uuid, session) {
+async function draft(uuid, session) {
   let cursor = await TemplateField.find(
     {"uuid": uuid, 'publish_date': {'$exists': false}},
     {session}
@@ -181,19 +170,19 @@ async function templateFieldDraft(uuid, session) {
   } 
   let draft = await cursor.next();
   if (await cursor.hasNext()) {
-    throw `TemplateField.templateFieldDraft: Multiple drafts found for field with uuid ${uuid}`;
+    throw `TemplateField.draft: Multiple drafts found for field with uuid ${uuid}`;
   }
   return draft;
 }
 
-async function templateFieldDraftFetchOrCreate(uuid, session) {
+async function draftFetchOrCreate(uuid, session) {
 
   if (!uuidValidate(uuid)) {
     throw new Util.InputError('The uuid provided is not in proper uuid format.');
   }
   
   // See if a draft of this template field exists. 
-  let template_field_draft = await templateFieldDraft(uuid, session);
+  let template_field_draft = await draft(uuid, session);
 
   // If a draft of this template field already exists, return it.
   if (template_field_draft) {
@@ -202,7 +191,7 @@ async function templateFieldDraftFetchOrCreate(uuid, session) {
   }
 
   // If a draft of this template field does not exist, create a new template_field_draft from the last published
-  template_field_draft = await latestPublishedTemplateField(uuid, session);
+  template_field_draft = await latestPublished(uuid, session);
   // If not even a published version of this template field was found, return null
   if(!template_field_draft) {
     return null;
@@ -218,7 +207,7 @@ async function templateFieldDraftFetchOrCreate(uuid, session) {
     {session}
   )
   if (response.insertedCount != 1) {
-    throw `TemplateField.templateFieldDraftFetchOrCreate: should be 1 inserted document. Instead: ${response.insertedCount}`;
+    throw `TemplateField.draftFetchOrCreate: should be 1 inserted document. Instead: ${response.insertedCount}`;
   }
   
   return template_field_draft;
@@ -243,10 +232,10 @@ async function publishField(uuid, session) {
   console.log(`TemplateField.publishField: called for uuid ${uuid}`);
   var return_id;
 
-  let published_field = await latestPublishedTemplateField(uuid, session);
+  let published_field = await latestPublished(uuid, session);
 
   // Check if a draft with this uuid exists
-  let field_draft = await templateFieldDraft(uuid, session);
+  let field_draft = await draft(uuid, session);
   if(!field_draft) {
     // There is no draft of this uuid. Get the latest published field instead.
     if (!published_field) {
@@ -311,8 +300,8 @@ async function publishDateFor_id(_id, session) {
   return document.publish_date;
 }
 
-async function templateFieldLastupdate(uuid, session) {
-  let draft = await templateFieldDraftFetchOrCreate(uuid, session);
+async function lastupdateFor(uuid, session) {
+  let draft = await draftFetchOrCreate(uuid, session);
   if(!draft) {
     throw new Util.NotFoundError();
   }
@@ -320,13 +309,13 @@ async function templateFieldLastupdate(uuid, session) {
 }
 
 exports.collection = collection;
-exports.validateAndCreateOrUpdateField = validateAndCreateOrUpdateField;
+exports.validateAndCreateOrUpdate = validateAndCreateOrUpdate;
 exports.publishField = publishField;
 exports.uuidFor_id = uuidFor_id;
-exports.templateFieldDraft = templateFieldDraftFetchOrCreate;
-exports.templateFieldLastupdate = templateFieldLastupdate;
+exports.draft = draftFetchOrCreate;
+exports.lastupdateFor = lastupdateFor;
 exports.publishDateFor_id = publishDateFor_id;
-exports.latestPublished = latestPublishedTemplateField;
+exports.latestPublished = latestPublished;
 
 // Wraps the request to create with a transaction
 exports.create = async function(field) {
@@ -335,7 +324,7 @@ exports.create = async function(field) {
   try {
     await session.withTransaction(async () => {
       try {
-        [_, inserted_uuid] = await validateAndCreateOrUpdateField(field, session);
+        [_, inserted_uuid] = await validateAndCreateOrUpdate(field, session);
       } catch(err) {
         await session.abortTransaction();
         throw err;
@@ -356,7 +345,7 @@ exports.draftGet = async function(uuid) {
     var field;
     await session.withTransaction(async () => {
       try {
-        field = await templateFieldDraftFetchOrCreate(uuid, session);
+        field = await draftFetchOrCreate(uuid, session);
       } catch(err) {
         await session.abortTransaction();
         throw err;
@@ -376,7 +365,7 @@ exports.update = async function(field) {
   try {
     await session.withTransaction(async () => {
       try {
-        await validateAndCreateOrUpdateField(field, session);
+        await validateAndCreateOrUpdate(field, session);
       } catch(err) {
         await session.abortTransaction();
         throw err;
@@ -443,7 +432,7 @@ exports.lastUpdate = async function(uuid) {
     throw new Util.InputError('The uuid provided is not in proper uuid format.');
   }
 
-  let draft = await templateFieldDraftFetchOrCreate(uuid);
+  let draft = await draftFetchOrCreate(uuid);
   if(!draft) {
     throw new Util.NotFoundError();
   }

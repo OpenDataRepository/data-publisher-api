@@ -65,7 +65,7 @@ exports.publish = async function(req, res, next) {
 
 exports.draft_delete = async function(req, res, next) {
   try {
-    await TemplateModel.templateDraftDelete(req.params.uuid);
+    await TemplateModel.draftDelete(req.params.uuid);
   } catch(err) {
     return next(err);
   }

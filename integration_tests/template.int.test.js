@@ -454,7 +454,6 @@ describe("publish (and get published and draft after a publish)", () => {
       expect(response.body).toMatchObject(data);
     });
 
-    // TODO: when field endpoints are added, test they are also published
     test("Complex publish - with nested fields and related templates to publish", async () => {
 
       let related_template_data = {
