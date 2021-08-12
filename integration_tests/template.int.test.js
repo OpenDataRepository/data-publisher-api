@@ -1023,12 +1023,6 @@ describe("templateLastUpdate", () => {
       expect(response.statusCode).toBe(200);
       let update_3_timestamp = response.body.updated_at;
 
-      // Delete child draft
-      response = await request(app)
-        .delete(`/template/${data2.uuid}/draft`)
-        .set('Accept', 'application/json');
-      expect(response.statusCode).toBe(200);
-
       // Now get the update timestamp for the grandparent. It should be that of the grandchild.
       response = await request(app)
         .get(`/template/${uuid}/last_update`);
