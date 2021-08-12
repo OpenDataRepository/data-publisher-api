@@ -23,16 +23,19 @@ afterAll(async () => {
   await MongoDB.close();
 });
 
-const createSuccessTest = async (data) => {
+const createSuccessTest = async (data, templateOrField) => {
+  if (!templateOrField) {
+    templateOrField = 'template_field';
+  }
   let response = await request(app)
-    .post('/template_field')
+    .post(`/${templateOrField}`)
     .send(data)
     .set('Accept', 'application/json');
   expect(response.statusCode).toBe(200);
   expect(response.body.inserted_uuid).toBeTruthy();
 
   response = await request(app)
-    .get(`/template_field/${response.body.inserted_uuid}/draft`)
+    .get(`/${templateOrField}/${response.body.inserted_uuid}/draft`)
     .set('Accept', 'application/json');
 
   expect(response.statusCode).toBe(200);
@@ -216,66 +219,60 @@ describe("publish (and get published and draft after a publish)", () => {
 
   })
 
-  // TODO: if a template field is published, all dependent templates should have drafts created
+  test("Updating dependent templates", async () => {
 
-  // test("Updating dependent templates", async () => {
+    let field_data = {
+      "name": "field"
+    };
+    let data = {
+      "name":"basic template",
+      "fields":[field_data]
+    };
+    let uuid = await createSuccessTest(data, 'template');
 
-  //   let related_template_data = {
-  //     "name": "a child template",
-  //     "fields": [{
-  //       "name": "a child field"
-  //     }]
-  //   };
-  //   let data = {
-  //     "name":"basic template",
-  //     "description":"",
-  //     "related_templates":[related_template_data]
-  //   };
-  //   let uuid = await createSuccessTest(data);
-
-  //   let response = await request(app)
-  //     .post(`/template/${uuid}/publish`)
-  //     .set('Accept', 'application/json');
-  //   expect(response.statusCode).toBe(200);
+    let response = await request(app)
+      .post(`/template/${uuid}/publish`)
+      .set('Accept', 'application/json');
+    expect(response.statusCode).toBe(200);
   
-  //   // Check that a published version now exists
-  //   response = await request(app)
-  //     .get(`/template/${uuid}/latest_published`)
-  //     .set('Accept', 'application/json');
-  //   expect(response.statusCode).toBe(200);
-  //   expect(response.body).toMatchObject(data);
+    // Check that a published version now exists
+    response = await request(app)
+      .get(`/template/${uuid}/latest_published`)
+      .set('Accept', 'application/json');
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toMatchObject(data);
 
-  //   // Check that the related template was also published
-  //   related_template_data = response.body.related_templates[0];
-  //   let related_template_uuid = related_template_data.uuid;
-  //   response = await request(app)
-  //     .get(`/template/${related_template_uuid}/latest_published`)
-  //     .set('Accept', 'application/json');
-  //   expect(response.statusCode).toBe(200);
-  //   expect(response.body).toMatchObject(related_template_data);
+    // Check that the field was also published
+    field_data = response.body.fields[0];
+    let field_uuid = field_data.uuid;
+    response = await request(app)
+      .get(`/template_field/${field_uuid}/latest_published`)
+      .set('Accept', 'application/json');
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toMatchObject(field_data);
 
-  //   // Now update and publish the sub-template
-  //   related_template_data.description = "new descripiton";
+    // Now update and publish the field
+    field_data.description = "new descripiton";
 
-  //   response = await request(app)
-  //     .put(`/template/${related_template_uuid}`)
-  //     .send(related_template_data)
-  //     .set('Accept', 'application/json');
-  //   expect(response.statusCode).toBe(200);
+    response = await request(app)
+      .put(`/template_field/${field_uuid}`)
+      .send(field_data)
+      .set('Accept', 'application/json');
+    expect(response.statusCode).toBe(200);
 
-  //   response = await request(app)
-  //     .post(`/template/${related_template_uuid}/publish`)
-  //     .set('Accept', 'application/json');
-  //   expect(response.statusCode).toBe(200);
+    response = await request(app)
+      .post(`/template_field/${field_uuid}/publish`)
+      .set('Accept', 'application/json');
+    expect(response.statusCode).toBe(200);
 
-  //   // Now the important part. Test that publish also created a draft of the parent template
-  //   response = await request(app)
-  //     .get(`/template/${uuid}/draft_existing`)
-  //     .set('Accept', 'application/json');
-  //   expect(response.statusCode).toBe(200);
-  //   expect(response.body).toBe(true);
+    // Now the important part. Test that publish also created a draft of the parent template
+    response = await request(app)
+      .get(`/template/${uuid}/draft_existing`)
+      .set('Accept', 'application/json');
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toBe(true);
 
-  // });
+  });
 
 
 });
@@ -426,7 +423,6 @@ describe("lastUpdate", () => {
 
   describe("failure", () => {
     test("invalid uuid", async () => {
-      // TODO: apparently the 200 is being sent to the client before I can send the 400? s
       let response = await request(app)
         .get(`/template_field/18/last_update`)
         .set('Accept', 'application/json');

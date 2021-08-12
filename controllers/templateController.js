@@ -56,7 +56,7 @@ exports.update = async function(req, res, next) {
 exports.publish = async function(req, res, next) {
   try {
     await TemplateModel.templatePublishWithTransaction(req.params.uuid);
-    await TemplateModel.templateUpdateTemplatesThatReferenceThis(req.params.uuid);
+    await TemplateModel.updateTemplatesThatReference(req.params.uuid, 'template');
     res.sendStatus(200);
   } catch(err) {
     next(err);

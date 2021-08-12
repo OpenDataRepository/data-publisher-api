@@ -1,4 +1,5 @@
 const TemplateFieldModel = require('../models/template_field');
+const TemplateModel = require('../models/template');
 const Util = require('../lib/util');
 
 exports.draft_get = async function(req, res, next) {
@@ -59,8 +60,7 @@ exports.update = async function(req, res, next) {
 exports.publish = async function(req, res, next) {
   try {
     await TemplateFieldModel.publish(req.params.uuid);
-    // TODO: add this back in
-    //await TemplateFieldModel.updateTemplatesThatReferenceThis(req.params.uuid);
+    await TemplateModel.updateTemplatesThatReference(req.params.uuid, "template_field");
     res.sendStatus(200);
   } catch(err) {
     next(err);

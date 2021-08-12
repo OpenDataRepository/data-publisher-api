@@ -4,6 +4,7 @@ const { v4: uuidv4, validate: uuidValidate } = require('uuid');
 const Util = require('../lib/util');
 
 var Template;
+var TemplateField;
 
 // Returns a reference to the template Mongo Collection
 async function collection() {
@@ -194,7 +195,7 @@ async function draftDifferentFromLastPublished(draft) {
   return false;
 }
 
-async function templateUUIDsThatReference(uuid) {
+async function templateUUIDsThatReference(uuid, templateOrField) {
   // Get the last 3 _ids associated with this uuid. Then use those _ids to find the uuids of the templates referencing this template.
 
   // First, get the three _ids last published by this uuid
@@ -215,7 +216,14 @@ async function templateUUIDsThatReference(uuid) {
       '$group' : { '_id': null, 'ids' : { "$push": "$_id"}}
     }
   ]
-  let response = (await Template.aggregate(pipeline).toArray());
+  let response;
+  if (templateOrField == 'template') {
+    response = (await Template.aggregate(pipeline).toArray());
+  } else if (templateOrField == 'template_field') {
+    response = (await TemplateField.aggregate(pipeline).toArray());
+  } else {
+    throw new Error(`templateUUIDsThatReference: templateOrField value is invalid: ${templateOrField}`);
+  }
   let ids;
   try {
     ids = response[0].ids;
@@ -224,10 +232,18 @@ async function templateUUIDsThatReference(uuid) {
   }
 
   // Look for the uuids of the templates that reference those _ids
+  let property;
+  if (templateOrField == 'template') {
+    property = 'related_templates';
+  } else if (templateOrField == 'template_field') {
+    property = 'fields';
+  } else {
+    throw new Error(`templateUUIDsThatReference: templateOrField value is invalid: ${templateOrField}`);
+  }
   pipeline = [
     {
       '$match': { 
-        'related_templates': {"$in": ids}
+        [property]: {"$in": ids}
       }
     },
     {
@@ -872,9 +888,9 @@ exports.templateLastUpdateWithTransaction = async function(uuid) {
   }
 }
 
-exports.templateUpdateTemplatesThatReferenceThis = async function(uuid) {
+exports.updateTemplatesThatReference = async function(uuid, templateOrField) {
   // Get a list of templates that reference them.
-  let uuids = await templateUUIDsThatReference(uuid);
+  let uuids = await templateUUIDsThatReference(uuid, templateOrField);
   // For each template, create a draft if it doesn't exist
   for(uuid of uuids) {
     // TODO: when time starts being a problem, move this into a queue OR just remove the await statement.
