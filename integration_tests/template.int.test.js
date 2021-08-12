@@ -68,42 +68,43 @@ describe("create (and get draft after a create)", () => {
       await createSuccessTest(data);
     });
   
-    // TODO: when field endpoints are added, test they are also created
     test("Create template with related template and field", async () => {
   
       let related_template_data = { 
         "name": "create template child",
-        "description": "the child of create template",
-        "fields": [
-          { 
-            "name": "create template child field"
-          }
-        ]
+        "description": "the child of create template"
       };
+      let field_data = {
+        "name": "create template field"
+      }
       let data = { 
         "name": "create template",
         "description": "a template to test a create",
-        "fields": [
-          { 
-            "name": "creaate template field",
-            "description": "a dummy field to go with a template create"
-          }
-        ],
+        "fields": [field_data],
         "related_templates": [related_template_data]
       };
       let uuid = await createSuccessTest(data);
 
-      // Now test that the related template was also created separately
       let response = await request(app)
         .get(`/template/${uuid}/draft`)
         .set('Accept', 'application/json');
-        
+         
       let related_template_uuid = response.body.related_templates[0].uuid;
+      let field_uuid = response.body.fields[0].uuid;
+
+      // Now test that the related template was also created separately 
       response = await request(app)
         .get(`/template/${related_template_uuid}/draft`)
         .set('Accept', 'application/json');
       expect(response.statusCode).toBe(200);
       expect(response.body).toMatchObject(related_template_data);
+
+      // Now test that the field was also created separately  
+      response = await request(app)
+        .get(`/template_field/${field_uuid}/draft`)
+        .set('Accept', 'application/json');
+      expect(response.statusCode).toBe(200);
+      expect(response.body).toMatchObject(field_data);
     });
   
     test("Create template with related templates going 6 nodes deep", async () => {
@@ -462,6 +463,9 @@ describe("publish (and get published and draft after a publish)", () => {
           "name": "a child field"
         }]
       };
+      let field_data = {
+        "name": "a field"
+      };
       let data = {
         "name":"basic template",
         "description":"a template to test a publish",
@@ -484,14 +488,22 @@ describe("publish (and get published and draft after a publish)", () => {
       expect(response.statusCode).toBe(200);
       expect(response.body).toMatchObject(data);
 
-      // Check that the related template was also published
       let related_template_uuid = response.body.related_templates[0].uuid;
+      let field_uuid = response.body.fields[0].uuid;
+
+      // Check that the related template was also published
       response = await request(app)
         .get(`/template/${related_template_uuid}/latest_published`)
         .set('Accept', 'application/json');
       expect(response.statusCode).toBe(200);
       expect(response.body).toMatchObject(related_template_data);
 
+      // Check that the field was also published
+      response = await request(app)
+        .get(`/template_field/${field_uuid}/latest_published`)
+        .set('Accept', 'application/json');
+      expect(response.statusCode).toBe(200);
+      expect(response.body).toMatchObject(field_data);
     });
 
     test("Complex publish - changes in a nested property result in publishing for all parent properties", async () => {

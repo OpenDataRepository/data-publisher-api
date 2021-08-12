@@ -784,7 +784,7 @@ async function templateDraftDelete(uuid) {
 }
 
 // Wraps the actual request to create with a transaction
-exports.templateCreateWithTransaction = async function(template) {
+exports.create = async function(template) {
   const session = MongoDB.newSession();
   let inserted_uuid;
   try {
@@ -805,7 +805,7 @@ exports.templateCreateWithTransaction = async function(template) {
 }
 
 // Wraps the actual request to update with a transaction
-exports.templateUpdateWithTransaction = async function(template) {
+exports.update = async function(template) {
   const session = MongoDB.newSession();
   try {
     await session.withTransaction(async () => {
@@ -824,7 +824,7 @@ exports.templateUpdateWithTransaction = async function(template) {
 }
 
 // Wraps the actual request to get with a transaction
-exports.templateDraftGetWithTransaction = async function(uuid) {
+exports.draftGet = async function(uuid) {
   const session = MongoDB.newSession();
   try {
     var template
@@ -845,7 +845,7 @@ exports.templateDraftGetWithTransaction = async function(uuid) {
 }
 
 // Wraps the actual request to publish with a transaction
-exports.templatePublishWithTransaction = async function(uuid) {
+exports.publish = async function(uuid) {
   const session = MongoDB.newSession();
   try {
     var published;
@@ -868,7 +868,7 @@ exports.templatePublishWithTransaction = async function(uuid) {
 }
 
 // Wraps the actual request to getUpdate with a transaction
-exports.templateLastUpdateWithTransaction = async function(uuid) {
+exports.lastUpdate = async function(uuid) {
   const session = MongoDB.newSession();
   try {
     var update;
@@ -903,10 +903,10 @@ exports.updateTemplatesThatReference = async function(uuid, templateOrField) {
 
 }
 
-exports.templateDraftExisting = async function(uuid) {
+exports.draftExisting = async function(uuid) {
   return (await templateDraft(uuid)) ? true : false;
 }
 
-exports.latestPublishedTemplate = latestPublishedTemplateWithJoins;
-exports.publishedTemplateBeforeDate = latestPublishedTemplateBeforeDateWithJoins;
+exports.latestPublished = latestPublishedTemplateWithJoins;
+exports.publishedBeforeDate = latestPublishedTemplateBeforeDateWithJoins;
 exports.templateDraftDelete = templateDraftDelete;
