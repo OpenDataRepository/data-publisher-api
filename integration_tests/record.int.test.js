@@ -1,6 +1,7 @@
 const request = require("supertest");
 const MongoDB = require('../lib/mongoDB');
 var { app, init: appInit } = require('../app');
+const { response } = require("express");
 
 const ValidUUID = "47356e57-eec2-431b-8059-f61d5f9a6bc6";
 
@@ -49,10 +50,11 @@ const templatePublish = async (uuid) => {
 };
 
 const templateGet = async(uuid) => {
-  response = await request(app)
+  let response = await request(app)
     .get(`/template/${uuid}/latest_published`)
     .set('Accept', 'application/json');
   expect(response.statusCode).toBe(200);
+  return response.body;
 }
 
 const recordCreateAndTest = async (data) => {
@@ -152,7 +154,6 @@ describe("create (and get draft after a create)", () => {
       await templatePublish(template_uuid);
 
       template = await templateGet(template_uuid);
-      // TODO: debug what is going wrong here. 
       let related_template_uuid = template.related_templates[0].uuid;
 
       name_field.value = "Caleb";
@@ -165,6 +166,74 @@ describe("create (and get draft after a create)", () => {
           template_uuid: related_template_uuid,
           fields: [color_field]
         }]
+      };
+
+      await recordCreateAndTest(record);
+
+    });
+
+    test("Create record with related records going 6 nodes deep", async () => {
+  
+      let template = { 
+        "name": "t1",
+        "related_templates": [
+          { 
+            "name": "t2",
+            "related_templates": [
+              { 
+                "name": "t3",
+                "related_templates": [
+                  { 
+                    "name": "t4",
+                    "related_templates": [
+                      { 
+                        "name": "t5",
+                        "related_templates": [
+                          { 
+                            "name": "t6",
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      };
+      let template_uuid = await templateCreate(template);
+      await templatePublish(template_uuid);
+
+      template = await templateGet(template_uuid);
+
+      let record = { 
+        "template_uuid": template.uuid,
+        "related_records": [
+          { 
+            "template_uuid": template.related_templates[0].uuid,
+            "related_records": [
+              { 
+                "template_uuid": template.related_templates[0].related_templates[0].uuid,
+                "related_records": [
+                  { 
+                    "template_uuid": template.related_templates[0].related_templates[0].related_templates[0].uuid,
+                    "related_records": [
+                      { 
+                        "template_uuid": template.related_templates[0].related_templates[0].related_templates[0].related_templates[0].uuid,
+                        "related_records": [
+                          { 
+                            "template_uuid": template.related_templates[0].related_templates[0].related_templates[0].related_templates[0].related_templates[0].uuid,
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
       };
 
       await recordCreateAndTest(record);
@@ -204,7 +273,127 @@ describe("create (and get draft after a create)", () => {
 
     });
 
-    // TODO: add a test where the linked record is pointing to an invalid template
+    test("Fields and related_templates must be arrays", async () => {
+
+      let template = {
+        "name":"1"
+      };
+
+      let template_uuid = await templateCreate(template);
+      await templatePublish(template_uuid);
+
+      let record = {
+        template_uuid,
+        fields: ""
+      };
+      await failureTest(record, 400);
+
+      record = {
+        template_uuid,
+        related_records: ""
+      };
+      await failureTest(record, 400);
+    })
+
+    test("Related record must point to the correct template uuid", async () => {
+
+      let related_template = {
+        "name":"2"
+      };
+
+      let template = {
+        "name":"1",
+        "related_templates":[related_template]
+      };
+
+      let other_template = {
+        "name": "incorrect"
+      }
+
+      let other_template_uuid = await templateCreate(other_template);
+      await templatePublish(other_template_uuid);
+
+      let template_uuid = await templateCreate(template);
+      await templatePublish(template_uuid);
+
+      let record = {
+        template_uuid,
+        related_records: [{
+          template_uuid: other_template_uuid
+        }]
+      };
+
+      await failureTest(record, 400);
+
+    });
+
+    test("Create record with related records going 6 nodes deep, but 2nd-to last record is invalid", async () => {
+  
+      let template = { 
+        "name": "t1",
+        "related_templates": [
+          { 
+            "name": "t2",
+            "related_templates": [
+              { 
+                "name": "t3",
+                "related_templates": [
+                  { 
+                    "name": "t4",
+                    "related_templates": [
+                      { 
+                        "name": "t5",
+                        "related_templates": [
+                          { 
+                            "name": "t6",
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      };
+      let template_uuid = await templateCreate(template);
+      await templatePublish(template_uuid);
+
+      template = await templateGet(template_uuid);
+
+      let record = { 
+        "template_uuid": template.uuid,
+        "related_records": [
+          { 
+            "template_uuid": template.related_templates[0].uuid,
+            "related_records": [
+              { 
+                "template_uuid": template.related_templates[0].related_templates[0].uuid,
+                "related_records": [
+                  { 
+                    "template_uuid": template.related_templates[0].related_templates[0].related_templates[0].uuid,
+                    "related_records": [
+                      { 
+                        "template_uuid": template.related_templates[0].related_templates[0].related_templates[0].uuid,
+                        "related_records": [
+                          { 
+                            "template_uuid": template.related_templates[0].related_templates[0].related_templates[0].related_templates[0].related_templates[0].uuid,
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      };
+
+      await failureTest(record, 400);
+
+    });
 
   });
 });

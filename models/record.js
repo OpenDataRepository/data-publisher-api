@@ -246,7 +246,9 @@ async function validateAndCreateOrUpdate(record, session, template) {
         throw new Util.InputError(`Record provided ${record} links to a record with template uuid ${related_record.template_uuid}, which does not conform to the template.`);
       }
       try {
-        changes |= (await validateAndCreateOrUpdate(related_record, session, related_template_map[related_record.template_uuid]))[0];
+        let new_changes;
+        [new_changes, related_record] = await validateAndCreateOrUpdate(related_record, session, related_template_map[related_record.template_uuid]);
+        changes = changes ? changes : new_changes;
       } catch(err) {
         if (err instanceof Util.NotFoundError) {
           throw new Util.InputError(err.message);
