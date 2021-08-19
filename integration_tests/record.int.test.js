@@ -57,23 +57,32 @@ const templateGet = async(uuid) => {
   return response.body;
 }
 
-const recordCreateAndTest = async (data) => {
+const recordCreate = async (data) => {
   let response = await request(app)
     .post('/record')
     .send(data)
     .set('Accept', 'application/json');
   expect(response.statusCode).toBe(200);
   expect(response.body.inserted_uuid).toBeTruthy();
+  return response.body.inserted_uuid;
+};
 
-  data.uuid = response.body.inserted_uuid;
-  
-  response = await request(app)
-    .get(`/record/${response.body.inserted_uuid}/draft`)
+const recordDraftGet = async (uuid) => {
+  let response = await request(app)
+    .get(`/record/${uuid}/draft`)
     .set('Accept', 'application/json');
-
   expect(response.statusCode).toBe(200);
-  expect(response.body).toMatchObject(data);
-  return response.body.uuid;
+  return response.body;
+};
+
+const recordCreateAndTest = async (data) => {
+  let inserted_uuid = await recordCreate(data);
+
+  data.uuid = inserted_uuid;
+  
+  let record = await recordDraftGet(inserted_uuid);
+  expect(record).toMatchObject(data);
+  return inserted_uuid;
 };
 
 describe("create (and get draft after a create)", () => {
@@ -237,6 +246,42 @@ describe("create (and get draft after a create)", () => {
       };
 
       await recordCreateAndTest(record);
+
+    });
+
+    test("Fields and one related record, which exists previously and is only a link", async () => {
+
+      let related_template = {
+        "name":"2"
+      };
+
+      let template = {
+        "name":"1",
+        "related_templates":[related_template]
+      };
+      let template_uuid = await templateCreate(template);
+      await templatePublish(template_uuid);
+
+      template = await templateGet(template_uuid);
+      let related_template_uuid = template.related_templates[0].uuid;
+
+      let related_record = {
+        "template_uuid": related_template_uuid
+      }
+
+      let related_record_uuid = await recordCreateAndTest(related_record);
+
+      let record = {
+        template_uuid,
+        related_records: [related_record_uuid]
+      };
+
+      let uuid = await recordCreate(record);
+      let draft = await recordDraftGet(uuid);
+
+      related_record.uuid = related_record_uuid;
+      record.related_records[0] = related_record;
+      expect(draft).toMatchObject(record);
 
     });
 

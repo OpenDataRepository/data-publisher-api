@@ -143,23 +143,14 @@ async function draftDifferentFromLastPublished(draft) {
   return false;
 }
 
-// If a uuid is provided, update the record with the provided uuid.
-// Otherwise, create a new record.
-// If the updated record is the same as the last published, delete the draft instead of updating. 
-// In both cases, validate the given record as well.
-// Return:
-// 1. A boolean indicating true if there were changes from the last published.
-// 2. The uuid of the record created / updated
-async function validateAndCreateOrUpdate(record, session, template) {
+// A recursive helper for validateAndCreateOrUpdate.
+async function validateAndCreateOrUpdateRecurser(record, session, template) {
 
-  // Record must be an object
+  // Record must be an object or valid uuid
   if (!Util.isObject(record)) {
-    // TODO: handle the case where the record is just a link. 
-    // Will need to fetch the record, and make sure it matches the template
-
-    // if (uuidValidate(template.uuid)) {
-    //   return [false, template]
-    // }
+    if (uuidValidate(record) && (await exists(record, session))) {
+      return [false, record]
+    }
     throw new Util.InputError(`record provided is not an object or a valid uuid: ${record}`);
   }
 
@@ -185,15 +176,6 @@ async function validateAndCreateOrUpdate(record, session, template) {
   // 3. Check if this record has changed at all from the previous one
 
   // Verify that the template uuid provided by the user is the correct template uuid expected by the latest published template
-  if (!template) {
-    try {
-      template = await TemplateModel.latestPublished(record.template_uuid, session);
-    } catch(error) {
-      if(error instanceof Util.NotFoundError || error instanceof Util.InputError) {
-        throw new Util.InputError(`a valid template_uuid was not provided for record with uuid ${record.uuid}`);
-      }
-    }
-  } 
   if(record.template_uuid != template.uuid) {
     throw new Util.InputError(`The template uuid provided by the record: ${record.template_uuid} does not correspond to the template uuid expected by the template: ${template.uuid}`);
   }
@@ -242,12 +224,21 @@ async function validateAndCreateOrUpdate(record, session, template) {
 
     for (related_record of record.related_records) {
       // Make sure this related record adheres to the template
-      if(!(related_record.template_uuid in related_template_map)) {
-        throw new Util.InputError(`Record provided ${record} links to a record with template uuid ${related_record.template_uuid}, which does not conform to the template.`);
+      let related_record_template_uuid;
+      if (Util.isObject(related_record)) {
+        related_record_template_uuid = related_record.template_uuid;
+      } else if (uuidValidate(related_record)) {
+        related_record_template_uuid = (await draft(related_record, session)).template_uuid;
+      } else {
+        throw new Util.InputError(`record provided is neither an object nor a valid uuid: ${related_record}`);
+      }
+      // Make sure this related record adheres to the template
+      if(!(related_record_template_uuid in related_template_map)) {
+        throw new Util.InputError(`Record provided ${record} links to a record with template uuid ${related_record_template_uuid}, which does not conform to the template.`);
       }
       try {
         let new_changes;
-        [new_changes, related_record] = await validateAndCreateOrUpdate(related_record, session, related_template_map[related_record.template_uuid]);
+        [new_changes, related_record] = await validateAndCreateOrUpdateRecurser(related_record, session, related_template_map[related_record_template_uuid]);
         changes = changes ? changes : new_changes;
       } catch(err) {
         if (err instanceof Util.NotFoundError) {
@@ -272,7 +263,6 @@ async function validateAndCreateOrUpdate(record, session, template) {
   // We notify the user when a draft is created so they can publish it. So we don't want to create sub-template drafts
   // every time a parent draft is updated.
   if (!changes) {
-    // TODO: implement
     changes = await draftDifferentFromLastPublished(record_to_save);
     if (!changes) {
       // Delete the current draft
@@ -303,6 +293,33 @@ async function validateAndCreateOrUpdate(record, session, template) {
 
   // If successfull, return the uuid of the created / updated record
   return [true, record.uuid];
+
+}
+
+// If a uuid is provided, update the record with the provided uuid.
+// Otherwise, create a new record.
+// If the updated record is the same as the last published, delete the draft instead of updating. 
+// In both cases, validate the given record as well, making sure it adheres to the latest public template
+// Return:
+// 1. A boolean indicating true if there were changes from the last published.
+// 2. The uuid of the record created / updated
+async function validateAndCreateOrUpdate(record, session) {
+
+  // Record must be an object
+  if (!Util.isObject(record)) {
+    throw new Util.InputError(`record provided is not an object: ${record}`);
+  }
+
+  let template;
+  try {
+    template = await TemplateModel.latestPublished(record.template_uuid, session);
+  } catch(error) {
+    if(error instanceof Util.NotFoundError || error instanceof Util.InputError) {
+      throw new Util.InputError(`a valid template_uuid was not provided for record with uuid ${record.uuid}`);
+    }
+  }
+
+  return await validateAndCreateOrUpdateRecurser(record, session, template);
 
 }
 
