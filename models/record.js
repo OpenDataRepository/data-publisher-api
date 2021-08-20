@@ -452,3 +452,22 @@ exports.draftGet = async function(uuid) {
     throw err;
   }
 }
+
+// Wraps the actual request to update with a transaction
+exports.update = async function(record) {
+  const session = MongoDB.newSession();
+  try {
+    await session.withTransaction(async () => {
+      try {
+        await validateAndCreateOrUpdate(record, session);
+      } catch(err) {
+        await session.abortTransaction();
+        throw err;
+      }
+    });
+    session.endSession();
+  } catch(err) {
+    session.endSession();
+    throw err;
+  }
+}

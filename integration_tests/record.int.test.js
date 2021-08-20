@@ -57,6 +57,13 @@ const templateGet = async(uuid) => {
   return response.body;
 }
 
+const templateCreateAndPublish = async(template) => {
+  let uuid = await templateCreate(template);
+  await templatePublish(uuid);
+  let published_template = await templateGet(uuid);
+  return published_template;
+}
+
 const recordCreate = async (data) => {
   let response = await request(app)
     .post('/record')
@@ -83,6 +90,22 @@ const recordCreateAndTest = async (data) => {
   let record = await recordDraftGet(inserted_uuid);
   expect(record).toMatchObject(data);
   return inserted_uuid;
+};
+
+const recordUpdate = async (data, uuid) => {
+  let response = await request(app)
+    .put(`/record/${uuid}`)
+    .send(data)
+    .set('Accept', 'application/json');
+  expect(response.statusCode).toBe(200);
+};
+
+const recordUpdateAndTest = async (data, uuid) => {
+  await recordUpdate(data, uuid);
+  delete data.updated_at;
+  
+  let record = await recordDraftGet(uuid);
+  expect(record).toMatchObject(data);
 };
 
 describe("create (and get draft after a create)", () => {
@@ -443,4 +466,93 @@ describe("create (and get draft after a create)", () => {
   });
 });
 
-// TODO: When I test update, test that we do not allow the template uuid to change.
+describe("update (and get draft after a create)", () => {
+  let template;
+  let record;
+  
+
+  beforeEach(async() => {
+
+    let f1 = {
+      "name": "f1"
+    }
+
+    let f2 = {
+      "name": "f2"
+    }
+
+
+    template = { 
+      "name": "t1",
+      "fields": [f1],
+      "related_templates": [
+        { 
+          "name": "t2",
+          "fields": [f2]
+        }
+      ]
+    };
+    template = await templateCreateAndPublish(template);
+    let related_template_uuid = template.related_templates[0].uuid;
+
+    f1.value = "happy";
+    f2.value = "strawberry";
+
+    record = {
+      template_uuid: template.uuid,
+      fields: [f1],
+      related_records: [{
+        template_uuid: related_template_uuid,
+        fields: [f2]
+      }]
+    };
+
+    let record_uuid = await recordCreateAndTest(record);
+    record = await recordDraftGet(record_uuid);
+  });
+
+  describe("Success cases", () => {
+
+    test("Basic update - change a field", async () => {
+      record.fields[0].value = "sad";
+      record.related_records = [];
+      await recordUpdateAndTest(record, record.uuid);
+    });
+
+  });
+
+  describe("Failure cases", () => {
+
+    const failureTest = async (data, uuid, responseCode) => {
+      let response = await request(app)
+        .put(`/record/${uuid}`)
+        .send(data)
+        .set('Accept', 'application/json');
+      expect(response.statusCode).toBe(responseCode);
+    };
+
+    test("uuid in request and in object must match", async () => {
+
+      await failureTest(record, ValidUUID, 400);
+
+    });
+
+    test("uuid must exist", async () => {
+
+      record.uuid = ValidUUID;
+
+      await failureTest(record, ValidUUID, 404);
+
+    });
+
+    test("template uuid must not change", async () => {
+
+      record.template_uuid = record.related_records[0].template_uuid;
+
+      await failureTest(record, record.uuid, 400);
+
+    });
+
+  });
+
+});

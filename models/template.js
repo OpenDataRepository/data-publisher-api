@@ -289,6 +289,9 @@ async function createDraftFromLastPublishedWithSession(uuid) {
   }
 }
 
+// TODO: as of now the updated_at field is not accurate because it is automatically changed every time update is called.
+// To prevent this, we would need to compare the submitted draft agains the existing draft.
+
 // If a uuid is provided, update the template with the provided uuid.
 // Otherwise, create a new template.
 // If the updated template is the same as the last published, delete the draft instead of updating. 

@@ -110,51 +110,50 @@ describe("create (and get draft after a create)", () => {
     test("Create template with related templates going 6 nodes deep", async () => {
   
       let data = { 
-        "name": "template 1",
-        "description": "ancestor",
+        "name": "t1",
         "fields": [
           { 
-            "name": "field 1"
+            "name": "f1"
           }
         ],
         "related_templates": [
           { 
-            "name": "template 2",
+            "name": "t2",
             "fields": [
               { 
-                "name": "field 2"
+                "name": "f2"
               }
             ],
             "related_templates": [
               { 
-                "name": "template 3",
+                "name": "t3",
                 "fields": [
                   { 
-                    "name": "field 3"
+                    "name": "f3"
                   }
                 ],
                 "related_templates": [
                   { 
-                    "name": "template 4",
+                    "name": "t4",
                     "fields": [
                       { 
-                        "name": "field 4"
+                        "name": "f4"
                       }
                     ],
                     "related_templates": [
                       { 
-                        "name": "template 5",
+                        "name": "t5",
                         "fields": [
                           { 
-                            "name": "field 5"
+                            "name": "f5"
                           }
                         ],
                         "related_templates": [
                           { 
-                            "name": "template 6",
+                            "name": "t6",
                             "fields": [
                               { 
-                                "name": "field 6"
+                                "name": "f6"
                               }
                             ]
                           }
@@ -347,6 +346,9 @@ describe("update (and get draft after an update)", () => {
       expect(response.body).toMatchObject(data);
 
     });
+
+    // TODO: as of now the updated_at field is not accurate because it is automatically changed every time update is called.
+    // To prevent this, we would need to compare the submitted draft agains the existing draft.
 
     // test("Updating a parent does not update a child if the child has no changes", async () => {
     //   let data = {
