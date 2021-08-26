@@ -72,6 +72,8 @@ exports.draft_delete = async function(req, res, next) {
   res.sendStatus(200);
 }
 
+// TODO: Why haven't I implemented this (for both template and record)? We should be verifying the given timestamp 
+// against the timestamp of our last update before allowing the publish
 exports.get_last_update = async function(req, res, next) {
   var last_update;
   try {

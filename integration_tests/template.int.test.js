@@ -346,43 +346,6 @@ describe("update (and get draft after an update)", () => {
       expect(response.body).toMatchObject(data);
 
     });
-
-    // TODO: as of now the updated_at field is not accurate because it is automatically changed every time update is called.
-    // To prevent this, we would need to compare the submitted draft agains the existing draft.
-
-    // test("Updating a parent does not update a child if the child has no changes", async () => {
-    //   let data = {
-    //     "name": "parent",
-    //     "related_templates": [{
-    //       "name": "child"
-    //     }]
-    //   }
-    //   let parent_uuid = await createSuccessTest(data);
-
-    //   let response = await request(app)
-    //     .get(`/template/${parent_uuid}/draft`)
-    //     .set('Accept', 'application/json');
-    //   expect(response.statusCode).toBe(200);
-
-    //   data = response.body;
-    //   let child_uuid = data.related_templates[0].uuid;
-    //   let update_time = data.related_templates[0].updated_at;
-
-    //   data.description = "added a description";
-
-    //   response = await request(app)
-    //     .put(`/template/${parent_uuid}`)
-    //     .send(data)
-    //     .set('Accept', 'application/json');
-    //   expect(response.statusCode).toBe(200);
-
-    //   response = await request(app)
-    //     .get(`/template/${child_uuid}/draft`)
-    //     .set('Accept', 'application/json');
-    //   expect(response.statusCode).toBe(200);
-
-    //   expect(response.body.updated_at).toEqual(update_time)
-    // })
   
   })
 

@@ -156,7 +156,6 @@ function draftsEqual(draft1, draft2) {
          Util.arrayEqual(draft1.related_records, draft2.related_records);
 }
 
-// TODO: add unit tests for all of the cases in this function
 // Returns true if the draft has any changes from it's previous published version
 async function draftDifferentFromLastPublished(draft) {
   // If there is no published version, obviously there are changes
@@ -458,7 +457,23 @@ async function draftDelete(uuid) {
   }
 }
 
-// A recursive helper for publish. See comments for publish.
+// A recursive helper for publish. 
+// Publishes the record with the provided uuid
+//   If a draft exists of the record, then:
+//     if a template has been published more recently than the record, reject
+//     if this record doesn't conform to the template, then there is a problem with my implementation: Internal Server Error
+//     if that draft has changes from the latest published (including changes to it's sub-properties):
+//       publish it, and return the new internal_id
+//     else: 
+//       return the internal_id of the latest published
+//   else:
+//     return the internal_id of the latest_published
+// Input: 
+//   uuid: the uuid of a record to be published
+//   session: the mongo session that must be used to make transactions atomic
+// Returns:
+//   internal_id: the internal id of the published record
+//   published: true if a new published version is created. false otherwise
 async function publishRecurser(uuid, session, template) {
 
   var return_id;
@@ -482,16 +497,23 @@ async function publishRecurser(uuid, session, template) {
 
   // verify that the template uuid on the record draft and the expected template uuid match
   if (record_draft.template_uuid != template.uuid) {
-    throw new Util.InputError(`The draft provided ${record_draft} does not reference the template required ${template.uuid}`)
+    throw new Error(`The draft provided ${record_draft} does not reference the template required ${template.uuid}. 
+    Error in record update implementation.`);
   }
 
   // Also require the related_records fields to be the same length as the related_templates required by the template
   if (record_draft.related_records.length != template.related_templates.length) {
-    throw new Util.InputError(
+    throw new Error(
       `The draft to be published ${record_draft.uuid} does not match the template specification ${template.uuid}.
       The draft expects ${record_draft.related_records.length} related records, but the template expects ${template.related_templates.length} related records.
-      This could happen because the template has been updated more recently than the draft. Try fetching and updating the draft again before publishing.`
+      Error in record update implementation.`
       );
+  }
+
+  // check that the draft update is more recent than the last template publish
+  if ((await TemplateModel.latest_published_time_for_uuid(record_draft.template_uuid)) > record_draft.updated_at) {
+    throw new Util.InputError(`Record ${record_draft.uuid}'s template has been published more recently than when the record was updated. 
+    Update the record again before publishing.`);
   }
 
   let changes = false;
@@ -554,33 +576,24 @@ async function publishRecurser(uuid, session, template) {
 }
 
 // Publishes the record with the provided uuid
-//   If a draft exists of the record, then:
-//     if the record doesn't conform to the template, reject
-//     if that draft has changes from the latest published (including changes to it's sub-properties):
-//       publish it, and return the new internal_id
-//     else: 
-//       return the internal_id of the latest published
-//   else:
-//     return the internal_id of the latest_published
 // Input: 
 //   uuid: the uuid of a record to be published
 //   session: the mongo session that must be used to make transactions atomic
 // Returns:
-//   internal_id: the internal id of the published record
 //   published: true if a new published version is created. false otherwise
 async function publish(record_uuid, session) {
 
   let record = await draft(record_uuid);
-  let template;
-  try {
-    template = await TemplateModel.latestPublished(record.template_uuid, session);
-  } catch(error) {
-    if(error instanceof Util.NotFoundError || error instanceof Util.InputError) {
-      throw new Util.InputError(`a valid template_uuid was not provided for record with uuid ${record.uuid}`);
-    }
+  if (!record) {
+    record = await latestPublished(record_uuid, session);
+    if (!record) {
+      throw new Util.NotFoundError(`Record with uuid ${record_uuid} does not exist`);
+    } 
+    return false;
   }
+  let template = await TemplateModel.latestPublished(record.template_uuid, session);
 
-  return (await publishRecurser(record_uuid, session, template));
+  return (await publishRecurser(record_uuid, session, template))[1];
 
 }
 
@@ -716,7 +729,7 @@ exports.publish = async function(uuid) {
     var published;
     await session.withTransaction(async () => {
       try {
-        [_, published] = await publish(uuid, session);
+        published = await publish(uuid, session);
       } catch(err) {
         await session.abortTransaction();
         throw err;

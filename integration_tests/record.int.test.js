@@ -872,4 +872,50 @@ describe("publish (and get published)", () => {
     });
 
   });
+
+  describe("Failure cases", () => {
+
+    const publishFailureTest = async (uuid, responseCode) => {
+      let response = await request(app)
+        .post(`/record/${uuid}/publish`)
+        .set('Accept', 'application/json');
+      expect(response.statusCode).toBe(responseCode);
+    };
+
+    let template;
+    let record;
+    beforeEach(async() => {
+      [template, record] = await populateWithDummyTemplateAndRecord();
+    });
+
+    test("Record with uuid does not exist", async () => {
+      await publishFailureTest(ValidUUID, 404);
+    });
+
+    test("No changes to publish", async () => {
+      await recordPublishAndTest(record.uuid, record);
+      await publishFailureTest(record.uuid, 400);
+    });
+
+    test("A new template has been published since this record was last updated", async () => {
+      // publish original data
+      await recordPublishAndTest(record.uuid, record);
+      // update record
+      record.fields[0].value = "waffle";
+      await recordUpdateAndTest(record, record.uuid);
+      // update template and publish
+      template.fields[0].description = "new description";
+      await templateUpdateAndPublish(template);
+      // fail to publish record because it's template was just published
+      await publishFailureTest(record.uuid, 400);
+      // update record again and this time succeed in publishing 
+      // This description isn't used by record update, but it is used by the test to verify the result of update
+      record.fields[0].description = "new description";
+      await recordUpdateAndTest(record, record.uuid);
+      await recordPublishAndTest(record.uuid, record);
+    });
+
+  });
 });
+
+// TODO add a test for get published with timestamp
