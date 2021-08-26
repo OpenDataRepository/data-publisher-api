@@ -36,17 +36,51 @@ exports.update = async function(req, res, next) {
 }
 
 exports.draft_delete = async function(req, res, next) {
-  // TODO: Implement
+  try {
+    await RecordModel.draftDelete(req.params.uuid);
+  } catch(err) {
+    return next(err);
+  }
+  res.sendStatus(200);
 }
 
 exports.publish = async function(req, res, next) {
-  // TODO: Implement
+  try {
+    await RecordModel.publish(req.params.uuid);
+    // TODO: after a record is published, if any records link to it, create drafts for them.
+    // TODO: ask Nate about it
+    // TODO: also ask if publishing a template should create new drafts of all records that use that template
+    //await RecordModel.updateRecordsThatReference(req.params.uuid, 'template');
+    res.sendStatus(200);
+  } catch(err) {
+    next(err);
+  }
 }
 
 exports.get_latest_published = async function(req, res, next) {
-  // TODO: Implement
+  try {
+    let record = await RecordModel.latestPublished(req.params.uuid);
+    res.json(record);
+  } catch(err) {
+    next(err);
+  }
 }
 
 exports.get_published_before_timestamp = async function(req, res, next) {
-  // TODO: Implement
+  try {
+    let record = await RecordModel.publishedBeforeDate(req.params.uuid, new Date(req.params.timestamp));
+    res.json(record);
+  } catch(err) {
+    next(err);
+  }
+}
+
+exports.draft_existing = async function(req, res, next) {
+  var exists;
+  try {
+    exists = await RecordModel.draftExisting(req.params.uuid);
+  } catch(err) {
+    return next(err);
+  }
+  res.send(exists);
 }

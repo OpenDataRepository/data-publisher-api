@@ -4,6 +4,7 @@ const router = express.Router();
 const controller = require('../controllers/recordController');
 
 router.get('/:uuid/draft', controller.draft_get);
+router.get('/:uuid/draft_existing', controller.draft_existing);
 router.get('/:uuid/latest_published', controller.get_latest_published);
 router.get('/:uuid/:timestamp', controller.get_published_before_timestamp);
 router.post('/', controller.create);

@@ -39,7 +39,7 @@ async function draft(uuid, session) {
   return draft;
 }
 
-// Fetches the latest published draft with the given uuid. 
+// Fetches the latest published record with the given uuid. 
 // Does not look up related_records
 async function latestPublished(uuid, session) {
   let cursor = await Record.find(
@@ -74,6 +74,35 @@ async function uuidFor_id(_id, session) {
   return document.uuid;
 }
 
+async function publishDateFor_id(_id, session) {
+  let cursor = await Record.find(
+    {"_id": _id}, 
+    {session}
+  );
+  if (!(await cursor.hasNext())) {
+    return null;
+  }
+  let document = await cursor.next();
+  return document.publish_date;
+}
+
+function fieldsEqual(fields1, fields2) {
+  if(!Array.isArray(fields1) || !Array.isArray(fields2)) {
+    throw new Error(`fieldsEqual: did not provide 2 valid arrays`);
+  }
+  if(fields1.length != fields2.length) {
+    return false;
+  }
+  for(let i = 0; i < fields1.length; i++) {
+    let field1 = fields1[i];
+    let field2 = fields2[i];
+    if (field1.name != field2.name || field1.description != field2.description || field1.value != field2.value) {
+      return false;
+    }
+  }
+  return true;
+}
+
 // Creates a draft from the published version.
 async function createDraftFromPublished(published) {
 
@@ -83,6 +112,8 @@ async function createDraftFromPublished(published) {
   delete draft._id;
   draft.updated_at = draft.publish_date;
   delete draft.publish_date;
+  draft.template_uuid = await TemplateModel.uuidFor_id(draft.template_id);
+  delete draft.template_id;
 
   // Replace each of the related_template _ids with uuids. 
   let related_records = [];
@@ -118,6 +149,14 @@ async function fetchDraftOrCreateFromPublished(uuid, session) {
   return record_draft;
 }
 
+function draftsEqual(draft1, draft2) {
+  return draft1.uuid == draft2.uuid &&
+         draft1.template_uuid == draft2.template_uuid &&
+         fieldsEqual(draft1.fields, draft2.fields) &&
+         Util.arrayEqual(draft1.related_records, draft2.related_records);
+}
+
+// TODO: add unit tests for all of the cases in this function
 // Returns true if the draft has any changes from it's previous published version
 async function draftDifferentFromLastPublished(draft) {
   // If there is no published version, obviously there are changes
@@ -127,15 +166,23 @@ async function draftDifferentFromLastPublished(draft) {
   }
 
   // If the properties have changed since the last publishing
-  let latest_publish_as_draft = await createDraftFromPublished(latest_published);
-  if (!equals(draft, latest_publish_as_draft)) {
+  let latest_published_as_draft = await createDraftFromPublished(latest_published);
+  if (!draftsEqual(draft, latest_published_as_draft)) {
     return true;
   }
 
-  // Finally, if any of the dependencies have been published more recently than this draft, then there are changes
+  // if the template version has changed since this record was last published
+  let latest_template_id = await TemplateModel.latest_published_id_for_uuid(latest_published_as_draft.template_uuid);
+  let s1 = latest_published.template_id.toString();
+  let s2 = latest_template_id.toString();
+  if(!latest_published.template_id.equals(latest_template_id)) {
+    return true;
+  }
+
+  // Finally, if any of the dependencies have been published more recently than this record, then there are changes
   for(let related_record of draft.related_records) {
     let related_record_last_published = (await latestPublished(related_record)).publish_date;
-    if (Util.compareTimeStamp(related_record_last_published, last_publish_date) > 0) {
+    if (Util.compareTimeStamp(related_record_last_published, latest_published.publish_date) > 0) {
       return true;
     }
   }
@@ -273,7 +320,7 @@ async function validateAndCreateOrUpdateRecurser(record, session, template) {
           throw err;
         }
       }
-      return [false, null];
+      return [false, record.uuid];
     }
   }
 
@@ -411,6 +458,194 @@ async function draftDelete(uuid) {
   }
 }
 
+// A recursive helper for publish. See comments for publish.
+async function publishRecurser(uuid, session, template) {
+
+  var return_id;
+
+  var last_published_time = 0;
+
+  let published_record = await latestPublished(uuid, session);
+
+  // Check if a draft with this uuid exists
+  let record_draft = await draft(uuid, session);
+  if(!record_draft) {
+    // There is no draft of this uuid. Return the latest published record instead.
+    if (!published_record) {
+      throw new Util.NotFoundError(`Record with uuid ${uuid} does not exist`);
+    }
+    return [published_record._id, false];
+  }
+  if(published_record) {
+    last_published_time = published_record.publish_date;
+  }
+
+  // verify that the template uuid on the record draft and the expected template uuid match
+  if (record_draft.template_uuid != template.uuid) {
+    throw new Util.InputError(`The draft provided ${record_draft} does not reference the template required ${template.uuid}`)
+  }
+
+  // Also require the related_records fields to be the same length as the related_templates required by the template
+  if (record_draft.related_records.length != template.related_templates.length) {
+    throw new Util.InputError(
+      `The draft to be published ${record_draft.uuid} does not match the template specification ${template.uuid}.
+      The draft expects ${record_draft.related_records.length} related records, but the template expects ${template.related_templates.length} related records.
+      This could happen because the template has been updated more recently than the draft. Try fetching and updating the draft again before publishing.`
+      );
+  }
+
+  let changes = false;
+  let related_records = [];
+
+  // For each records's related_records, publish that related_record, then replace the uuid with the internal_id.
+  // It is possible there weren't any changes to publish, so keep track of whether we actually published anything.
+  for(let i = 0; i < record_draft.related_records.length; i++) {
+    let related_record = record_draft.related_records[i];
+    let related_template = template.related_templates[i];
+    try {
+      [related_record, _] = await publishRecurser(related_record, session, related_template);
+      related_records.push(related_record);
+    } catch(err) {
+      if (err instanceof Util.NotFoundError) {
+        throw new Util.InputError(`Internal reference within this draft is invalid. Fetch/update draft to cleanse it.`);
+      } else {
+        throw err;
+      }
+    }
+    if (publishDateFor_id(related_record) > last_published_time) {
+      changes = true;
+    }
+  }  
+
+  // We're trying to figure out if there is anything worth publishing. If none of the sub-properties were published, 
+  // see if there are any changes to the top-level record from the previous published version
+  if(!changes) {
+    if (published_record) {
+      return_id = published_record._id;
+      // Add the check if the current template being used is different from the template being used by the last published
+      if (template._id != published_record.template_id) {
+        changes = true;
+      } else if (!fieldsEqual(fields, published_record.fields) || 
+                !Util.arrayEqual(related_records, published_record.related_records)) {
+        changes = true;
+      }
+    } else {
+      changes = true;
+    }
+  }
+
+  // If there are changes, publish the current draft
+  if(changes) {
+    let publish_time = new Date();
+    let response = await Record.updateOne(
+      {"_id": record_draft._id},
+      {'$set': {'updated_at': publish_time, 'publish_date': publish_time, related_records, 'template_id': template._id}},
+      // TODO: change template field from being template_uuid and template_id to template
+      {session}
+    )
+    if (response.modifiedCount != 1) {
+      throw `Record.publish: should be 1 modified document. Instead: ${response.modifiedCount}`;
+    }
+    return_id = record_draft._id;
+  }
+
+  return [return_id, changes];
+
+}
+
+// Publishes the record with the provided uuid
+//   If a draft exists of the record, then:
+//     if the record doesn't conform to the template, reject
+//     if that draft has changes from the latest published (including changes to it's sub-properties):
+//       publish it, and return the new internal_id
+//     else: 
+//       return the internal_id of the latest published
+//   else:
+//     return the internal_id of the latest_published
+// Input: 
+//   uuid: the uuid of a record to be published
+//   session: the mongo session that must be used to make transactions atomic
+// Returns:
+//   internal_id: the internal id of the published record
+//   published: true if a new published version is created. false otherwise
+async function publish(record_uuid, session) {
+
+  let record = await draft(record_uuid);
+  let template;
+  try {
+    template = await TemplateModel.latestPublished(record.template_uuid, session);
+  } catch(error) {
+    if(error instanceof Util.NotFoundError || error instanceof Util.InputError) {
+      throw new Util.InputError(`a valid template_uuid was not provided for record with uuid ${record.uuid}`);
+    }
+  }
+
+  return (await publishRecurser(record_uuid, session, template));
+
+}
+
+async function latestPublishedBeforeDateWithJoins(uuid, date) {
+  // Validate uuid and date are valid
+  if (!uuidValidate(uuid)) {
+    throw new Util.InputError('The uuid provided is not in proper uuid format.');
+  }
+  if (!Util.isValidDate(date)) {
+    throw new Util.InputError('The date provided is not a valid date.');
+  }
+
+  // Construct a mongodb aggregation pipeline that will recurse into related records up to 5 levels deep.
+  // Thus, the tree will have a depth of 6 nodes
+  let pipeline = [
+    {
+      '$match': { 
+        'uuid': uuid,
+        'publish_date': {'$lte': date}
+      }
+    },
+    {
+      '$sort' : { 'publish_date' : -1 }
+    },
+    {
+      '$limit' : 1
+    }
+  ]
+
+  let current_pipeline = pipeline;
+
+  let pipeline_addon = {
+    '$lookup': {
+      'from': "records",
+      'let': { 'ids': "$related_records"},
+      'pipeline': [
+        { 
+          '$match': { 
+            '$expr': { 
+              '$and': [
+                { '$in': [ "$_id",  "$$ids" ] },
+              ]
+            }
+          }
+        }
+      ],
+      'as': "related_records"
+    }
+  }
+
+  for(let i = 0; i < 5; i++) {
+    // go one level deeper into related_templates
+    current_pipeline.push(pipeline_addon);
+    current_pipeline = pipeline_addon['$lookup']['pipeline'];
+    // create a copy
+    pipeline_addon = JSON.parse(JSON.stringify(pipeline_addon));
+  }
+  let response = await Record.aggregate(pipeline);
+  if (await response.hasNext()){
+    return await response.next();
+  } else {
+    throw new Util.NotFoundError('No record exists with the uuid provided which was published before the provided date.');
+  }
+}
+
 // Wraps the actual request to create with a transaction
 exports.create = async function(record) {
   const session = MongoDB.newSession();
@@ -470,4 +705,42 @@ exports.update = async function(record) {
     session.endSession();
     throw err;
   }
+}
+
+exports.draftDelete = draftDelete;
+
+// Wraps the actual request to publish with a transaction
+exports.publish = async function(uuid) {
+  const session = MongoDB.newSession();
+  try {
+    var published;
+    await session.withTransaction(async () => {
+      try {
+        [_, published] = await publish(uuid, session);
+      } catch(err) {
+        await session.abortTransaction();
+        throw err;
+      }
+    });
+    if (!published) {
+      throw new Util.InputError('No changes to publish');
+    }
+    session.endSession();
+  } catch(err) {
+    session.endSession();
+    throw err;
+  }
+}
+// Fetches the last published record with the given uuid. 
+// Also recursively looks up related_templates.
+exports.latestPublished = async function(uuid) {
+  return await latestPublishedBeforeDateWithJoins(uuid, new Date());
+}
+
+// Fetches the last record with the given uuid published before the provided timestamp. 
+// Also recursively looks up related_templates.
+exports.get_published_before_timestamp = latestPublishedBeforeDateWithJoins;
+
+exports.draftExisting = async function(uuid) {
+  return (await draft(uuid)) ? true : false;
 }

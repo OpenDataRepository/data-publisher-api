@@ -23,6 +23,7 @@ app.use(function(err, req, res, next) {
   if(err instanceof Util.NotFoundError) {
     res.sendStatus(404);
   } else if(err instanceof Util.InputError) {
+    console.log(err.message)
     res.status(400).send(err.message);
   } else {
     console.error(err)

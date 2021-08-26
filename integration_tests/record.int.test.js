@@ -64,6 +64,82 @@ const templateCreateAndPublish = async(template) => {
   return published_template;
 }
 
+const deleteTemplateUpdatedAtValues = async (template) => {
+  if(!template) {
+    return;
+  }  
+  delete template.updated_at;
+  for(field of template.fields) {
+    delete field.updated_at;
+  }
+  for(template of template.related_templates) {
+    deleteTemplateUpdatedAtValues(template);
+  }
+}
+
+const deleteTemplate_IdValues = async (template) => {
+  if(!template) {
+    return;
+  }  
+  delete template._id;
+  for(field of template.fields) {
+    delete field._id;
+  }
+  for(template of template.related_templates) {
+    deleteTemplate_IdValues(template);
+  }
+}
+
+const deleteTemplatePublishDateValues = async (template) => {
+  if(!template) {
+    return;
+  }  
+  delete template.publish_date;
+  for(field of template.fields) {
+    delete field.publish_date;
+  }
+  for(template of template.related_templates) {
+    deleteTemplatePublishDateValues(template);
+  }
+}
+
+const templateUpdate = async (data) => {
+  let response = await request(app)
+    .put(`/template/${data.uuid}`)
+    .send(data)
+    .set('Accept', 'application/json');
+  expect(response.statusCode).toBe(200);
+
+  response = await request(app)
+    .get(`/template/${data.uuid}/draft`)
+    .set('Accept', 'application/json');
+  expect(response.statusCode).toBe(200);
+  await deleteTemplateUpdatedAtValues(data);
+  await deleteTemplateUpdatedAtValues(response.body);
+  await deleteTemplate_IdValues(data);
+  deleteTemplatePublishDateValues(data);
+  expect(response.body).toMatchObject(data);
+};
+
+const templateUpdateAndPublish = async(template) => {
+  await templateUpdate(template);
+  await templatePublish(template.uuid);
+  let published_template = await templateGet(template.uuid);
+  return published_template;
+}
+
+const deleteRecordUpdatedAtValues = async (record) => {
+  if(!record) {
+    return;
+  }  
+  delete record.updated_at;
+  if(record.related_records) {
+    for(record of record.related_records) {
+      deleteRecordUpdatedAtValues(record);
+    }
+  }
+}
+
 const recordCreate = async (data) => {
   let response = await request(app)
     .post('/record')
@@ -100,15 +176,55 @@ const recordUpdate = async (data, uuid) => {
   expect(response.statusCode).toBe(200);
 };
 
-const recordUpdateAndTest = async (data, uuid) => {
-  await recordUpdate(data, uuid);
-  delete data.updated_at;
+const recordUpdateAndTest = async (record, uuid) => {
+  await recordUpdate(record, uuid);
+  delete record.updated_at;
   
-  let record = await recordDraftGet(uuid);
-  expect(record).toMatchObject(data);
+  let updated_record = await recordDraftGet(uuid);
+  deleteRecordUpdatedAtValues(record);
+  expect(updated_record).toMatchObject(record);
 };
 
-describe("create (and get draft after a create)", () => {
+const recordDelete = async (uuid) => {
+  let response = await request(app)
+    .delete(`/record/${uuid}/draft`)
+    .set('Accept', 'application/json');
+  expect(response.statusCode).toBe(200);
+};
+
+const recordPublish = async (uuid) => {
+  let response = await request(app)
+    .post(`/record/${uuid}/publish`)
+    .set('Accept', 'application/json');
+  expect(response.statusCode).toBe(200);
+}
+
+const recordLatestPublishedGet = async (uuid) => {
+  let response = await request(app)
+    .get(`/record/${uuid}/latest_published`)
+    .set('Accept', 'application/json');
+  expect(response.statusCode).toBe(200);
+  return response.body;
+};
+
+const recordPublishAndTest = async (uuid, data) => {
+  await recordPublish(uuid);
+  let published = await recordLatestPublishedGet(uuid);
+  expect(published).toHaveProperty("publish_date");
+  deleteRecordUpdatedAtValues(data);
+  expect(published).toMatchObject(data);
+  return published;
+}
+
+const draftExisting = async (uuid) => {
+  let response = await request(app)
+    .get(`/record/${uuid}/draft_existing`)
+    .set('Accept', 'application/json');
+  expect(response.statusCode).toBe(200);
+  return response.body;
+}
+
+describe("create (and get draft)", () => {
   describe("Success cases", () => {
 
     test("No fields or related records", async () => {
@@ -466,49 +582,50 @@ describe("create (and get draft after a create)", () => {
   });
 });
 
-describe("update (and get draft after a create)", () => {
+const populateWithDummyTemplateAndRecord = async () => {
+  let f1 = {
+    "name": "f1"
+  }
+
+  let f2 = {
+    "name": "f2"
+  }
+
+  template = { 
+    "name": "t1",
+    "fields": [f1],
+    "related_templates": [
+      { 
+        "name": "t2",
+        "fields": [f2]
+      }
+    ]
+  };
+  template = await templateCreateAndPublish(template);
+  let related_template_uuid = template.related_templates[0].uuid;
+
+  f1.value = "happy";
+  f2.value = "strawberry";
+
+  record = {
+    template_uuid: template.uuid,
+    fields: [f1],
+    related_records: [{
+      template_uuid: related_template_uuid,
+      fields: [f2]
+    }]
+  };
+
+  let record_uuid = await recordCreateAndTest(record);
+  record = await recordDraftGet(record_uuid);
+  return [template, record];
+};
+
+describe("update", () => {
   let template;
   let record;
-  
-
   beforeEach(async() => {
-
-    let f1 = {
-      "name": "f1"
-    }
-
-    let f2 = {
-      "name": "f2"
-    }
-
-
-    template = { 
-      "name": "t1",
-      "fields": [f1],
-      "related_templates": [
-        { 
-          "name": "t2",
-          "fields": [f2]
-        }
-      ]
-    };
-    template = await templateCreateAndPublish(template);
-    let related_template_uuid = template.related_templates[0].uuid;
-
-    f1.value = "happy";
-    f2.value = "strawberry";
-
-    record = {
-      template_uuid: template.uuid,
-      fields: [f1],
-      related_records: [{
-        template_uuid: related_template_uuid,
-        fields: [f2]
-      }]
-    };
-
-    let record_uuid = await recordCreateAndTest(record);
-    record = await recordDraftGet(record_uuid);
+    [template, record] = await populateWithDummyTemplateAndRecord();
   });
 
   describe("Success cases", () => {
@@ -517,6 +634,93 @@ describe("update (and get draft after a create)", () => {
       record.fields[0].value = "sad";
       record.related_records = [];
       await recordUpdateAndTest(record, record.uuid);
+    });
+
+    test("updating a related_record creates drafts of parents but not children", async () => {
+      // Create and publish template
+      let template = {
+        "name":"1",
+        "related_templates":[{
+          "name": "2",
+          "related_templates":[{
+            "name": "3",
+            "fields": [{"name": "f1"}],
+            "related_templates":[{
+              "name": "4"
+            }]
+          }]
+        }]
+      };
+      template = await templateCreateAndPublish(template);
+
+      let record = {
+        template_uuid: template.uuid,
+        related_records: [{
+          template_uuid: template.related_templates[0].uuid,
+          related_records: [{
+            template_uuid: template.related_templates[0].related_templates[0].uuid,
+            fields: [{name: "f1", value: "strawberry"}],
+            related_records: [{
+              template_uuid: template.related_templates[0].related_templates[0].related_templates[0].uuid,
+            }]
+          }]
+        }]
+      };
+
+      let record_uuid = await recordCreateAndTest(record);
+      record = await recordDraftGet(record_uuid);
+
+      // Publish the first time
+      await recordPublishAndTest(record_uuid, record);
+
+      //  Submit an update on the 3rd layer
+      record = await recordDraftGet(record_uuid);
+      record.related_records[0].related_records[0].fields[0].value = "banana";
+      await recordUpdateAndTest(record, record.uuid);
+
+      // The first 3 layers, but not the fourth layer, should have drafts
+      expect(await draftExisting(record.uuid)).toBeTruthy();
+      expect(await draftExisting(record.related_records[0].uuid)).toBeTruthy();
+      expect(await draftExisting(record.related_records[0].related_records[0].uuid)).toBeTruthy();
+      expect(await draftExisting(record.related_records[0].related_records[0].related_records[0].uuid)).toBeFalsy();
+
+    });
+
+    test("if update includes no change since last published, no draft is created", async () => {
+      await recordPublishAndTest(record.uuid, record);
+      await recordUpdateAndTest(record, record.uuid);
+      expect(await draftExisting(record.uuid)).toBeFalsy();
+      expect(await draftExisting(record.related_records[0].uuid)).toBeFalsy();
+    });
+
+    test("if update includes no changes since last published but a new template has been published, a new draft is created", async () => {
+
+      // Modify the related template and publish it, then change it back and publish it again. 
+      // Then updating the record should create a draft just by the fact that it is a new template.
+
+      await recordPublishAndTest(record.uuid, record);
+      template.fields[0].description = "field 1";
+      await templateUpdateAndPublish(template);
+      template.fields[0].description = "";
+      await templateUpdateAndPublish(template);
+      await recordUpdateAndTest(record, record.uuid);
+      expect(await draftExisting(record.uuid)).toBeTruthy();
+      expect(await draftExisting(record.related_records[0].uuid)).toBeFalsy();
+    });
+
+    test("if update includes no changes except that a new version of a related_record has been published, a new draft is created", async () => {
+
+      await recordPublishAndTest(record.uuid, record);
+      template.fields[0].description = "field 1";
+
+      let related_record = record.related_records[0];
+      related_record.fields[0].value = "new value";
+      await recordUpdateAndTest(related_record, related_record.uuid);
+      await recordPublishAndTest(related_record.uuid, related_record);
+
+      await recordUpdateAndTest(record, record.uuid);
+      expect(await draftExisting(record.uuid)).toBeTruthy();
+      expect(await draftExisting(record.related_records[0].uuid)).toBeFalsy();
     });
 
   });
@@ -555,4 +759,117 @@ describe("update (and get draft after a create)", () => {
 
   });
 
+});
+
+describe("delete", () => {
+  let template;
+  let record;
+  beforeEach(async() => {
+    [template, record] = await populateWithDummyTemplateAndRecord();
+  });
+
+  test("basic delete", async () => {
+
+    // Delete the parent record
+    await recordDelete(record.uuid);
+
+    // The parent record should no longer exist
+    let response = await request(app)
+      .get(`/record/${record.uuid}/draft`)
+      .set('Accept', 'application/json');
+    expect(response.statusCode).toBe(404);
+
+    // But the child still should
+    response = await request(app)
+      .get(`/record/${record.related_records[0].uuid}/draft`)
+      .set('Accept', 'application/json');
+    expect(response.statusCode).toBe(200);
+
+  });
+});
+
+describe("publish (and get published)", () => {
+
+  describe("Success cases", () => {
+    test("Simple publish - no fields and no related records", async () => {
+      let template = { 
+        "name": "t1"
+      };
+      template = await templateCreateAndPublish(template);
+      let record = {
+        template_uuid: template.uuid
+      }
+
+      let record_uuid = await recordCreateAndTest(record);
+
+      await recordPublishAndTest(record_uuid, record);
+      
+    });
+
+    test("Complex publish - with nested fields and related templates to publish", async () => {
+      let template, record;
+      [template, record] = await populateWithDummyTemplateAndRecord();
+
+      await recordPublishAndTest(record.uuid, record);
+
+    });
+
+    test("Complex publish - changes in a nested property result in publishing for all parent properties", async () => {
+      // Create and publish template
+      let template = {
+        "name":"1",
+        "related_templates":[{
+          "name": "2",
+          "related_templates":[{
+            "name": "3",
+            "fields": [{"name": "f1"}],
+            "related_templates":[{
+              "name": "4"
+            }]
+          }]
+        }]
+      };
+      template = await templateCreateAndPublish(template);
+
+      let record = {
+        template_uuid: template.uuid,
+        related_records: [{
+          template_uuid: template.related_templates[0].uuid,
+          related_records: [{
+            template_uuid: template.related_templates[0].related_templates[0].uuid,
+            fields: [{name: "f1", value: "strawberry"}],
+            related_records: [{
+              template_uuid: template.related_templates[0].related_templates[0].related_templates[0].uuid,
+            }]
+          }]
+        }]
+      };
+
+      let record_uuid = await recordCreateAndTest(record);
+      record = await recordDraftGet(record_uuid);
+
+      // Publish the first time
+      await recordPublishAndTest(record_uuid, record);
+
+      // Edit the third record
+      record = await recordDraftGet(record_uuid);
+      record.related_records[0].related_records[0].fields[0].value = "banana";
+      await recordUpdateAndTest(record, record.uuid);
+
+      // Record the date before we publish a second time
+      let intermediate_publish_date = (new Date()).getTime();
+
+      // Now publish the record again
+      let published = await recordPublishAndTest(record_uuid, record);
+
+      // On the third node and above, the publish date should be newer than the intermediate_publish_date. 
+      // The fourth should be older
+      
+      expect(new Date(published.publish_date).getTime()).toBeGreaterThan(intermediate_publish_date);
+      expect(new Date(published.related_records[0].publish_date).getTime()).toBeGreaterThan(intermediate_publish_date);
+      expect(new Date(published.related_records[0].related_records[0].publish_date).getTime()).toBeGreaterThan(intermediate_publish_date);
+      expect(new Date(published.related_records[0].related_records[0].related_records[0].publish_date).getTime()).toBeLessThan(intermediate_publish_date);
+    });
+
+  });
 });

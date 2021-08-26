@@ -891,6 +891,8 @@ exports.lastUpdate = async function(uuid) {
   }
 }
 
+// TODO: as of now only the direct parent of this template has a draft created.
+// Parents 2+ levels up are not updated
 exports.updateTemplatesThatReference = async function(uuid, templateOrField) {
   // Get a list of templates that reference them.
   let uuids = await templateUUIDsThatReference(uuid, templateOrField);
@@ -913,3 +915,9 @@ exports.draftExisting = async function(uuid) {
 exports.latestPublished = latestPublishedWithJoins;
 exports.publishedBeforeDate = latestPublishedBeforeDateWithJoins;
 exports.draftDelete = draftDelete;
+
+exports.uuidFor_id = uuidFor_id;
+exports.latest_published_id_for_uuid = async function(uuid) {
+  let template = await latestPublished(uuid);
+  return template ? template._id : null;
+}
