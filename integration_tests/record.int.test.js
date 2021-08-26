@@ -224,6 +224,13 @@ const draftExisting = async (uuid) => {
   return response.body;
 }
 
+const recordGetPublishedBeforeTimestamp = async(uuid, time) => {
+  let response = await request(app)
+    .get(`/record/${uuid}/${time.toISOString()}`)
+    .set('Accept', 'application/json');
+  return response;
+}
+
 describe("create (and get draft)", () => {
   describe("Success cases", () => {
 
@@ -918,4 +925,42 @@ describe("publish (and get published)", () => {
   });
 });
 
-// TODO add a test for get published with timestamp
+test("get published for a certain date", async () => {
+  let template, record;
+  [template, record] = await populateWithDummyTemplateAndRecord();
+
+  let publish0 = new Date();
+
+  await recordPublishAndTest(record.uuid, record);
+
+  let publish1 = new Date();
+
+  record.fields[0].value = '2';
+  await recordUpdateAndTest(record, record.uuid);
+  await recordPublishAndTest(record.uuid, record);
+
+  let publish2 = new Date();
+
+  record.fields[0].value = '3';
+  await recordUpdateAndTest(record, record.uuid);
+  await recordPublishAndTest(record.uuid, record);
+
+  let publish3 = new Date();
+
+  // Now we have published 3 times. Search for versions based on timestamps.
+
+  let response = await recordGetPublishedBeforeTimestamp(record.uuid, publish0);
+  expect(response.statusCode).toEqual(404);
+
+  response = await recordGetPublishedBeforeTimestamp(record.uuid, publish1);
+  expect(response.statusCode).toEqual(200);
+  expect(response.body.fields[0].value).toEqual(expect.stringMatching("happy"));
+
+  response = await recordGetPublishedBeforeTimestamp(record.uuid, publish2);
+  expect(response.statusCode).toEqual(200);
+  expect(response.body.fields[0].value).toEqual(expect.stringMatching("2"));
+
+  response = await recordGetPublishedBeforeTimestamp(record.uuid, publish3);
+  expect(response.statusCode).toEqual(200);
+  expect(response.body.fields[0].value).toEqual(expect.stringMatching("3"));
+});

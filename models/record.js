@@ -752,7 +752,7 @@ exports.latestPublished = async function(uuid) {
 
 // Fetches the last record with the given uuid published before the provided timestamp. 
 // Also recursively looks up related_templates.
-exports.get_published_before_timestamp = latestPublishedBeforeDateWithJoins;
+exports.publishedBeforeDate = latestPublishedBeforeDateWithJoins;
 
 exports.draftExisting = async function(uuid) {
   return (await draft(uuid)) ? true : false;
