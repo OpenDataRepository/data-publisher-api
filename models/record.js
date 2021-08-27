@@ -562,7 +562,6 @@ async function publishRecurser(uuid, session, template) {
     let response = await Record.updateOne(
       {"_id": record_draft._id},
       {'$set': {'updated_at': publish_time, 'publish_date': publish_time, related_records, 'template_id': template._id}},
-      // TODO: change template field from being template_uuid and template_id to template
       {session}
     )
     if (response.modifiedCount != 1) {

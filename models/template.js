@@ -449,8 +449,7 @@ async function validateAndCreateOrUpdate(template, session) {
 //   session: the mongo session that must be used to make transactions atomic
 // Returns:
 //   internal_id: the internal id of the published template
-//   published: true if a new published version is created. false otherwise
-async function publish(uuid, session) {
+async function publishRecursor(uuid, session) {
 
   var return_id;
 
@@ -465,8 +464,9 @@ async function publish(uuid, session) {
     if (!published_template) {
       throw new Util.NotFoundError(`Template with uuid ${uuid} does not exist`);
     }
-    return [published_template._id, false];
+    return published_template._id;
   }
+
   if(published_template) {
     last_published_time = published_template.publish_date;
   }
@@ -498,7 +498,7 @@ async function publish(uuid, session) {
   // It is possible there weren't any changes to publish, so keep track of whether we actually published anything.
   for(let related_template of template_draft.related_templates) {
     try {
-      [related_template, _] = await publish(related_template, session);
+      related_template = await publishRecursor(related_template, session);
       related_templates.push(related_template);
     } catch(err) {
       if (err instanceof Util.NotFoundError) {
@@ -543,8 +543,45 @@ async function publish(uuid, session) {
     return_id = template_draft._id;
   }
 
-  return [return_id, changes];
+  return return_id;
 
+}
+
+// Publishes the template with the provided uuid
+// Input: 
+//   uuid: the uuid of a template to be published
+//   session: the mongo session that must be used to make transactions atomic
+//   last_update: the timestamp of the most recent update for this template
+async function publish(uuid, session, last_update) {
+
+  // Check if a draft with this uuid exists
+  let template_draft = await draft(uuid, session);
+  let last_published = await latestPublished(uuid, session);
+  if(!template_draft) {
+    if(last_published) {
+      throw new Util.InputError('No changes to publish');
+    } else {
+      throw new Util.NotFoundError(`Template with uuid ${uuid} does not exist`);
+    }
+  }
+
+  // If the last update provided doesn't match to the last update found in the db, fail.
+  let db_last_update = new Date(template_draft.updated_at);
+  if(last_update.getTime() != db_last_update.getTime()) {
+    throw new Util.InputError(`The last update submitted ${last_update.toISOString()} does not match that found in the db ${db_last_update.toISOString()}. 
+    Fetch the draft again to get the latest update before attempting to publish again.`);
+  }
+
+  // Recursively publish template, it's fields and related templates
+  let published_id = await publishRecursor(uuid, session);
+  // TODO: what id is being returned here if we fail to publish anything?
+
+  let new_published_time = new Date(await publishDateFor_id(published_id, session));
+  let last_published_time = last_published ? last_published.publish_date : null;
+  let previous_published_time = new Date(last_published_time);
+  if (new_published_time <= previous_published_time) {
+    throw new Util.InputError('No changes to publish');
+  }
 }
 
 // Fetches the last template with the given uuid published before the given date. 
@@ -845,21 +882,17 @@ exports.draftGet = async function(uuid) {
 }
 
 // Wraps the actual request to publish with a transaction
-exports.publish = async function(uuid) {
+exports.publish = async function(uuid, last_update) {
   const session = MongoDB.newSession();
   try {
-    var published;
     await session.withTransaction(async () => {
       try {
-        [_, published] = await publish(uuid, session);
+        await publish(uuid, session, last_update);
       } catch(err) {
         await session.abortTransaction();
         throw err;
       }
     });
-    if (!published) {
-      throw new Util.InputError('No changes to publish');
-    }
     session.endSession();
   } catch(err) {
     session.endSession();

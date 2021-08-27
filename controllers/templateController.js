@@ -55,7 +55,11 @@ exports.update = async function(req, res, next) {
 
 exports.publish = async function(req, res, next) {
   try {
-    await TemplateModel.publish(req.params.uuid);
+    if(Date.parse(req.body.last_update)) {
+      await TemplateModel.publish(req.params.uuid, new Date(req.body.last_update));
+    } else {
+      throw new Util.InputError(`last_update provided as parameter is not in valid date format: ${req.body.last_update}`);
+    }
     await TemplateModel.updateTemplatesThatReference(req.params.uuid, 'template');
     res.sendStatus(200);
   } catch(err) {
@@ -72,7 +76,7 @@ exports.draft_delete = async function(req, res, next) {
   res.sendStatus(200);
 }
 
-// TODO: Why haven't I implemented this (for both template and record)? We should be verifying the given timestamp 
+// TODO: Why haven't I implemented this (template, template_field and record)? We should be verifying the given timestamp 
 // against the timestamp of our last update before allowing the publish
 exports.get_last_update = async function(req, res, next) {
   var last_update;
