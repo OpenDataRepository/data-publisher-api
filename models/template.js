@@ -551,7 +551,7 @@ async function publishRecursor(uuid, session) {
 // Input: 
 //   uuid: the uuid of a template to be published
 //   session: the mongo session that must be used to make transactions atomic
-//   last_update: the timestamp of the most recent update for this template
+//   last_update: the timestamp of the last known update by the user. Cannot publish if the actual last update and that expected by the user differ.
 async function publish(uuid, session, last_update) {
 
   // Check if a draft with this uuid exists

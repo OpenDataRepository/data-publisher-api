@@ -162,7 +162,13 @@ describe("publish (and get published and draft after a publish)", () => {
     let uuid = await createSuccessTest(data);
 
     let response = await request(app)
+      .get(`/template_field/${uuid}/last_update`);
+    expect(response.statusCode).toBe(200);
+    let last_update = response.body;
+
+    response = await request(app)
       .post(`/template_field/${uuid}/publish`)
+      .send({last_update})
       .set('Accept', 'application/json');
     expect(response.statusCode).toBe(200);
   
@@ -173,7 +179,6 @@ describe("publish (and get published and draft after a publish)", () => {
     expect(response.statusCode).toBe(200);
     expect(response.body).toMatchObject(data);
     expect(response.body).toHaveProperty("publish_date");
-
 
     // Check that we can still get a draft version
     response = await request(app)
@@ -191,10 +196,16 @@ describe("publish (and get published and draft after a publish)", () => {
       let data = {
         "name":"name"
       };
-      await createSuccessTest(data);
+      let uuid = await createSuccessTest(data);
 
       let response = await request(app)
+        .get(`/template_field/${uuid}/last_update`);
+      expect(response.statusCode).toBe(200);
+      let last_update = response.body;
+
+      response = await request(app)
         .post(`/template_field/${ValidUUID}/publish`)
+        .send({last_update})
         .set('Accept', 'application/json');
       expect(response.statusCode).toBe(404);
 
@@ -207,12 +218,31 @@ describe("publish (and get published and draft after a publish)", () => {
       let uuid = await createSuccessTest(data);
 
       let response = await request(app)
+        .get(`/template_field/${uuid}/last_update`);
+      expect(response.statusCode).toBe(200);
+      let last_update = response.body;
+
+      response = await request(app)
         .post(`/template_field/${uuid}/publish`)
+        .send({last_update})
         .set('Accept', 'application/json');
       expect(response.statusCode).toBe(200);
 
       response = await request(app)
         .post(`/template_field/${uuid}/publish`)
+        .set('Accept', 'application/json');
+      expect(response.statusCode).toBe(400);
+    });
+
+    test("Last update provided must match to actual last update in the database", async () => {
+      let data = {
+        "name":"basic template field"
+      };
+      let uuid = await createSuccessTest(data);
+
+      let response = await request(app)
+        .post(`/template/${uuid}/publish`)
+        .send((new Date()).toISOString())
         .set('Accept', 'application/json');
       expect(response.statusCode).toBe(400);
     });
@@ -267,7 +297,13 @@ describe("publish (and get published and draft after a publish)", () => {
     expect(response.statusCode).toBe(200);
 
     response = await request(app)
+      .get(`/template_field/${field_uuid}/last_update`);
+    expect(response.statusCode).toBe(200);
+    last_update = response.body;
+
+    response = await request(app)
       .post(`/template_field/${field_uuid}/publish`)
+      .send({last_update})
       .set('Accept', 'application/json');
     expect(response.statusCode).toBe(200);
 
@@ -298,9 +334,15 @@ test("get published for a certain date", async () => {
     .set('Accept', 'application/json');
   expect(response.statusCode).toBe(404);
 
+  response = await request(app)
+    .get(`/template_field/${uuid}/last_update`);
+  expect(response.statusCode).toBe(200);
+  let last_update = response.body;
+
   // Publish the first time
   response = await request(app)
     .post(`/template_field/${uuid}/publish`)
+    .send({last_update})
     .set('Accept', 'application/json');
   expect(response.statusCode).toBe(200);
 
@@ -316,7 +358,13 @@ test("get published for a certain date", async () => {
   expect(response.statusCode).toBe(200);
 
   response = await request(app)
+    .get(`/template_field/${uuid}/last_update`);
+  expect(response.statusCode).toBe(200);
+  last_update = response.body;
+
+  response = await request(app)
     .post(`/template_field/${uuid}/publish`)
+    .send({last_update})
     .set('Accept', 'application/json');
   expect(response.statusCode).toBe(200);
 
@@ -331,7 +379,13 @@ test("get published for a certain date", async () => {
   expect(response.statusCode).toBe(200);
 
   response = await request(app)
+    .get(`/template_field/${uuid}/last_update`);
+  expect(response.statusCode).toBe(200);
+  last_update = response.body;
+
+  response = await request(app)
     .post(`/template_field/${uuid}/publish`)
+    .send({last_update})
     .set('Accept', 'application/json');
   expect(response.statusCode).toBe(200);
 
@@ -375,7 +429,13 @@ test("delete a draft, not a published version", async () => {
   let uuid = await createSuccessTest(data);
 
   let response = await request(app)
+    .get(`/template_field/${uuid}/last_update`);
+  expect(response.statusCode).toBe(200);
+  let last_update = response.body;
+
+  response = await request(app)
     .post(`/template_field/${uuid}/publish`)
+    .send({last_update})
     .set('Accept', 'application/json');
   expect(response.statusCode).toBe(200);
 

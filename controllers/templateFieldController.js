@@ -59,7 +59,11 @@ exports.update = async function(req, res, next) {
 
 exports.publish = async function(req, res, next) {
   try {
-    await TemplateFieldModel.publish(req.params.uuid);
+    if(Date.parse(req.body.last_update)) {
+      await TemplateFieldModel.publish(req.params.uuid, new Date(req.body.last_update));
+    } else {
+      throw new Util.InputError(`last_update provided as parameter is not in valid date format: ${req.body.last_update}`);
+    }
     await TemplateModel.updateTemplatesThatReference(req.params.uuid, "template_field");
     res.sendStatus(200);
   } catch(err) {

@@ -216,6 +216,7 @@ async function draftFetchOrCreate(uuid, session) {
 
 // Publishes the field with the provided uuid
 //   If a draft exists of the field, then:
+//     if a last_update is provided, verify that it matches the last update in the db
 //     if that draft has changes from the latest published:
 //       publish it, and return the new internal_id
 //     else: 
@@ -225,11 +226,11 @@ async function draftFetchOrCreate(uuid, session) {
 // Input: 
 //   uuid: the uuid of a field to be published
 //   session: the mongo session that must be used to make transactions atomic
+//   last_update: the timestamp of the last known update by the user. Cannot publish if the actual last update and that expected by the user differ.
 // Returns:
 //   internal_id: the internal id of the published field
 //   published: true if a new published version is created. false otherwise
-async function publishField(uuid, session) {
-  console.log(`TemplateField.publishField: called for uuid ${uuid}`);
+async function publishField(uuid, session, last_update) {
   var return_id;
 
   let published_field = await latestPublished(uuid, session);
@@ -243,6 +244,15 @@ async function publishField(uuid, session) {
     }
     // There is no draft of this uuid. Return the internal id of the last published version instead
     return [published_field._id, false];
+  }
+
+  if (last_update) {
+    // If the last update provided doesn't match to the last update found in the db, fail.
+    let db_last_update = new Date(field_draft.updated_at);
+    if(last_update.getTime() != db_last_update.getTime()) {
+      throw new Util.InputError(`The last update submitted ${last_update.toISOString()} does not match that found in the db ${db_last_update.toISOString()}. 
+      Fetch the draft again to get the latest update before attempting to publish again.`);
+    }
   }
 
   let changes = false;
@@ -379,13 +389,13 @@ exports.update = async function(field) {
 }
 
 // Wraps the request to publish with a transaction
-exports.publish = async function(uuid) {
+exports.publish = async function(uuid, last_update) {
   const session = MongoDB.newSession();
   try {
     var published;
     await session.withTransaction(async () => {
       try {
-        [_, published] = await publishField(uuid, session);
+        [_, published] = await publishField(uuid, session, last_update);
       } catch(err) {
         await session.abortTransaction();
         throw err;
