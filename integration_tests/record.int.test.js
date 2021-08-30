@@ -42,9 +42,17 @@ const templateCreate = async (data) => {
   return response.body.uuid;
 };
 
-const templatePublish = async (uuid) => {
+const templateLastUpdate = async(uuid) => {
+  let response = await request(app)
+    .get(`/template/${uuid}/last_update`);
+  expect(response.statusCode).toBe(200);
+  return response.body;
+}
+
+const templatePublish = async (uuid, last_update) => {
   let response = await request(app)
     .post(`/template/${uuid}/publish`)
+    .send({last_update})
     .set('Accept', 'application/json');
   expect(response.statusCode).toBe(200);
 };
@@ -59,7 +67,8 @@ const templateGet = async(uuid) => {
 
 const templateCreateAndPublish = async(template) => {
   let uuid = await templateCreate(template);
-  await templatePublish(uuid);
+  let last_update = await templateLastUpdate(uuid);
+  await templatePublish(uuid, last_update);
   let published_template = await templateGet(uuid);
   return published_template;
 }
@@ -123,7 +132,8 @@ const templateUpdate = async (data) => {
 
 const templateUpdateAndPublish = async(template) => {
   await templateUpdate(template);
-  await templatePublish(template.uuid);
+  let last_update = await templateLastUpdate(template.uuid);
+  await templatePublish(template.uuid, last_update);
   let published_template = await templateGet(template.uuid);
   return published_template;
 }
@@ -241,7 +251,8 @@ describe("create (and get draft)", () => {
         "description":"a template to test a create"
       };
       let template_uuid = await templateCreate(template);
-      await templatePublish(template_uuid);
+      let last_update = await templateLastUpdate(template_uuid);
+      await templatePublish(template_uuid, last_update);
 
       let record = {
         template_uuid
@@ -269,7 +280,8 @@ describe("create (and get draft)", () => {
         "related_templates":[]
       };
       let template_uuid = await templateCreate(template);
-      await templatePublish(template_uuid);
+      let last_update = await templateLastUpdate(template_uuid);
+      await templatePublish(template_uuid, last_update);
 
       name_field.value = "Caleb";
       color_field.value = "yellow - like the sun";
@@ -306,7 +318,8 @@ describe("create (and get draft)", () => {
         "related_templates":[related_template]
       };
       let template_uuid = await templateCreate(template);
-      await templatePublish(template_uuid);
+      let last_update = await templateLastUpdate(template_uuid);
+      await templatePublish(template_uuid, last_update);
 
       template = await templateGet(template_uuid);
       let related_template_uuid = template.related_templates[0].uuid;
@@ -358,7 +371,8 @@ describe("create (and get draft)", () => {
         ]
       };
       let template_uuid = await templateCreate(template);
-      await templatePublish(template_uuid);
+      let last_update = await templateLastUpdate(template_uuid);
+      await templatePublish(template_uuid, last_update);
 
       template = await templateGet(template_uuid);
 
@@ -406,7 +420,8 @@ describe("create (and get draft)", () => {
         "related_templates":[related_template]
       };
       let template_uuid = await templateCreate(template);
-      await templatePublish(template_uuid);
+      let last_update = await templateLastUpdate(template_uuid);
+      await templatePublish(template_uuid, last_update);
 
       template = await templateGet(template_uuid);
       let related_template_uuid = template.related_templates[0].uuid;
@@ -471,7 +486,8 @@ describe("create (and get draft)", () => {
       };
 
       let template_uuid = await templateCreate(template);
-      await templatePublish(template_uuid);
+      let last_update = await templateLastUpdate(template_uuid);
+      await templatePublish(template_uuid, last_update);
 
       let record = {
         template_uuid,
@@ -502,10 +518,12 @@ describe("create (and get draft)", () => {
       }
 
       let other_template_uuid = await templateCreate(other_template);
-      await templatePublish(other_template_uuid);
+      let last_update = await templateLastUpdate(other_template_uuid);
+      await templatePublish(other_template_uuid, last_update);
 
       let template_uuid = await templateCreate(template);
-      await templatePublish(template_uuid);
+      last_update = await templateLastUpdate(template_uuid);
+      await templatePublish(template_uuid, last_update);
 
       let record = {
         template_uuid,
@@ -549,7 +567,8 @@ describe("create (and get draft)", () => {
         ]
       };
       let template_uuid = await templateCreate(template);
-      await templatePublish(template_uuid);
+      let last_update = await templateLastUpdate(template_uuid);
+      await templatePublish(template_uuid, last_update);
 
       template = await templateGet(template_uuid);
 

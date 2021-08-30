@@ -231,7 +231,13 @@ describe("publish (and get published and draft after a publish)", () => {
     let uuid = await createSuccessTest(data, 'template');
 
     let response = await request(app)
+      .get(`/template/${uuid}/last_update`);
+    expect(response.statusCode).toBe(200);
+    let last_update = response.body;
+
+    response = await request(app)
       .post(`/template/${uuid}/publish`)
+      .send({last_update})
       .set('Accept', 'application/json');
     expect(response.statusCode).toBe(200);
   
