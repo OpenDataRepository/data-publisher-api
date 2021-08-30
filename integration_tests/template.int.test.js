@@ -757,7 +757,7 @@ describe("publish (and get published and draft after a publish)", () => {
       expect(response.statusCode).toBe(200);
     });
 
-    test("Update timestamp provided must match to timestamp in the database", async () => {
+    test("Last update provided must match to actual last update in the database", async () => {
       let data = {
         "name":"basic template",
         "description":"a template to test a publish"
@@ -767,6 +767,39 @@ describe("publish (and get published and draft after a publish)", () => {
       let response = await request(app)
         .post(`/template/${uuid}/publish`)
         .send((new Date()).toISOString())
+        .set('Accept', 'application/json');
+      expect(response.statusCode).toBe(400);
+    });
+
+    test("Last update provided must match to actual last update in the database, also if sub-property is updated later", async () => {
+     
+      let related_template = {"name": "2"};
+     
+      let data = {
+        "name":"1",
+        "related_templates": [related_template]
+      };
+      let uuid = await createSuccessTest(data);
+
+      let response = await request(app)
+        .get(`/template/${uuid}/draft`)
+        .set('Accept', 'application/json');
+      expect(response.statusCode).toBe(200);
+      let old_update = response.body.updated_at;
+      console.log(old_update);
+
+      related_template = response.body.related_templates[0];
+      related_template.description = "new description";
+
+      response = await request(app)
+        .put(`/template/${related_template.uuid}`)
+        .send(related_template)
+        .set('Accept', 'application/json');
+      expect(response.statusCode).toBe(200);
+
+      response = await request(app)
+        .post(`/template/${uuid}/publish`)
+        .send({last_update: old_update})
         .set('Accept', 'application/json');
       expect(response.statusCode).toBe(400);
     });

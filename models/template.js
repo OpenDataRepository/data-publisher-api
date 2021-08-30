@@ -566,7 +566,7 @@ async function publish(uuid, session, last_update) {
   }
 
   // If the last update provided doesn't match to the last update found in the db, fail.
-  let db_last_update = new Date(template_draft.updated_at);
+  let db_last_update = new Date(await lastUpdateFor(uuid, session));
   if(last_update.getTime() != db_last_update.getTime()) {
     throw new Util.InputError(`The last update submitted ${last_update.toISOString()} does not match that found in the db ${db_last_update.toISOString()}. 
     Fetch the draft again to get the latest update before attempting to publish again.`);
@@ -574,7 +574,6 @@ async function publish(uuid, session, last_update) {
 
   // Recursively publish template, it's fields and related templates
   let published_id = await publishRecursor(uuid, session);
-  // TODO: what id is being returned here if we fail to publish anything?
 
   let new_published_time = new Date(await publishDateFor_id(published_id, session));
   let last_published_time = last_published ? last_published.publish_date : null;
