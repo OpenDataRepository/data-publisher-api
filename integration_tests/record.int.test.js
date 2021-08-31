@@ -202,9 +202,10 @@ const recordDelete = async (uuid) => {
   expect(response.statusCode).toBe(200);
 };
 
-const recordPublish = async (uuid) => {
+const recordPublish = async (uuid, last_update) => {
   let response = await request(app)
     .post(`/record/${uuid}/publish`)
+    .send({last_update})
     .set('Accept', 'application/json');
   expect(response.statusCode).toBe(200);
 }
@@ -218,7 +219,8 @@ const recordLatestPublishedGet = async (uuid) => {
 };
 
 const recordPublishAndTest = async (uuid, data) => {
-  await recordPublish(uuid);
+  let last_update = await recordLastUpdateAndTest(uuid);
+  await recordPublish(uuid, last_update);
   let published = await recordLatestPublishedGet(uuid);
   expect(published).toHaveProperty("publish_date");
   deleteRecordUpdatedAtValues(data);
@@ -239,6 +241,17 @@ const recordGetPublishedBeforeTimestamp = async(uuid, time) => {
     .get(`/record/${uuid}/${time.toISOString()}`)
     .set('Accept', 'application/json');
   return response;
+}
+
+const recordLastUpdate = async(uuid) => {
+  return await request(app)
+    .get(`/record/${uuid}/last_update`);
+}
+
+const recordLastUpdateAndTest = async(uuid) => {
+  let response = await recordLastUpdate(uuid);
+  expect(response.statusCode).toBe(200);
+  return new Date(response.body);
 }
 
 describe("create (and get draft)", () => {
@@ -901,9 +914,13 @@ describe("publish (and get published)", () => {
 
   describe("Failure cases", () => {
 
-    const publishFailureTest = async (uuid, responseCode) => {
+    const publishFailureTest = async (uuid, responseCode, last_update) => {
+      if(!last_update) {
+        last_update = await recordLastUpdateAndTest(uuid);
+      }
       let response = await request(app)
         .post(`/record/${uuid}/publish`)
+        .send({last_update})
         .set('Accept', 'application/json');
       expect(response.statusCode).toBe(responseCode);
     };
@@ -915,7 +932,7 @@ describe("publish (and get published)", () => {
     });
 
     test("Record with uuid does not exist", async () => {
-      await publishFailureTest(ValidUUID, 404);
+      await publishFailureTest(ValidUUID, 404, new Date());
     });
 
     test("No changes to publish", async () => {
@@ -938,6 +955,21 @@ describe("publish (and get published)", () => {
       // This description isn't used by record update, but it is used by the test to verify the result of update
       record.fields[0].description = "new description";
       await recordUpdateAndTest(record, record.uuid);
+      await recordPublishAndTest(record.uuid, record);
+    });
+
+    test("Last update provided must match to actual last update in the database", async () => {
+      await publishFailureTest(record.uuid, 400, new Date());
+    });
+
+    test("Last update provided must match to actual last update in the database, also if sub-property is updated later", async () => {
+      let parent_update = await recordLastUpdateAndTest(record.uuid);
+      let related_record = record.related_records[0];
+      related_record.fields[0].value = "this programmer just ate a pear";
+      await recordUpdateAndTest(related_record, related_record.uuid);
+
+      await publishFailureTest(record.uuid, 400, parent_update);
+
       await recordPublishAndTest(record.uuid, record);
     });
 
@@ -983,3 +1015,51 @@ test("get published for a certain date", async () => {
   expect(response.statusCode).toEqual(200);
   expect(response.body.fields[0].value).toEqual(expect.stringMatching("3"));
 });
+
+describe("recordLastUpdate", () => {
+
+  describe("success", () => {
+    test("basic draft, no fields or related templates", async () => {
+      let template = {
+        "name":"1"
+      };
+      template = await templateCreateAndPublish(template);
+
+      let record = {
+        template_uuid: template.uuid
+      };
+
+      let before_update = new Date();
+
+      let record_uuid = await recordCreateAndTest(record);
+
+      let last_update = await recordLastUpdateAndTest(record_uuid);
+      expect(last_update.getTime()).toBeGreaterThan(before_update.getTime());
+    });
+
+    test("sub record updated later than parent record", async () => {
+      let template, record;
+      [template, record] = await populateWithDummyTemplateAndRecord();
+
+      let related_record = record.related_records[0];
+
+      let between_updates = new Date();
+
+      await recordUpdateAndTest(related_record, related_record.uuid);
+
+      let last_update = await recordLastUpdateAndTest(record.uuid);
+      expect(last_update.getTime()).toBeGreaterThan(between_updates.getTime());
+    });
+
+  });
+
+  describe("failure", () => {
+    test("invalid uuid", async () => {
+      let response = await recordLastUpdate("18");
+      expect(response.statusCode).toBe(400);
+
+      response = await recordLastUpdate(ValidUUID);
+      expect(response.statusCode).toBe(404);
+    })
+  });
+})

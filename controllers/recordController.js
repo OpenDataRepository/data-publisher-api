@@ -46,7 +46,11 @@ exports.draft_delete = async function(req, res, next) {
 
 exports.publish = async function(req, res, next) {
   try {
-    await RecordModel.publish(req.params.uuid);
+    if(Date.parse(req.body.last_update)) {
+      await RecordModel.publish(req.params.uuid, new Date(req.body.last_update));
+    } else {
+      throw new Util.InputError(`last_update provided as parameter is not in valid date format: ${req.body.last_update}`);
+    }
     // TODO: after a record is published, if any records link to it, create drafts for them.
     // TODO: ask Nate about it
     // TODO: also ask if publishing a template should create new drafts of all records that use that template
@@ -73,6 +77,16 @@ exports.get_published_before_timestamp = async function(req, res, next) {
   } catch(err) {
     next(err);
   }
+}
+
+exports.get_last_update = async function(req, res, next) {
+  var last_update;
+  try {
+    last_update = await RecordModel.lastUpdate(req.params.uuid);
+  } catch(err) {
+    return next(err);
+  }
+  res.send(last_update);
 }
 
 exports.draft_existing = async function(req, res, next) {

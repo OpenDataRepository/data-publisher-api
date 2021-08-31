@@ -578,9 +578,10 @@ async function publishRecurser(uuid, session, template) {
 // Input: 
 //   uuid: the uuid of a record to be published
 //   session: the mongo session that must be used to make transactions atomic
+//   last_update: the timestamp of the last known update by the user. Cannot publish if the actual last update and that expected by the user differ.
 // Returns:
 //   published: true if a new published version is created. false otherwise
-async function publish(record_uuid, session) {
+async function publish(record_uuid, session, last_update) {
 
   let record = await draft(record_uuid);
   if (!record) {
@@ -590,6 +591,14 @@ async function publish(record_uuid, session) {
     } 
     return false;
   }
+
+  // If the last update provided doesn't match to the last update found in the db, fail.
+  let db_last_update = new Date(await lastUpdateFor(record_uuid, session));
+  if(last_update.getTime() != db_last_update.getTime()) {
+    throw new Util.InputError(`The last update submitted ${last_update.toISOString()} does not match that found in the db ${db_last_update.toISOString()}. 
+    Fetch the draft again to get the latest update before attempting to publish again.`);
+  }
+
   let template = await TemplateModel.latestPublished(record.template_uuid, session);
 
   return (await publishRecurser(record_uuid, session, template))[1];
@@ -658,6 +667,36 @@ async function latestPublishedBeforeDateWithJoins(uuid, date) {
   }
 }
 
+// This function will provide the timestamp of the last update made to this record and all of it's related_records
+async function lastUpdateFor(uuid, session) {
+
+  if (!uuidValidate(uuid)) {
+    throw new Util.InputError('The uuid provided is not in proper uuid format.');
+  }
+
+  let draft = await fetchDraftOrCreateFromPublished(uuid, session);
+  if(!draft) {
+    throw new Util.NotFoundError();
+  }
+
+  let last_update = draft.updated_at;
+  for(uuid of draft.related_records) {
+    try {
+      let update = await lastUpdateFor(uuid, session);
+      if (update > last_update){
+        last_update = update;
+      }
+    } catch (err) {
+      if (!(err instanceof Util.NotFoundError)) {
+        throw err;
+      }
+    }
+  }
+
+  return last_update;
+
+}
+
 // Wraps the actual request to create with a transaction
 exports.create = async function(record) {
   const session = MongoDB.newSession();
@@ -722,13 +761,13 @@ exports.update = async function(record) {
 exports.draftDelete = draftDelete;
 
 // Wraps the actual request to publish with a transaction
-exports.publish = async function(uuid) {
+exports.publish = async function(uuid, last_update) {
   const session = MongoDB.newSession();
   try {
     var published;
     await session.withTransaction(async () => {
       try {
-        published = await publish(uuid, session);
+        published = await publish(uuid, session, last_update);
       } catch(err) {
         await session.abortTransaction();
         throw err;
@@ -752,6 +791,27 @@ exports.latestPublished = async function(uuid) {
 // Fetches the last record with the given uuid published before the provided timestamp. 
 // Also recursively looks up related_templates.
 exports.publishedBeforeDate = latestPublishedBeforeDateWithJoins;
+
+// Wraps the actual request to getUpdate with a transaction
+exports.lastUpdate = async function(uuid) {
+  const session = MongoDB.newSession();
+  try {
+    var update;
+    await session.withTransaction(async () => {
+      try {
+        update = await lastUpdateFor(uuid, session);
+      } catch(err) {
+        await session.abortTransaction();
+        throw err;
+      }
+    });
+    session.endSession();
+    return update;
+  } catch(err) {
+    session.endSession();
+    throw err;
+  }
+}
 
 exports.draftExisting = async function(uuid) {
   return (await draft(uuid)) ? true : false;
