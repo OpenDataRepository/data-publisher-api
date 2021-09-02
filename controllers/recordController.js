@@ -51,10 +51,6 @@ exports.publish = async function(req, res, next) {
     } else {
       throw new Util.InputError(`last_update provided as parameter is not in valid date format: ${req.body.last_update}`);
     }
-    // TODO: after a record is published, if any records link to it, create drafts for them.
-    // TODO: ask Nate about it
-    // TODO: also ask if publishing a template should create new drafts of all records that use that template
-    //await RecordModel.updateRecordsThatReference(req.params.uuid, 'template');
     res.sendStatus(200);
   } catch(err) {
     next(err);

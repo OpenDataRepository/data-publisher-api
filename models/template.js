@@ -920,7 +920,6 @@ exports.lastUpdate = async function(uuid) {
   }
 }
 
-// TODO: as of now only the direct parent of this template has a draft created.
 // Parents 2+ levels up are not updated
 exports.updateTemplatesThatReference = async function(uuid, templateOrField) {
   // Get a list of templates that reference them.
