@@ -1,17 +1,10 @@
 const request = require("supertest");
 const MongoDB = require('../lib/mongoDB');
 var { app, init: appInit } = require('../app');
-var { MongoMemoryReplSet } = require('mongodb-memory-server');
-
-var replset;
-var uri;
 
 const ValidUUID = "47356e57-eec2-431b-8059-f61d5f9a6bc6";
 
 beforeAll(async () => {
-  replset = await MongoMemoryReplSet.create({ replSet: { count: 1, storageEngine: 'wiredTiger'} });
-  uri = replset.getUri();
-  process.env.DB = uri;
   await appInit();
 });
 
@@ -29,7 +22,6 @@ beforeEach(async() => {
 afterAll(async () => {
   await clearDatabase();
   await MongoDB.close();
-  await replset.stop();
 });
 
 const templateCreate = async (data) => {
