@@ -1167,3 +1167,89 @@ describe("templateLastUpdate", () => {
     })
   });
 })
+
+test("full range of operations with big data", async () => {
+  let template = {
+    name: "1",
+    fields: [
+      {name: "t1f1"},
+      {name: "t1f2"},
+      {name: "t1f3"}
+    ],
+    related_templates: [
+      {
+        name: "2.1",
+        related_templates: [
+          {
+            name: "3.1",
+            fields: [
+              {name: "t3.1f1"},
+              {name: "t3.1f2"}
+            ],
+            related_templates: [
+              {
+                name: "4.1",
+                fields: [
+                  {name: "t4.1f1"},
+                  {name: "t4.1f2"}
+                ]
+              },
+              {
+                name: "4.2"
+              }
+            ]
+          },
+          {
+            name: "3.2",
+            fields: [
+              {name: "t3.2f1"},
+              {name: "t3.2f2"}
+            ],
+            related_templates: [
+              {
+                name: "4.3",
+                fields: [
+                  {name: "t4.3f1"},
+                  {name: "t4.3f2"}
+                ]
+              },
+              {
+                name: "4.4"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+
+  let uuid = await createSuccessTest(template);
+
+  let response = await request(app)
+    .get(`/template/${uuid}/last_update`);
+  expect(response.statusCode).toBe(200);
+  let last_update = response.body;
+
+  response = await request(app)
+    .post(`/template/${uuid}/publish`)
+    .send({last_update})
+    .set('Accept', 'application/json');
+  expect(response.statusCode).toBe(200);
+
+  // Check that a published version now exists
+  response = await request(app)
+    .get(`/template/${uuid}/latest_published`)
+    .set('Accept', 'application/json');
+  expect(response.statusCode).toBe(200);
+  expect(response.body).toMatchObject(template);
+  expect(response.body).toHaveProperty("publish_date");
+
+
+  // Check that we can still get a draft version
+  response = await request(app)
+    .get(`/template/${uuid}/draft`)
+    .set('Accept', 'application/json');
+  expect(response.statusCode).toBe(200);
+  expect(response.body).toMatchObject(template);
+
+});

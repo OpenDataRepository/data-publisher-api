@@ -1062,3 +1062,106 @@ describe("recordLastUpdate", () => {
     })
   });
 })
+
+test("full range of operations with big data", async () => {
+
+  let t1f1 = {name: "t1f1"};
+  let t1f2 = {name: "t1f2"};
+  let t1f3 = {name: "t1f3"};
+  let t3_1f1 = {name: "t3.1f1"};
+  let t3_1f2 = {name: "t3.1f2"};
+  let t4_1f1 = {name: "t4.1f1"};
+  let t4_1f2 = {name: "t4.1f2"};
+  let t3_2f1 = {name: "t3.2f1"};
+  let t3_2f2 = {name: "t3.2f2"};
+  let t4_3f1 = {name: "t4.3f1"};
+  let t4_3f2 = {name: "t4.3f2"};
+
+  let template = {
+    name: "1",
+    fields: [t1f1, t1f2, t1f3],
+    related_templates: [
+      {
+        name: "2.1",
+        related_templates: [
+          {
+            name: "3.1",
+            fields: [t3_1f1, t3_1f2],
+            related_templates: [
+              {
+                name: "4.1",
+                fields: [t4_1f1, t4_1f2]
+              },
+              {
+                name: "4.2"
+              }
+            ]
+          },
+          {
+            name: "3.2",
+            fields: [t3_2f1, t3_2f2],
+            related_templates: [
+              {
+                name: "4.3",
+                fields: [t4_3f1, t4_3f2]
+              },
+              {
+                name: "4.4"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+
+  template = await templateCreateAndPublish(template);
+
+  t1f1.value = "pumpkin";
+  t3_1f2.value = "friend";
+  t4_3f1.value = "mango";
+
+  let record = {
+    template_uuid: template.uuid,
+    fields: [t1f1, t1f2, t1f3],
+    related_records: [
+      {
+        template_uuid: template.related_templates[0].uuid,
+        related_records: [
+          {
+            template_uuid: template.related_templates[0].related_templates[0].uuid,
+            fields: [t3_1f1, t3_1f2],
+            related_records: [
+              {
+                template_uuid: template.related_templates[0].related_templates[0].related_templates[0].uuid,
+                fields: [t4_1f1, t4_1f2]
+              },
+              {
+                template_uuid: template.related_templates[0].related_templates[0].related_templates[1].uuid
+              }
+            ]
+          },
+          {
+            template_uuid: template.related_templates[0].related_templates[1].uuid,
+            fields: [t3_2f1, t3_2f2],
+            related_records: [
+              {
+                template_uuid: template.related_templates[0].related_templates[1].related_templates[0].uuid,
+                fields: [t4_3f1, t4_3f2]
+              },
+              {
+                template_uuid: template.related_templates[0].related_templates[1].related_templates[1].uuid
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  };
+
+  let record_uuid = await recordCreateAndTest(record);
+
+  record = await recordDraftGet(record_uuid);
+  await recordPublishAndTest(record_uuid, record);
+
+});
