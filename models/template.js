@@ -318,9 +318,12 @@ async function validateAndCreateOrUpdate(template, session) {
       throw new Util.NotFoundError(`No template exists with uuid ${template.uuid}`);
     }
   }
-  // Otherwise, this is a create, so generate a new uuid
+  // Otherwise, this is a create
   else {
+    // Generate a uuid for the new template
     template.uuid = uuidv4();
+    // TODO: create a permissions group for the new template
+    
   }
 
   // Need to determine if this draft is any different from the published one.
