@@ -1,6 +1,10 @@
 const TemplateModel = require('../models/template');
 const Util = require('../lib/util');
 
+// TODOL: when users are implemented, remove all references to this with the current_user according to the session
+// TODO: for now remove this and make it a request parameter everywhere instead
+const CURR_USER = 'caleb';
+
 exports.draft_get = async function(req, res, next) {
   try {
     let template = await TemplateModel.draftGet(req.params.uuid);
@@ -34,7 +38,7 @@ exports.get_published_before_timestamp = async function(req, res, next) {
 
 exports.create = async function(req, res, next) {
   try {
-    let inserted_uuid = await TemplateModel.create(req.body);
+    let inserted_uuid = await TemplateModel.create(req.body, CURR_USER);
     res.json({inserted_uuid});
   } catch(err) {
     next(err);

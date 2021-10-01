@@ -1,6 +1,7 @@
 const MongoDB = require('../lib/mongoDB');
 const { v4: uuidv4, validate: uuidValidate } = require('uuid');
 const Util = require('../lib/util');
+const PermissionGroupModel = require('./permission_group');
 
 var TemplateField;
 
@@ -27,9 +28,9 @@ function createDraftFromPublished(published) {
 }
 
 // Fetches the latest published field with the given uuid. 
-async function latestPublished(uuid, session) {
+async function latestPublishedBeforeDate(uuid, date, session) {
   let cursor = await TemplateField.find(
-    {"uuid": uuid, 'publish_date': {'$exists': true}}, 
+    {"uuid": uuid, 'publish_date': {'$lte': date}},
     {session}
   ).sort({'publish_date': -1})
   .limit(1);
@@ -37,6 +38,31 @@ async function latestPublished(uuid, session) {
     return null;
   }
   return await cursor.next();
+}
+
+// Fetches the latest published field with the given uuid. 
+async function latestPublished(uuid, session) {
+  return await latestPublishedBeforeDate(uuid, new Date(), session);
+}
+
+async function latestPublishedBeforeDateWithPermissions(uuid, date, user) {
+  let field = await latestPublishedBeforeDate(uuid, date);
+  if(!field) {
+    return null;
+  }
+
+  // We use the public date of the latest published template to determine the public date of all previous templates
+  let public_date = (await latestPublished(uuid)).public_date;
+  if(public_date && Util.compareTimeStamp((new Date).getTime(), public_date)) {
+    return field;
+  }
+
+  // Otherwise, check, if we have view permissions
+  if (!(await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_VIEW))) {
+    throw new Util.PermissionDeniedError();
+  }
+
+  return field;
 }
 
 async function fetchPublishedAndConvertToDraft(uuid, session) {
@@ -60,7 +86,7 @@ async function draftDelete(uuid) {
 }
 
 function fieldEquals(field1, field2) {
-  return field1.name == field2.name && field1.description == field2.description;
+  return field1.name == field2.name && field1.description == field2.description && field1.public_date == field2.public_date;
 }
 
 // Updates the field with the given uuid if provided in the field object. 
@@ -69,7 +95,7 @@ function fieldEquals(field1, field2) {
 // Return:
 // 1. A boolean: true if there were changes from the last published.
 // 2. The uuid of the template field created / updated
-async function validateAndCreateOrUpdate(field, session) {
+async function validateAndCreateOrUpdate(field, user, session) {
 
   // Field must be an object
   if (!Util.isObject(field)) {
@@ -99,26 +125,41 @@ async function validateAndCreateOrUpdate(field, session) {
     if ((await cursor.count()) > 1) {
       throw new Error(`Multiple drafts found of field with uuid ${field.uuid}`);
     } 
+
+    // verify that this user is in the 'edit' permission group
+    if (!(await PermissionGroupModel.has_permission(user, field.uuid, PermissionGroupModel.PERMISSION_EDIT))) {
+      throw new Util.PermissionDeniedError();
+    }
   } 
-  // Otherwise, this is a create, so generate a new uuid
+  // Otherwise, this is a create
   else {
+    // Generate a uuid for the new template_field
     field.uuid = uuidv4();
+    // create a permissions group for the new template_field
+    await PermissionGroupModel.initialize_permissions_for(user, field.uuid);
   }
 
   // Populate field properties
   let name = "";
   let description = "";
+  let public_date;
   if (field.name) {
     if (typeof(field.name) !== 'string'){
       throw new Util.InputError('field name property must be of type string');
     }
-    name = field.name
+    name = field.name;
   }
   if (field.description) {
     if (typeof(field.description) !== 'string'){
       throw new Util.InputError('field description property must be of type string');
     }
-    description = field.description
+    description = field.description;
+  }
+  if (field.public_date) {
+    if (!Date.parse(field.public_date)){
+      throw new Util.InputError('field public_date property must be in valid date format');
+    }
+    public_date = new Date(field.public_date);
   }
 
   // Update the template field in the database
@@ -127,6 +168,9 @@ async function validateAndCreateOrUpdate(field, session) {
     name: name,
     description: description,
     updated_at: new Date()
+  }
+  if (public_date) {
+    new_field.public_date = public_date;
   }
 
   // If this draft is identical to the latest published, delete it.
@@ -175,7 +219,7 @@ async function draft(uuid, session) {
   return draft;
 }
 
-async function draftFetchOrCreate(uuid, session) {
+async function draftFetchOrCreate(uuid, user, session) {
 
   if (!uuidValidate(uuid)) {
     throw new Util.InputError('The uuid provided is not in proper uuid format.');
@@ -186,6 +230,10 @@ async function draftFetchOrCreate(uuid, session) {
 
   // If a draft of this template field already exists, return it.
   if (template_field_draft) {
+    // Make sure this user has a permission to be working with drafts
+    if (!(await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT))) {
+      throw new Util.PermissionDeniedError();
+    }
     delete template_field_draft._id;
     return template_field_draft;
   }
@@ -195,6 +243,11 @@ async function draftFetchOrCreate(uuid, session) {
   // If not even a published version of this template field was found, return null
   if(!template_field_draft) {
     return null;
+  } else {
+    // Make sure this user has a permission to be working with drafts
+    if (!(await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT))) {
+      throw new Util.PermissionDeniedError();
+    }
   }
 
   // Remove the internal_id and publish_date from this template, as we plan to insert this as a draft now. 
@@ -227,13 +280,17 @@ async function draftFetchOrCreate(uuid, session) {
 //   uuid: the uuid of a field to be published
 //   session: the mongo session that must be used to make transactions atomic
 //   last_update: the timestamp of the last known update by the user. Cannot publish if the actual last update and that expected by the user differ.
+//   user: username of the user performing this operation
 // Returns:
 //   internal_id: the internal id of the published field
 //   published: true if a new published version is created. false otherwise
-async function publishField(uuid, session, last_update) {
+async function publishField(uuid, session, last_update, user) {
   var return_id;
 
   let published_field = await latestPublished(uuid, session);
+
+  // Check user credentials
+  let has_permission = await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT);
 
   // Check if a draft with this uuid exists
   let field_draft = await draft(uuid, session);
@@ -242,8 +299,17 @@ async function publishField(uuid, session, last_update) {
     if (!published_field) {
       throw new Util.NotFoundError(`Field with uuid ${uuid} does not exist`);
     }
+    // if the user doesn't have edit permissions, throw a permission denied error
+    if(!has_permission) {
+      throw new Util.PermissionDeniedError();
+    }
+    
     // There is no draft of this uuid. Return the internal id of the last published version instead
     return [published_field._id, false];
+  }
+  // if the user doesn't have edit permissions, throw a permission denied error
+  if(!has_permission) {
+    throw new Util.PermissionDeniedError();
   }
 
   if (last_update) {
@@ -325,16 +391,16 @@ exports.uuidFor_id = uuidFor_id;
 exports.draft = draftFetchOrCreate;
 exports.lastupdateFor = lastupdateFor;
 exports.publishDateFor_id = publishDateFor_id;
-exports.latestPublished = latestPublished;
+exports.latestPublishedWithoutPermissions = latestPublished;
 
 // Wraps the request to create with a transaction
-exports.create = async function(field) {
+exports.create = async function(field, user) {
   const session = MongoDB.newSession();
   let inserted_uuid;
   try {
     await session.withTransaction(async () => {
       try {
-        [_, inserted_uuid] = await validateAndCreateOrUpdate(field, session);
+        [_, inserted_uuid] = await validateAndCreateOrUpdate(field, user, session);
       } catch(err) {
         await session.abortTransaction();
         throw err;
@@ -348,14 +414,14 @@ exports.create = async function(field) {
   }
 }
 
-// Wraps the request to get with a transaction
-exports.draftGet = async function(uuid) {
+// Wraps the request to get with a transaction. Since fetching a draft creates one if it doesn't already exist
+exports.draftGet = async function(uuid, user) {
   const session = MongoDB.newSession();
   try {
     var field;
     await session.withTransaction(async () => {
       try {
-        field = await draftFetchOrCreate(uuid, session);
+        field = await draftFetchOrCreate(uuid, user, session);
       } catch(err) {
         await session.abortTransaction();
         throw err;
@@ -370,12 +436,12 @@ exports.draftGet = async function(uuid) {
 }
 
 // Wraps the request to update with a transaction
-exports.update = async function(field) {
+exports.update = async function(field, user) {
   const session = MongoDB.newSession();
   try {
     await session.withTransaction(async () => {
       try {
-        await validateAndCreateOrUpdate(field, session);
+        await validateAndCreateOrUpdate(field, user, session);
       } catch(err) {
         await session.abortTransaction();
         throw err;
@@ -389,13 +455,13 @@ exports.update = async function(field) {
 }
 
 // Wraps the request to publish with a transaction
-exports.publish = async function(uuid, last_update) {
+exports.publish = async function(uuid, last_update, user) {
   const session = MongoDB.newSession();
   try {
     var published;
     await session.withTransaction(async () => {
       try {
-        [_, published] = await publishField(uuid, session, last_update);
+        [_, published] = await publishField(uuid, session, last_update, user);
       } catch(err) {
         await session.abortTransaction();
         throw err;
@@ -411,40 +477,46 @@ exports.publish = async function(uuid, last_update) {
   }
 }
 
-// Fetches the latest published field with the given uuid. 
-exports.publishedBeforeDate = async function(uuid, date) {
-  let cursor = await TemplateField.find(
-    {"uuid": uuid, 'publish_date': {'$lte': date}}
-  ).sort({'publish_date': -1})
-  .limit(1);
-  if (!(await cursor.hasNext())) {
-    return null;
-  }
-  return await cursor.next();
+exports.latestPublished = async function(uuid, user) {
+  return await latestPublishedBeforeDateWithPermissions(uuid, new Date(), user)
 }
 
-exports.draftDelete = async function(uuid) {
+exports.latestPublishedBeforeDate = latestPublishedBeforeDateWithPermissions;
+
+exports.draftDelete = async function(uuid, user) {
   if (!uuidValidate(uuid)) {
     throw new Util.InputError('The uuid provided is not in proper uuid format.');
   }
 
-  let response = await TemplateField.deleteMany({ uuid, publish_date: {'$exists': false} });
-  if (!response.deletedCount) {
+  let field = await draft(uuid);
+  if(!field) {
     throw new Util.NotFoundError();
   }
+
+  // user must have edit access to see this endpoint
+  if (!await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT)) {
+    throw new Util.PermissionDeniedError();
+  }
+
+  let response = await TemplateField.deleteMany({ uuid, publish_date: {'$exists': false} });
   if (response.deletedCount > 1) {
     console.error(`template field draftDelete: Template Field with uuid '${uuid}' had more than one draft to delete.`);
   }
 }
 
-exports.lastUpdate = async function(uuid) {
+exports.lastUpdate = async function(uuid, user) {
   if (!uuidValidate(uuid)) {
     throw new Util.InputError('The uuid provided is not in proper uuid format.');
   }
 
-  let draft = await draftFetchOrCreate(uuid);
+  let draft = await draftFetchOrCreate(uuid, user);
   if(!draft) {
     throw new Util.NotFoundError();
+  }
+
+  // user must have edit access to see this endpoint
+  if (!await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT)) {
+    throw new Util.PermissionDeniedError();
   }
 
   return draft.updated_at;

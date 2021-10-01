@@ -103,5 +103,9 @@ exports.read_permissions = async function(uuid, category) {
   } 
   let first_result = await cursor.next();
   return first_result.users;
-
 }
+
+exports.has_permission = has_permission;
+exports.PERMISSION_ADMIN = PERMISSION_ADMIN;
+exports.PERMISSION_EDIT = PERMISSION_EDIT;
+exports.PERMISSION_VIEW = PERMISSION_VIEW;

@@ -1,46 +1,45 @@
 const request = require("supertest");
 const MongoDB = require('../lib/mongoDB');
+var { PERMISSION_ADMIN, PERMISSION_EDIT, PERMISSION_VIEW } = require('../models/permission_group');
 var { app, init: appInit } = require('../app');
- 
-const ValidUUID = "47356e57-eec2-431b-8059-f61d5f9a6bc6";
+var HelperClass = require('./common_test_operations')
+var Helper = new HelperClass(app);
 
 beforeAll(async () => {
   await appInit();
 });
 
-async function clearDatabase() {
-  let db = MongoDB.db();
-  await db.collection('templates').deleteMany();
-  await db.collection('template_fields').deleteMany();
-}
-
 beforeEach(async() => {
-  await clearDatabase();
+  await Helper.clearDatabase();
 });
 
 afterAll(async () => {
-  await clearDatabase();
+  await Helper.clearDatabase();
   await MongoDB.close();
 });
 
-const createSuccessTest = async (data) => {
-  let response = await request(app)
-    .post('/template')
-    .send(data)
+const templateGetDraft = async (uuid) => {
+  return await request(app)
+    .get(`/template/${uuid}/draft`)
     .set('Accept', 'application/json');
+};
+
+const createSuccessTest = async (data) => {
+  let response = await Helper.templateCreate(data);
   expect(response.statusCode).toBe(200);
   expect(response.body.inserted_uuid).toBeTruthy();
 
-  response = await request(app)
-    .get(`/template/${response.body.inserted_uuid}/draft`)
-    .set('Accept', 'application/json');
-
+  response = await templateGetDraft(response.body.inserted_uuid);
   expect(response.statusCode).toBe(200);
   expect(response.body).toMatchObject(data);
-  return response.body.uuid;
+  let uuid = response.body.uuid;
+
+  return uuid;
 };
 
 describe("create (and get draft after a create)", () => {
+
+  // TODO: verify that created template and sub-templates all have permissions created for them with the current user
 
   describe("Success cases", () => {
 
@@ -53,7 +52,10 @@ describe("create (and get draft after a create)", () => {
         "fields":[],
         "related_templates":[]
       };
-      await createSuccessTest(data);
+      let uuid = await createSuccessTest(data);
+
+      await Helper.testPermissionGroupsInitializedFor(uuid, Helper.DEF_CURR_USER);
+
     });
   
     test("Create template with related template and field", async () => {
@@ -73,26 +75,25 @@ describe("create (and get draft after a create)", () => {
       };
       let uuid = await createSuccessTest(data);
 
-      let response = await request(app)
-        .get(`/template/${uuid}/draft`)
-        .set('Accept', 'application/json');
+      let response = await templateGetDraft(uuid);
          
       let related_template_uuid = response.body.related_templates[0].uuid;
       let field_uuid = response.body.fields[0].uuid;
 
       // Now test that the related template was also created separately 
-      response = await request(app)
-        .get(`/template/${related_template_uuid}/draft`)
-        .set('Accept', 'application/json');
+      response = await templateGetDraft(related_template_uuid);
       expect(response.statusCode).toBe(200);
       expect(response.body).toMatchObject(related_template_data);
 
       // Now test that the field was also created separately  
-      response = await request(app)
-        .get(`/template_field/${field_uuid}/draft`)
-        .set('Accept', 'application/json');
+      response = await Helper.templateFieldDraftGet(field_uuid);
       expect(response.statusCode).toBe(200);
       expect(response.body).toMatchObject(field_data);
+
+      // Now test that all permission groups were created successfully
+      await Helper.testPermissionGroupsInitializedFor(uuid, Helper.DEF_CURR_USER);
+      await Helper.testPermissionGroupsInitializedFor(related_template_uuid, Helper.DEF_CURR_USER);
+      await Helper.testPermissionGroupsInitializedFor(field_uuid, Helper.DEF_CURR_USER);
     });
   
     test("Create template with related templates going 6 nodes deep", async () => {
@@ -356,12 +357,12 @@ describe("update (and get draft after an update)", () => {
     test("uuid must exist", async () => {
 
       let data = { 
-        "uuid": ValidUUID,
+        "uuid": Helper.VALID_UUID,
         "name": "create template"
       };
 
       let response = await request(app)
-        .put(`/template/${ValidUUID}`)
+        .put(`/template/${Helper.VALID_UUID}`)
         .send(data)
         .set('Accept', 'application/json');
       expect(response.statusCode).toBe(404);
@@ -661,7 +662,7 @@ describe("publish (and get published and draft after a publish)", () => {
       last_update = response.body;
 
       response = await request(app)
-        .post(`/template/${ValidUUID}/publish`)
+        .post(`/template/${Helper.VALID_UUID}/publish`)
         .send({last_update})
         .set('Accept', 'application/json');
       expect(response.statusCode).toBe(404);
@@ -1161,7 +1162,7 @@ describe("templateLastUpdate", () => {
       expect(response.statusCode).toBe(400);
 
       response = await request(app)
-        .get(`/template/${ValidUUID}/last_update`)
+        .get(`/template/${Helper.VALID_UUID}/last_update`)
         .set('Accept', 'application/json');
       expect(response.statusCode).toBe(404);
     })

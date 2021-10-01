@@ -1,37 +1,28 @@
 const request = require("supertest");
 const MongoDB = require('../lib/mongoDB');
+var { PERMISSION_ADMIN, PERMISSION_EDIT, PERMISSION_VIEW } = require('../models/permission_group');
 var { app, init: appInit } = require('../app');
 var HelperClass = require('./common_test_operations')
 var Helper = new HelperClass(app);
-
-const ValidUUID = "47356e57-eec2-431b-8059-f61d5f9a6bc6";
-const default_current_user = 'caleb';
 
 beforeAll(async () => {
   await appInit();
 });
 
-async function clearDatabase() {
-  let db = MongoDB.db();
-  await db.collection('templates').deleteMany();
-  // await db.collection('template_fields').deleteMany();
-  // await db.collection('records').deleteMany();
-  await db.collection('permission_groups').deleteMany();
-}
-
 beforeEach(async() => {
-  await clearDatabase();
+  await Helper.clearDatabase();
 });
 
 afterAll(async () => {
-  await clearDatabase();
+  await Helper.clearDatabase();
   await MongoDB.close();
 });
 
 async function permissionGroupTestingInitialize(uuid, current_user) {
   return await request(app)
     .post(`/permission_group/${uuid}/testing_initialize`)
-    .send({current_user})
+    .set('Cookie', [`user=${current_user}`])
+    //.send({current_user})
     .set('Accept', 'application/json');
 }
 
@@ -44,105 +35,105 @@ async function getPermissionGroup(uuid, category) {
 async function updatePermissionGroup(current_user, uuid, category, users) {
   return await request(app)
     .put(`/permission_group/${uuid}/${category}`)
-    .send({current_user, users})
+    .set('Cookie', [`user=${current_user}`])
+    .send({users})
     .set('Accept', 'application/json');
 }
 
 describe("create (and get)",  () => {
   test("success", async () => {
-    let uuid = await Helper.templateCreate({
+    let uuid = await Helper.templateCreateAndTest({
       name: 'template'
     });
-    let response = await permissionGroupTestingInitialize(uuid, default_current_user);
-    expect(response.statusCode).toBe(200);
 
-    response = await getPermissionGroup(uuid, 'admin');
+    response = await getPermissionGroup(uuid, PERMISSION_ADMIN);
     expect(response.statusCode).toBe(200);
-    expect(response.body).toEqual([default_current_user]);
+    expect(response.body).toEqual([Helper.DEF_CURR_USER]);
 
-    response = await getPermissionGroup(uuid, 'edit');
+    response = await getPermissionGroup(uuid, PERMISSION_EDIT);
     expect(response.statusCode).toBe(200);
-    expect(response.body).toEqual([default_current_user]);
+    expect(response.body).toEqual([Helper.DEF_CURR_USER]);
 
-    response = await getPermissionGroup(uuid, 'view');
+    response = await getPermissionGroup(uuid, PERMISSION_VIEW);
     expect(response.statusCode).toBe(200);
-    expect(response.body).toEqual([default_current_user]);
+    expect(response.body).toEqual([Helper.DEF_CURR_USER]);
   })
   test("invalid uuid", async () => {
-    let response = await permissionGroupTestingInitialize("abc", default_current_user);
+    let response = await permissionGroupTestingInitialize("abc", Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(404);
   });
+  // TODO: when users are implemented, test that create can only happen with a valid user in the current session
 
 });
 
 describe("update (and get)",  () => {
   test("success - can update in every category", async () => {
-    let uuid = await Helper.templateCreate({
+    let uuid = await Helper.templateCreateAndTest({
       name: 'template'
     });
-    let response = await permissionGroupTestingInitialize(uuid, default_current_user);
+    let response = await permissionGroupTestingInitialize(uuid, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(200);
 
     // Test we can change view, edit, and admin if we are in the admin group
 
-    let view_users = ['a', 'b', default_current_user];
-    let edit_users = ['c', default_current_user];
-    let admin_users = [default_current_user, 'd', 'd'];
+    let view_users = ['a', 'b', Helper.DEF_CURR_USER];
+    let edit_users = ['c', Helper.DEF_CURR_USER];
+    let admin_users = [Helper.DEF_CURR_USER, 'd', 'd'];
 
-    response = await updatePermissionGroup(default_current_user, uuid, "view", view_users);
+    response = await updatePermissionGroup(Helper.DEF_CURR_USER, uuid, "view", view_users);
     expect(response.statusCode).toBe(200);
-    response = await getPermissionGroup(uuid, 'view');
+    response = await getPermissionGroup(uuid, PERMISSION_VIEW);
     expect(response.statusCode).toBe(200);
     expect(response.body).toEqual(view_users);
 
-    response = await updatePermissionGroup(default_current_user, uuid, "edit", edit_users);
+    response = await updatePermissionGroup(Helper.DEF_CURR_USER, uuid, "edit", edit_users);
     expect(response.statusCode).toBe(200);
-    response = await getPermissionGroup(uuid, 'edit');
+    response = await getPermissionGroup(uuid, PERMISSION_EDIT);
     expect(response.statusCode).toBe(200);
     expect(response.body).toEqual(edit_users);
 
-    response = await updatePermissionGroup(default_current_user, uuid, "admin", admin_users);
+    response = await updatePermissionGroup(Helper.DEF_CURR_USER, uuid, "admin", admin_users);
     expect(response.statusCode).toBe(200);
-    response = await getPermissionGroup(uuid, 'admin');
+    response = await getPermissionGroup(uuid, PERMISSION_ADMIN);
     expect(response.statusCode).toBe(200);
     expect(response.body).toEqual(admin_users);
 
   });
 
   test("must be in the admin category to update permissions", async () => {
-    let uuid = await Helper.templateCreate({
+    let uuid = await Helper.templateCreateAndTest({
       name: 'template'
     });
-    let response = await permissionGroupTestingInitialize(uuid, default_current_user);
+    let response = await permissionGroupTestingInitialize(uuid, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(200);
 
-    let view_users = ['a', 'b', default_current_user];
+    let view_users = ['a', 'b', Helper.DEF_CURR_USER];
     response = await updatePermissionGroup('a', uuid, "view", view_users);
     expect(response.statusCode).toBe(400);
   });
 
   test("current user must be in updated permissions list", async () => {
-    let uuid = await Helper.templateCreate({
+    let uuid = await Helper.templateCreateAndTest({
       name: 'template'
     });
-    let response = await permissionGroupTestingInitialize(uuid, default_current_user);
+    let response = await permissionGroupTestingInitialize(uuid, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(200);
 
     let view_users = ['a', 'b', 'c'];
-    response = await updatePermissionGroup(default_current_user, uuid, "view", view_users);
+    response = await updatePermissionGroup(Helper.DEF_CURR_USER, uuid, "view", view_users);
     expect(response.statusCode).toBe(400);
 
   });
 
   test("must be a supported category", async () => {
-    let uuid = await Helper.templateCreate({
+    let uuid = await Helper.templateCreateAndTest({
       name: 'template'
     });
-    let response = await permissionGroupTestingInitialize(uuid, default_current_user);
+    let response = await permissionGroupTestingInitialize(uuid, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(200);
 
-    let view_users = ['a', 'b', default_current_user];
-    response = await updatePermissionGroup(default_current_user, uuid, "invalid", view_users);
+    let view_users = ['a', 'b', Helper.DEF_CURR_USER];
+    response = await updatePermissionGroup(Helper.DEF_CURR_USER, uuid, "invalid", view_users);
     expect(response.statusCode).toBe(404);
 
   });
@@ -151,10 +142,10 @@ describe("update (and get)",  () => {
 
 describe("get",  () => {
   test("must be a supported category", async () => {
-    let uuid = await Helper.templateCreate({
+    let uuid = await Helper.templateCreateAndTest({
       name: 'template'
     });
-    let response = await permissionGroupTestingInitialize(uuid, default_current_user);
+    let response = await permissionGroupTestingInitialize(uuid, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(200);
 
     response = await getPermissionGroup(uuid, 'invalid');

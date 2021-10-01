@@ -1,5 +1,6 @@
 const MongoDB = require('../lib/mongoDB');
 const TemplateFieldModel = require('./template_field');
+const PermissionGroupModel = require('./permission_group');
 const { v4: uuidv4, validate: uuidValidate } = require('uuid');
 const Util = require('../lib/util');
 
@@ -179,7 +180,7 @@ async function draftDifferentFromLastPublished(draft) {
   // Finally, if any of the dependencies have been published more recently than this template, then there are changes
   let last_publish_date = latest_published.publish_date;
   for(let field of draft.fields) {
-    let field_last_published = (await TemplateFieldModel.latestPublished(field)).publish_date;
+    let field_last_published = (await TemplateFieldModel.latestPublishedWithoutPermissions(field)).publish_date;
     if (Util.compareTimeStamp(field_last_published, last_publish_date) > 0) {
       return true;
     }
@@ -296,7 +297,7 @@ async function createDraftFromLastPublishedWithSession(uuid) {
 // Return:
 // 1. A boolean indicating true if there were changes from the last published.
 // 2. The uuid of the template created / updated
-async function validateAndCreateOrUpdate(template, session) {
+async function validateAndCreateOrUpdate(template, curr_user, session) {
 
   // Template must be an object
   if (!Util.isObject(template)) {
@@ -317,13 +318,16 @@ async function validateAndCreateOrUpdate(template, session) {
     if (!(await exists(template.uuid, session))) {
       throw new Util.NotFoundError(`No template exists with uuid ${template.uuid}`);
     }
+    
+    // verify that this user is in the 'edit' permission group
+    await PermissionGroupModel.has_permission(curr_user, template.uuid, PermissionGroupModel.PERMISSION_EDIT);
   }
   // Otherwise, this is a create
   else {
     // Generate a uuid for the new template
     template.uuid = uuidv4();
-    // TODO: create a permissions group for the new template
-    
+    // create a permissions group for the new template
+    await PermissionGroupModel.initialize_permissions_for(curr_user, template.uuid);
   }
 
   // Need to determine if this draft is any different from the published one.
@@ -353,7 +357,7 @@ async function validateAndCreateOrUpdate(template, session) {
     }
     for (let i = 0; i < template.fields.length; i++) {
       try {
-        changes |= (await TemplateFieldModel.validateAndCreateOrUpdate(template.fields[i], session))[0];
+        changes |= (await TemplateFieldModel.validateAndCreateOrUpdate(template.fields[i], curr_user, session))[0];
       } catch(err) {
         if (err instanceof Util.NotFoundError) {
           throw new Util.InputError(err.message);
@@ -373,7 +377,7 @@ async function validateAndCreateOrUpdate(template, session) {
     }
     for (let i = 0; i < template.related_templates.length; i++) {
       try {
-        changes |= (await validateAndCreateOrUpdate(template.related_templates[i], session))[0];
+        changes |= (await validateAndCreateOrUpdate(template.related_templates[i], curr_user, session))[0];
       } catch(err) {
         if (err instanceof Util.NotFoundError) {
           throw new Util.InputError(err.message);
@@ -823,13 +827,13 @@ async function draftDelete(uuid) {
 }
 
 // Wraps the actual request to create with a transaction
-exports.create = async function(template) {
+exports.create = async function(template, curr_user) {
   const session = MongoDB.newSession();
   let inserted_uuid;
   try {
     await session.withTransaction(async () => {
       try {
-        [_, inserted_uuid] = await validateAndCreateOrUpdate(template, session);
+        [_, inserted_uuid] = await validateAndCreateOrUpdate(template, curr_user, session);
       } catch(err) {
         await session.abortTransaction();
         throw err;

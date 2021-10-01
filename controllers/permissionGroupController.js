@@ -4,7 +4,7 @@ const Util = require('../lib/util');
 // This endpoint exists only for the purpose of integration testing
 exports.testing_initialize = async function(req, res, next) {
   try {
-    await Model.initialize_permissions_for(req.body.current_user, req.params.uuid);
+    await Model.initialize_permissions_for(req.cookies.user, req.params.uuid);
     res.sendStatus(200);
   } catch(err) {
     next(err);
@@ -16,8 +16,8 @@ exports.update = async function(req, res, next) {
     if(!['admin', 'edit', 'view'].includes(req.params.category)) {
       throw new Util.NotFoundError();
     }
-    // TODO: Implement users and sessions, and then get the current_user from the session instead of the request body
-    await Model.replace_permissions(req.body.current_user, req.params.uuid, req.params.category, req.body.users);
+    // TODO: Implement users and sessions, and then get the current_user from the session instead of a cookie
+    await Model.replace_permissions(req.cookies.user, req.params.uuid, req.params.category, req.body.users);
     res.sendStatus(200);
   } catch(err) {
     next(err);

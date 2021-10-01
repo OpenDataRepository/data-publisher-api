@@ -4,7 +4,8 @@ const Util = require('../lib/util');
 
 exports.draft_get = async function(req, res, next) {
   try {
-    let template_field = await TemplateFieldModel.draftGet(req.params.uuid);
+    // TODO: when users are implemented, replace cookie value with session value
+    let template_field = await TemplateFieldModel.draftGet(req.params.uuid, req.cookies.user);
     if(template_field) {
       res.json(template_field);
     } else {
@@ -17,7 +18,10 @@ exports.draft_get = async function(req, res, next) {
 
 exports.get_latest_published = async function(req, res, next) {
   try {
-    let template_field = await TemplateFieldModel.latestPublished(req.params.uuid);
+    let template_field = await TemplateFieldModel.latestPublished(req.params.uuid, req.cookies.user);
+    if(!template_field) {
+      throw new Util.NotFoundError();
+    }
     res.json(template_field);
   } catch(err) {
     next(err);
@@ -26,7 +30,7 @@ exports.get_latest_published = async function(req, res, next) {
 
 exports.get_published_before_timestamp = async function(req, res, next) {
   try {
-    let template_field = await TemplateFieldModel.publishedBeforeDate(req.params.uuid, new Date(req.params.timestamp));
+    let template_field = await TemplateFieldModel.latestPublishedBeforeDate(req.params.uuid, new Date(req.params.timestamp), req.cookies.user);
     if(!template_field) {
       throw new Util.NotFoundError();
     }
@@ -38,7 +42,7 @@ exports.get_published_before_timestamp = async function(req, res, next) {
 
 exports.create = async function(req, res, next) {
   try {
-    let inserted_uuid = await TemplateFieldModel.create(req.body);
+    let inserted_uuid = await TemplateFieldModel.create(req.body, req.cookies.user);
     res.json({inserted_uuid});
   } catch(err) {
     next(err);
@@ -50,7 +54,7 @@ exports.update = async function(req, res, next) {
     if(!Util.objectContainsUUID(req.body, req.params.uuid)) {
       throw new Util.InputError(`UUID provided and the body uuid do not match.`)
     }
-    await TemplateFieldModel.update(req.body);
+    await TemplateFieldModel.update(req.body, req.cookies.user);
     res.sendStatus(200);
   } catch(err) {
     next(err);
@@ -59,11 +63,10 @@ exports.update = async function(req, res, next) {
 
 exports.publish = async function(req, res, next) {
   try {
-    if(Date.parse(req.body.last_update)) {
-      await TemplateFieldModel.publish(req.params.uuid, new Date(req.body.last_update));
-    } else {
+    if(!Date.parse(req.body.last_update)) {
       throw new Util.InputError(`last_update provided as parameter is not in valid date format: ${req.body.last_update}`);
-    }
+    } 
+    await TemplateFieldModel.publish(req.params.uuid, new Date(req.body.last_update), req.cookies.user);
     res.sendStatus(200);
   } catch(err) {
     next(err);
@@ -72,7 +75,7 @@ exports.publish = async function(req, res, next) {
 
 exports.draft_delete = async function(req, res, next) {
   try {
-    await TemplateFieldModel.draftDelete(req.params.uuid);
+    await TemplateFieldModel.draftDelete(req.params.uuid, req.cookies.user);
   } catch(err) {
     return next(err);
   }
@@ -82,7 +85,7 @@ exports.draft_delete = async function(req, res, next) {
 exports.get_last_update = async function(req, res, next) {
   var last_update;
   try {
-    last_update = await TemplateFieldModel.lastUpdate(req.params.uuid);
+    last_update = await TemplateFieldModel.lastUpdate(req.params.uuid, req.cookies.user);
   } catch(err) {
     return next(err);
   }

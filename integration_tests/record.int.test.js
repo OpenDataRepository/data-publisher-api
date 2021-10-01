@@ -1,6 +1,8 @@
 const request = require("supertest");
 const MongoDB = require('../lib/mongoDB');
 var { app, init: appInit } = require('../app');
+var HelperClass = require('./common_test_operations')
+var Helper = new HelperClass(app);
 
 const ValidUUID = "47356e57-eec2-431b-8059-f61d5f9a6bc6";
 
@@ -23,23 +25,6 @@ afterAll(async () => {
   await clearDatabase();
   await MongoDB.close();
 });
-
-const templateCreate = async (data) => {
-  let response = await request(app)
-    .post('/template')
-    .send(data)
-    .set('Accept', 'application/json');
-  expect(response.statusCode).toBe(200);
-  expect(response.body.inserted_uuid).toBeTruthy();
-
-  response = await request(app)
-    .get(`/template/${response.body.inserted_uuid}/draft`)
-    .set('Accept', 'application/json');
-
-  expect(response.statusCode).toBe(200);
-  expect(response.body).toMatchObject(data);
-  return response.body.uuid;
-};
 
 const templateLastUpdate = async(uuid) => {
   let response = await request(app)
@@ -65,7 +50,7 @@ const templateGet = async(uuid) => {
 }
 
 const templateCreateAndPublish = async(template) => {
-  let uuid = await templateCreate(template);
+  let uuid = await Helper.templateCreateAndTest(template);
   let last_update = await templateLastUpdate(uuid);
   await templatePublish(uuid, last_update);
   let published_template = await templateGet(uuid);
@@ -262,7 +247,7 @@ describe("create (and get draft)", () => {
         "name":"create template",
         "description":"a template to test a create"
       };
-      let template_uuid = await templateCreate(template);
+      let template_uuid = await Helper.templateCreateAndTest(template);
       let last_update = await templateLastUpdate(template_uuid);
       await templatePublish(template_uuid, last_update);
 
@@ -291,7 +276,7 @@ describe("create (and get draft)", () => {
         "fields":[name_field, color_field],
         "related_templates":[]
       };
-      let template_uuid = await templateCreate(template);
+      let template_uuid = await Helper.templateCreateAndTest(template);
       let last_update = await templateLastUpdate(template_uuid);
       await templatePublish(template_uuid, last_update);
 
@@ -329,7 +314,7 @@ describe("create (and get draft)", () => {
         "fields":[name_field],
         "related_templates":[related_template]
       };
-      let template_uuid = await templateCreate(template);
+      let template_uuid = await Helper.templateCreateAndTest(template);
       let last_update = await templateLastUpdate(template_uuid);
       await templatePublish(template_uuid, last_update);
 
@@ -382,7 +367,7 @@ describe("create (and get draft)", () => {
           }
         ]
       };
-      let template_uuid = await templateCreate(template);
+      let template_uuid = await Helper.templateCreateAndTest(template);
       let last_update = await templateLastUpdate(template_uuid);
       await templatePublish(template_uuid, last_update);
 
@@ -431,7 +416,7 @@ describe("create (and get draft)", () => {
         "name":"1",
         "related_templates":[related_template]
       };
-      let template_uuid = await templateCreate(template);
+      let template_uuid = await Helper.templateCreateAndTest(template);
       let last_update = await templateLastUpdate(template_uuid);
       await templatePublish(template_uuid, last_update);
 
@@ -497,7 +482,7 @@ describe("create (and get draft)", () => {
         "name":"1"
       };
 
-      let template_uuid = await templateCreate(template);
+      let template_uuid = await Helper.templateCreateAndTest(template);
       let last_update = await templateLastUpdate(template_uuid);
       await templatePublish(template_uuid, last_update);
 
@@ -529,11 +514,11 @@ describe("create (and get draft)", () => {
         "name": "incorrect"
       }
 
-      let other_template_uuid = await templateCreate(other_template);
+      let other_template_uuid = await Helper.templateCreateAndTest(other_template);
       let last_update = await templateLastUpdate(other_template_uuid);
       await templatePublish(other_template_uuid, last_update);
 
-      let template_uuid = await templateCreate(template);
+      let template_uuid = await Helper.templateCreateAndTest(template);
       last_update = await templateLastUpdate(template_uuid);
       await templatePublish(template_uuid, last_update);
 
@@ -578,7 +563,7 @@ describe("create (and get draft)", () => {
           }
         ]
       };
-      let template_uuid = await templateCreate(template);
+      let template_uuid = await Helper.templateCreateAndTest(template);
       let last_update = await templateLastUpdate(template_uuid);
       await templatePublish(template_uuid, last_update);
 
