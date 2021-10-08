@@ -15,10 +15,6 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 
-app.use(function(req, res, next) {
-  console.log(`cookies: ${JSON.stringify(req.cookies)}`);
-  next();
-});
 app.use('/users', usersRouter);
 app.use('/', indexRouter);
 app.use(function(req, res, next) {
@@ -27,11 +23,10 @@ app.use(function(req, res, next) {
 
 app.use(function(err, req, res, next) {
   if(err instanceof Util.NotFoundError) {
-    res.sendStatus(404);
+    res.status(404).send(err.message);
   } else if(err instanceof Util.PermissionDeniedError) {
-    res.sendStatus(401);
+    res.status(401).send(err.message);
   } else if(err instanceof Util.InputError) {
-    console.log(err.message)
     res.status(400).send(err.message);
   } else {
     console.error(err)

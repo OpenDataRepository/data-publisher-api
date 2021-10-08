@@ -16,6 +16,17 @@ async function collection() {
   return TemplateField;
 }
 
+async function userHasAccessToPublishedField(field, user) {
+  // If public, then anyone can view
+  let public_date = field.public_date;
+  if(public_date && Util.compareTimeStamp((new Date).getTime(), public_date)) {
+    return true;
+  }
+
+  // Otherwise, check, if we have view permissions
+  return await PermissionGroupModel.has_permission(user, field.uuid, PermissionGroupModel.PERMISSION_VIEW);
+}
+
 // Creates a draft from the published version.
 function createDraftFromPublished(published) {
   let draft = published;
@@ -51,15 +62,9 @@ async function latestPublishedBeforeDateWithPermissions(uuid, date, user) {
     return null;
   }
 
-  // We use the public date of the latest published template to determine the public date of all previous templates
-  let public_date = (await latestPublished(uuid)).public_date;
-  if(public_date && Util.compareTimeStamp((new Date).getTime(), public_date)) {
-    return field;
-  }
-
-  // Otherwise, check, if we have view permissions
-  if (!(await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_VIEW))) {
-    throw new Util.PermissionDeniedError();
+  // Ensure user has permission to view
+  if (!(await userHasAccessToPublishedField(field, user))) {
+    throw new Util.PermissionDeniedError(`Do not have permission to view template field with uuid ${uuid}`);
   }
 
   return field;
@@ -516,8 +521,10 @@ exports.lastUpdate = async function(uuid, user) {
 
   // user must have edit access to see this endpoint
   if (!await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT)) {
-    throw new Util.PermissionDeniedError();
+    throw new Util.PermissionDeniedError(`Do not have edit permission required to view template_field draft ${uuid}`);
   }
 
   return draft.updated_at;
 }
+
+exports.userHasAccessToPublishedField = userHasAccessToPublishedField;

@@ -20,6 +20,14 @@ module.exports = class Helper {
 
   // template field
 
+  templateFieldCreate = async (field, current_user) => {
+    return await request(this.app)
+      .post(`/template_field`)
+      .set('Cookie', [`user=${current_user}`])
+      .send(field)
+      .set('Accept', 'application/json');
+  };
+
   templateFieldDraftGet = async (uuid, current_user) => {
     return await request(this.app)
       .get(`/template_field/${uuid}/draft`)
@@ -27,28 +35,131 @@ module.exports = class Helper {
       .set('Accept', 'application/json');
   };
 
-  // template
-
-  templateCreate = async (data) => {
-    return await request(this.app)
-      .post('/template')
-      .set('Cookie', ['user=caleb'])
-      .send(data)
-      .set('Accept', 'application/json');
-  };
-
-  templateCreateAndTest = async (data) => {
-    let response = await this.templateCreate(data);
+  templateFieldCreateAndTest = async (field, current_user) => {
+    let response = await this.templateFieldCreate(field, current_user)
     expect(response.statusCode).toBe(200);
     expect(response.body.inserted_uuid).toBeTruthy();
   
-    response = await request(this.app)
-      .get(`/template/${response.body.inserted_uuid}/draft`)
-      .set('Accept', 'application/json');
-  
+    response = await this.templateFieldDraftGet(response.body.inserted_uuid, current_user);
     expect(response.statusCode).toBe(200);
-    expect(response.body).toMatchObject(data);
+    expect(response.body).toMatchObject(field);
     return response.body.uuid;
+  };
+
+  templateFieldLastUpdate = async (uuid, current_user) => {
+    return await request(this.app)
+      .get(`/template_field/${uuid}/last_update`)
+      .set('Cookie', [`user=${current_user}`]);
+  };
+
+  templateFieldPublish = async (uuid, last_update, current_user) => {
+    return await request(this.app)
+    .post(`/template_field/${uuid}/publish`)
+    .set('Cookie', [`user=${current_user}`])
+    .send({last_update})
+    .set('Accept', 'application/json');
+  };
+
+  templateFieldLatestPublished = async (uuid, current_user) => {
+    return await request(this.app)
+    .get(`/template_field/${uuid}/latest_published`)
+    .set('Cookie', [`user=${current_user}`]);
+  };
+
+  templateFieldCreatePublishTest = async (field, current_user) => {
+    let uuid = await this.templateFieldCreateAndTest(field, current_user);
+
+    let response = await this.templateFieldLastUpdate(uuid, current_user);
+    expect(response.statusCode).toBe(200);
+    let last_update = response.body;
+
+    response = await this.templateFieldPublish(uuid, last_update, current_user);
+    expect(response.statusCode).toBe(200);
+  
+    // Check that a published version now exists
+    response = await this.templateFieldLatestPublished(uuid, current_user);
+    expect(response.statusCode).toBe(200);
+    let published = response.body;
+    expect(published).toMatchObject(field);
+    expect(published).toHaveProperty("publish_date");
+
+    // Check that we can still get a draft version
+    response = await this.templateFieldDraftGet(uuid, current_user);
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toMatchObject(field);
+
+    return published;
+  };
+
+  // template
+
+  templateCreate = async (template, current_user) => {
+    return await request(this.app)
+      .post('/template')
+      .set('Cookie', [`user=${current_user}`])
+      .send(template)
+      .set('Accept', 'application/json');
+  };
+
+  templateDraftGet = async (uuid, current_user) => {
+    return await request(this.app)
+      .get(`/template/${uuid}/draft`)
+      .set('Cookie', [`user=${current_user}`])
+      .set('Accept', 'application/json');
+  };
+
+  templateCreateAndTest = async (template, current_user) => {
+    let response = await this.templateCreate(template, current_user);
+    expect(response.statusCode).toBe(200);
+    expect(response.body.inserted_uuid).toBeTruthy();
+  
+    response = await this.templateDraftGet(response.body.inserted_uuid, current_user)
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toMatchObject(template);
+    return response.body.uuid;
+  };
+
+  templateLastUpdate = async(uuid, curr_user) => {
+    return await request(this.app)
+      .get(`/template/${uuid}/last_update`)
+      .set('Cookie', [`user=${curr_user}`]);
+  }
+
+  templatePublish = async (uuid, last_update, curr_user) => {
+    return await request(this.app)
+      .post(`/template/${uuid}/publish`)
+      .set('Cookie', [`user=${curr_user}`])
+      .send({last_update})
+      .set('Accept', 'application/json');
+  };
+
+  templateLatestPublished = async(uuid, curr_user) => {
+    return await request(this.app)
+      .get(`/template/${uuid}/latest_published`)
+      .set('Cookie', [`user=${curr_user}`])
+      .set('Accept', 'application/json');
+  }
+
+  templatePublishAndFetch = async (uuid, curr_user) => {
+    let response = await this.templateLastUpdate(uuid, curr_user);
+    expect(response.statusCode).toBe(200);
+    let last_update = response.body;
+
+    response = await this.templatePublish(uuid, last_update, curr_user);
+    expect(response.statusCode).toBe(200);
+
+    response = await this.templateLatestPublished(uuid, curr_user);
+    expect(response.statusCode).toBe(200);
+    let published_template = response.body;
+    expect(published_template).toHaveProperty("publish_date");
+    return published_template;
+  };
+
+  templateCreatePublishTest = async (template, curr_user) => {
+    let uuid = await this.templateCreateAndTest(template, curr_user);
+    let published_template = await this.templatePublishAndFetch(uuid, curr_user)
+    expect(published_template).toMatchObject(template);
+    return published_template;
   };
 
   // record

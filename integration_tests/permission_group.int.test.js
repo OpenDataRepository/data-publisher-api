@@ -42,9 +42,7 @@ async function updatePermissionGroup(current_user, uuid, category, users) {
 
 describe("create (and get)",  () => {
   test("success", async () => {
-    let uuid = await Helper.templateCreateAndTest({
-      name: 'template'
-    });
+    let uuid = await Helper.templateCreateAndTest({name: 'template'}, Helper.DEF_CURR_USER);
 
     response = await getPermissionGroup(uuid, PERMISSION_ADMIN);
     expect(response.statusCode).toBe(200);
@@ -80,19 +78,19 @@ describe("update (and get)",  () => {
     let edit_users = ['c', Helper.DEF_CURR_USER];
     let admin_users = [Helper.DEF_CURR_USER, 'd', 'd'];
 
-    response = await updatePermissionGroup(Helper.DEF_CURR_USER, uuid, "view", view_users);
+    response = await updatePermissionGroup(Helper.DEF_CURR_USER, uuid, PERMISSION_VIEW, view_users);
     expect(response.statusCode).toBe(200);
     response = await getPermissionGroup(uuid, PERMISSION_VIEW);
     expect(response.statusCode).toBe(200);
     expect(response.body).toEqual(view_users);
 
-    response = await updatePermissionGroup(Helper.DEF_CURR_USER, uuid, "edit", edit_users);
+    response = await updatePermissionGroup(Helper.DEF_CURR_USER, uuid, PERMISSION_EDIT, edit_users);
     expect(response.statusCode).toBe(200);
     response = await getPermissionGroup(uuid, PERMISSION_EDIT);
     expect(response.statusCode).toBe(200);
     expect(response.body).toEqual(edit_users);
 
-    response = await updatePermissionGroup(Helper.DEF_CURR_USER, uuid, "admin", admin_users);
+    response = await updatePermissionGroup(Helper.DEF_CURR_USER, uuid, PERMISSION_ADMIN, admin_users);
     expect(response.statusCode).toBe(200);
     response = await getPermissionGroup(uuid, PERMISSION_ADMIN);
     expect(response.statusCode).toBe(200);

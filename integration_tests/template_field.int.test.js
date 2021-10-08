@@ -17,40 +17,12 @@ afterAll(async () => {
   await MongoDB.close();
 });
 
-const templateFieldCreate = async (data, current_user) => {
-  return await request(app)
-    .post(`/template_field`)
-    .set('Cookie', [`user=${current_user}`])
-    .send(data)
-    .set('Accept', 'application/json');
-};
-
 const templateFieldUpdate = async (uuid, data, current_user) => {
   return await request(app)
     .put(`/template_field/${uuid}`)
     .set('Cookie', [`user=${current_user}`])
     .send(data)
     .set('Accept', 'application/json');
-};
-
-const templateFieldPublish = async (uuid, last_update, current_user) => {
-  return await request(app)
-  .post(`/template_field/${uuid}/publish`)
-  .set('Cookie', [`user=${current_user}`])
-  .send({last_update})
-  .set('Accept', 'application/json');
-};
-
-const templateFieldLastUpdate = async (uuid, current_user) => {
-  return await request(app)
-  .get(`/template_field/${uuid}/last_update`)
-  .set('Cookie', [`user=${current_user}`]);
-};
-
-const templateFieldLatestPublished = async (uuid, current_user) => {
-  return await request(app)
-  .get(`/template_field/${uuid}/latest_published`)
-  .set('Cookie', [`user=${current_user}`]);
 };
 
 const templateFieldLatestPublishedBeforeDate = async (uuid, timestamp, current_user) => {
@@ -65,17 +37,6 @@ const templateFieldDraftDelete = async (uuid, current_user) => {
     .set('Cookie', [`user=${current_user}`]);
 };
 
-const createSuccessTest = async (data, current_user) => {
-  let response = await templateFieldCreate(data, current_user)
-  expect(response.statusCode).toBe(200);
-  expect(response.body.inserted_uuid).toBeTruthy();
-
-  response = await Helper.templateFieldDraftGet(response.body.inserted_uuid, current_user);
-  expect(response.statusCode).toBe(200);
-  expect(response.body).toMatchObject(data);
-  return response.body.uuid;
-};
-
 describe("create (and get draft after a create)", () => {
   test("Success", async () => {
     let data = {
@@ -83,7 +44,7 @@ describe("create (and get draft after a create)", () => {
       description: "",
       public_date: (new Date()).toISOString(),
     };
-    let uuid = await createSuccessTest(data, Helper.DEF_CURR_USER);
+    let uuid = await Helper.templateFieldCreateAndTest(data, Helper.DEF_CURR_USER);
 
     // Now test that all permission groups were created successfully
     await Helper.testPermissionGroupsInitializedFor(uuid, Helper.DEF_CURR_USER);
@@ -93,7 +54,7 @@ describe("create (and get draft after a create)", () => {
   describe("failure cases", () => {
 
     const failureTest = async (data, responseCode) => {
-      let response = await templateFieldCreate(data, Helper.DEF_CURR_USER);
+      let response = await Helper.templateFieldCreate(data, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(responseCode);
     };
   
@@ -135,7 +96,7 @@ describe("update (and get draft after an update)", () => {
       "name": "field",
       "description": "description"
     };
-    uuid = await createSuccessTest(data, Helper.DEF_CURR_USER);
+    uuid = await Helper.templateFieldCreateAndTest(data, Helper.DEF_CURR_USER);
   });
 
   test("Success", async () => {
@@ -201,7 +162,7 @@ describe("get draft", () => {
       description: "",
       public_date: (new Date()).toISOString(),
     };
-    let uuid = await createSuccessTest(data, Helper.DEF_CURR_USER);
+    let uuid = await Helper.templateFieldCreateAndTest(data, Helper.DEF_CURR_USER);
 
     let response = await Helper.templateFieldDraftGet(uuid);
     expect(response.statusCode).toBe(401);    
@@ -212,28 +173,10 @@ describe("publish (and get published and draft after a publish)", () => {
 
   test("Success", async () => {
 
-    let data = {
+    let field = {
       "name":"name"
     };
-    let uuid = await createSuccessTest(data, Helper.DEF_CURR_USER);
-
-    let response = await templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
-    expect(response.statusCode).toBe(200);
-    let last_update = response.body;
-
-    response = await templateFieldPublish(uuid, last_update, Helper.DEF_CURR_USER);
-    expect(response.statusCode).toBe(200);
-  
-    // Check that a published version now exists
-    response = await templateFieldLatestPublished(uuid, Helper.DEF_CURR_USER);
-    expect(response.statusCode).toBe(200);
-    expect(response.body).toMatchObject(data);
-    expect(response.body).toHaveProperty("publish_date");
-
-    // Check that we can still get a draft version
-    response = await Helper.templateFieldDraftGet(uuid, Helper.DEF_CURR_USER);
-    expect(response.statusCode).toBe(200);
-    expect(response.body).toMatchObject(data);
+    await Helper.templateFieldCreatePublishTest(field, Helper.DEF_CURR_USER);
 
   });
 
@@ -244,13 +187,13 @@ describe("publish (and get published and draft after a publish)", () => {
       let data = {
         "name":"name"
       };
-      let uuid = await createSuccessTest(data, Helper.DEF_CURR_USER);
+      let uuid = await Helper.templateFieldCreateAndTest(data, Helper.DEF_CURR_USER);
 
-      let response = await templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
+      let response = await Helper.templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
       let last_update = response.body;
 
-      response = await templateFieldPublish(Helper.VALID_UUID, last_update, Helper.DEF_CURR_USER);
+      response = await Helper.templateFieldPublish(Helper.VALID_UUID, last_update, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(404);
 
     });
@@ -259,16 +202,16 @@ describe("publish (and get published and draft after a publish)", () => {
       let data = {
         "name":"name"
       };
-      let uuid = await createSuccessTest(data, Helper.DEF_CURR_USER);
+      let uuid = await Helper.templateFieldCreateAndTest(data, Helper.DEF_CURR_USER);
 
-      let response = await templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
+      let response = await Helper.templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
       let last_update = response.body;
 
-      response = await templateFieldPublish(uuid, last_update, Helper.DEF_CURR_USER);
+      response = await Helper.templateFieldPublish(uuid, last_update, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
 
-      response = await templateFieldPublish(uuid, last_update, Helper.DEF_CURR_USER);
+      response = await Helper.templateFieldPublish(uuid, last_update, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
     });
 
@@ -276,9 +219,9 @@ describe("publish (and get published and draft after a publish)", () => {
       let data = {
         "name":"basic template field"
       };
-      let uuid = await createSuccessTest(data, Helper.DEF_CURR_USER);
+      let uuid = await Helper.templateFieldCreateAndTest(data, Helper.DEF_CURR_USER);
 
-      let response = await templateFieldPublish(uuid, (new Date()).toISOString(), Helper.DEF_CURR_USER);
+      let response = await Helper.templateFieldPublish(uuid, (new Date()).toISOString(), Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
     });
 
@@ -286,13 +229,13 @@ describe("publish (and get published and draft after a publish)", () => {
       let data = {
         "name":"name"
       };
-      let uuid = await createSuccessTest(data, Helper.DEF_CURR_USER);
+      let uuid = await Helper.templateFieldCreateAndTest(data, Helper.DEF_CURR_USER);
 
-      let response = await templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
+      let response = await Helper.templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
       let last_update = response.body;
 
-      response = await templateFieldPublish(uuid, last_update, 'other');
+      response = await Helper.templateFieldPublish(uuid, last_update, 'other');
       expect(response.statusCode).toBe(401);
     });
 
@@ -307,7 +250,7 @@ describe("publish (and get published and draft after a publish)", () => {
   //     "name":"basic template",
   //     "fields":[field_data]
   //   };
-  //   let uuid = await createSuccessTest(data, 'template');
+  //   let uuid = await Helper.templateFieldCreateAndTest(data, 'template');
 
   //   let response = await request(app)
   //     .get(`/template/${uuid}/last_update`);
@@ -370,7 +313,7 @@ describe("publish (and get published and draft after a publish)", () => {
 
 describe("get latest published", () => {
   test("must exist", async () => {
-    let response = await templateFieldLatestPublished(Helper.VALID_UUID, Helper.DEF_CURR_USER);
+    let response = await Helper.templateFieldLatestPublished(Helper.VALID_UUID, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(404);
   });
 
@@ -379,17 +322,17 @@ describe("get latest published", () => {
       "name":"name",
       public_date: (new Date()).toISOString()
     };
-    let uuid = await createSuccessTest(data, Helper.DEF_CURR_USER);
+    let uuid = await Helper.templateFieldCreateAndTest(data, Helper.DEF_CURR_USER);
 
-    let response = await templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
+    let response = await Helper.templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(200);
     let last_update = response.body;
 
-    response = await templateFieldPublish(uuid, last_update, Helper.DEF_CURR_USER);
+    response = await Helper.templateFieldPublish(uuid, last_update, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(200);
   
     // Check that a published version now exists
-    response = await templateFieldLatestPublished(uuid);
+    response = await Helper.templateFieldLatestPublished(uuid);
     expect(response.statusCode).toBe(200);
   });
 
@@ -397,17 +340,17 @@ describe("get latest published", () => {
     let data = {
       "name":"name"
     };
-    let uuid = await createSuccessTest(data, Helper.DEF_CURR_USER);
+    let uuid = await Helper.templateFieldCreateAndTest(data, Helper.DEF_CURR_USER);
 
-    let response = await templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
+    let response = await Helper.templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(200);
     let last_update = response.body;
 
-    response = await templateFieldPublish(uuid, last_update, Helper.DEF_CURR_USER);
+    response = await Helper.templateFieldPublish(uuid, last_update, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(200);
   
     // Check that a published version now exists
-    response = await templateFieldLatestPublished(uuid);
+    response = await Helper.templateFieldLatestPublished(uuid);
     expect(response.statusCode).toBe(401);
   });
 });
@@ -417,7 +360,7 @@ test("get published for a certain date", async () => {
     "name":"name",
     "description": "1"
   };
-  let uuid = await createSuccessTest(data, Helper.DEF_CURR_USER);
+  let uuid = await Helper.templateFieldCreateAndTest(data, Helper.DEF_CURR_USER);
 
   let beforeFirstPublish = new Date();
 
@@ -426,12 +369,12 @@ test("get published for a certain date", async () => {
   let response = await templateFieldLatestPublishedBeforeDate(uuid, beforeFirstPublish.toISOString(), Helper.DEF_CURR_USER);
   expect(response.statusCode).toBe(404);
 
-  response = await templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
+  response = await Helper.templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
   expect(response.statusCode).toBe(200);
   let last_update = response.body;
 
   // Publish the first time
-  response = await templateFieldPublish(uuid, last_update, Helper.DEF_CURR_USER);
+  response = await Helper.templateFieldPublish(uuid, last_update, Helper.DEF_CURR_USER);
   expect(response.statusCode).toBe(200);
 
   let afterFirstPublish = new Date();
@@ -442,11 +385,11 @@ test("get published for a certain date", async () => {
   response = await templateFieldUpdate(uuid, data, Helper.DEF_CURR_USER);
   expect(response.statusCode).toBe(200);
 
-  response = await templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
+  response = await Helper.templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
   expect(response.statusCode).toBe(200);
   last_update = response.body;
 
-  response = await templateFieldPublish(uuid, last_update, Helper.DEF_CURR_USER);
+  response = await Helper.templateFieldPublish(uuid, last_update, Helper.DEF_CURR_USER);
   expect(response.statusCode).toBe(200);
 
   let afterSecondPublish = new Date();
@@ -456,16 +399,16 @@ test("get published for a certain date", async () => {
   response = await templateFieldUpdate(uuid, data, Helper.DEF_CURR_USER);
   expect(response.statusCode).toBe(200);
 
-  response = await templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
+  response = await Helper.templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
   expect(response.statusCode).toBe(200);
   last_update = response.body;
 
-  response = await templateFieldPublish(uuid, last_update, Helper.DEF_CURR_USER);
+  response = await Helper.templateFieldPublish(uuid, last_update, Helper.DEF_CURR_USER);
   expect(response.statusCode).toBe(200);
 
   // Now there should be three published versions. Search for each based on the date
 
-  response = await templateFieldLatestPublished(uuid, Helper.DEF_CURR_USER);
+  response = await Helper.templateFieldLatestPublished(uuid, Helper.DEF_CURR_USER);
   expect(response.statusCode).toBe(200);
   expect(response.body.description).toEqual(expect.stringMatching("3"));
 
@@ -491,13 +434,13 @@ describe("delete", () => {
       "name":"name",
       "description": "description"
     };
-    let uuid = await createSuccessTest(data, Helper.DEF_CURR_USER);
+    let uuid = await Helper.templateFieldCreateAndTest(data, Helper.DEF_CURR_USER);
   
-    let response = await templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
+    let response = await Helper.templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(200);
     let last_update = response.body;
   
-    response = await templateFieldPublish(uuid, last_update, Helper.DEF_CURR_USER);
+    response = await Helper.templateFieldPublish(uuid, last_update, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(200);
   
     data.uuid = uuid;
@@ -529,13 +472,13 @@ describe("delete", () => {
       "name":"name",
       "description": "description"
     };
-    let uuid = await createSuccessTest(data, Helper.DEF_CURR_USER);
+    let uuid = await Helper.templateFieldCreateAndTest(data, Helper.DEF_CURR_USER);
   
-    let response = await templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
+    let response = await Helper.templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(200);
     let last_update = response.body;
   
-    response = await templateFieldPublish(uuid, last_update, Helper.DEF_CURR_USER);
+    response = await Helper.templateFieldPublish(uuid, last_update, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(200);
    
     // Delete the draft
@@ -548,13 +491,13 @@ describe("delete", () => {
       "name":"name",
       "description": "description"
     };
-    let uuid = await createSuccessTest(data, Helper.DEF_CURR_USER);
+    let uuid = await Helper.templateFieldCreateAndTest(data, Helper.DEF_CURR_USER);
   
-    let response = await templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
+    let response = await Helper.templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(200);
     let last_update = response.body;
   
-    response = await templateFieldPublish(uuid, last_update, Helper.DEF_CURR_USER);
+    response = await Helper.templateFieldPublish(uuid, last_update, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(200);
   
     data.uuid = uuid;
@@ -581,9 +524,9 @@ describe("lastUpdate", () => {
     let data = {
       "name":"1"
     };
-    let uuid = await createSuccessTest(data, Helper.DEF_CURR_USER);
+    let uuid = await Helper.templateFieldCreateAndTest(data, Helper.DEF_CURR_USER);
 
-    let response = await templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
+    let response = await Helper.templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(200);
     expect((new Date(response.body)).getTime()).toBeGreaterThan(timestamp.getTime());
   });
@@ -591,10 +534,10 @@ describe("lastUpdate", () => {
 
   describe("failure", () => {
     test("uuid must be valid", async () => {
-      let response = await templateFieldLastUpdate("18", Helper.DEF_CURR_USER);
+      let response = await Helper.templateFieldLastUpdate("18", Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
 
-      response = await templateFieldLastUpdate(Helper.VALID_UUID, Helper.DEF_CURR_USER);
+      response = await Helper.templateFieldLastUpdate(Helper.VALID_UUID, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(404);
     })
 
@@ -603,9 +546,9 @@ describe("lastUpdate", () => {
       let data = {
         "name":"1"
       };
-      let uuid = await createSuccessTest(data, Helper.DEF_CURR_USER);
+      let uuid = await Helper.templateFieldCreateAndTest(data, Helper.DEF_CURR_USER);
   
-      let response = await templateFieldLastUpdate(uuid, "other");
+      let response = await Helper.templateFieldLastUpdate(uuid, "other");
       expect(response.statusCode).toBe(401);
     })
   });
