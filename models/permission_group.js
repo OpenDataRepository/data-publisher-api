@@ -64,7 +64,7 @@ exports.replace_permissions = async function(current_user, uuid, category, users
 
   // The current user must be in the admin permissions group for this uuid to change it's permissions
   if (!(await has_permission(current_user, uuid, PERMISSION_ADMIN))) {
-    throw new Util.InputError(`You do not have the required permissions to modify these permissions`);
+    throw new Util.PermissionDeniedError(`You do not have the permission level (admin) required to modify these permissions`);
   }
 
   let current_user_found = false;

@@ -1,6 +1,7 @@
 const request = require("supertest");
 const MongoDB = require('../lib/mongoDB');
 var { app, init: appInit } = require('../app');
+var { PERMISSION_ADMIN, PERMISSION_EDIT, PERMISSION_VIEW } = require('../models/permission_group');
 var HelperClass = require('./common_test_operations')
 var Helper = new HelperClass(app);
 
@@ -518,19 +519,63 @@ describe("delete", () => {
 });
 
 describe("lastUpdate", () => {
+  describe("success", () => {
+    test("basic field draft", async () => {
+      let timestamp = new Date();
+      let data = {
+        "name":"1"
+      };
+      let uuid = await Helper.templateFieldCreateAndTest(data, Helper.DEF_CURR_USER);
+  
+      let response = await Helper.templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+      expect((new Date(response.body)).getTime()).toBeGreaterThan(timestamp.getTime());
+    });
 
-  test("success", async () => {
-    let timestamp = new Date();
-    let data = {
-      "name":"1"
-    };
-    let uuid = await Helper.templateFieldCreateAndTest(data, Helper.DEF_CURR_USER);
+    test("basic field published", async () => {
+      let timestamp = new Date();
+      let data = {
+        "name":"1"
+      };
+      let template = await Helper.templateFieldCreatePublishTest(data, Helper.DEF_CURR_USER);
+  
+      let response = await Helper.templateFieldLastUpdate(template.uuid, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+      expect((new Date(response.body)).getTime()).toBeGreaterThan(timestamp.getTime());
+    });
 
-    let response = await Helper.templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
-    expect(response.statusCode).toBe(200);
-    expect((new Date(response.body)).getTime()).toBeGreaterThan(timestamp.getTime());
+    test("get latest update for that which the user has permission to", async () => {
+      let time1 = new Date();
+      let template = {
+        "name":"1"
+      };
+      template = await Helper.templateFieldCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template.description = "des";
+
+      let time2 = new Date();
+
+      let response = await templateFieldUpdate(template.uuid, template, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+
+      let time3 = new Date();
+
+      let other_user = 'other';
+      let view_users = [other_user, Helper.DEF_CURR_USER];
+      response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, template.uuid, PERMISSION_VIEW, view_users);
+      expect(response.statusCode).toBe(200);
+  
+      response = await Helper.templateFieldLastUpdate(template.uuid, other_user);
+      expect(response.statusCode).toBe(200);
+      expect((new Date(response.body)).getTime()).toBeGreaterThan(time1.getTime());
+      expect((new Date(response.body)).getTime()).toBeLessThan(time2.getTime());
+
+      response = await Helper.templateFieldLastUpdate(template.uuid, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+      expect((new Date(response.body)).getTime()).toBeGreaterThan(time2.getTime());
+      expect((new Date(response.body)).getTime()).toBeLessThan(time3.getTime());
+    });
+  
   });
-
 
   describe("failure", () => {
     test("uuid must be valid", async () => {
@@ -539,10 +584,9 @@ describe("lastUpdate", () => {
 
       response = await Helper.templateFieldLastUpdate(Helper.VALID_UUID, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(404);
-    })
+    });
 
-    test("user must have permission", async () => {
-      let timestamp = new Date();
+    test("user must have edit or view permission", async () => {
       let data = {
         "name":"1"
       };
@@ -550,6 +594,6 @@ describe("lastUpdate", () => {
   
       let response = await Helper.templateFieldLastUpdate(uuid, "other");
       expect(response.statusCode).toBe(401);
-    })
+    });
   });
 })

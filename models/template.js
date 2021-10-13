@@ -383,14 +383,14 @@ async function validateAndCreateOrUpdate(template, user, session) {
         changes |= (await TemplateFieldModel.validateAndCreateOrUpdate(template.fields[i], user, session))[0];
       } catch(err) {
         if (err instanceof Util.NotFoundError) {
-          // TODO: remove this conversion
           throw new Util.InputError(err.message);
         } else if (err instanceof Util.PermissionDeniedError) {
           // If the user doesn't have permissions, assume they want to link the published version of the field
-          // But before we can link the published version of the field, we must make sure it exists and we have view access
-          if(!(await TemplateFieldModel.latestPublished(template.fields[i].uuid, user))) {
-            throw new Util.InputError(`published template_field does not exist with uuid ${uuid}`);
+          // But before we can link the published version of the field, we must make sure it exists
+          if(!(await TemplateFieldModel.latestPublishedWithoutPermissions(template.fields[i].uuid, session))) {
+            throw new Util.InputError(`cannot link template_field ${uuid}. You do not have edit permissions and a published version does not exist`);
           }
+          // TODO: consider changing the above such that a default, hidden published version of the template exists with nothing but the uuid and _id.
         } else {
           throw err;
         }
@@ -416,9 +416,6 @@ async function validateAndCreateOrUpdate(template, user, session) {
           // But before we can link the published version of the template, we must make sure it exists and we have view access
           if(!(await latestPublished(template.related_templates[i].uuid))) {
             throw new Util.InputError(`published template does not exist with uuid ${uuid}`);
-          }
-          if(!(await userHasAccessToPublishedTemplate(template.related_templates[i], user))) {
-            throw new Util.PermissionDeniedError(`cannot link template ${template.related_templates[i].uuid}. Requires at least view permissions.`);
           }
         } else {
           throw err;
@@ -545,6 +542,14 @@ async function publishRecursor(uuid, user, session) {
     } catch(err) {
       if (err instanceof Util.NotFoundError) {
         throw new Util.InputError("Internal reference within this draft is invalid. Fetch/update draft to cleanse it.");
+      } else if (err instanceof Util.PermissionDeniedError) {
+        // If the user doesn't have permissions, assume they want to link the published version of the field
+        // But before we can link the published version of the field, we must make sure it exists and we have view access
+        let published_field = await TemplateFieldModel.latestPublishedWithoutPermissions(field, session);
+        if(!published_field) {
+          throw new Util.InputError(`you do not have edit permissions to the draft of template_field ${uuid}, and a published version does not exist.`);
+        }
+        fields.push(published_field._id);
       } else {
         throw err;
       }
@@ -564,6 +569,15 @@ async function publishRecursor(uuid, user, session) {
     } catch(err) {
       if (err instanceof Util.NotFoundError) {
         throw new Util.InputError("Internal reference within this draft is invalid. Fetch/update draft to cleanse it.");
+      } else if (err instanceof Util.PermissionDeniedError) {
+
+        // If the user doesn't have permissions, assume they want to link the published version of the template
+        // But before we can link the published version of the template, we must make sure it exists and we have view access
+        let related_template_published = await latestPublished(related_template);
+        if(!related_template_published) {
+          throw new Util.InputError(`published template does not exist with uuid ${related_template}`);
+        }
+        fields.push(related_template_published._id);
       } else {
         throw err;
       }
@@ -723,7 +737,7 @@ async function latestPublishedBeforeDateWithJoins(uuid, date) {
   }
 }
 
-async function filterPublishedTemplateForPermissions(template, user) {
+async function filterPublishedTemplateForPermissionsRecursor(template, user) {
   for(let i = 0; i < template.fields.length; i++) {
     if(!(await TemplateFieldModel.userHasAccessToPublishedField(template.fields[i], user))) {
       template.fields[i] = {uuid: template.fields[i].uuid};
@@ -732,8 +746,17 @@ async function filterPublishedTemplateForPermissions(template, user) {
   for(let i = 0; i < template.related_templates.length; i++) {
     if(!(await userHasAccessToPublishedTemplate(template.related_templates[i], user))) {
       template.related_templates[i] = {uuid: template.related_templates[i].uuid};
+    } else {
+      await filterPublishedTemplateForPermissionsRecursor(template.related_templates[i], user);
     }
   }
+}
+
+async function filterPublishedTemplateForPermissions(template, user) {
+  if(!(await userHasAccessToPublishedTemplate(template, user))) {
+    throw new Util.PermissionDeniedError(`Do not have view access to template ${template.uuid}`);
+  }
+  await filterPublishedTemplateForPermissionsRecursor(template, user);
 }
 
 async function latestPublishedBeforeDateWithJoinsAndPermissions(uuid, date, user) {
@@ -790,14 +813,23 @@ async function draftFetchOrCreate(uuid, user, session) {
   let fields = [];
   let field_uuids = [];
   for(let i = 0; i < template_draft.fields.length; i++) {
+    let field_uuid = template_draft.fields[i];
     let field;
     try {
       // First try to get the draft of the field
-      field = await TemplateFieldModel.draft(template_draft.fields[i], user, session);
+      field = await TemplateFieldModel.draft(field_uuid, user, session);
     } catch (err) {
       if (err instanceof Util.PermissionDeniedError) {
         // If we don't have permission for the draft, get the latest published instead
-        field = await TemplateFieldModel.latestPublished(uuid, user)
+        try {
+          field = await TemplateFieldModel.latestPublished(field_uuid, user)
+        } catch(err) {
+          if (err instanceof Util.PermissionDeniedError) {
+            field = {uuid: field_uuid}
+          } else {
+            throw err;
+          }
+        }
       } else {
         throw err;
       }
@@ -806,7 +838,7 @@ async function draftFetchOrCreate(uuid, user, session) {
       fields.push(field);
       field_uuids.push(field.uuid);
     } else {
-      console.log(`Failed to find a template field with uuid ${field}. Therefore, removing the reference to it from template with uuid ${template_draft.uuid}`);
+      console.log(`Failed to find a template field with uuid ${field_uuid}. Therefore, removing the reference to it from template with uuid ${template_draft.uuid}`);
     }
   }
 
@@ -814,19 +846,20 @@ async function draftFetchOrCreate(uuid, user, session) {
   let related_templates = [];
   let related_template_uuids = [];
   for(let i = 0; i < template_draft.related_templates.length; i++) {
+    let related_template_uuid = template_draft.related_templates[i];
     let related_template;
     try {
       // First try to get the draft of the related_template
-      related_template = await draftFetchOrCreate(template_draft.related_templates[i], user, session);
+      related_template = await draftFetchOrCreate(related_template_uuid, user, session);
     } catch (err) {
       if (err instanceof Util.PermissionDeniedError) {
         // If we don't have permission for the draft, get the latest published instead
         try {
-          related_template = await latestPublishedWithJoinsAndPermissions(uuid, user)
+          related_template = await latestPublishedWithJoinsAndPermissions(related_template_uuid, user)
         } catch (err) {
           if (err instanceof Util.PermissionDeniedError) {
             // If we don't have permission for the published version, just attach a uuid
-            related_template = {uuid};
+            related_template = {uuid: related_template_uuid};
           } else {
             throw err;
           }
@@ -839,7 +872,7 @@ async function draftFetchOrCreate(uuid, user, session) {
       related_templates.push(related_template);
       related_template_uuids.push(related_template.uuid);
     } else {
-      console.log(`Failed to find a template with uuid ${uuid}. Therefore, removing the reference to it from template with uuid ${template_draft.uuid}`);
+      console.log(`Failed to find a template with uuid ${related_template_uuid}. Therefore, removing the reference to it from template with uuid ${template_draft.uuid}`);
     }
   }
 
@@ -881,38 +914,46 @@ async function lastUpdateFor(uuid, user, session) {
     throw new Util.InputError('The uuid provided is not in proper uuid format.');
   }
 
-  let draft = await fetchDraftOrCreateFromPublished(uuid, session);
-  if(!draft) {
-    throw new Util.NotFoundError();
+  let template_draft = await fetchDraftOrCreateFromPublished(uuid, session);
+  let template_published = await latestPublished(uuid, session);
+  let edit_permission = await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT);
+  let view_permission = await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_VIEW);
+
+  if(!template_draft) {
+    throw new Util.NotFoundError(`No template  exists with uuid ${uuid}`);
   }
 
-  // user must have edit access to see this endpoint
-  if (!await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT)) {
-    throw new Util.PermissionDeniedError(`Do not have edit permission required to view template draft ${uuid}`);
+  if(!edit_permission) {
+    if(!template_published) {
+      throw new Util.PermissionDeniedError(`template ${uuid}: do not permissions for draft, and no published version exists`);
+    }
+    if(!view_permission) {
+      throw new Util.PermissionDeniedError(`template ${uuid}: do not have view or edit permissions`);
+    }
+    return template_published.updated_at;
   }
-  
 
-  let last_update = draft.updated_at;
-  for(uuid of draft.fields) {
+  let last_update = template_draft.updated_at;
+  for(uuid of template_draft.fields) {
     try {
       let update = await TemplateFieldModel.lastUpdate(uuid, user);
       if (update > last_update){
         last_update = update;
       }
     } catch (err) {
-      if (!(err instanceof Util.NotFoundError)) {
+      if (!(err instanceof Util.NotFoundError || err instanceof Util.PermissionDeniedError)) {
         throw err;
       }
     }
   }
-  for(uuid of draft.related_templates) {
+  for(uuid of template_draft.related_templates) {
     try {
       let update = await lastUpdateFor(uuid, user, session);
       if (update > last_update){
         last_update = update;
       }
     } catch (err) {
-      if (!(err instanceof Util.NotFoundError)) {
+      if (!(err instanceof Util.NotFoundError || err instanceof Util.PermissionDeniedError)) {
         throw err;
       }
     }

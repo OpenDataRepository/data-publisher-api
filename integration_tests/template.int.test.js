@@ -165,27 +165,62 @@ describe("create (and get draft after a create)", () => {
         "name": "t1f1",
         public_date: (new Date()).toISOString()
       }
-      let field_published = await Helper.templateFieldCreatePublishTest(field, other_user);
-
       let related_template = { 
         name: "t2",
         public_date: (new Date()).toISOString()
       };
-      // TODO: template create and publish: take from record and move to common
-      // let related_template_uuid = await Helper.templateCreateAndTest(related_template, other_user);
-      // // publish
+      
+      let field_published = await Helper.templateFieldCreatePublishTest(field, other_user);
+      let related_template_published = await Helper.templateCreatePublishTest(related_template, other_user);
 
-      // let template = { 
-      //   "name": "t1",
-      //   "fields": [field_published],
-      //   "related_templates": [related_template_published]
-      // };
-      // let uuid = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
-
-      // let response = await Helper.templateDraftGet(uuid, Helper.DEF_CURR_USER);
-         
+      let template = { 
+        "name": "t1",
+        "fields": [field_published],
+        "related_templates": [related_template_published]
+      };
+      await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);         
 
     });
+
+    test("If user doesn't have view edit or view permissions to linked fields and related_templates, can still link them but won't see them", async () => {
+      let other_user = 'other';
+
+      let field = {
+        "name": "t1f1"
+      }
+      let related_template = { 
+        name: "t2.1"
+      };
+      
+      let field_published = await Helper.templateFieldCreatePublishTest(field, other_user);
+      let related_template_published = await Helper.templateCreatePublishTest(related_template, other_user);
+
+      let template1 = { 
+        "name": "t1",
+        "fields": [field_published]
+      };
+      let response = await Helper.templateCreate(template1, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+      let uuid = response.body.inserted_uuid;
+      expect(uuid).toBeTruthy();
+      response = await Helper.templateDraftGet(uuid, Helper.DEF_CURR_USER)
+      expect(response.statusCode).toBe(200);
+      expect(response.body).toMatchObject({uuid});
+
+      let template2 = { 
+        "name": "t2",
+        "related_templates": [related_template_published]
+      };
+      response = await Helper.templateCreate(template2, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+      uuid = response.body.inserted_uuid;
+      expect(uuid).toBeTruthy();
+      response = await Helper.templateDraftGet(uuid, Helper.DEF_CURR_USER)
+      expect(response.statusCode).toBe(200);
+      expect(response.body).toMatchObject({uuid});
+
+    });
+
   })
 
   describe("Failure cases", () => {
@@ -240,6 +275,35 @@ describe("create (and get draft after a create)", () => {
       await failureTest(invalidFields, Helper.DEF_CURR_USER, 400);
       await failureTest(invalidRelatedTemplates, Helper.DEF_CURR_USER, 400);
     })
+
+    test("If user doesn't have edit access to a linked field/related_template, then a published version of the same must exist", async () => {
+      let other_user = 'other';
+
+      let field = {
+        "name": "t1f1",
+        public_date: (new Date()).toISOString()
+      }
+      let related_template = { 
+        name: "t2.1",
+        public_date: (new Date()).toISOString()
+      };
+      
+      let field_published = await Helper.templateFieldCreateAndTest(field, other_user);
+      let related_template_published = await Helper.templateCreateAndTest(related_template, other_user);
+
+      let template1 = { 
+        "name": "t1",
+        "fields": [field_published]
+      };
+      await failureTest(template1, Helper.DEF_CURR_USER, 400);    
+
+      let template2 = { 
+        "name": "t2",
+        "related_templates": [related_template_published]
+      };
+      await failureTest(template2, Helper.DEF_CURR_USER, 400);   
+    
+    });
 
   })
   
@@ -370,8 +434,104 @@ describe("update (and get draft after an update)", () => {
       expect(response.statusCode).toBe(404);
 
     })
+
+    test("Must have edit permissions to update", async () => {
+
+      let template = { 
+        "uuid": uuid,
+        "name": "create template"
+      };
+      
+      let other_user = 'other';
+
+      let response = await templateUpdate(uuid, template, other_user);
+      expect(response.statusCode).toBe(401);
+
+    });
+
   })
   
+});
+
+describe("get draft", () => {
+  test("must have edit permission", async () => {
+    let template = {
+      name: "t"
+    }
+    let uuid = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
+    let other_user = 'other';
+    let response = await Helper.templateDraftGet(uuid, other_user);
+    expect(response.statusCode).toBe(401);
+  });
+
+  test("if user has view but not edit access to linked properties, the pubished version replaces that property", async () => {
+    let other_user = 'other';
+
+    let field = {
+      "name": "t1f1"
+    }
+    let related_template = { 
+      name: "t2"
+    };
+    
+    let field_published = await Helper.templateFieldCreatePublishTest(field, other_user);
+    let related_template_published = await Helper.templateCreatePublishTest(related_template, other_user);
+
+    let view_users = [other_user, Helper.DEF_CURR_USER];
+
+    let response = await Helper.updatePermissionGroup(other_user, field_published.uuid, PERMISSION_VIEW, view_users);
+    expect(response.statusCode).toBe(200);
+
+    response = await Helper.updatePermissionGroup(other_user, related_template_published.uuid, PERMISSION_VIEW, view_users);
+    expect(response.statusCode).toBe(200);
+
+    let template = { 
+      "name": "t1",
+      "fields": [field_published],
+      "related_templates": [related_template_published]
+    };
+    let template_published = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);  
+
+    // Fetch parent template, check that the two linked properties are fetched as the published versions
+    response = await Helper.templateDraftGet(template_published.uuid, Helper.DEF_CURR_USER);
+    expect(response.statusCode).toBe(200);
+    let template_draft = response.body;
+    expect(template_draft).toMatchObject(template);    
+
+  });
+
+  test("if user has neither view nor edit access to linked properties, an empty object replaces that property", async () => {
+    let field = {
+      "name": "t1f1"
+    }
+    let related_template = { 
+      name: "t2"
+    };
+    
+    let other_user = 'other';
+    let template = { 
+      "name": "t1",
+      "fields": [field],
+      "related_templates": [related_template]
+    };
+    let template_published = await Helper.templateCreatePublishTest(template, other_user);  
+    
+    let edit_users = [other_user, Helper.DEF_CURR_USER];
+    let response = await Helper.updatePermissionGroup(other_user, template_published.uuid, PERMISSION_EDIT, edit_users);
+    expect(response.statusCode).toBe(200);
+
+    response = await Helper.templateDraftGet(template_published.uuid, Helper.DEF_CURR_USER);
+    expect(response.statusCode).toBe(200);
+    let expected_template_draft = response.body;
+    expected_template_draft.fields[0] = {uuid: template_published.fields[0].uuid};
+    expected_template_draft.related_templates[0] = {uuid: template_published.related_templates[0].uuid};
+    
+    // Fetch parent template, check that the two linked properties are fetched as blank 
+    // since the default user doesn't have view permissions
+    response = await Helper.templateDraftGet(template_published.uuid, Helper.DEF_CURR_USER);
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toMatchObject(expected_template_draft);    
+  });
 });
 
 describe("publish (and get published and draft after a publish)", () => {
@@ -511,6 +671,120 @@ describe("publish (and get published and draft after a publish)", () => {
       expect(new Date(template.related_templates[0].publish_date).getTime()).toBeLessThan(publish_date_3);
     });
 
+    test("Include a field and related_template user doesn't have edit permissions to, but are public", async () => {
+      let other_user = 'other';
+
+      let field = {
+        "name": "t1f1",
+        public_date: (new Date()).toISOString()
+      }
+      let related_template = { 
+        name: "t2",
+        public_date: (new Date()).toISOString()
+      };
+      
+      let field_published = await Helper.templateFieldCreatePublishTest(field, other_user);
+      let related_template_published = await Helper.templateCreatePublishTest(related_template, other_user);
+
+      let template = { 
+        "name": "t1",
+        "fields": [field_published],
+        "related_templates": [related_template_published]
+      };
+      await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);         
+
+    });
+
+    test("Include a field and related_template user doesn't have edit permissions to, but does have view permissions to", async () => {
+      let other_user = 'other';
+
+      let field = {
+        "name": "t1f1"
+      }
+      let related_template = { 
+        name: "t2"
+      };
+      
+      let field_published = await Helper.templateFieldCreatePublishTest(field, other_user);
+      let related_template_published = await Helper.templateCreatePublishTest(related_template, other_user);
+
+      let view_users = [other_user, Helper.DEF_CURR_USER];
+
+      let response = await Helper.updatePermissionGroup(other_user, field_published.uuid, PERMISSION_VIEW, view_users);
+      expect(response.statusCode).toBe(200);
+
+      response = await Helper.updatePermissionGroup(other_user, related_template_published.uuid, PERMISSION_VIEW, view_users);
+      expect(response.statusCode).toBe(200);
+
+      let template = { 
+        "name": "t1",
+        "fields": [field_published],
+        "related_templates": [related_template_published]
+      };
+      await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);         
+
+    });
+
+    test("User can publish parent template if they have edit access, even if they don't have any access to sub-properties", async () => {
+
+      let related_template = {
+        "name": "t2"
+      };
+      let field = {
+        "name": "t1f1"
+      };
+      let template = {
+        "name":"basic template",
+        "description":"a template to test a publish",
+        "fields":[field],
+        "related_templates":[related_template]
+      };
+      // Publish first time with user 1
+      let first_published = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      let parent_uuid = first_published.uuid;
+
+      // Update with user 1
+      let response = await Helper.templateDraftGet(parent_uuid, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+      let draft = response.body;
+      draft.description = "d";
+      draft.related_templates[0].description = "d";
+      draft.fields[0].description = "d";
+      response = await templateUpdate(draft.uuid, draft, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+
+      // Give user 2 edit and view permissions to parent template
+      let other_user = 'other';
+      let view_users = [Helper.DEF_CURR_USER, other_user];
+      response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, parent_uuid, PERMISSION_VIEW, view_users);
+      expect(response.statusCode).toBe(200);
+      response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, parent_uuid, PERMISSION_EDIT, view_users);
+      expect(response.statusCode).toBe(200);
+
+      // Now let user 2 publish the parent template
+      await Helper.templatePublishAndFetch(parent_uuid, other_user);
+
+      // Now verify that user 2 published the parent but not the children.
+
+      let related_template_published = first_published.related_templates[0];
+      let field_published = first_published.fields[0];
+
+      // Check that the related template was not published
+      response = await Helper.templateLatestPublished(related_template_published.uuid, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+      expect(response.body).toMatchObject(related_template_published);
+
+      // Check that the field was not published
+      response = await Helper.templateFieldLatestPublished(field_published.uuid, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+      expect(response.body).toMatchObject(field_published);
+
+      // Check that the parent was published
+      response = await Helper.templateLatestPublished(parent_uuid, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+      expect(response.body).not.toMatchObject(first_published);
+    });
+
   })
 
   describe("Failure cases", () => {
@@ -622,7 +896,23 @@ describe("publish (and get published and draft after a publish)", () => {
       expect(response.statusCode).toBe(400);
     });
 
+    test("User must have edit permission to publish", async () => {
+
+      let template = {
+        "name":"basic template"
+      };
+      let uuid = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
+
+      // A different user shouldn't be able to publish
+      let other_user = 'other';
+      let response = await Helper.templateLastUpdate(uuid, Helper.DEF_CURR_USER);
+      let last_update = response.body;
+      response = await Helper.templatePublish(uuid, last_update, other_user);
+      expect(response.statusCode).toBe(401);
+    });
+
   })
+
 
   // test("Updating dependent templates", async () => {
 
@@ -698,6 +988,48 @@ describe("publish (and get published and draft after a publish)", () => {
 
 });
 
+describe("get published", () => {
+  test("if user does not have view access to linked properties, an empty object replaces that property", async () => {
+    let field = {
+      "name": "t1f1"
+    }
+    let related_template = { 
+      name: "t2"
+    };
+    
+    let other_user = 'other';
+    let template = { 
+      "name": "t1",
+      "fields": [field],
+      "related_templates": [related_template]
+    };
+    let template_published = await Helper.templateCreatePublishTest(template, other_user);  
+    
+    let view_users = [other_user, Helper.DEF_CURR_USER];
+    let response = await Helper.updatePermissionGroup(other_user, template_published.uuid, PERMISSION_VIEW, view_users);
+    expect(response.statusCode).toBe(200);
+
+    template_published.fields[0] = {uuid: template_published.fields[0].uuid};
+    template_published.related_templates[0] = {uuid: template_published.related_templates[0].uuid};
+    // Fetch parent template, check that the two linked properties are fetched as blank 
+    // since the default user doesn't have view permissions
+    response = await Helper.templateLatestPublished(template_published.uuid, Helper.DEF_CURR_USER);
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toMatchObject(template_published);   
+  });
+
+  test("must have view permissions", async () => {
+    let other_user = 'other';
+    let template = { 
+      "name": "t1"
+    };
+    let template_published = await Helper.templateCreatePublishTest(template, other_user);  
+
+    let response = await Helper.templateLatestPublished(template_published.uuid, Helper.DEF_CURR_USER);
+    expect(response.statusCode).toBe(401);
+  });
+});
+
 test("get published for a certain date", async () => {
   let template = {
     "name":"basic template",
@@ -752,36 +1084,49 @@ test("get published for a certain date", async () => {
   expect(response.statusCode).toBe(404);
 });
 
-test("delete a draft, not a published version", async () => {
-  let template = {
-    "name":"basic template",
-    "description": "description"
-  };
-  template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+describe("delete", () => {
+  test("delete a draft, not a published version", async () => {
+    let template = {
+      "name":"basic template",
+      "description": "description"
+    };
+    template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+  
+    template.description = "different";
+  
+    // Change the draft, but don't publish the change
+    response = await templateUpdate(template.uuid, template, Helper.DEF_CURR_USER);
+    expect(response.statusCode).toBe(200);
+  
+    // Verify that the draft is what we changed it to
+    response = await Helper.templateDraftGet(template.uuid, Helper.DEF_CURR_USER);
+    expect(response.statusCode).toBe(200);
+  
+    // Delete the draft
+    response = await templateDelete(template.uuid, Helper.DEF_CURR_USER);
+    expect(response.statusCode).toBe(200);
+  
+    // Get the draft again. Make sure it matches the latest published version
+    response = await Helper.templateDraftGet(template.uuid, Helper.DEF_CURR_USER);
+    expect(response.statusCode).toBe(200);
+  
+    template.description = "description";
+    delete template._id;
+    delete template.publish_date;
+    expect(response.body).toMatchObject(template);
+  
+  });
 
-  template.description = "different";
+  test("need edit permissions", async () => {
+    let template = {
+      "name":"basic template"
+    };
+    let uuid = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
 
-  // Change the draft, but don't publish the change
-  response = await templateUpdate(template.uuid, template, Helper.DEF_CURR_USER);
-  expect(response.statusCode).toBe(200);
-
-  // Verify that the draft is what we changed it to
-  response = await Helper.templateDraftGet(template.uuid, Helper.DEF_CURR_USER);
-  expect(response.statusCode).toBe(200);
-
-  // Delete the draft
-  response = await templateDelete(template.uuid, Helper.DEF_CURR_USER);
-  expect(response.statusCode).toBe(200);
-
-  // Get the draft again. Make sure it matches the latest published version
-  response = await Helper.templateDraftGet(template.uuid, Helper.DEF_CURR_USER);
-  expect(response.statusCode).toBe(200);
-
-  template.description = "description";
-  delete template._id;
-  delete template.publish_date;
-  expect(response.body).toMatchObject(template);
-
+    let other_user = 'other';
+    let response = await templateDelete(uuid, other_user);
+    expect(response.statusCode).toBe(401);
+  })
 });
 
 describe("templateLastUpdate", () => {
@@ -795,6 +1140,27 @@ describe("templateLastUpdate", () => {
       let uuid = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
 
       let response = await Helper.templateLastUpdate(uuid, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+      expect((new Date(response.body)).getTime()).toBeGreaterThan(timestamp.getTime());
+    });
+
+    test("basic published, no fields or related templates. available to anyone with view or edit permissions", async () => {
+      let timestamp = new Date();
+      let template = {
+        "name":"1"
+      };
+      let published = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+
+      let response = await Helper.templateLastUpdate(published.uuid, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+      expect((new Date(response.body)).getTime()).toBeGreaterThan(timestamp.getTime());
+
+      let other_user = 'other';
+      let view_users = [other_user, Helper.DEF_CURR_USER];
+      response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, published.uuid, PERMISSION_VIEW, view_users);
+      expect(response.statusCode).toBe(200);
+
+      response = await Helper.templateLastUpdate(published.uuid, other_user);
       expect(response.statusCode).toBe(200);
       expect((new Date(response.body)).getTime()).toBeGreaterThan(timestamp.getTime());
     });
@@ -851,6 +1217,32 @@ describe("templateLastUpdate", () => {
 
     });
 
+    test("sub template updated and published later than parent template", async () => {
+
+      let template = {
+        "name": "1",
+        "related_templates": [{
+          "name": "2"
+        }]
+      };
+      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+
+      let related_template = template.related_templates[0];
+      related_template.description = "des";
+
+      let response = await templateUpdate(related_template.uuid, related_template, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toEqual(200);
+
+      let time1 = new Date();
+      await Helper.templatePublishAndFetch(related_template.uuid, Helper.DEF_CURR_USER);
+      let time2 = new Date();
+
+      response = await Helper.templateLastUpdate(template.uuid, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+      expect((new Date(response.body)).getTime()).toBeGreaterThan(time1.getTime());
+      expect((new Date(response.body)).getTime()).toBeLessThan(time2.getTime());
+    });
+
     test("grandchild updated, but child deleted. Updated time should still be grandchild updated", async () => {
       let template = {
         "name": "1",
@@ -903,7 +1295,29 @@ describe("templateLastUpdate", () => {
         .get(`/template/${Helper.VALID_UUID}/last_update`)
         .set('Accept', 'application/json');
       expect(response.statusCode).toBe(404);
-    })
+    });
+
+    test("must have edit permissions to get last update of draft", async () => {
+      let template = {
+        "name":"1"
+      };
+      let uuid = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
+
+      let other_user = 'other';
+      let response = await Helper.templateLastUpdate(uuid, other_user);
+      expect(response.statusCode).toBe(401);
+    });
+
+    test("must have edit or view permissions to get last update of published", async () => {
+      let template = {
+        "name":"1"
+      };
+      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+
+      let other_user = 'other';
+      let response = await Helper.templateLastUpdate(template.uuid, other_user);
+      expect(response.statusCode).toBe(401);
+    });
   });
 })
 

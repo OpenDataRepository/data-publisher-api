@@ -343,7 +343,6 @@ async function publishField(uuid, session, last_update, user) {
   // If there are changes, publish the current draft
   if(changes) {
     let publish_time = new Date();
-    console.log(`TemplateField.publishField: updating field with uuid: ${uuid}`);
     let response = await TemplateField.updateOne(
       {"_id": field_draft._id},
       {'$set': {'updated_at': publish_time, 'publish_date': publish_time}},
@@ -514,17 +513,33 @@ exports.lastUpdate = async function(uuid, user) {
     throw new Util.InputError('The uuid provided is not in proper uuid format.');
   }
 
-  let draft = await draftFetchOrCreate(uuid, user);
-  if(!draft) {
-    throw new Util.NotFoundError();
+  let field_draft = await draft(uuid);
+  let field_published = await latestPublished(uuid);
+  let edit_permission = await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT);
+  let view_permission = await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_VIEW);
+
+  // Get the lat update for the draft if the user has permission to the draft. Otherwise, the last published.
+  if(!field_draft) {
+    if(!field_published) {
+      throw new Util.NotFoundError(`No template field exists with uuid ${uuid}`);
+    }
+    if(!view_permission) {
+      throw new Util.PermissionDeniedError(`field ${uuid}: no draft exists and do not have view permissions for published`);
+    }
+    return field_published.updated_at;
   }
 
-  // user must have edit access to see this endpoint
-  if (!await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT)) {
-    throw new Util.PermissionDeniedError(`Do not have edit permission required to view template_field draft ${uuid}`);
+  if(!edit_permission) {
+    if(!field_published) {
+      throw new Util.PermissionDeniedError(`field ${uuid}: do not permissions for draft, and no published version exists`);
+    }
+    if(!view_permission) {
+      throw new Util.PermissionDeniedError(`field ${uuid}: do not have view or edit permissions`);
+    }
+    return field_published.updated_at;
   }
 
-  return draft.updated_at;
+  return field_draft.updated_at;
 }
 
 exports.userHasAccessToPublishedField = userHasAccessToPublishedField;

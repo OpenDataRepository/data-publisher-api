@@ -111,12 +111,13 @@ module.exports = class Helper {
   templateCreateAndTest = async (template, current_user) => {
     let response = await this.templateCreate(template, current_user);
     expect(response.statusCode).toBe(200);
-    expect(response.body.inserted_uuid).toBeTruthy();
+    let uuid = response.body.inserted_uuid;
+    expect(uuid).toBeTruthy();
   
-    response = await this.templateDraftGet(response.body.inserted_uuid, current_user)
+    response = await this.templateDraftGet(uuid, current_user)
     expect(response.statusCode).toBe(200);
     expect(response.body).toMatchObject(template);
-    return response.body.uuid;
+    return uuid;
   };
 
   templateLastUpdate = async(uuid, curr_user) => {
@@ -171,6 +172,15 @@ module.exports = class Helper {
       .get(`/permission_group/${uuid}/${category}`)
       .set('Accept', 'application/json');
   };
+
+
+  updatePermissionGroup = async (current_user, uuid, category, users) => {
+    return await request(this.app)
+      .put(`/permission_group/${uuid}/${category}`)
+      .set('Cookie', [`user=${current_user}`])
+      .send({users})
+      .set('Accept', 'application/json');
+  }
 
   testPermissionGroup = async (uuid, category, statusCode, user) => {
     let response = await this.getPermissionGroup(uuid, category);
