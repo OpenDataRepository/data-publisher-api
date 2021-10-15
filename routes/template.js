@@ -12,5 +12,6 @@ router.post('/', templateController.create);
 router.put('/:uuid', templateController.update);
 router.post('/:uuid/publish', templateController.publish);
 router.delete('/:uuid/draft', templateController.draft_delete);
+router.post('/:uuid/duplicate', templateController.duplicate);
 
 module.exports = router;

@@ -39,6 +39,11 @@ const templateLatestPublishedBeforeDate = async (uuid, timestamp, curr_user) => 
     .set('Cookie', [`user=${curr_user}`]);
 }
 
+const templateDuplicate = async (uuid, curr_user) => {
+  return await request(app)
+    .post(`/template/${uuid}/duplicate`)
+    .set('Cookie', [`user=${curr_user}`]);
+}
 
 describe("create (and get draft after a create)", () => {
 
@@ -1321,6 +1326,99 @@ describe("templateLastUpdate", () => {
   });
 })
 
+describe("duplicate", () => {
+  describe("success", () => {
+    test("basic template", async () => {
+      let template = {
+        name: "t1"
+      };
+      let template_published = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      let response = await templateDuplicate(template_published.uuid, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toEqual(200);
+      let new_uuid = response.body.new_uuid;
+      response = await Helper.templateDraftGet(new_uuid, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toEqual(200);
+      let draft = response.body;
+      expect(draft).toMatchObject(template);
+      expect(draft.duplicated_from).toEqual(template_published.uuid);
+    });
+    test("basic template duplicated by a user with view permissions to the original", async () => {
+      let template = {
+        name: "t1",
+        public_date: (new Date()).toISOString()
+      };
+      let template_published = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      let other_user = 'other';
+      let response = await templateDuplicate(template_published.uuid, other_user);
+      expect(response.statusCode).toEqual(200);
+      let new_uuid = response.body.new_uuid;
+      response = await Helper.templateDraftGet(new_uuid, other_user);
+      expect(response.statusCode).toEqual(200);
+      let draft = response.body;
+      delete template.public_date;
+      expect(draft).toMatchObject(template);
+      expect(draft.duplicated_from).toEqual(template_published.uuid);
+    });
+    test("template with field and related_template", async () => {
+      let template = {
+        name: "t1",
+        fields: [{name: "t1f1"}],
+        related_templates: [{name: "t1.1"}]
+      };
+      let template_published = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      let response = await templateDuplicate(template_published.uuid, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toEqual(200);
+      let new_uuid = response.body.new_uuid;
+      response = await Helper.templateDraftGet(new_uuid, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toEqual(200);
+      let draft = response.body;
+      expect(draft).toMatchObject(template);
+      expect(draft.duplicated_from).toEqual(template_published.uuid);
+      expect(draft.fields[0].duplicated_from).toEqual(template_published.fields[0].uuid);
+      expect(draft.related_templates[0].duplicated_from).toEqual(template_published.related_templates[0].uuid);
+    });
+    test("only have permisssion to duplicate the top template", async () => {
+      let template = {
+        name: "t1",
+        public_date: (new Date()).toISOString(),
+        fields: [{name: "t1f1"}],
+        related_templates: [{name: "t1.1"}]
+      };
+      let template_published = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      let other_user = 'other';
+      let response = await templateDuplicate(template_published.uuid, other_user);
+      expect(response.statusCode).toEqual(200);
+      let new_uuid = response.body.new_uuid;
+      response = await Helper.templateDraftGet(new_uuid, other_user);
+      expect(response.statusCode).toEqual(200);
+      let draft = response.body;
+      template = {name: "t1"};
+      expect(draft).toMatchObject(template);
+      expect(draft.duplicated_from).toEqual(template_published.uuid);
+    });
+  });
+  describe("failure", () => {
+    test("uuid must be of valid format", async () => {
+      let invalid_uuid = "5;"
+      let response = await templateDuplicate(invalid_uuid, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toEqual(400);
+    });
+    test("published template must exist", async () => {
+      let response = await templateDuplicate(Helper.VALID_UUID, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toEqual(404);
+    });
+    test("user must have view access to template", async () => {
+      let template = {
+        name: "t1"
+      };
+      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      let other_user = 'other';
+      let response = await templateDuplicate(template.uuid, other_user);
+      expect(response.statusCode).toEqual(401);
+    });
+  });
+});
+
 test("full range of operations with big data", async () => {
   let template = {
     name: "1",
@@ -1381,3 +1479,5 @@ test("full range of operations with big data", async () => {
   // TODO: add more complexity here, like another template which interacts with this one, and both getting updated
 
 });
+
+

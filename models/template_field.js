@@ -543,3 +543,33 @@ exports.lastUpdate = async function(uuid, user) {
 }
 
 exports.userHasAccessToPublishedField = userHasAccessToPublishedField;
+
+exports.duplicate = async function(field, user, session) {
+  // 1. Error checking
+  if(!field) {
+    throw new Util.NotFoundError();
+  }
+  if(!(await userHasAccessToPublishedField(field, user))) {
+    throw new Util.PermissionDeniedError();
+  }
+
+  // 2. Create new everything copying the original field, but make it a draft and create a new uuid
+  field.duplicated_from = field.uuid;
+  field.uuid = uuidv4();
+  delete field._id;
+  delete field.updated_at;
+  delete field.publish_date;
+  delete field.public_date;
+  await PermissionGroupModel.initialize_permissions_for(user, field.uuid, session);
+
+  // 3. Actually create everything
+  field.updated_at = (new Date()).toISOString();
+  let response = await TemplateField.insertOne(
+    field, 
+    {session}
+  );
+  if (response.insertedCount != 1) {
+    throw new Error(`TemplateField.duplicate: Failed to insert duplicate of ${field.uuid}`);
+  } 
+  return field.uuid;
+}

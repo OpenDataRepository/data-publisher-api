@@ -31,27 +31,30 @@ async function has_permission(user, uuid, category) {
   return (await cursor.hasNext());
 }
 
-async function create_permission(uuid, category, user_name) {
+async function create_permission(uuid, category, user_name, session) {
   // uuid must be valid
   if (!uuidValidate(uuid)) {
     throw new Util.NotFoundError();
   }
 
-  let response = await PermissionGroup.insertOne({
-    uuid,
-    category,
-    users: [user_name]
-  });
+  let response = await PermissionGroup.insertOne(
+    {
+      uuid,
+      category,
+      users: [user_name]
+    },
+    { session }
+  );
   if (response.insertedCount != 1) {
     throw `PermissionGroup.create_permission: Failed to insert uuid ${uuid}`;
   } 
 }
 
-exports.initialize_permissions_for = async function(current_user, uuid) {
+exports.initialize_permissions_for = async function(current_user, uuid, session) {
   // TODO: after the user model is implemented, verify that current_user is a real user in the database
-  await create_permission(uuid, PERMISSION_ADMIN, current_user);
-  await create_permission(uuid, PERMISSION_EDIT, current_user);
-  await create_permission(uuid, PERMISSION_VIEW, current_user);
+  await create_permission(uuid, PERMISSION_ADMIN, current_user, session);
+  await create_permission(uuid, PERMISSION_EDIT, current_user, session);
+  await create_permission(uuid, PERMISSION_VIEW, current_user, session);
 }
 
 exports.replace_permissions = async function(current_user, uuid, category, users) {

@@ -96,3 +96,12 @@ exports.draft_existing = async function(req, res, next) {
   }
   res.send(exists);
 }
+
+exports.duplicate = async function(req, res, next) {
+  try {
+    let new_uuid = await TemplateModel.duplicate(req.params.uuid, req.cookies.user);
+    res.json({new_uuid});;
+  } catch(err) {
+    next(err);
+  }
+}

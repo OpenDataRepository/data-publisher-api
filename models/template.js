@@ -343,7 +343,8 @@ async function validateAndCreateOrUpdate(template, user, session) {
     // Generate a uuid for the new template
     template.uuid = uuidv4();
     // create a permissions group for the new template
-    await PermissionGroupModel.initialize_permissions_for(user, template.uuid);
+    // TODO: can I think of a way to test that this was done with the session?
+    await PermissionGroupModel.initialize_permissions_for(user, template.uuid, session);
   }
 
   // Need to determine if this draft is any different from the published one.
@@ -982,6 +983,78 @@ async function draftDelete(uuid, user) {
   }
 }
 
+async function duplicateRecursor(template, user, session) {
+  // 1. Error checking
+  if(!template) {
+    throw new Util.NotFoundError();
+  }
+  if(!(await userHasAccessToPublishedTemplate(template, user))) {
+    throw new Util.PermissionDeniedError();
+  }
+
+  // 2. Create new everything copying the original template, but make it a draft and create a new uuid
+  template.duplicated_from = template.uuid;
+  template.uuid = uuidv4();
+  delete template._id;
+  delete template.updated_at;
+  delete template.publish_date;
+  delete template.public_date;
+  await PermissionGroupModel.initialize_permissions_for(user, template.uuid, session);
+
+  // 3. For templates and fields, recurse. If they throw an error, just remove them from the copy.
+  let fields = [];
+  let related_templates = [];
+  for(field of template.fields) {
+    try {
+      field = await TemplateFieldModel.duplicate(field, user, session);
+      fields.push(field);
+    } catch(err) {
+      if(!(err instanceof Util.NotFoundError || err instanceof Util.PermissionDeniedError)) {
+        throw err;
+      }
+    }
+  }
+  for(related_template of template.related_templates) {
+    try {
+      related_template = await duplicateRecursor(related_template, user, session);
+      related_templates.push(related_template);
+    } catch(err) {
+      if(!(err instanceof Util.NotFoundError || err instanceof Util.PermissionDeniedError)) {
+        throw err;
+      }
+    }
+  }
+  template.fields = fields;
+  template.related_templates = related_templates;
+
+  template.updated_at = (new Date()).toISOString();
+  let response = await Template.insertOne(
+    template, 
+    {session}
+  );
+  if (response.insertedCount != 1) {
+    throw new Error(`Template.duplicate: Failed to insert duplicate of ${template.uuid}`);
+  }
+  
+  return template.uuid
+}
+
+async function duplicate(uuid, user, session) {
+  // TODO: all input checks from the user should happen before reaching the model, I think?
+  // I don't think the model is the proper place to do input cleansing.
+  if (!uuidValidate(uuid)) {
+    throw new Util.InputError('The uuid provided is not in proper uuid format.');
+  }
+  let template = await latestPublishedBeforeDateWithJoins(uuid, new Date());
+  if(!template) {
+    throw new Util.NotFoundError(`Published template ${uuid} does not exist`);
+  }
+  if(!(await userHasAccessToPublishedTemplate(template, user))) {
+    throw new Util.PermissionDeniedError(`You do not have view permissions required to duplicate template ${uuid}.`);
+  }
+  return await duplicateRecursor(template, user, session)
+}
+
 // Wraps the actual request to create with a transaction
 exports.create = async function(template, user) {
   const session = MongoDB.newSession();
@@ -1115,4 +1188,25 @@ exports.latest_published_id_for_uuid = async function(uuid) {
 exports.latest_published_time_for_uuid = async function(uuid) {
   let template = await latestPublished(uuid);
   return template ? template.publish_date : null;
+}
+
+// Wraps the actual request to duplicate with a transaction
+exports.duplicate = async function(uuid, user) {
+  const session = MongoDB.newSession();
+  try {
+    var new_uuid;
+    await session.withTransaction(async () => {
+      try {
+        new_uuid = await duplicate(uuid, user, session);
+      } catch(err) {
+        await session.abortTransaction();
+        throw err;
+      }
+    });
+    session.endSession();
+    return new_uuid;
+  } catch(err) {
+    session.endSession();
+    throw err;
+  }
 }
