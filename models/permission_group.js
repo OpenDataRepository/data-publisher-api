@@ -24,6 +24,8 @@ exports.init = async function() {
   PermissionGroup = await collection();
 }
 
+// TODO: re-write this function to convert category into a list of category and it's superior categories.
+// Ex: "VIEW" should translate to ["VIEW", "EDIT", "ADMIN"], and "EDIT" should translate to ["EDIT", "ADMIN"]
 async function has_permission(user, uuid, category) {
   let cursor = await PermissionGroup.find(
     {uuid, category, users: user}

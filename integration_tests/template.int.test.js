@@ -19,14 +19,6 @@ afterAll(async () => {
   await MongoDB.close();
 });
 
-const templateUpdate = async (uuid, template, curr_user) => {
-  return await request(app)
-    .put(`/template/${uuid}`)
-    .send(template)
-    .set('Cookie', [`user=${curr_user}`])
-    .set('Accept', 'application/json');
-}
-
 const templateDelete = async (uuid, curr_user) => {
   return await request(app)
     .delete(`/template/${uuid}/draft`)
@@ -226,6 +218,33 @@ describe("create (and get draft after a create)", () => {
 
     });
 
+    test("User can link link a template they don't have any permissions to as long as it exists", async () => {
+      let field = {
+        "name": "t1f1",
+        public_date: (new Date()).toISOString()
+      }
+      let related_template = { 
+        name: "t2.1",
+        public_date: (new Date()).toISOString()
+      };
+      
+      let field_uuid = await Helper.templateFieldCreateAndTest(field, Helper.USER_2);
+      let related_template_uuid = await Helper.templateCreateAndTest(related_template, Helper.USER_2);
+
+      let template1 = { 
+        "name": "t1",
+        "fields": [{uuid: field_uuid}]
+      };
+      await Helper.templateCreateAndTest(template1, Helper.DEF_CURR_USER);    
+
+      let template2 = { 
+        "name": "t2",
+        "related_templates": [{uuid: related_template_uuid}]
+      };
+      await Helper.templateCreateAndTest(template2, Helper.DEF_CURR_USER);     
+    
+    });
+
   })
 
   describe("Failure cases", () => {
@@ -281,35 +300,6 @@ describe("create (and get draft after a create)", () => {
       await failureTest(invalidRelatedTemplates, Helper.DEF_CURR_USER, 400);
     })
 
-    test("If user doesn't have edit access to a linked field/related_template, then a published version of the same must exist", async () => {
-      let other_user = 'other';
-
-      let field = {
-        "name": "t1f1",
-        public_date: (new Date()).toISOString()
-      }
-      let related_template = { 
-        name: "t2.1",
-        public_date: (new Date()).toISOString()
-      };
-      
-      let field_published = await Helper.templateFieldCreateAndTest(field, other_user);
-      let related_template_published = await Helper.templateCreateAndTest(related_template, other_user);
-
-      let template1 = { 
-        "name": "t1",
-        "fields": [field_published]
-      };
-      await failureTest(template1, Helper.DEF_CURR_USER, 400);    
-
-      let template2 = { 
-        "name": "t2",
-        "related_templates": [related_template_published]
-      };
-      await failureTest(template2, Helper.DEF_CURR_USER, 400);   
-    
-    });
-
   })
   
 });
@@ -352,7 +342,7 @@ describe("update (and get draft after an update)", () => {
         "name": "create template"
       };
 
-      let response = await templateUpdate(uuid, template, Helper.DEF_CURR_USER);
+      let response = await Helper.templateUpdate(uuid, template, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
     
       response = await Helper.templateDraftGet(uuid, Helper.DEF_CURR_USER);
@@ -373,7 +363,7 @@ describe("update (and get draft after an update)", () => {
         }]
       };
 
-      let response = await templateUpdate(uuid, template, Helper.DEF_CURR_USER);
+      let response = await Helper.templateUpdate(uuid, template, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
     
       response = await Helper.templateDraftGet(uuid, Helper.DEF_CURR_USER);
@@ -404,7 +394,7 @@ describe("update (and get draft after an update)", () => {
         "fields": [field]
       };
 
-      response = await templateUpdate(uuid, template, Helper.DEF_CURR_USER);
+      response = await Helper.templateUpdate(uuid, template, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
     
       response = await Helper.templateDraftGet(uuid, Helper.DEF_CURR_USER);
@@ -423,7 +413,7 @@ describe("update (and get draft after an update)", () => {
         "name": "create template"
       };
 
-      let response = await templateUpdate(uuid, template, Helper.DEF_CURR_USER);
+      let response = await Helper.templateUpdate(uuid, template, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
 
     })
@@ -435,7 +425,7 @@ describe("update (and get draft after an update)", () => {
         "name": "create template"
       };
 
-      let response = await templateUpdate(Helper.VALID_UUID, template, Helper.DEF_CURR_USER);
+      let response = await Helper.templateUpdate(Helper.VALID_UUID, template, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(404);
 
     })
@@ -449,7 +439,7 @@ describe("update (and get draft after an update)", () => {
       
       let other_user = 'other';
 
-      let response = await templateUpdate(uuid, template, other_user);
+      let response = await Helper.templateUpdate(uuid, template, other_user);
       expect(response.statusCode).toBe(401);
 
     });
@@ -464,8 +454,7 @@ describe("get draft", () => {
       name: "t"
     }
     let uuid = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
-    let other_user = 'other';
-    let response = await Helper.templateDraftGet(uuid, other_user);
+    let response = await Helper.templateDraftGet(uuid, Helper.USER_2);
     expect(response.statusCode).toBe(401);
   });
 
@@ -613,7 +602,7 @@ describe("publish (and get published and draft after a publish)", () => {
       template.related_templates[0].related_templates[0].description = "3 has a new description";
 
       // Update with change
-      let response = await templateUpdate(template.uuid, template, Helper.DEF_CURR_USER);
+      let response = await Helper.templateUpdate(template.uuid, template, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
 
       // Record the date before we publish a second time
@@ -648,7 +637,7 @@ describe("publish (and get published and draft after a publish)", () => {
       let uuid2 = template.related_templates[0].uuid;
 
       // Update second template
-      let response = await templateUpdate(uuid2, template.related_templates[0], Helper.DEF_CURR_USER);
+      let response = await Helper.templateUpdate(uuid2, template.related_templates[0], Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
 
       // Record the date before we publish the change to the second template
@@ -663,7 +652,7 @@ describe("publish (and get published and draft after a publish)", () => {
       template = response.body;
       
       // Update with change
-      response = await templateUpdate(uuid, template, Helper.DEF_CURR_USER);
+      response = await Helper.templateUpdate(uuid, template, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
 
       // Record the date before we publish the parent template again
@@ -730,6 +719,30 @@ describe("publish (and get published and draft after a publish)", () => {
 
     });
 
+    test("Include a field and related_template user doesn't have any permissions to, user can still create and publish link to it", async () => {
+      let other_user = 'other';
+
+      let field = {
+        name: "t1f1"
+      }
+      let related_template = { 
+        name: "t2"
+      };
+      
+      let field_published = await Helper.templateFieldCreatePublishTest(field, other_user);
+      let related_template_published = await Helper.templateCreatePublishTest(related_template, other_user);
+
+      let template = { 
+        "name": "t1",
+        "fields": [{uuid: field_published.uuid}],
+        "related_templates": [{uuid: related_template_published.uuid}]
+      };
+      
+      // Now pubish and test this published template manually
+      await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER); 
+
+    });
+
     test("User can publish parent template if they have edit access, even if they don't have any access to sub-properties", async () => {
 
       let related_template = {
@@ -755,7 +768,7 @@ describe("publish (and get published and draft after a publish)", () => {
       draft.description = "d";
       draft.related_templates[0].description = "d";
       draft.fields[0].description = "d";
-      response = await templateUpdate(draft.uuid, draft, Helper.DEF_CURR_USER);
+      response = await Helper.templateUpdate(draft.uuid, draft, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
 
       // Give user 2 edit and view permissions to parent template
@@ -788,6 +801,10 @@ describe("publish (and get published and draft after a publish)", () => {
       response = await Helper.templateLatestPublished(parent_uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
       expect(response.body).not.toMatchObject(first_published);
+      // Also check that it is still pointing to the original published field and related_template
+      expect(response.body.fields[0]._id).toBe(field_published._id);
+      expect(response.body.related_templates[0]._id).toBe(related_template_published._id);
+
     });
 
   })
@@ -894,7 +911,7 @@ describe("publish (and get published and draft after a publish)", () => {
       related_template = response.body.related_templates[0];
       related_template.description = "new description";
 
-      response = await templateUpdate(related_template.uuid, related_template, Helper.DEF_CURR_USER);
+      response = await Helper.templateUpdate(related_template.uuid, related_template, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
 
       response = await Helper.templatePublish(uuid, old_update, Helper.DEF_CURR_USER);
@@ -909,10 +926,16 @@ describe("publish (and get published and draft after a publish)", () => {
       let uuid = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
 
       // A different user shouldn't be able to publish
-      let other_user = 'other';
       let response = await Helper.templateLastUpdate(uuid, Helper.DEF_CURR_USER);
       let last_update = response.body;
-      response = await Helper.templatePublish(uuid, last_update, other_user);
+      response = await Helper.templatePublish(uuid, last_update, Helper.USER_2);
+      expect(response.statusCode).toBe(401);
+
+      // Even if that user has view permissions, they still shouldn't be able to publish
+      response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, uuid, PERMISSION_VIEW, [Helper.DEF_CURR_USER, Helper.USER_2]);
+      expect(response.statusCode).toBe(200);
+
+      response = await Helper.templatePublish(uuid, last_update, Helper.USER_2);
       expect(response.statusCode).toBe(401);
     });
 
@@ -1055,7 +1078,7 @@ test("get published for a certain date", async () => {
   template.uuid = uuid;
   template.description = "2";
 
-  response = await templateUpdate(uuid, template, Helper.DEF_CURR_USER);
+  response = await Helper.templateUpdate(uuid, template, Helper.DEF_CURR_USER);
   expect(response.statusCode).toBe(200);
   await Helper.templatePublishAndFetch(uuid, Helper.DEF_CURR_USER);
 
@@ -1063,7 +1086,7 @@ test("get published for a certain date", async () => {
 
   template.description = "3";
 
-  response = await templateUpdate(uuid, template, Helper.DEF_CURR_USER);
+  response = await Helper.templateUpdate(uuid, template, Helper.DEF_CURR_USER);
   expect(response.statusCode).toBe(200);
   await Helper.templatePublishAndFetch(uuid, Helper.DEF_CURR_USER);
 
@@ -1100,7 +1123,7 @@ describe("delete", () => {
     template.description = "different";
   
     // Change the draft, but don't publish the change
-    response = await templateUpdate(template.uuid, template, Helper.DEF_CURR_USER);
+    response = await Helper.templateUpdate(template.uuid, template, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(200);
   
     // Verify that the draft is what we changed it to
@@ -1199,7 +1222,7 @@ describe("templateLastUpdate", () => {
       // maybe another time: test that updating a parent doesn't update a child
       //let data4_updated_at = data3.related_templates[0].updated_at;
 
-      response = await templateUpdate(template3.uuid, template3, Helper.DEF_CURR_USER);
+      response = await Helper.templateUpdate(template3.uuid, template3, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
 
       let timestamp_after_update = new Date();
@@ -1235,7 +1258,7 @@ describe("templateLastUpdate", () => {
       let related_template = template.related_templates[0];
       related_template.description = "des";
 
-      let response = await templateUpdate(related_template.uuid, related_template, Helper.DEF_CURR_USER);
+      let response = await Helper.templateUpdate(related_template.uuid, related_template, Helper.DEF_CURR_USER);
       expect(response.statusCode).toEqual(200);
 
       let time1 = new Date();
@@ -1274,7 +1297,7 @@ describe("templateLastUpdate", () => {
       // Update grandchild
       template3.description = "added a description";
 
-      response = await templateUpdate(template3.uuid, template3, Helper.DEF_CURR_USER);
+      response = await Helper.templateUpdate(template3.uuid, template3, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
 
       response = await Helper.templateDraftGet(template3.uuid, Helper.DEF_CURR_USER);

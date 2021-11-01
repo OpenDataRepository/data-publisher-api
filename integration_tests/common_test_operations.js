@@ -9,6 +9,7 @@ module.exports = class Helper {
 
   VALID_UUID = "47356e57-eec2-431b-8059-f61d5f9a6bc6";
   DEF_CURR_USER = 'caleb';
+  USER_2 = 'naruto';
 
   clearDatabase = async () => {
     let db = MongoDB.db();
@@ -159,6 +160,45 @@ module.exports = class Helper {
   templateCreatePublishTest = async (template, curr_user) => {
     let uuid = await this.templateCreateAndTest(template, curr_user);
     let published_template = await this.templatePublishAndFetch(uuid, curr_user)
+    expect(published_template).toMatchObject(template);
+    return published_template;
+  };
+
+  templateUpdate = async (uuid, template, curr_user) => {
+    return await request(this.app)
+      .put(`/template/${uuid}`)
+      .send(template)
+      .set('Cookie', [`user=${curr_user}`])
+      .set('Accept', 'application/json');
+  }
+
+  templateCleanseMetadata = (template) => {
+    if(!template) {
+      return;
+    }  
+    delete template.updated_at;
+    delete template._id;
+    delete template.publish_date;
+    if(template.related_templates) {
+      for(template of template.related_templates) {
+        this.templateCleanseMetadata(template);
+      }
+    }
+  }
+
+  templateUpdateAndTest = async (template, curr_user) => {
+    this.templateCleanseMetadata(template);
+    let response = await this.templateUpdate(template.uuid, template, curr_user);
+    expect(response.statusCode).toBe(200);
+  
+    response = await this.templateDraftGet(template.uuid, curr_user);
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toMatchObject(template);
+  }
+
+  templateUpdatePublishTest = async (template, curr_user) => {
+    await this.templateUpdateAndTest(template, curr_user);
+    let published_template = await this.templatePublishAndFetch(template.uuid, curr_user)
     expect(published_template).toMatchObject(template);
     return published_template;
   };

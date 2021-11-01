@@ -386,12 +386,7 @@ async function validateAndCreateOrUpdate(template, user, session) {
         if (err instanceof Util.NotFoundError) {
           throw new Util.InputError(err.message);
         } else if (err instanceof Util.PermissionDeniedError) {
-          // If the user doesn't have permissions, assume they want to link the published version of the field
-          // But before we can link the published version of the field, we must make sure it exists
-          if(!(await TemplateFieldModel.latestPublishedWithoutPermissions(template.fields[i].uuid, session))) {
-            throw new Util.InputError(`cannot link template_field ${uuid}. You do not have edit permissions and a published version does not exist`);
-          }
-          // TODO: consider changing the above such that a default, hidden published version of the template exists with nothing but the uuid and _id.
+
         } else {
           throw err;
         }
@@ -413,11 +408,7 @@ async function validateAndCreateOrUpdate(template, user, session) {
         if (err instanceof Util.NotFoundError) {
           throw new Util.InputError(err.message);
         } else if (err instanceof Util.PermissionDeniedError) {
-          // If the user doesn't have permissions, assume they want to link the published version of the template
-          // But before we can link the published version of the template, we must make sure it exists and we have view access
-          if(!(await latestPublished(template.related_templates[i].uuid))) {
-            throw new Util.InputError(`published template does not exist with uuid ${uuid}`);
-          }
+          // If the user doesn't have edit permissions, assume they want to link the published version of the template, or keep something another editor added
         } else {
           throw err;
         }
@@ -555,7 +546,7 @@ async function publishRecursor(uuid, user, session) {
         throw err;
       }
     }
-
+    // TODO: this should be an async call. Add a test case for it and make it await
     if (TemplateFieldModel.publishDateFor_id(field) > last_published_time) {
       changes = true;
     }
@@ -573,16 +564,17 @@ async function publishRecursor(uuid, user, session) {
       } else if (err instanceof Util.PermissionDeniedError) {
 
         // If the user doesn't have permissions, assume they want to link the published version of the template
-        // But before we can link the published version of the template, we must make sure it exists and we have view access
+        // But before we can link the published version of the template, we must make sure it exists
         let related_template_published = await latestPublished(related_template);
         if(!related_template_published) {
           throw new Util.InputError(`published template does not exist with uuid ${related_template}`);
         }
-        fields.push(related_template_published._id);
+        related_templates.push(related_template_published._id);
       } else {
         throw err;
       }
     }
+    // TODO: this should be an async call. Add a test case for it and make it await
     if (publishDateFor_id(related_template) > last_published_time) {
       changes = true;
     }
@@ -638,6 +630,10 @@ async function publish(uuid, user, session, last_update) {
     } else {
       throw new Util.NotFoundError(`Template with uuid ${uuid} does not exist`);
     }
+  }
+
+  if(!(await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT))) {
+    throw new Util.PermissionDeniedError(`You do not have the edit permissions required to publish ${uuid}`);
   }
 
   // If the last update provided doesn't match to the last update found in the db, fail.
@@ -734,6 +730,7 @@ async function latestPublishedBeforeDateWithJoins(uuid, date) {
   if (await response.hasNext()){
     return await response.next();
   } else {
+    // TODO: in this case template field returns null instead of throwing an error. The same should be done here. 
     throw new Util.NotFoundError(`No template exists with uuid ${uuid} which was published before the provided date.`);
   }
 }
@@ -824,9 +821,12 @@ async function draftFetchOrCreate(uuid, user, session) {
         // If we don't have permission for the draft, get the latest published instead
         try {
           field = await TemplateFieldModel.latestPublished(field_uuid, user)
+          if(!field) {
+            field = {uuid: field_uuid}
+          }
         } catch(err) {
           if (err instanceof Util.PermissionDeniedError) {
-            field = {uuid: field_uuid}
+            field = {uuid: field_uuid, no_permissions: true}
           } else {
             throw err;
           }
@@ -858,9 +858,9 @@ async function draftFetchOrCreate(uuid, user, session) {
         try {
           related_template = await latestPublishedWithJoinsAndPermissions(related_template_uuid, user)
         } catch (err) {
-          if (err instanceof Util.PermissionDeniedError) {
-            // If we don't have permission for the published version, just attach a uuid
-            related_template = {uuid: related_template_uuid};
+          if (err instanceof Util.PermissionDeniedError || err instanceof Util.NotFoundError) {
+            // If we don't have permission for the published version, or a published version doesn't exist, just attach a uuid
+            related_template = {uuid: related_template_uuid, no_permissions: true};
           } else {
             throw err;
           }
@@ -1178,6 +1178,11 @@ exports.draftExisting = async function(uuid) {
 
 exports.latestPublished = latestPublishedWithJoinsAndPermissions;
 exports.publishedBeforeDate = latestPublishedBeforeDateWithJoinsAndPermissions;
+
+exports.latestPublishedWithoutPermissions = async function(uuid) {
+  return await latestPublishedBeforeDateWithJoins(uuid, new Date());
+}
+
 exports.draftDelete = draftDelete;
 
 exports.uuidFor_id = uuidFor_id;
@@ -1210,3 +1215,5 @@ exports.duplicate = async function(uuid, user) {
     throw err;
   }
 }
+
+exports.userHasAccessToPublishedTemplate = userHasAccessToPublishedTemplate;
