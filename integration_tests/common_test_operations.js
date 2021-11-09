@@ -234,6 +234,13 @@ module.exports = class Helper {
     return dataset.uuid;
   };
 
+  datasetUpdate = async (uuid, dataset, curr_user) => {
+    return await request(this.app)
+      .put(`/dataset/${uuid}`)
+      .send(dataset)
+      .set('Cookie', [`user=${curr_user}`])
+  };
+
   datasetLastUpdate = async(uuid, curr_user) => {
     return await request(this.app)
       .get(`/dataset/${uuid}/last_update`)
@@ -275,13 +282,6 @@ module.exports = class Helper {
     let dataset_template = await this.datasetPublishAndFetch(uuid, curr_user)
     expect(dataset_template).toMatchObject(dataset);
     return dataset_template;
-  };
-
-  datasetUpdate = async (uuid, dataset, curr_user) => {
-    return await request(this.app)
-      .put(`/dataset/${uuid}`)
-      .send(dataset)
-      .set('Cookie', [`user=${curr_user}`])
   };
 
   datasetCleanseMetadata = async (dataset) => {
