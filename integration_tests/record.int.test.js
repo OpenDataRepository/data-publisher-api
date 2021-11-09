@@ -26,102 +26,6 @@ afterAll(async () => {
   await MongoDB.close();
 });
 
-const templateLastUpdate = async(uuid) => {
-  let response = await request(app)
-    .get(`/template/${uuid}/last_update`);
-  expect(response.statusCode).toBe(200);
-  return response.body;
-}
-
-const templatePublish = async (uuid, last_update) => {
-  let response = await request(app)
-    .post(`/template/${uuid}/publish`)
-    .send({last_update})
-    .set('Accept', 'application/json');
-  expect(response.statusCode).toBe(200);
-};
-
-const templateGet = async(uuid) => {
-  let response = await request(app)
-    .get(`/template/${uuid}/latest_published`)
-    .set('Accept', 'application/json');
-  expect(response.statusCode).toBe(200);
-  return response.body;
-}
-
-const templateCreateAndPublish = async(template) => {
-  let uuid = await Helper.templateCreateAndTest(template);
-  let last_update = await templateLastUpdate(uuid);
-  await templatePublish(uuid, last_update);
-  let published_template = await templateGet(uuid);
-  return published_template;
-}
-
-const deleteTemplateUpdatedAtValues = async (template) => {
-  if(!template) {
-    return;
-  }  
-  delete template.updated_at;
-  for(field of template.fields) {
-    delete field.updated_at;
-  }
-  for(template of template.related_templates) {
-    deleteTemplateUpdatedAtValues(template);
-  }
-}
-
-const deleteTemplate_IdValues = async (template) => {
-  if(!template) {
-    return;
-  }  
-  delete template._id;
-  for(field of template.fields) {
-    delete field._id;
-  }
-  for(template of template.related_templates) {
-    deleteTemplate_IdValues(template);
-  }
-}
-
-const deleteTemplatePublishDateValues = async (template) => {
-  if(!template) {
-    return;
-  }  
-  delete template.publish_date;
-  for(field of template.fields) {
-    delete field.publish_date;
-  }
-  for(template of template.related_templates) {
-    deleteTemplatePublishDateValues(template);
-  }
-}
-
-const templateUpdate = async (data) => {
-  let response = await request(app)
-    .put(`/template/${data.uuid}`)
-    .send(data)
-    .set('Accept', 'application/json');
-  expect(response.statusCode).toBe(200);
-
-  response = await request(app)
-    .get(`/template/${data.uuid}/draft`)
-    .set('Accept', 'application/json');
-  expect(response.statusCode).toBe(200);
-  await deleteTemplateUpdatedAtValues(data);
-  await deleteTemplateUpdatedAtValues(response.body);
-  await deleteTemplate_IdValues(data);
-  deleteTemplatePublishDateValues(data);
-  expect(response.body).toMatchObject(data);
-};
-
-const templateUpdateAndPublish = async(template) => {
-  await templateUpdate(template);
-  let last_update = await templateLastUpdate(template.uuid);
-  await templatePublish(template.uuid, last_update);
-  let published_template = await templateGet(template.uuid);
-  return published_template;
-}
-
 const deleteRecordUpdatedAtValues = async (record) => {
   if(!record) {
     return;
@@ -134,81 +38,83 @@ const deleteRecordUpdatedAtValues = async (record) => {
   }
 }
 
-const recordCreate = async (data) => {
-  let response = await request(app)
+const recordCreate = async (data, curr_user) => {
+  return await request(app)
     .post('/record')
     .send(data)
-    .set('Accept', 'application/json');
-  expect(response.statusCode).toBe(200);
-  expect(response.body.inserted_uuid).toBeTruthy();
-  return response.body.inserted_uuid;
+    .set('Cookie', [`user=${curr_user}`]);
 };
 
-const recordDraftGet = async (uuid) => {
-  let response = await request(app)
+const recordDraftGet = async (uuid, curr_user) => {
+  return await request(app)
     .get(`/record/${uuid}/draft`)
+    .set('Cookie', [`user=${curr_user}`])
     .set('Accept', 'application/json');
-  expect(response.statusCode).toBe(200);
-  return response.body;
 };
 
-const recordCreateAndTest = async (data) => {
-  let inserted_uuid = await recordCreate(data);
+const recordCreateAndTest = async (data, curr_user) => {
+  let response = await recordCreate(data, curr_user);
+  expect(response.statusCode).toBe(200);
+  let uuid = response.body.inserted_uuid;
 
-  data.uuid = inserted_uuid;
+  data.uuid = uuid;
   
-  let record = await recordDraftGet(inserted_uuid);
-  expect(record).toMatchObject(data);
-  return inserted_uuid;
-};
-
-const recordUpdate = async (data, uuid) => {
-  let response = await request(app)
-    .put(`/record/${uuid}`)
-    .send(data)
-    .set('Accept', 'application/json');
+  response = await recordDraftGet(uuid, curr_user);
   expect(response.statusCode).toBe(200);
+  let record = response.body;
+  expect(record).toMatchObject(data);
+  return uuid;
 };
 
-const recordUpdateAndTest = async (record, uuid) => {
-  await recordUpdate(record, uuid);
+const recordUpdate = async (record, uuid, curr_user) => {
+  return await request(app)
+    .put(`/record/${uuid}`)
+    .send(record)
+    .set('Cookie', [`user=${curr_user}`]);
+};
+
+const recordUpdateAndTest = async (record, uuid, curr_user) => {
+  let response = await recordUpdate(record, uuid, curr_user);
+  expect(response.statusCode).toBe(200);
   delete record.updated_at;
   
-  let updated_record = await recordDraftGet(uuid);
+  response = await recordDraftGet(uuid, curr_user);
+  expect(response.statusCode).toBe(200);
+  let updated_record = response.body;
   deleteRecordUpdatedAtValues(record);
   expect(updated_record).toMatchObject(record);
 };
 
-const recordDelete = async (uuid) => {
-  let response = await request(app)
+const recordDelete = async (uuid, curr_user) => {
+  return await request(app)
     .delete(`/record/${uuid}/draft`)
-    .set('Accept', 'application/json');
-  expect(response.statusCode).toBe(200);
+    .set('Cookie', [`user=${curr_user}`]);
 };
 
-const recordPublish = async (uuid, last_update) => {
-  let response = await request(app)
+const recordPublish = async (uuid, last_update, curr_user) => {
+  return await request(app)
     .post(`/record/${uuid}/publish`)
     .send({last_update})
-    .set('Accept', 'application/json');
-  expect(response.statusCode).toBe(200);
+    .set('Cookie', [`user=${curr_user}`]);
 }
 
-const recordLatestPublishedGet = async (uuid) => {
-  let response = await request(app)
+const recordLatestPublishedGet = async (uuid, curr_user) => {
+  return await request(app)
     .get(`/record/${uuid}/latest_published`)
+    .set('Cookie', [`user=${curr_user}`])
     .set('Accept', 'application/json');
-  expect(response.statusCode).toBe(200);
-  return response.body;
 };
 
-const recordPublishAndTest = async (uuid, data) => {
-  let last_update = await recordLastUpdateAndTest(uuid);
-  await recordPublish(uuid, last_update);
-  let published = await recordLatestPublishedGet(uuid);
+const recordPublishAndTest = async (uuid, record, curr_user) => {
+  let last_update = await recordLastUpdateAndTest(uuid, curr_user);
+  let response = await recordPublish(uuid, last_update, curr_user);
+  expect(response.statusCode).toBe(200);
+  response = await recordLatestPublishedGet(uuid, curr_user);
+  expect(response.statusCode).toBe(200);
+  let published = response.body;
   expect(published).toHaveProperty("publish_date");
-  deleteRecordUpdatedAtValues(data);
-  expect(published).toMatchObject(data);
+  deleteRecordUpdatedAtValues(record);
+  expect(published).toMatchObject(record);
   return published;
 }
 
@@ -220,20 +126,22 @@ const draftExisting = async (uuid) => {
   return response.body;
 }
 
-const recordGetPublishedBeforeTimestamp = async(uuid, time) => {
+const recordGetPublishedBeforeTimestamp = async(uuid, time, curr_user) => {
   let response = await request(app)
     .get(`/record/${uuid}/${time.toISOString()}`)
+    .set('Cookie', [`user=${curr_user}`])
     .set('Accept', 'application/json');
   return response;
 }
 
-const recordLastUpdate = async(uuid) => {
+const recordLastUpdate = async(uuid, curr_user) => {
   return await request(app)
-    .get(`/record/${uuid}/last_update`);
+    .get(`/record/${uuid}/last_update`)
+    .set('Cookie', [`user=${curr_user}`]);
 }
 
-const recordLastUpdateAndTest = async(uuid) => {
-  let response = await recordLastUpdate(uuid);
+const recordLastUpdateAndTest = async(uuid, curr_user) => {
+  let response = await recordLastUpdate(uuid, curr_user);
   expect(response.statusCode).toBe(200);
   return new Date(response.body);
 }
@@ -244,51 +152,52 @@ describe("create (and get draft)", () => {
     test("No fields or related records", async () => {
 
       let template = {
-        "name":"create template",
-        "description":"a template to test a create"
+        name:"t1"
       };
-      let template_uuid = await Helper.templateCreateAndTest(template);
-      let last_update = await templateLastUpdate(template_uuid);
-      await templatePublish(template_uuid, last_update);
+      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+
+      let dataset = {
+        name: "d1",
+        template_uuid: template.uuid
+      };
+      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
 
       let record = {
-        template_uuid
+        dataset_uuid: dataset.uuid
       };
-
-      await recordCreateAndTest(record);
+      await recordCreateAndTest(record, Helper.DEF_CURR_USER);
 
     });
     test("Fields but no related records", async () => {
 
       let name_field = {
-        "name": "name",
-        "description": "the name of the person"
+        name: "name",
+        description: "someone's name"
       };
-
       let color_field = {
-        "name": "favorite color",
-        "description": "the person's favorite color in the whole world"
+        name: "favorite color",
+        description: "their favorite color in the whole world"
       }
-
       let template = {
-        "name":"create template",
-        "description":"a template to test a create",
-        "fields":[name_field, color_field],
-        "related_templates":[]
+        "name":"t1",
+        "fields":[name_field, color_field]
       };
-      let template_uuid = await Helper.templateCreateAndTest(template);
-      let last_update = await templateLastUpdate(template_uuid);
-      await templatePublish(template_uuid, last_update);
+      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       name_field.value = "Caleb";
       color_field.value = "yellow - like the sun";
 
+      let dataset = {
+        name: "d1",
+        template_uuid: template.uuid
+      };
+      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+
       let record = {
-        template_uuid,
+        dataset_uuid: dataset.uuid,
         fields: [name_field, color_field]
       };
-
-      await recordCreateAndTest(record);
+      await recordCreateAndTest(record, Helper.DEF_CURR_USER);
 
     });
 
@@ -305,7 +214,7 @@ describe("create (and get draft)", () => {
       }
 
       let related_template = {
-        "name":"2",
+        "name":"1.1",
         "fields":[color_field]
       };
 
@@ -314,26 +223,31 @@ describe("create (and get draft)", () => {
         "fields":[name_field],
         "related_templates":[related_template]
       };
-      let template_uuid = await Helper.templateCreateAndTest(template);
-      let last_update = await templateLastUpdate(template_uuid);
-      await templatePublish(template_uuid, last_update);
+      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
-      template = await templateGet(template_uuid);
-      let related_template_uuid = template.related_templates[0].uuid;
+      let dataset = {
+        name: "d1",
+        template_uuid: template.uuid,
+        related_datasets: [{
+          name: "d1.1",
+          template_uuid: template.related_templates[0].uuid
+        }]
+      };
+      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
 
       name_field.value = "Caleb";
       color_field.value = "yellow - like the sun";
 
       let record = {
-        template_uuid,
+        dataset_uuid: dataset.uuid,
         fields: [name_field],
         related_records: [{
-          template_uuid: related_template_uuid,
+          dataset_uuid: dataset.related_datasets[0].uuid,
           fields: [color_field]
         }]
       };
 
-      await recordCreateAndTest(record);
+      await recordCreateAndTest(record, Helper.DEF_CURR_USER);
 
     });
 
@@ -367,29 +281,61 @@ describe("create (and get draft)", () => {
           }
         ]
       };
-      let template_uuid = await Helper.templateCreateAndTest(template);
-      let last_update = await templateLastUpdate(template_uuid);
-      await templatePublish(template_uuid, last_update);
+      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
-      template = await templateGet(template_uuid);
+      let dataset = { 
+        name: "d1",
+        template_uuid: template.uuid,
+        related_datasets: [
+          { 
+            name: "d2",
+            template_uuid: template.related_templates[0].uuid,
+            related_datasets: [
+              { 
+                name: "d3",
+                template_uuid: template.related_templates[0].related_templates[0].uuid,
+                related_datasets: [
+                  { 
+                    name: "d4",
+                    template_uuid: template.related_templates[0].related_templates[0].related_templates[0].uuid,
+                    related_datasets: [
+                      { 
+                        name: "d5",
+                        template_uuid: template.related_templates[0].related_templates[0].related_templates[0].related_templates[0].uuid,
+                        related_datasets: [
+                          { 
+                            name: "d6",
+                            template_uuid: template.related_templates[0].related_templates[0].related_templates[0].related_templates[0].related_templates[0].uuid,
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      };
+      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
 
       let record = { 
-        "template_uuid": template.uuid,
+        "dataset_uuid": dataset.uuid,
         "related_records": [
           { 
-            "template_uuid": template.related_templates[0].uuid,
+            "dataset_uuid": dataset.related_datasets[0].uuid,
             "related_records": [
               { 
-                "template_uuid": template.related_templates[0].related_templates[0].uuid,
+                "dataset_uuid": dataset.related_datasets[0].related_datasets[0].uuid,
                 "related_records": [
                   { 
-                    "template_uuid": template.related_templates[0].related_templates[0].related_templates[0].uuid,
+                    "dataset_uuid": dataset.related_datasets[0].related_datasets[0].related_datasets[0].uuid,
                     "related_records": [
                       { 
-                        "template_uuid": template.related_templates[0].related_templates[0].related_templates[0].related_templates[0].uuid,
+                        "dataset_uuid": dataset.related_datasets[0].related_datasets[0].related_datasets[0].related_datasets[0].uuid,
                         "related_records": [
                           { 
-                            "template_uuid": template.related_templates[0].related_templates[0].related_templates[0].related_templates[0].related_templates[0].uuid,
+                            "dataset_uuid": dataset.related_datasets[0].related_datasets[0].related_datasets[0].related_datasets[0].related_datasets[0].uuid,
                           }
                         ]
                       }
@@ -402,44 +348,7 @@ describe("create (and get draft)", () => {
         ]
       };
 
-      await recordCreateAndTest(record);
-
-    });
-
-    test("Fields and one related record, which exists previously and is only a link", async () => {
-
-      let related_template = {
-        "name":"2"
-      };
-
-      let template = {
-        "name":"1",
-        "related_templates":[related_template]
-      };
-      let template_uuid = await Helper.templateCreateAndTest(template);
-      let last_update = await templateLastUpdate(template_uuid);
-      await templatePublish(template_uuid, last_update);
-
-      template = await templateGet(template_uuid);
-      let related_template_uuid = template.related_templates[0].uuid;
-
-      let related_record = {
-        "template_uuid": related_template_uuid
-      }
-
-      let related_record_uuid = await recordCreateAndTest(related_record);
-
-      let record = {
-        template_uuid,
-        related_records: [related_record_uuid]
-      };
-
-      let uuid = await recordCreate(record);
-      let draft = await recordDraftGet(uuid);
-
-      related_record.uuid = related_record_uuid;
-      record.related_records[0] = related_record;
-      expect(draft).toMatchObject(record);
+      await recordCreateAndTest(record, Helper.DEF_CURR_USER);
 
     });
 
@@ -447,89 +356,97 @@ describe("create (and get draft)", () => {
 
   describe("Failure cases", () => {
 
-    const failureTest = async (data, responseCode) => {
-      let response = await request(app)
-        .post('/record')
-        .send(data)
-        .set('Accept', 'application/json');
-      expect(response.statusCode).toBe(responseCode);
-    };
-
     test("Input must be an object", async () => {
-      let data = [];
-      await failureTest(data, 400);
+      let record = [];
+      let response = await recordCreate(record, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(400);
     })
 
-    test("Template uuid must be a real template", async () => {
+    test("Dataset uuid must be a real dataset", async () => {
 
       let record = {
-        template_uuid: 6
+        dataset_uuid: 6
       };
 
-      await failureTest(record, 400);
+      let response = await recordCreate(record, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(400);
 
       record = {
-        template_uuid: ValidUUID
+        dataset_uuid: ValidUUID
       };
 
-      await failureTest(record, 400);
+      response = await recordCreate(record, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(400);
 
     });
 
-    test("Fields and related_templates must be arrays", async () => {
+    test("Fields and related_records must be arrays", async () => {
 
       let template = {
-        "name":"1"
+        "name":"t1"
       };
+      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
-      let template_uuid = await Helper.templateCreateAndTest(template);
-      let last_update = await templateLastUpdate(template_uuid);
-      await templatePublish(template_uuid, last_update);
+      let dataset = {
+        "name":"d1",
+        template_uuid: template.uuid
+      };
+      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
 
       let record = {
-        template_uuid,
-        fields: ""
+        dataset_uuid: dataset.uuid,
+        fields: 7
       };
-      await failureTest(record, 400);
+      let response = await recordCreate(record, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(400);
 
       record = {
-        template_uuid,
-        related_records: ""
+        dataset_uuid: dataset.uuid,
+        related_records: 9
       };
-      await failureTest(record, 400);
+      response = await recordCreate(record, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(400);
     })
 
     test("Related record must point to the correct template uuid", async () => {
 
-      let related_template = {
-        "name":"2"
-      };
-
       let template = {
-        "name":"1",
-        "related_templates":[related_template]
+        "name":"t1",
+        "related_templates":[{name: "t1.1"}]
       };
 
       let other_template = {
         "name": "incorrect"
       }
 
-      let other_template_uuid = await Helper.templateCreateAndTest(other_template);
-      let last_update = await templateLastUpdate(other_template_uuid);
-      await templatePublish(other_template_uuid, last_update);
+      other_template = await Helper.templateCreatePublishTest(other_template, Helper.DEF_CURR_USER);
 
-      let template_uuid = await Helper.templateCreateAndTest(template);
-      last_update = await templateLastUpdate(template_uuid);
-      await templatePublish(template_uuid, last_update);
+      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+
+      let dataset = {
+        name: "d1",
+        template_uuid: template.uuid,
+        related_datasets: [{
+          name: "d1.1",
+          template_uuid: template.related_templates[0].uuid
+        }]
+      }
+      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+
+      let other_dataset = {
+        name: "d1.2",
+        template_uuid: other_template.uuid
+      }
+      other_dataset = await Helper.datasetCreatePublishTest(other_dataset, Helper.DEF_CURR_USER);
 
       let record = {
-        template_uuid,
+        dataset_uuid: dataset.uuid,
         related_records: [{
-          template_uuid: other_template_uuid
+          dataset_uuid: other_dataset.uuid
         }]
       };
-
-      await failureTest(record, 400);
+      response = await recordCreate(record, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(400);
 
     });
 
@@ -563,29 +480,61 @@ describe("create (and get draft)", () => {
           }
         ]
       };
-      let template_uuid = await Helper.templateCreateAndTest(template);
-      let last_update = await templateLastUpdate(template_uuid);
-      await templatePublish(template_uuid, last_update);
+      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
-      template = await templateGet(template_uuid);
+      let dataset = { 
+        name: "d1",
+        template_uuid: template.uuid,
+        related_datasets: [
+          { 
+            name: "d2",
+            template_uuid: template.related_templates[0].uuid,
+            related_datasets: [
+              { 
+                name: "d3",
+                template_uuid: template.related_templates[0].related_templates[0].uuid,
+                related_datasets: [
+                  { 
+                    name: "d4",
+                    template_uuid: template.related_templates[0].related_templates[0].related_templates[0].uuid,
+                    related_datasets: [
+                      { 
+                        name: "d5",
+                        template_uuid: template.related_templates[0].related_templates[0].related_templates[0].related_templates[0].uuid,
+                        related_datasets: [
+                          { 
+                            name: "d6",
+                            template_uuid: template.related_templates[0].related_templates[0].related_templates[0].related_templates[0].related_templates[0].uuid,
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      };
+      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
 
       let record = { 
-        "template_uuid": template.uuid,
+        "dataset_uuid": dataset.uuid,
         "related_records": [
           { 
-            "template_uuid": template.related_templates[0].uuid,
+            "dataset_uuid": dataset.related_datasets[0].uuid,
             "related_records": [
               { 
-                "template_uuid": template.related_templates[0].related_templates[0].uuid,
+                "dataset_uuid": dataset.related_datasets[0].related_datasets[0].uuid,
                 "related_records": [
                   { 
-                    "template_uuid": template.related_templates[0].related_templates[0].related_templates[0].uuid,
+                    "dataset_uuid": dataset.related_datasets[0].related_datasets[0].related_datasets[0].uuid,
                     "related_records": [
                       { 
-                        "template_uuid": template.related_templates[0].related_templates[0].related_templates[0].uuid,
+                        "dataset_uuid": dataset.related_datasets[0].related_datasets[0].related_datasets[0].uuid,
                         "related_records": [
                           { 
-                            "template_uuid": template.related_templates[0].related_templates[0].related_templates[0].related_templates[0].related_templates[0].uuid,
+                            "dataset_uuid": dataset.related_datasets[0].related_datasets[0].related_datasets[0].related_datasets[0].related_datasets[0].uuid,
                           }
                         ]
                       }
@@ -598,7 +547,8 @@ describe("create (and get draft)", () => {
         ]
       };
 
-      await failureTest(record, 400);
+      response = await recordCreate(record, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(400);
 
     });
 
@@ -607,99 +557,136 @@ describe("create (and get draft)", () => {
 
 const populateWithDummyTemplateAndRecord = async () => {
   let f1 = {
-    "name": "f1"
+    "name": "t1f1"
   }
 
   let f2 = {
-    "name": "f2"
+    "name": "t1.1f1"
   }
 
-  template = { 
+  let template = { 
     "name": "t1",
     "fields": [f1],
     "related_templates": [
       { 
-        "name": "t2",
+        "name": "t1.1",
         "fields": [f2]
       }
     ]
   };
-  template = await templateCreateAndPublish(template);
-  let related_template_uuid = template.related_templates[0].uuid;
+  template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+
+  let dataset = {
+    name: "d1",
+    template_uuid: template.uuid,
+    related_datasets: [{
+        name: "d1.1",
+        template_uuid: template.related_templates[0].uuid
+      }
+    ]
+  };
+  dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
 
   f1.value = "happy";
   f2.value = "strawberry";
 
-  record = {
-    template_uuid: template.uuid,
+  let record = {
+    dataset_uuid: dataset.uuid,
     fields: [f1],
     related_records: [{
-      template_uuid: related_template_uuid,
+      dataset_uuid: dataset.related_datasets[0].uuid,
       fields: [f2]
     }]
   };
 
-  let record_uuid = await recordCreateAndTest(record);
-  record = await recordDraftGet(record_uuid);
-  return [template, record];
+  let record_uuid = await recordCreateAndTest(record, Helper.DEF_CURR_USER);
+  let response = await recordDraftGet(record_uuid, Helper.DEF_CURR_USER);
+  expect(response.statusCode).toBe(200);
+  record = response.body
+  return [template, dataset, record];
 };
 
 describe("update", () => {
   let template;
+  let dataset;
   let record;
   beforeEach(async() => {
-    [template, record] = await populateWithDummyTemplateAndRecord();
+    [template, dataset, record] = await populateWithDummyTemplateAndRecord();
   });
 
   describe("Success cases", () => {
 
     test("Basic update - change a field", async () => {
       record.fields[0].value = "sad";
-      record.related_records = [];
-      await recordUpdateAndTest(record, record.uuid);
+      await recordUpdateAndTest(record, record.uuid, Helper.DEF_CURR_USER);
     });
 
     test("updating a related_record creates drafts of parents but not children", async () => {
       // Create and publish template
       let template = {
-        "name":"1",
+        "name":"t1",
         "related_templates":[{
-          "name": "2",
+          "name": "t1.1",
           "related_templates":[{
-            "name": "3",
-            "fields": [{"name": "f1"}],
+            "name": "t1.1.1",
+            "fields": [{"name": "t1.1.1 f1"}],
             "related_templates":[{
-              "name": "4"
+              "name": "t1.1.1.1"
             }]
           }]
         }]
       };
-      template = await templateCreateAndPublish(template);
+      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+
+      let dataset = {
+        name: "d1",
+        template_uuid: template.uuid,
+        related_datasets: [{
+            name: "d1.1",
+            template_uuid: template.related_templates[0].uuid,
+            related_datasets: [{
+                name: "d1.1.1",
+                template_uuid: template.related_templates[0].related_templates[0].uuid,
+                related_datasets: [{
+                    name: "d1.1.1.1",
+                    template_uuid: template.related_templates[0].related_templates[0].related_templates[0].uuid
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      };
+      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
 
       let record = {
-        template_uuid: template.uuid,
+        dataset_uuid: dataset.uuid,
         related_records: [{
-          template_uuid: template.related_templates[0].uuid,
+          dataset_uuid: dataset.related_datasets[0].uuid,
           related_records: [{
-            template_uuid: template.related_templates[0].related_templates[0].uuid,
-            fields: [{name: "f1", value: "strawberry"}],
+            dataset_uuid: dataset.related_datasets[0].related_datasets[0].uuid,
+            fields: [{value: "strawberry"}],
             related_records: [{
-              template_uuid: template.related_templates[0].related_templates[0].related_templates[0].uuid,
+              dataset_uuid: dataset.related_datasets[0].related_datasets[0].related_datasets[0].uuid,
             }]
           }]
         }]
       };
 
-      let record_uuid = await recordCreateAndTest(record);
-      record = await recordDraftGet(record_uuid);
+      let record_uuid = await recordCreateAndTest(record, Helper.DEF_CURR_USER);
+      let response = await recordDraftGet(record_uuid, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+      record = response.body;
 
       // Publish the first time
-      await recordPublishAndTest(record_uuid, record);
+      await recordPublishAndTest(record_uuid, record, Helper.DEF_CURR_USER);
 
       //  Submit an update on the 3rd layer
-      record = await recordDraftGet(record_uuid);
+      response = await recordDraftGet(record_uuid, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+      record = response.body;
       record.related_records[0].related_records[0].fields[0].value = "banana";
-      await recordUpdateAndTest(record, record.uuid);
+      await recordUpdateAndTest(record, record.uuid, Helper.DEF_CURR_USER);
 
       // The first 3 layers, but not the fourth layer, should have drafts
       expect(await draftExisting(record.uuid)).toBeTruthy();
@@ -710,38 +697,31 @@ describe("update", () => {
     });
 
     test("if update includes no change since last published, no draft is created", async () => {
-      await recordPublishAndTest(record.uuid, record);
-      await recordUpdateAndTest(record, record.uuid);
+      await recordPublishAndTest(record.uuid, record, Helper.DEF_CURR_USER);
+      await recordUpdateAndTest(record, record.uuid, Helper.DEF_CURR_USER);
       expect(await draftExisting(record.uuid)).toBeFalsy();
       expect(await draftExisting(record.related_records[0].uuid)).toBeFalsy();
     });
 
-    test("if update includes no changes since last published but a new template has been published, a new draft is created", async () => {
-
-      // Modify the related template and publish it, then change it back and publish it again. 
-      // Then updating the record should create a draft just by the fact that it is a new template.
-
-      await recordPublishAndTest(record.uuid, record);
-      template.fields[0].description = "field 1";
-      await templateUpdateAndPublish(template);
-      template.fields[0].description = "";
-      await templateUpdateAndPublish(template);
-      await recordUpdateAndTest(record, record.uuid);
+    test("if update includes no changes since last published but a new dataset has been published, a new draft is created", async () => {
+      await recordPublishAndTest(record.uuid, record, Helper.DEF_CURR_USER);
+      dataset.description = "naruto";
+      await Helper.datasetUpdatePublishTest(dataset, Helper.DEF_CURR_USER);
+      await recordUpdateAndTest(record, record.uuid, Helper.DEF_CURR_USER);
       expect(await draftExisting(record.uuid)).toBeTruthy();
       expect(await draftExisting(record.related_records[0].uuid)).toBeFalsy();
     });
 
     test("if update includes no changes except that a new version of a related_record has been published, a new draft is created", async () => {
 
-      await recordPublishAndTest(record.uuid, record);
-      template.fields[0].description = "field 1";
+      await recordPublishAndTest(record.uuid, record, Helper.DEF_CURR_USER);
 
       let related_record = record.related_records[0];
       related_record.fields[0].value = "new value";
-      await recordUpdateAndTest(related_record, related_record.uuid);
-      await recordPublishAndTest(related_record.uuid, related_record);
+      await recordUpdateAndTest(related_record, related_record.uuid, Helper.DEF_CURR_USER);
+      await recordPublishAndTest(related_record.uuid, related_record, Helper.DEF_CURR_USER);
 
-      await recordUpdateAndTest(record, record.uuid);
+      await recordUpdateAndTest(record, record.uuid, Helper.DEF_CURR_USER);
       expect(await draftExisting(record.uuid)).toBeTruthy();
       expect(await draftExisting(record.related_records[0].uuid)).toBeFalsy();
     });
@@ -750,17 +730,10 @@ describe("update", () => {
 
   describe("Failure cases", () => {
 
-    const failureTest = async (data, uuid, responseCode) => {
-      let response = await request(app)
-        .put(`/record/${uuid}`)
-        .send(data)
-        .set('Accept', 'application/json');
-      expect(response.statusCode).toBe(responseCode);
-    };
-
     test("uuid in request and in object must match", async () => {
 
-      await failureTest(record, ValidUUID, 400);
+      let response = await recordUpdate(record, ValidUUID, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(400);
 
     });
 
@@ -768,15 +741,8 @@ describe("update", () => {
 
       record.uuid = ValidUUID;
 
-      await failureTest(record, ValidUUID, 404);
-
-    });
-
-    test("template uuid must not change", async () => {
-
-      record.template_uuid = record.related_records[0].template_uuid;
-
-      await failureTest(record, record.uuid, 400);
+      let response = await recordUpdate(record, ValidUUID, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(404);
 
     });
 
@@ -786,26 +752,24 @@ describe("update", () => {
 
 describe("delete", () => {
   let template;
+  let dataset;
   let record;
   beforeEach(async() => {
-    [template, record] = await populateWithDummyTemplateAndRecord();
+    [template, dataset, record] = await populateWithDummyTemplateAndRecord();
   });
 
   test("basic delete", async () => {
 
     // Delete the parent record
-    await recordDelete(record.uuid);
+    let response = await recordDelete(record.uuid, Helper.DEF_CURR_USER);
+    expect(response.statusCode).toBe(200);
 
     // The parent record should no longer exist
-    let response = await request(app)
-      .get(`/record/${record.uuid}/draft`)
-      .set('Accept', 'application/json');
+    response = await recordDraftGet(record.uuid, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(404);
 
     // But the child still should
-    response = await request(app)
-      .get(`/record/${record.related_records[0].uuid}/draft`)
-      .set('Accept', 'application/json');
+    response = await recordDraftGet(record.related_records[0].uuid, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(200);
 
   });
@@ -818,23 +782,27 @@ describe("publish (and get published)", () => {
       let template = { 
         "name": "t1"
       };
-      template = await templateCreateAndPublish(template);
-      let record = {
+      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      let dataset = {
+        name: "d1",
         template_uuid: template.uuid
       }
+      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
 
-      let record_uuid = await recordCreateAndTest(record);
+      let record = {
+        dataset_uuid: dataset.uuid
+      }
 
-      await recordPublishAndTest(record_uuid, record);
+      let record_uuid = await recordCreateAndTest(record, Helper.DEF_CURR_USER);
+
+      await recordPublishAndTest(record_uuid, record, Helper.DEF_CURR_USER);
       
     });
 
     test("Complex publish - with nested fields and related templates to publish", async () => {
-      let template, record;
-      [template, record] = await populateWithDummyTemplateAndRecord();
-
-      await recordPublishAndTest(record.uuid, record);
-
+      let record;
+      [_, _, record] = await populateWithDummyTemplateAndRecord();
+      await recordPublishAndTest(record.uuid, record, Helper.DEF_CURR_USER);
     });
 
     test("Complex publish - changes in a nested property result in publishing for all parent properties", async () => {
@@ -852,38 +820,59 @@ describe("publish (and get published)", () => {
           }]
         }]
       };
-      template = await templateCreateAndPublish(template);
+      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
-      let record = {
+      let dataset = {
         template_uuid: template.uuid,
-        related_records: [{
+        related_datasets: [{
           template_uuid: template.related_templates[0].uuid,
-          related_records: [{
+          related_datasets: [{
             template_uuid: template.related_templates[0].related_templates[0].uuid,
-            fields: [{name: "f1", value: "strawberry"}],
-            related_records: [{
+            related_datasets: [{
               template_uuid: template.related_templates[0].related_templates[0].related_templates[0].uuid,
             }]
           }]
         }]
       };
+      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
 
-      let record_uuid = await recordCreateAndTest(record);
-      record = await recordDraftGet(record_uuid);
+      let record = {
+        dataset_uuid: dataset.uuid,
+        related_records: [{
+          dataset_uuid: dataset.related_datasets[0].uuid,
+          related_records: [{
+            dataset_uuid: dataset.related_datasets[0].related_datasets[0].uuid,
+            fields: [{value: "strawberry"}],
+            related_records: [{
+              dataset_uuid: dataset.related_datasets[0].related_datasets[0].related_datasets[0].uuid,
+            }]
+          }]
+        }]
+      };
+
+      let record_uuid = await recordCreateAndTest(record, Helper.DEF_CURR_USER);
+      let response = await recordDraftGet(record_uuid, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+      record = response.body;
 
       // Publish the first time
-      await recordPublishAndTest(record_uuid, record);
+      await recordPublishAndTest(record_uuid, record, Helper.DEF_CURR_USER);
 
       // Edit the third record
-      record = await recordDraftGet(record_uuid);
+      response = await recordDraftGet(record_uuid, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+      record = response.body;
       record.related_records[0].related_records[0].fields[0].value = "banana";
-      await recordUpdateAndTest(record, record.uuid);
+      await recordUpdateAndTest(record, record.uuid, Helper.DEF_CURR_USER);
 
       // Record the date before we publish a second time
       let intermediate_publish_date = (new Date()).getTime();
 
+      // TODO: I think this is failing because update isn't creating a draft
+      // Need to test this more precisely. 
+
       // Now publish the record again
-      let published = await recordPublishAndTest(record_uuid, record);
+      let published = await recordPublishAndTest(record_uuid, record, Helper.DEF_CURR_USER);
 
       // On the third node and above, the publish date should be newer than the intermediate_publish_date. 
       // The fourth should be older
@@ -898,104 +887,100 @@ describe("publish (and get published)", () => {
 
   describe("Failure cases", () => {
 
-    const publishFailureTest = async (uuid, responseCode, last_update) => {
+    const publishFailureTest = async (uuid, curr_user, responseCode, last_update) => {
       if(!last_update) {
-        last_update = await recordLastUpdateAndTest(uuid);
+        last_update = await recordLastUpdateAndTest(uuid, curr_user);
       }
-      let response = await request(app)
-        .post(`/record/${uuid}/publish`)
-        .send({last_update})
-        .set('Accept', 'application/json');
+      let response = await recordPublish(uuid, last_update, curr_user);
       expect(response.statusCode).toBe(responseCode);
     };
 
     let template;
+    let dataset;
     let record;
     beforeEach(async() => {
-      [template, record] = await populateWithDummyTemplateAndRecord();
+      [template, dataset, record] = await populateWithDummyTemplateAndRecord();
     });
 
     test("Record with uuid does not exist", async () => {
-      await publishFailureTest(ValidUUID, 404, new Date());
+      await publishFailureTest(ValidUUID, Helper.DEF_CURR_USER, 404, new Date());
     });
 
     test("No changes to publish", async () => {
-      await recordPublishAndTest(record.uuid, record);
-      await publishFailureTest(record.uuid, 400);
+      await recordPublishAndTest(record.uuid, record, Helper.DEF_CURR_USER);
+      await publishFailureTest(record.uuid, Helper.DEF_CURR_USER, 400);
     });
 
     test("A new template has been published since this record was last updated", async () => {
       // publish original data
-      await recordPublishAndTest(record.uuid, record);
+      await recordPublishAndTest(record.uuid, record, Helper.DEF_CURR_USER);
       // update record
       record.fields[0].value = "waffle";
-      await recordUpdateAndTest(record, record.uuid);
-      // update template and publish
-      template.fields[0].description = "new description";
-      await templateUpdateAndPublish(template);
-      // fail to publish record because it's template was just published
-      await publishFailureTest(record.uuid, 400);
+      await recordUpdateAndTest(record, record.uuid, Helper.DEF_CURR_USER);
+      // update dataset and publish
+      dataset.description = "shadow-clone jutsu!";
+      await Helper.datasetUpdatePublishTest(dataset, Helper.DEF_CURR_USER);
+      // fail to publish record because it's dataset was just published
+      await publishFailureTest(record.uuid, Helper.DEF_CURR_USER, 400);
       // update record again and this time succeed in publishing 
-      // This description isn't used by record update, but it is used by the test to verify the result of update
-      record.fields[0].description = "new description";
-      await recordUpdateAndTest(record, record.uuid);
-      await recordPublishAndTest(record.uuid, record);
+      await recordUpdateAndTest(record, record.uuid, Helper.DEF_CURR_USER);
+      await recordPublishAndTest(record.uuid, record, Helper.DEF_CURR_USER);
     });
 
     test("Last update provided must match to actual last update in the database", async () => {
-      await publishFailureTest(record.uuid, 400, new Date());
+      await publishFailureTest(record.uuid, Helper.DEF_CURR_USER, 400, new Date());
     });
 
     test("Last update provided must match to actual last update in the database, also if sub-property is updated later", async () => {
-      let parent_update = await recordLastUpdateAndTest(record.uuid);
+      let parent_update = await recordLastUpdateAndTest(record.uuid, Helper.DEF_CURR_USER);
       let related_record = record.related_records[0];
       related_record.fields[0].value = "this programmer just ate a pear";
-      await recordUpdateAndTest(related_record, related_record.uuid);
+      await recordUpdateAndTest(related_record, related_record.uuid, Helper.DEF_CURR_USER);
 
-      await publishFailureTest(record.uuid, 400, parent_update);
+      await publishFailureTest(record.uuid, Helper.DEF_CURR_USER, 400, parent_update);
 
-      await recordPublishAndTest(record.uuid, record);
+      await recordPublishAndTest(record.uuid, record, Helper.DEF_CURR_USER);
     });
 
   });
 });
 
 test("get published for a certain date", async () => {
-  let template, record;
-  [template, record] = await populateWithDummyTemplateAndRecord();
+  let template, dataset, record;
+  [template, dataset, record] = await populateWithDummyTemplateAndRecord();
 
   let publish0 = new Date();
 
-  await recordPublishAndTest(record.uuid, record);
+  await recordPublishAndTest(record.uuid, record, Helper.DEF_CURR_USER);
 
   let publish1 = new Date();
 
   record.fields[0].value = '2';
-  await recordUpdateAndTest(record, record.uuid);
-  await recordPublishAndTest(record.uuid, record);
+  await recordUpdateAndTest(record, record.uuid, Helper.DEF_CURR_USER);
+  await recordPublishAndTest(record.uuid, record, Helper.DEF_CURR_USER);
 
   let publish2 = new Date();
 
   record.fields[0].value = '3';
-  await recordUpdateAndTest(record, record.uuid);
-  await recordPublishAndTest(record.uuid, record);
+  await recordUpdateAndTest(record, record.uuid, Helper.DEF_CURR_USER);
+  await recordPublishAndTest(record.uuid, record, Helper.DEF_CURR_USER);
 
   let publish3 = new Date();
 
   // Now we have published 3 times. Search for versions based on timestamps.
 
-  let response = await recordGetPublishedBeforeTimestamp(record.uuid, publish0);
+  let response = await recordGetPublishedBeforeTimestamp(record.uuid, publish0, Helper.DEF_CURR_USER);
   expect(response.statusCode).toEqual(404);
 
-  response = await recordGetPublishedBeforeTimestamp(record.uuid, publish1);
+  response = await recordGetPublishedBeforeTimestamp(record.uuid, publish1, Helper.DEF_CURR_USER);
   expect(response.statusCode).toEqual(200);
   expect(response.body.fields[0].value).toEqual(expect.stringMatching("happy"));
 
-  response = await recordGetPublishedBeforeTimestamp(record.uuid, publish2);
+  response = await recordGetPublishedBeforeTimestamp(record.uuid, publish2, Helper.DEF_CURR_USER);
   expect(response.statusCode).toEqual(200);
   expect(response.body.fields[0].value).toEqual(expect.stringMatching("2"));
 
-  response = await recordGetPublishedBeforeTimestamp(record.uuid, publish3);
+  response = await recordGetPublishedBeforeTimestamp(record.uuid, publish3, Helper.DEF_CURR_USER);
   expect(response.statusCode).toEqual(200);
   expect(response.body.fields[0].value).toEqual(expect.stringMatching("3"));
 });
@@ -1005,33 +990,39 @@ describe("recordLastUpdate", () => {
   describe("success", () => {
     test("basic draft, no fields or related templates", async () => {
       let template = {
-        "name":"1"
+        "name":"t1"
       };
-      template = await templateCreateAndPublish(template);
+      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+
+      let dataset = {
+        "name":"d1",
+        template_uuid: template.uuid
+      };
+      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
 
       let record = {
-        template_uuid: template.uuid
+        dataset_uuid: dataset.uuid
       };
 
       let before_update = new Date();
 
-      let record_uuid = await recordCreateAndTest(record);
+      let record_uuid = await recordCreateAndTest(record, Helper.DEF_CURR_USER);
 
-      let last_update = await recordLastUpdateAndTest(record_uuid);
+      let last_update = await recordLastUpdateAndTest(record_uuid, Helper.DEF_CURR_USER);
       expect(last_update.getTime()).toBeGreaterThan(before_update.getTime());
     });
 
     test("sub record updated later than parent record", async () => {
-      let template, record;
-      [template, record] = await populateWithDummyTemplateAndRecord();
+      let template, dataset, record;
+      [template, dataset, record] = await populateWithDummyTemplateAndRecord();
 
       let related_record = record.related_records[0];
 
       let between_updates = new Date();
 
-      await recordUpdateAndTest(related_record, related_record.uuid);
+      await recordUpdateAndTest(related_record, related_record.uuid, Helper.DEF_CURR_USER);
 
-      let last_update = await recordLastUpdateAndTest(record.uuid);
+      let last_update = await recordLastUpdateAndTest(record.uuid, Helper.DEF_CURR_USER);
       expect(last_update.getTime()).toBeGreaterThan(between_updates.getTime());
     });
 
@@ -1039,10 +1030,10 @@ describe("recordLastUpdate", () => {
 
   describe("failure", () => {
     test("invalid uuid", async () => {
-      let response = await recordLastUpdate("18");
+      let response = await recordLastUpdate("18", Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
 
-      response = await recordLastUpdate(ValidUUID);
+      response = await recordLastUpdate(ValidUUID, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(404);
     })
   });
@@ -1099,27 +1090,19 @@ test("full range of operations with big data", async () => {
       }
     ]
   }
+  template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
-  template = await templateCreateAndPublish(template);
-
-  t1f1.value = "pumpkin";
-  t3_1f2.value = "friend";
-  t4_3f1.value = "mango";
-
-  let record = {
+  let dataset = {
     template_uuid: template.uuid,
-    fields: [t1f1, t1f2, t1f3],
-    related_records: [
+    related_datasets: [
       {
         template_uuid: template.related_templates[0].uuid,
-        related_records: [
+        related_datasets: [
           {
             template_uuid: template.related_templates[0].related_templates[0].uuid,
-            fields: [t3_1f1, t3_1f2],
-            related_records: [
+            related_datasets: [
               {
                 template_uuid: template.related_templates[0].related_templates[0].related_templates[0].uuid,
-                fields: [t4_1f1, t4_1f2]
               },
               {
                 template_uuid: template.related_templates[0].related_templates[0].related_templates[1].uuid
@@ -1128,11 +1111,9 @@ test("full range of operations with big data", async () => {
           },
           {
             template_uuid: template.related_templates[0].related_templates[1].uuid,
-            fields: [t3_2f1, t3_2f2],
-            related_records: [
+            related_datasets: [
               {
                 template_uuid: template.related_templates[0].related_templates[1].related_templates[0].uuid,
-                fields: [t4_3f1, t4_3f2]
               },
               {
                 template_uuid: template.related_templates[0].related_templates[1].related_templates[1].uuid
@@ -1143,10 +1124,55 @@ test("full range of operations with big data", async () => {
       }
     ]
   };
+  dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
 
-  let record_uuid = await recordCreateAndTest(record);
+  t1f1.value = "pumpkin";
+  t3_1f2.value = "friend";
+  t4_3f1.value = "mango";
 
-  record = await recordDraftGet(record_uuid);
-  await recordPublishAndTest(record_uuid, record);
+  let record = {
+    dataset_uuid: dataset.uuid,
+    fields: [t1f1, t1f2, t1f3],
+    related_records: [
+      {
+        dataset_uuid: dataset.related_datasets[0].uuid,
+        related_records: [
+          {
+            dataset_uuid: dataset.related_datasets[0].related_datasets[0].uuid,
+            fields: [t3_1f1, t3_1f2],
+            related_records: [
+              {
+                dataset_uuid: dataset.related_datasets[0].related_datasets[0].related_datasets[0].uuid,
+                fields: [t4_1f1, t4_1f2]
+              },
+              {
+                dataset_uuid: dataset.related_datasets[0].related_datasets[0].related_datasets[1].uuid
+              }
+            ]
+          },
+          {
+            dataset_uuid: dataset.related_datasets[0].related_datasets[1].uuid,
+            fields: [t3_2f1, t3_2f2],
+            related_records: [
+              {
+                dataset_uuid: dataset.related_datasets[0].related_datasets[1].related_datasets[0].uuid,
+                fields: [t4_3f1, t4_3f2]
+              },
+              {
+                dataset_uuid: dataset.related_datasets[0].related_datasets[1].related_datasets[1].uuid
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  };
+
+  let record_uuid = await recordCreateAndTest(record, Helper.DEF_CURR_USER);
+
+  let response = await recordDraftGet(record_uuid, Helper.DEF_CURR_USER);
+  expect(response.statusCode).toBe(200);
+  record = response.body;
+  await recordPublishAndTest(record_uuid, record, Helper.DEF_CURR_USER);
 
 });

@@ -654,25 +654,13 @@ async function publish(uuid, user, session, last_update) {
   }
 }
 
-// Fetches the last template with the given uuid published before the given date. 
-// Also recursively looks up fields and related_templates.
-async function latestPublishedBeforeDateWithJoins(uuid, date) {
-  // Validate uuid and date are valid
-  if (!uuidValidate(uuid)) {
-    throw new Util.InputError('The uuid provided is not in proper uuid format.');
-  }
-  if (!Util.isValidDate(date)) {
-    throw new Util.InputError('The date provided is not a valid date.');
-  }
-
+// Fetches the template with the specified match conditions, including fetching fields and related_records
+async function publishedWithJoins(pipelineMatchConditions) {
   // Construct a mongodb aggregation pipeline that will recurse into related templates up to 5 levels deep.
   // Thus, the tree will have a depth of 6 nodes
   let pipeline = [
     {
-      '$match': { 
-        'uuid': uuid,
-        'publish_date': {'$lte': date}
-      }
+      '$match': pipelineMatchConditions
     },
     {
       '$sort' : { 'publish_date' : -1 }
@@ -731,8 +719,37 @@ async function latestPublishedBeforeDateWithJoins(uuid, date) {
     return await response.next();
   } else {
     // TODO: in this case template field returns null instead of throwing an error. The same should be done here. 
-    throw new Util.NotFoundError(`No template exists with uuid ${uuid} which was published before the provided date.`);
+    throw new Util.NotFoundError(`No template with desired conditions exists`);
   }
+}
+
+// Fetches the last template with the given _id
+async function publishedByIdWithJoins(_id) {
+
+  let pipelineMatchConditions = { 
+    _id
+  };
+
+  return await publishedWithJoins(pipelineMatchConditions);
+}
+
+// Fetches the last template with the given uuid published before the given date. 
+// Also recursively looks up fields and related_templates.
+async function latestPublishedBeforeDateWithJoins(uuid, date) {
+  // Validate uuid and date are valid
+  if (!uuidValidate(uuid)) {
+    throw new Util.InputError('The uuid provided is not in proper uuid format.');
+  }
+  if (!Util.isValidDate(date)) {
+    throw new Util.InputError('The date provided is not a valid date.');
+  }
+
+  let pipelineMatchConditions = { 
+    'uuid': uuid,
+    'publish_date': {'$lte': date}
+  };
+
+  return await publishedWithJoins(pipelineMatchConditions);
 }
 
 async function filterPublishedTemplateForPermissionsRecursor(template, user) {
@@ -1183,6 +1200,8 @@ exports.latestPublishedWithoutPermissions = async function(uuid) {
   return await latestPublishedBeforeDateWithJoins(uuid, new Date());
 }
 
+exports.publishedByIdWithoutPermissions = publishedByIdWithJoins;
+
 exports.draftDelete = draftDelete;
 
 exports.uuidFor_id = uuidFor_id;
@@ -1217,3 +1236,7 @@ exports.duplicate = async function(uuid, user) {
 }
 
 exports.userHasAccessToPublishedTemplate = userHasAccessToPublishedTemplate;
+
+exports.collection = function() {
+  return Template;
+}

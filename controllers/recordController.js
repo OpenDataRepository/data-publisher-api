@@ -3,7 +3,7 @@ const Util = require('../lib/util');
 
 exports.create = async function(req, res, next) {
   try {
-    let inserted_uuid = await RecordModel.create(req.body);
+    let inserted_uuid = await RecordModel.create(req.body, req.cookies.user);
     res.json({inserted_uuid});
   } catch(err) {
     next(err);
@@ -12,7 +12,7 @@ exports.create = async function(req, res, next) {
 
 exports.draft_get = async function(req, res, next) {
   try {
-    let record = await RecordModel.draftGet(req.params.uuid);
+    let record = await RecordModel.draftGet(req.params.uuid, req.cookies.user);
     if(record) {
       res.json(record);
     } else {
@@ -28,7 +28,7 @@ exports.update = async function(req, res, next) {
     if(!Util.objectContainsUUID(req.body, req.params.uuid)) {
       throw new Util.InputError(`UUID provided and the body uuid do not match.`)
     }
-    await RecordModel.update(req.body);
+    await RecordModel.update(req.body, req.cookies.user);
     res.sendStatus(200);
   } catch(err) {
     next(err);
@@ -37,7 +37,7 @@ exports.update = async function(req, res, next) {
 
 exports.draft_delete = async function(req, res, next) {
   try {
-    await RecordModel.draftDelete(req.params.uuid);
+    await RecordModel.draftDelete(req.params.uuid, req.cookies.user);
   } catch(err) {
     return next(err);
   }
@@ -47,7 +47,7 @@ exports.draft_delete = async function(req, res, next) {
 exports.publish = async function(req, res, next) {
   try {
     if(Date.parse(req.body.last_update)) {
-      await RecordModel.publish(req.params.uuid, new Date(req.body.last_update));
+      await RecordModel.publish(req.params.uuid, new Date(req.body.last_update), req.cookies.user);
     } else {
       throw new Util.InputError(`last_update provided as parameter is not in valid date format: ${req.body.last_update}`);
     }
@@ -59,7 +59,7 @@ exports.publish = async function(req, res, next) {
 
 exports.get_latest_published = async function(req, res, next) {
   try {
-    let record = await RecordModel.latestPublished(req.params.uuid);
+    let record = await RecordModel.latestPublished(req.params.uuid, req.cookies.user);
     res.json(record);
   } catch(err) {
     next(err);
@@ -68,7 +68,7 @@ exports.get_latest_published = async function(req, res, next) {
 
 exports.get_published_before_timestamp = async function(req, res, next) {
   try {
-    let record = await RecordModel.publishedBeforeDate(req.params.uuid, new Date(req.params.timestamp));
+    let record = await RecordModel.publishedBeforeDate(req.params.uuid, new Date(req.params.timestamp), req.cookies.user);
     res.json(record);
   } catch(err) {
     next(err);
@@ -78,7 +78,7 @@ exports.get_published_before_timestamp = async function(req, res, next) {
 exports.get_last_update = async function(req, res, next) {
   var last_update;
   try {
-    last_update = await RecordModel.lastUpdate(req.params.uuid);
+    last_update = await RecordModel.lastUpdate(req.params.uuid, req.cookies.user);
   } catch(err) {
     return next(err);
   }

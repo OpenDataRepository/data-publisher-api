@@ -2,6 +2,9 @@ const MongoDB = require('../lib/mongoDB');
 const { v4: uuidv4, validate: uuidValidate } = require('uuid');
 const Util = require('../lib/util');
 const TemplateModel = require('./template');
+const DatasetModel = require('./dataset');
+const PermissionGroupModel = require('./permission_group');
+const SharedFunctions = require('./shared_functions');
 
 var Record;
 
@@ -19,71 +22,6 @@ async function collection() {
 
 exports.init = async function() {
   Record = await collection();
-}
-
-// Fetches the recprd draft with the given uuid. 
-// Does not look up related_records
-async function draft(uuid, session) {
-  let cursor = await Record.find(
-    {"uuid": uuid, 'publish_date': {'$exists': false}}, 
-    {session}
-  );
-
-  if(!(await cursor.hasNext())) {
-    return null;
-  } 
-  let draft = await cursor.next();
-  if (await cursor.hasNext()) {
-    throw `Record.draft: Multiple drafts found for record with uuid ${uuid}`;
-  }
-  return draft;
-}
-
-// Fetches the latest published record with the given uuid. 
-// Does not look up related_records
-async function latestPublished(uuid, session) {
-  let cursor = await Record.find(
-    {"uuid": uuid, 'publish_date': {'$exists': true}}, 
-    {session}
-  ).sort({'publish_date': -1})
-  .limit(1);
-  if (!(await cursor.hasNext())) {
-    return null;
-  }
-  return await cursor.next();
-}
-
-// Returns true if the record exists
-async function exists(uuid, session) {
-  let cursor = await Record.find(
-    {"uuid": uuid},
-    {session}
-    );
-  return (await cursor.hasNext());
-}
-
-async function uuidFor_id(_id, session) {
-  let cursor = await Record.find(
-    {"_id": _id}, 
-    {session}
-  );
-  if (!(await cursor.hasNext())) {
-    return null;
-  }
-  let document = await cursor.next();
-  return document.uuid;
-}
-
-async function publishDateFor_id(_id, session) {
-  let cursor = await Record.find(
-    {"_id": _id}, 
-    {session}
-  );
-  if (!(await cursor.hasNext())) {
-    return null;
-  }
-  let document = await cursor.next();
-  return document.publish_date;
 }
 
 function fieldsEqual(fields1, fields2) {
@@ -112,13 +50,13 @@ async function createDraftFromPublished(published) {
   delete draft._id;
   draft.updated_at = draft.publish_date;
   delete draft.publish_date;
-  draft.template_uuid = await TemplateModel.uuidFor_id(draft.template_id);
-  delete draft.template_id;
+  draft.dataset_uuid = await SharedFunctions.uuidFor_id(DatasetModel.collection(), draft.dataset_id);
+  delete draft.dataset_id;
 
-  // Replace each of the related_template _ids with uuids. 
+  // Replace each of the related_record _ids with uuids. 
   let related_records = [];
   for(_id of published.related_records) {
-    let uuid = await uuidFor_id(_id);
+    let uuid = await SharedFunctions.uuidFor_id(Record, _id);
     if(uuid) {
       related_records.push(uuid);
     } else {
@@ -134,13 +72,13 @@ async function createDraftFromPublished(published) {
 // Fetches a record draft 
 // If it does not exist, it creates a draft from the latest published.
 // Does not lookup related_records
-async function fetchDraftOrCreateFromPublished(uuid, session) {
-  let record_draft = await draft(uuid, session);
+async function fetchDraftOrCreateFromPublished(uuid) {
+  let record_draft = await SharedFunctions.draft(Record, uuid);
   if(record_draft) {
     return record_draft;
   }
 
-  let published_record = await latestPublished(uuid, session);
+  let published_record = await SharedFunctions.latestPublished(Record, uuid);
   if(!published_record) {
     return null;
   }
@@ -151,7 +89,7 @@ async function fetchDraftOrCreateFromPublished(uuid, session) {
 
 function draftsEqual(draft1, draft2) {
   return draft1.uuid == draft2.uuid &&
-         draft1.template_uuid == draft2.template_uuid &&
+         draft1.dataset_uuid == draft2.dataset_uuid &&
          fieldsEqual(draft1.fields, draft2.fields) &&
          Util.arrayEqual(draft1.related_records, draft2.related_records);
 }
@@ -159,7 +97,7 @@ function draftsEqual(draft1, draft2) {
 // Returns true if the draft has any changes from it's previous published version
 async function draftDifferentFromLastPublished(draft) {
   // If there is no published version, obviously there are changes
-  let latest_published = await latestPublished(draft.uuid);
+  let latest_published = await SharedFunctions.latestPublished(Record, draft.uuid);
   if(!latest_published) {
     return true;
   }
@@ -171,16 +109,14 @@ async function draftDifferentFromLastPublished(draft) {
   }
 
   // if the template version has changed since this record was last published
-  let latest_template_id = await TemplateModel.latest_published_id_for_uuid(latest_published_as_draft.template_uuid);
-  let s1 = latest_published.template_id.toString();
-  let s2 = latest_template_id.toString();
-  if(!latest_published.template_id.equals(latest_template_id)) {
+  let latest_dataset_id = await SharedFunctions.latest_published_id_for_uuid(DatasetModel.collection(), latest_published_as_draft.dataset_uuid);
+  if(!latest_published.dataset_id.equals(latest_dataset_id)) {
     return true;
   }
 
   // Finally, if any of the dependencies have been published more recently than this record, then there are changes
   for(let related_record of draft.related_records) {
-    let related_record_last_published = (await latestPublished(related_record)).publish_date;
+    let related_record_last_published = (await SharedFunctions.latestPublished(Record, related_record)).publish_date;
     if (Util.compareTimeStamp(related_record_last_published, latest_published.publish_date) > 0) {
       return true;
     }
@@ -190,14 +126,11 @@ async function draftDifferentFromLastPublished(draft) {
 }
 
 // A recursive helper for validateAndCreateOrUpdate.
-async function validateAndCreateOrUpdateRecurser(record, session, template) {
+async function validateAndCreateOrUpdateRecurser(record, dataset, template, user, session) {
 
   // Record must be an object or valid uuid
   if (!Util.isObject(record)) {
-    if (uuidValidate(record) && (await exists(record, session))) {
-      return [false, record]
-    }
-    throw new Util.InputError(`record provided is not an object or a valid uuid: ${record}`);
+    throw new Util.InputError(`record provided is not an object: ${record}`);
   }
 
   // If a record uuid is provided, this is an update
@@ -208,112 +141,104 @@ async function validateAndCreateOrUpdateRecurser(record, session, template) {
     }
     
     // Record uuid must exist
-    if (!(await exists(record.uuid, session))) {
+    if (!(await SharedFunctions.exists(Record, record.uuid, session))) {
       throw new Util.NotFoundError(`No record exists with uuid ${record.uuid}`);
     }
+
   }
   // Otherwise, this is a create, so generate a new uuid
   else {
     record.uuid = uuidv4();
   }
 
-  // 1. Recursively create / update each of the related records
-  // 2. Check if this record conforms to the latest published template
-  // 3. Check if this record has changed at all from the previous one
-
-  // Verify that the template uuid provided by the user is the correct template uuid expected by the latest published template
-  if(record.template_uuid != template.uuid) {
-    throw new Util.InputError(`The template uuid provided by the record: ${record.template_uuid} does not correspond to the template uuid expected by the template: ${template.uuid}`);
+  // verify that this user is in the 'edit' permission group
+  if (!(await PermissionGroupModel.has_permission(user, dataset.uuid, PermissionGroupModel.PERMISSION_EDIT))) {
+    throw new Util.PermissionDeniedError(`Do not have edit permissions required to create/update records in dataset ${dataset.uuid}`);
   }
 
-  // Now process the record data provided
-  let record_to_save = {
-    uuid: record.uuid,
-    template_uuid: record.template_uuid,
-    fields: [],
-    related_records: []
-  };
+  // Verify that the dataset uuid specified by the record matches the dataset uuid of the dataset
+  if(record.dataset_uuid != dataset.uuid) {
+    throw new Util.InputError(`The dataset uuid provided by the record: ${record.dataset_uuid} does not correspond to the dataset uuid expected by the dataset: ${dataset.uuid}`);
+  }
 
-  // Get the data for each field
-  if (record.fields !== undefined) {
-    if (!Array.isArray(record.fields)){
-      throw new Util.InputError('fields property must be of type array');
-    }
+  let public_date;
+  let fields = [];
+  let related_records = [];
 
-    let fields_map = {};
-    for (record_field of record.fields) {
-      fields_map[record_field.name] = record_field.value;
+  if (record.public_date) {
+    if (!Date.parse(record.public_date)){
+      throw new Util.InputError('record public_date property must be in valid date format');
     }
+    public_date = new Date(record.public_date);
+  }
 
-    for (template_field of template.fields) {
-      record_to_save.fields.push({
-        name: template_field.name,
-        description: template_field.description,
-        value: fields_map[template_field.name]
-      });
-    }
+  if(!record.fields) {
+    record.fields = [];
+  }
+  if (!Array.isArray(record.fields)){
+    throw new Util.InputError('fields property must be of type array');
+  }
+  if(record.fields.length != template.fields.length) {
+    throw new Util.InputError(`fields of record must correspond to fields of its template`);
+  }
+  for (let i = 0; i < record.fields.length; i++) {
+    fields.push({
+      name: template.fields[i].name,
+      description: template.fields[i].description,
+      // TODO: Should I verify that the name of template.fields[i] and record.fields[i] match?
+      value: record.fields[i].value
+    });
   }
 
   // Need to determine if this draft is any different from the published one.
   let changes = false;
 
   // Recurse into related_records
-  if (record.related_records !== undefined) {
-    if (!Array.isArray(record.related_records)){
-      throw new Util.InputError('related_records property must be of type array');
-    }
-    // For each related record, first check that it is valid according to the template scheme. Then recurse.
-    let related_template_map = {};
-    for (related_template of template.related_templates) {
-      related_template_map[related_template.uuid] = related_template;
-    }
-
-    for (related_record of record.related_records) {
-      // Make sure this related record adheres to the template
-      let related_record_template_uuid;
-      if (Util.isObject(related_record)) {
-        related_record_template_uuid = related_record.template_uuid;
-      } else if (uuidValidate(related_record)) {
-        related_record_template_uuid = (await draft(related_record, session)).template_uuid;
+  if(!record.related_records) {
+    record.related_records = [];
+  }
+  if (!Array.isArray(record.related_records)){
+    throw new Util.InputError('related_records property must be of type array');
+  }
+  if(record.related_records.length != dataset.related_datasets.length) {
+    throw new Util.InputError(`related_records of record must correspond to related_datasets of its dataset`);
+  }
+  for (let i = 0; i < record.related_records.length; i++) {
+    let related_record;
+    try {
+      let new_changes;
+      [new_changes, related_record] = await validateAndCreateOrUpdateRecurser(record.related_records[i], dataset.related_datasets[i], template.related_templates[i], user, session);
+      changes = changes || new_changes;
+    } catch(err) {
+      if (err instanceof Util.NotFoundError) {
+        throw new Util.InputError(err.message);
       } else {
-        throw new Util.InputError(`record provided is neither an object nor a valid uuid: ${related_record}`);
+        throw err;
       }
-      // Make sure this related record adheres to the template
-      if(!(related_record_template_uuid in related_template_map)) {
-        throw new Util.InputError(`Record provided ${record} links to a record with template uuid ${related_record_template_uuid}, which does not conform to the template.`);
-      }
-      try {
-        let new_changes;
-        [new_changes, related_record] = await validateAndCreateOrUpdateRecurser(related_record, session, related_template_map[related_record_template_uuid]);
-        changes = changes ? changes : new_changes;
-      } catch(err) {
-        if (err instanceof Util.NotFoundError) {
-          throw new Util.InputError(err.message);
-        } else {
-          throw err;
-        }
-      }
-      // After validating and updating the related_record, replace the  related_record with a uuid reference
-      record_to_save.related_records.push(related_record);
     }
+    // After validating and updating the related_record, replace the related_record with a uuid reference
+    related_records.push(related_record);
   }
 
-  // Ensure there is only one draft of this record. If there are multiple drafts, that is a critical error.
-  let cursor = await Record.find({"uuid": record.uuid, 'publish_date': {'$exists': false}});
-  if ((await cursor.count()) > 1) {
-    throw new Exception(`Template.validateAndCreateOrUpdate: Multiple drafts found of template with uuid ${template.uuid}`);
-  } 
+  // Now process the record data provided
+  let record_to_save = {
+    uuid: record.uuid,
+    dataset_uuid: record.dataset_uuid,
+    fields: fields,
+    related_records: related_records
+  };
+  if(public_date) {
+    record_to_save.public_date = public_date;
+  }
 
   // If this draft is identical to the latest published, delete it.
   // The reason to do so is so when a change is submitted, we won't create drafts of sub-records.
-  // We notify the user when a draft is created so they can publish it. So we don't want to create sub-template drafts
-  // every time a parent draft is updated.
   if (!changes) {
     changes = await draftDifferentFromLastPublished(record_to_save);
     if (!changes) {
       // Delete the current draft
       try {
-        await draftDelete(record.uuid);
+        await SharedFunctions.draftDelete(Record, record.uuid);
       } catch (err) {
         if (!(err instanceof Util.NotFoundError)) {
           throw err;
@@ -349,205 +274,163 @@ async function validateAndCreateOrUpdateRecurser(record, session, template) {
 // Return:
 // 1. A boolean indicating true if there were changes from the last published.
 // 2. The uuid of the record created / updated
-async function validateAndCreateOrUpdate(record, session) {
+async function validateAndCreateOrUpdate(record, user, session) {
 
   // Record must be an object
   if (!Util.isObject(record)) {
     throw new Util.InputError(`record provided is not an object: ${record}`);
   }
 
-  let template;
+  let dataset;
   try {
-    template = await TemplateModel.latestPublished(record.template_uuid, session);
+    dataset = await DatasetModel.latestPublishedWithoutPermissions(record.dataset_uuid);
   } catch(error) {
     if(error instanceof Util.NotFoundError || error instanceof Util.InputError) {
-      throw new Util.InputError(`a valid template_uuid was not provided for record with uuid ${record.uuid}`);
+      throw new Util.InputError(`a valid dataset_uuid was not provided for record ${record.uuid}`);
+    } else {
+      throw error;
     }
   }
+  let template = await TemplateModel.publishedByIdWithoutPermissions(dataset.template_id);
 
-  return await validateAndCreateOrUpdateRecurser(record, session, template);
+  return await validateAndCreateOrUpdateRecurser(record, dataset, template, user, session);
 
 }
 
 // Fetches the record draft with the given uuid, recursively looking up related_records.
 // If a draft of a given template doesn't exist, a new one will be generated using the last published record.
-async function draftFetchOrCreate(uuid, session) {
+async function draftFetchOrCreate(uuid, user) {
 
   if (!uuidValidate(uuid)) {
     throw new Util.InputError('The uuid provided is not in proper uuid format.');
   }
 
-  // For each record in the tree:
-  //   a. If a draft of this record exists:
-  //        1. fetch it.
-  //        2. Follow steps in b
-  //        3. Update the current draft with this one.
-  //        4. Return this draft
-  //      Else if a published version of this template exists:
-  //        1. Create a draft from the published
-  //          a. For each of the published _id references, replace those _ids with uuids
-  //        2. follow steps in b
-  //        3. Insert the draft
-  //        4. Return the draft
-  //      Else, neither a draft nor a published template with this uuid exists:
-  //        1. Return a NotFound error
-  //   b. For each of the uuid references:
-  //        1. Recurse, and follow the above steps. 
-  //        2. If any of the references return nothing, remove the reference to them
-  //        3. Update the current draft with this draft
-
   // See if a draft of this template exists. 
-  let record_draft = await fetchDraftOrCreateFromPublished(uuid, session);
+  let record_draft = await fetchDraftOrCreateFromPublished(uuid);
   if (!record_draft) {
     return null;
   }
 
-  // Now recurse into each related_record, replacing each uuid with an imbedded object
-  let related_records = [];
-  let related_record_uuids = [];
-  for(let i = 0; i < record_draft.related_records.length; i++) {
-    let related_record = await draftFetchOrCreate(record_draft.related_records[i], session);
-    if (related_record) {
-      related_records.push(related_record);
-      related_record_uuids.push(related_record.uuid);
-    } else {
-      console.log(`Failed to find a record with uuid ${uuid}. Therefore, removing the reference to it from record with uuid ${record_draft.uuid}`);
-    }
+  // Make sure this user has a permission to be working with drafts
+  if (!(await PermissionGroupModel.has_permission(user, record_draft.dataset_uuid, PermissionGroupModel.PERMISSION_EDIT))) {
+    throw new Util.PermissionDeniedError(`You do not have the edit permissions required to view draft ${uuid}`);
   }
 
-  // Any existing references that are bad pointers need to be removed
-  let update = {};
-  if (record_draft.related_records.length != related_record_uuids.length) {
-    update.related_records = related_record_uuids;
-  }
-  if(update.related_records) {
-    record_draft.updated_at = new Date()
-    update.updated_at = record_draft.updated_at;
-    let response = await Record.updateOne(
-      {'_id': record_draft._id},
-      {
-        '$set': update
-      },
-      {session}
-    );
-    if (response.modifiedCount != 1) {
-      throw `Record.draftFetchOrCreate: should be 1 modified document. Instead: ${response.modifiedCount}`;
+  // Now recurse into each related_record, replacing each uuid with an imbedded object
+  let related_records = [];
+  for(let i = 0; i < record_draft.related_records.length; i++) {
+    let related_record;
+    try{
+      related_record = await draftFetchOrCreate(record_draft.related_records[i], user);
+    } catch (err) {
+      if (err instanceof Util.PermissionDeniedError) {
+        // If we don't have permission for the draft, get the latest published instead
+        try {
+          related_record = await latestPublishedWithJoinsAndPermissions(record_draft.related_records[i], user)
+        } catch (err) {
+          if (err instanceof Util.PermissionDeniedError || err instanceof Util.NotFoundError) {
+            // If we don't have permission for the published version, or a published version doesn't exist, just attach a uuid and a flag marking no_permissions
+            related_record = {uuid: related_dataset_uuid, no_permissions: true};
+          } 
+          else {
+            throw err;
+          }
+        }
+      } else {
+        throw err;
+      }
     }
+    if (!related_record) {
+      related_record = {uuid: record_draft.related_records[i], deleted: true};
+    } 
+    related_records.push(related_record);
   }
 
   record_draft.related_records = related_records;
   delete record_draft._id;
+  delete record_draft.dataset_id;
 
   return record_draft;
 
 }
 
-async function draftDelete(uuid) {
+async function publishRecurser(uuid, dataset, template, user, session) {
 
-  if (!uuidValidate(uuid)) {
-    throw new Util.InputError('The uuid provided is not in proper uuid format.');
-  }
-
-  let response = await Record.deleteMany({ uuid, publish_date: {'$exists': false} });
-  if (!response.deletedCount) {
-    throw new Util.NotFoundError();
-  }
-  if (response.deletedCount > 1) {
-    console.error(`draftDelete: Record with uuid '${uuid}' had more than one draft to delete.`);
-  }
-}
-
-// A recursive helper for publish. 
-// Publishes the record with the provided uuid
-//   If a draft exists of the record, then:
-//     if a template has been published more recently than the record, reject
-//     if this record doesn't conform to the template, then there is a problem with my implementation: Internal Server Error
-//     if that draft has changes from the latest published (including changes to it's sub-properties):
-//       publish it, and return the new internal_id
-//     else: 
-//       return the internal_id of the latest published
-//   else:
-//     return the internal_id of the latest_published
-// Input: 
-//   uuid: the uuid of a record to be published
-//   session: the mongo session that must be used to make transactions atomic
-// Returns:
-//   internal_id: the internal id of the published record
-//   published: true if a new published version is created. false otherwise
-async function publishRecurser(uuid, session, template) {
-
-  var return_id;
-
-  var last_published_time = 0;
-
-  let published_record = await latestPublished(uuid, session);
+  let published_record = await SharedFunctions.latestPublished(Record, uuid, session);
 
   // Check if a draft with this uuid exists
-  let record_draft = await draft(uuid, session);
+  let record_draft = await SharedFunctions.draft(Record, uuid, session);
   if(!record_draft) {
     // There is no draft of this uuid. Return the latest published record instead.
     if (!published_record) {
-      throw new Util.NotFoundError(`Record with uuid ${uuid} does not exist`);
+      throw new Util.NotFoundError(`Record ${uuid} does not exist`);
     }
     return [published_record._id, false];
   }
-  if(published_record) {
-    last_published_time = published_record.publish_date;
+
+  // verify that this user is in the 'edit' permission group
+  if (!(await PermissionGroupModel.has_permission(user, dataset.uuid, PermissionGroupModel.PERMISSION_EDIT))) {
+    throw new Util.PermissionDeniedError(`Do not have edit permissions required to publish records in dataset ${dataset.uuid}`);
   }
 
-  // verify that the template uuid on the record draft and the expected template uuid match
-  if (record_draft.template_uuid != template.uuid) {
-    throw new Error(`The draft provided ${record_draft} does not reference the template required ${template.uuid}. 
-    Error in record update implementation.`);
+  // verify that the dataset uuid on the record draft and the expected dataset uuid match
+  if (record_draft.dataset_uuid != dataset.uuid) {
+    throw new Error(`The record draft ${record_draft} does not reference the dataset required ${dataset.uuid}. Cannot publish.`);
   }
 
-  // Also require the related_records fields to be the same length as the related_templates required by the template
-  if (record_draft.related_records.length != template.related_templates.length) {
-    throw new Error(
-      `The draft to be published ${record_draft.uuid} does not match the template specification ${template.uuid}.
-      The draft expects ${record_draft.related_records.length} related records, but the template expects ${template.related_templates.length} related records.
-      Error in record update implementation.`
-      );
-  }
-
-  // check that the draft update is more recent than the last template publish
-  if ((await TemplateModel.latest_published_time_for_uuid(record_draft.template_uuid)) > record_draft.updated_at) {
-    throw new Util.InputError(`Record ${record_draft.uuid}'s template has been published more recently than when the record was updated. 
+  // check that the draft update is more recent than the last dataset publish
+  if ((await SharedFunctions.latest_published_time_for_uuid(DatasetModel.collection(), record_draft.dataset_uuid)) > record_draft.updated_at) {
+    throw new Util.InputError(`Record ${record_draft.uuid}'s dataset has been published more recently than when the record was last updated. 
     Update the record again before publishing.`);
   }
 
   let changes = false;
   let related_records = [];
+  var last_published_time = 0;
+  if(published_record) {
+    last_published_time = published_record.publish_date;
+  }  
 
   // For each records's related_records, publish that related_record, then replace the uuid with the internal_id.
   // It is possible there weren't any changes to publish, so keep track of whether we actually published anything.
   for(let i = 0; i < record_draft.related_records.length; i++) {
     let related_record = record_draft.related_records[i];
+    let related_dataset = dataset.related_datasets[i];
     let related_template = template.related_templates[i];
     try {
-      [related_record, _] = await publishRecurser(related_record, session, related_template);
+      [related_record, _] = await publishRecurser(related_record, related_dataset, related_template, user, session);
       related_records.push(related_record);
     } catch(err) {
       if (err instanceof Util.NotFoundError) {
         throw new Util.InputError(`Internal reference within this draft is invalid. Fetch/update draft to cleanse it.`);
+      } else if (err instanceof Util.PermissionDeniedError) {
+        // If the user doesn't have permissions, assume they want to link the published version of the record
+        // But before we can link the published version of the record, we must make sure it exists
+        let related_record_published = await SharedFunctions.latestPublished(Record, related_record);
+        if(!related_record_published) {
+          throw new Util.InputError(`invalid link to record ${related_record}, which has no published version to link`);
+        }
+        related_records.push(related_record_published._id);
       } else {
         throw err;
       }
     }
-    if (publishDateFor_id(related_record) > last_published_time) {
+    if (SharedFunctions.publishDateFor_id(Record, related_record) > last_published_time) {
       changes = true;
     }
   }  
+
+  var return_id;
 
   // We're trying to figure out if there is anything worth publishing. If none of the sub-properties were published, 
   // see if there are any changes to the top-level record from the previous published version
   if(!changes) {
     if (published_record) {
       return_id = published_record._id;
-      // Add the check if the current template being used is different from the template being used by the last published
-      if (template._id != published_record.template_id) {
+      // Add the check if the current dataset being used is different from the dataset being used by the last published
+      if (dataset._id != published_record.dataset_id) {
         changes = true;
-      } else if (!fieldsEqual(fields, published_record.fields) || 
+      } else if (!fieldsEqual(record_draft.fields, published_record.fields) || 
                 !Util.arrayEqual(related_records, published_record.related_records)) {
         changes = true;
       }
@@ -561,11 +444,11 @@ async function publishRecurser(uuid, session, template) {
     let publish_time = new Date();
     let response = await Record.updateOne(
       {"_id": record_draft._id},
-      {'$set': {'updated_at': publish_time, 'publish_date': publish_time, related_records, 'template_id': template._id}},
+      {'$set': {'updated_at': publish_time, 'publish_date': publish_time, related_records, 'dataset_id': dataset._id}},
       {session}
     )
     if (response.modifiedCount != 1) {
-      throw `Record.publish: should be 1 modified document. Instead: ${response.modifiedCount}`;
+      throw new Error(`Record.publish: should be 1 modified document. Instead: ${response.modifiedCount}`);
     }
     return_id = record_draft._id;
   }
@@ -581,27 +464,37 @@ async function publishRecurser(uuid, session, template) {
 //   last_update: the timestamp of the last known update by the user. Cannot publish if the actual last update and that expected by the user differ.
 // Returns:
 //   published: true if a new published version is created. false otherwise
-async function publish(record_uuid, session, last_update) {
+async function publish(record_uuid, user, session, last_update) {
 
-  let record = await draft(record_uuid);
+  let record = await SharedFunctions.draft(Record, record_uuid, session);
   if (!record) {
-    record = await latestPublished(record_uuid, session);
+    record = await SharedFunctions.latestPublished(Record, record_uuid, session);
     if (!record) {
-      throw new Util.NotFoundError(`Record with uuid ${record_uuid} does not exist`);
+      throw new Util.NotFoundError(`Record ${record_uuid} does not exist`);
     } 
     return false;
   }
 
   // If the last update provided doesn't match to the last update found in the db, fail.
-  let db_last_update = new Date(await lastUpdateFor(record_uuid, session));
+  let db_last_update = new Date(await lastUpdate(record_uuid, user));
   if(last_update.getTime() != db_last_update.getTime()) {
     throw new Util.InputError(`The last update submitted ${last_update.toISOString()} does not match that found in the db ${db_last_update.toISOString()}. 
     Fetch the draft again to get the latest update before attempting to publish again.`);
   }
+  
+  let dataset;
+  try {
+    dataset = await DatasetModel.latestPublishedWithoutPermissions(record.dataset_uuid);
+  } catch(error) {
+    if(error instanceof Util.NotFoundError || error instanceof Util.InputError) {
+      throw new Util.InputError(`a valid dataset_uuid was not provided for record ${record.uuid}`);
+    } else {
+      throw error;
+    }
+  }
+  let template = await TemplateModel.publishedByIdWithoutPermissions(dataset.template_id);
 
-  let template = await TemplateModel.latestPublished(record.template_uuid, session);
-
-  return (await publishRecurser(record_uuid, session, template))[1];
+  return (await publishRecurser(record_uuid, dataset, template, user, session))[1];
 
 }
 
@@ -668,26 +561,41 @@ async function latestPublishedBeforeDateWithJoins(uuid, date) {
 }
 
 // This function will provide the timestamp of the last update made to this record and all of it's related_records
-async function lastUpdateFor(uuid, session) {
+async function lastUpdate(uuid, user) {
 
   if (!uuidValidate(uuid)) {
     throw new Util.InputError('The uuid provided is not in proper uuid format.');
   }
 
-  let draft = await fetchDraftOrCreateFromPublished(uuid, session);
+  let draft = await fetchDraftOrCreateFromPublished(uuid);
   if(!draft) {
     throw new Util.NotFoundError();
+  }
+
+  let edit_permission = await PermissionGroupModel.has_permission(user, draft.dataset_uuid, PermissionGroupModel.PERMISSION_EDIT);
+  let published = await SharedFunctions.latestPublished(Record, uuid);
+
+  if(!edit_permission) {
+    if(!published) {
+      throw new Util.PermissionDeniedError(`record ${uuid}: do not have edit permissions for draft, and no published version exists`);
+    }
+    if(!view_permission) {
+      throw new Util.PermissionDeniedError(`record ${uuid}: do not have view or admin permissions`);
+    }
+    return published.updated_at;
   }
 
   let last_update = draft.updated_at;
   for(uuid of draft.related_records) {
     try {
-      let update = await lastUpdateFor(uuid, session);
+      let update = await lastUpdate(uuid, user);
       if (update > last_update){
         last_update = update;
       }
     } catch (err) {
-      if (!(err instanceof Util.NotFoundError)) {
+      if (err instanceof Util.NotFoundError || err instanceof Util.PermissionDeniedError) {
+        //
+      } else {
         throw err;
       }
     }
@@ -697,14 +605,56 @@ async function lastUpdateFor(uuid, session) {
 
 }
 
+// TODO: modify this function to handle record-specific permissions when I remember how
+async function userHasAccessToPublishedRecord(record, user) {
+  let dataset = await SharedFunctions.latestPublished(DatasetModel.collection(), record.dataset_uuid);
+  // If public, then automatic yes
+  if (dataset.public_date && Util.compareTimeStamp((new Date).getTime(), dataset.public_date)){
+    return true;
+  }
+
+  // Otherwise, check, if we have view permissions
+  return await PermissionGroupModel.has_permission(user, dataset.uuid, PermissionGroupModel.PERMISSION_VIEW);
+}
+
+async function filterPublishedForPermissionsRecursor(record, user) {
+  for(let i = 0; i < record.related_records.length; i++) {
+    if(!(await userHasAccessToPublishedRecord(record.related_records[i], user, PermissionGroupModel))) {
+      record.related_records[i] = {uuid: record.related_records[i].uuid};
+    } else {
+      await filterPublishedForPermissionsRecursor(record.related_records[i], user);
+    }
+  }
+}
+
+// TODO: use the dataset instead of the record. Also, ignore record specific permissions until I remember how they work
+async function filterPublishedForPermissions(record, user) {
+  if(!(await userHasAccessToPublishedRecord(record, user, PermissionGroupModel))) {
+    throw new Util.PermissionDeniedError(`Do not have view access to records in dataset ${record.dataset_uuid}`);
+  }
+  await filterPublishedForPermissionsRecursor(record, user);
+}
+
+async function latestPublishedBeforeDateWithJoinsAndPermissions(uuid, date, user) {
+  let record = await latestPublishedBeforeDateWithJoins(uuid, date);
+  await filterPublishedForPermissions(record, user);
+  return record;
+} 
+
+// Fetches the last published record with the given uuid. 
+// Also recursively looks up related_datasets.
+async function latestPublishedWithJoinsAndPermissions(uuid, user) {
+  return await latestPublishedBeforeDateWithJoinsAndPermissions(uuid, new Date(), user);
+}
+
 // Wraps the actual request to create with a transaction
-exports.create = async function(record) {
+exports.create = async function(record, user) {
   const session = MongoDB.newSession();
   let inserted_uuid;
   try {
     await session.withTransaction(async () => {
       try {
-        [_, inserted_uuid] = await validateAndCreateOrUpdate(record, session);
+        [_, inserted_uuid] = await validateAndCreateOrUpdate(record, user, session);
       } catch(err) {
         await session.abortTransaction();
         throw err;
@@ -718,34 +668,15 @@ exports.create = async function(record) {
   }
 }
 
-// Wraps the actual request to get with a transaction
-exports.draftGet = async function(uuid) {
-  const session = MongoDB.newSession();
-  try {
-    var record;
-    await session.withTransaction(async () => {
-      try {
-        record = await draftFetchOrCreate(uuid, session);
-      } catch(err) {
-        await session.abortTransaction();
-        throw err;
-      }
-    });
-    session.endSession();
-    return record;
-  } catch(err) {
-    session.endSession();
-    throw err;
-  }
-}
+exports.draftGet = draftFetchOrCreate;
 
 // Wraps the actual request to update with a transaction
-exports.update = async function(record) {
+exports.update = async function(record, user) {
   const session = MongoDB.newSession();
   try {
     await session.withTransaction(async () => {
       try {
-        await validateAndCreateOrUpdate(record, session);
+        await validateAndCreateOrUpdate(record, user, session);
       } catch(err) {
         await session.abortTransaction();
         throw err;
@@ -758,16 +689,14 @@ exports.update = async function(record) {
   }
 }
 
-exports.draftDelete = draftDelete;
-
 // Wraps the actual request to publish with a transaction
-exports.publish = async function(uuid, last_update) {
+exports.publish = async function(uuid, last_update, user) {
   const session = MongoDB.newSession();
   try {
     var published;
     await session.withTransaction(async () => {
       try {
-        published = await publish(uuid, session, last_update);
+        published = await publish(uuid, user, session, last_update);
       } catch(err) {
         await session.abortTransaction();
         throw err;
@@ -782,37 +711,35 @@ exports.publish = async function(uuid, last_update) {
     throw err;
   }
 }
+
 // Fetches the last published record with the given uuid. 
 // Also recursively looks up related_templates.
-exports.latestPublished = async function(uuid) {
-  return await latestPublishedBeforeDateWithJoins(uuid, new Date());
-}
+exports.latestPublished = latestPublishedWithJoinsAndPermissions;
 
 // Fetches the last record with the given uuid published before the provided timestamp. 
 // Also recursively looks up related_templates.
-exports.publishedBeforeDate = latestPublishedBeforeDateWithJoins;
+exports.publishedBeforeDate = latestPublishedBeforeDateWithJoinsAndPermissions;
 
-// Wraps the actual request to getUpdate with a transaction
-exports.lastUpdate = async function(uuid) {
-  const session = MongoDB.newSession();
-  try {
-    var update;
-    await session.withTransaction(async () => {
-      try {
-        update = await lastUpdateFor(uuid, session);
-      } catch(err) {
-        await session.abortTransaction();
-        throw err;
-      }
-    });
-    session.endSession();
-    return update;
-  } catch(err) {
-    session.endSession();
-    throw err;
+exports.lastUpdate = lastUpdate;
+
+exports.draftDelete = async function(uuid, user) {
+  // valid uuid
+  if (!uuidValidate(uuid)) {
+    throw new Util.InputError('The uuid provided is not in proper uuid format.');
   }
+  // if draft doesn't exist, return not found
+  let draft = await SharedFunctions.draft(Record, uuid);
+  if(!draft) {
+    throw new Util.NotFoundError(`No draft exists with uuid ${uuid}`);
+  }
+  // if don't have admin permissions, return no permissions
+  if(!(await PermissionGroupModel.has_permission(user, draft.dataset_uuid, PermissionGroupModel.PERMISSION_EDIT))) {
+    throw new Util.PermissionDeniedError(`You do not have edit permissions for dataset ${draft.dataset_uuid}.`);
+  }
+
+  await SharedFunctions.draftDelete(Record, uuid);
 }
 
 exports.draftExisting = async function(uuid) {
-  return (await draft(uuid)) ? true : false;
+  return (await SharedFunctions.draft(Record, uuid)) ? true : false;
 }

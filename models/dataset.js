@@ -32,7 +32,7 @@ async function createDraftFromPublished(published) {
   delete draft._id;
   draft.updated_at = draft.publish_date;
   delete draft.publish_date;
-  draft.template_uuid = await TemplateModel.uuidFor_id(draft.template_id);
+  draft.template_uuid = await SharedFunctions.uuidFor_id(TemplateModel.collection(), draft.template_id);
   delete draft.template_id;
 
   // Replace each of the related_dataset _ids with uuids. 
@@ -129,7 +129,7 @@ async function validateAndCreateOrUpdateRecurser(dataset, template, user, sessio
 
   // Verify that the user has at least view permissions on this template
   if(!(await TemplateModel.userHasAccessToPublishedTemplate(template, user))) {
-    throw new Util.InputError(`You do not have the view permissions required to create a dataset from template ${dataset.template_uuid}`);
+    throw new Util.InputError(`You do not have the view permissions required to create/update a dataset from template ${dataset.template_uuid}`);
   }
 
   // Build object to create/update
@@ -482,7 +482,7 @@ async function publishRecurser(uuid, user, session, template) {
       } else if (err instanceof Util.PermissionDeniedError) {
         // TODO: add a test case for this case
         // If the user doesn't have permissions, assume they want to link the published version of the dataset
-        // But before we can link the published version of the template, we must make sure it exists and we have view access
+        // But before we can link the published version of the record, we must make sure it exists
         let related_dataset_published = await SharedFunctions.latestPublished(Dataset, related_dataset);
         if(!related_dataset_published) {
           throw new Util.InputError(`invalid link to dataset ${related_dataset}, which has no published version to link`);
@@ -646,13 +646,13 @@ async function filterPublishedForPermissions(dataset, user) {
 }
 
 async function latestPublishedBeforeDateWithJoinsAndPermissions(uuid, date, user) {
-  let template = await latestPublishedBeforeDateWithJoins(uuid, date);
-  await filterPublishedForPermissions(template, user);
-  return template;
+  let dataset = await latestPublishedBeforeDateWithJoins(uuid, date);
+  await filterPublishedForPermissions(dataset, user);
+  return dataset;
 } 
 
-// Fetches the last published template with the given uuid. 
-// Also recursively looks up fields and related_templates.
+// Fetches the last published dataset with the given uuid. 
+// Also recursively looks up related_datasets.
 async function latestPublishedWithJoinsAndPermissions(uuid, user) {
   return await latestPublishedBeforeDateWithJoinsAndPermissions(uuid, new Date(), user);
 }
@@ -784,4 +784,12 @@ exports.draftDelete = async function(uuid, user) {
 
 exports.draftExisting = async function(uuid) {
   return (await SharedFunctions.draft(Dataset, uuid)) ? true : false;
+}
+
+exports.latestPublishedWithoutPermissions = async function(uuid) {
+  return await latestPublishedBeforeDateWithJoins(uuid, new Date());
+}
+
+exports.collection = function() {
+  return Dataset;
 }

@@ -21,7 +21,7 @@ exports.draft = async (collection, uuid, session) => {
 
 // Fetches the latest published document with the given uuid. 
 // Does not look up related documents
-exports.latestPublished = async (collection, uuid, session) => {
+const latestPublished = async (collection, uuid, session) => {
   let cursor = await collection.find(
     {"uuid": uuid, 'publish_date': {'$exists': true}}, 
     {session}
@@ -32,6 +32,7 @@ exports.latestPublished = async (collection, uuid, session) => {
   }
   return await cursor.next();
 }
+exports.latestPublished = latestPublished;
 
 // Returns true if the document exists
 exports.exists = async (collection, uuid, session) => {
@@ -55,6 +56,11 @@ exports.uuidFor_id = async (collection, _id, session) => {
   return document.uuid;
 }
 
+exports.latest_published_id_for_uuid = async function(collection, uuid) {
+  let document = await latestPublished(collection, uuid);
+  return document ? document._id : null;
+}
+
 exports.draftDelete = async (collection, uuid) => {
   let response = await collection.deleteMany({ uuid, publish_date: {'$exists': false} });
   if (response.deletedCount > 1) {
@@ -62,6 +68,8 @@ exports.draftDelete = async (collection, uuid) => {
   }
 }
 
+// TODO: this should use the public date of only the latest public version of the recource. Therefore, 
+// Re-write this function to fetch the latest published, and also add test cases for this
 exports.userHasAccessToPublishedResource = async (resource, user, PermissionGroupModel) => {
   // If public, then automatic yes
   if (resource.public_date && Util.compareTimeStamp((new Date).getTime(), resource.public_date)){
@@ -82,4 +90,9 @@ exports.publishDateFor_id = async (collection, _id, session) => {
   }
   let document = await cursor.next();
   return document.publish_date;
+}
+
+exports.latest_published_time_for_uuid = async function(collection, uuid) {
+  let document = await latestPublished(collection, uuid);
+  return document ? document.publish_date : null;
 }

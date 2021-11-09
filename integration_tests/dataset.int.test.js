@@ -143,7 +143,7 @@ const datasetLatestPublishedBeforeDate = async (uuid, timestamp, curr_user) => {
     .set('Cookie', [`user=${curr_user}`]);
 }
 
-datasetUpdatePublishTest = async (dataset, curr_user) => {
+const datasetUpdatePublishTest = async (dataset, curr_user) => {
   await datasetUpdateAndTest(dataset, curr_user);
   let published_dataset = await datasetPublishAndFetch(dataset.uuid, curr_user)
   expect(published_dataset).toMatchObject(dataset);

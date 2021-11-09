@@ -203,6 +203,120 @@ module.exports = class Helper {
     return published_template;
   };
 
+  // dataset
+
+  datasetCreate = async (dataset, curr_user) => {
+    return await request(this.app)
+      .post(`/dataset`)
+      .set('Cookie', [`user=${curr_user}`])
+      .send(dataset)
+      .set('Accept', 'application/json');
+  }
+
+  datasetDraftGet = async (uuid, curr_user) => {
+    return await request(this.app)
+      .get(`/dataset/${uuid}/draft`)
+      .set('Cookie', [`user=${curr_user}`])
+      .set('Accept', 'application/json');
+  };
+
+  datasetCreateAndTest = async (dataset, curr_user) => {
+    let response = await this.datasetCreate(dataset, curr_user);
+    expect(response.statusCode).toBe(200);
+    expect(response.body.inserted_uuid).toBeTruthy();
+  
+    dataset.uuid = response.body.inserted_uuid;
+    
+    response = await this.datasetDraftGet(dataset.uuid, curr_user);
+    expect(response.statusCode).toBe(200);
+    let created_dataset = response.body;
+    expect(created_dataset).toMatchObject(dataset);
+    return dataset.uuid;
+  };
+
+  datasetLastUpdate = async(uuid, curr_user) => {
+    return await request(this.app)
+      .get(`/dataset/${uuid}/last_update`)
+      .set('Cookie', [`user=${curr_user}`]);
+  }
+
+  datasetPublish = async (uuid, last_update, curr_user) => {
+    return await request(this.app)
+      .post(`/dataset/${uuid}/publish`)
+      .set('Cookie', [`user=${curr_user}`])
+      .send({last_update})
+      .set('Accept', 'application/json');
+  };
+
+  datasetLatestPublished = async(uuid, curr_user) => {
+    return await request(this.app)
+      .get(`/dataset/${uuid}/latest_published`)
+      .set('Cookie', [`user=${curr_user}`])
+      .set('Accept', 'application/json');
+  }
+
+  datasetPublishAndFetch = async (uuid, curr_user) => {
+    let response = await this.datasetLastUpdate(uuid, curr_user);
+    expect(response.statusCode).toBe(200);
+    let last_update = response.body;
+  
+    response = await this.datasetPublish(uuid, last_update, curr_user);
+    expect(response.statusCode).toBe(200);
+  
+    response = await this.datasetLatestPublished(uuid, curr_user);
+    expect(response.statusCode).toBe(200);
+    let published_template = response.body;
+    expect(published_template).toHaveProperty("publish_date");
+    return published_template;
+  };
+
+  datasetCreatePublishTest = async (dataset, curr_user) => {
+    let uuid = await this.datasetCreateAndTest(dataset, curr_user);
+    let dataset_template = await this.datasetPublishAndFetch(uuid, curr_user)
+    expect(dataset_template).toMatchObject(dataset);
+    return dataset_template;
+  };
+
+  datasetUpdate = async (uuid, dataset, curr_user) => {
+    return await request(this.app)
+      .put(`/dataset/${uuid}`)
+      .send(dataset)
+      .set('Cookie', [`user=${curr_user}`])
+  };
+
+  datasetCleanseMetadata = async (dataset) => {
+    if(!dataset) {
+      return;
+    }  
+    delete dataset.updated_at;
+    delete dataset._id;
+    delete dataset.publish_date;
+    delete dataset.template_id;
+    if(dataset.related_datasets) {
+      for(dataset of dataset.related_datasets) {
+        this.datasetCleanseMetadata(dataset);
+      }
+    }
+  }
+
+  datasetUpdateAndTest = async (dataset, curr_user) => {
+    let response = await this.datasetUpdate(dataset.uuid, dataset, curr_user);
+    expect(response.statusCode).toBe(200);
+    
+    response = await this.datasetDraftGet(dataset.uuid, curr_user);
+    expect(response.statusCode).toBe(200);
+    let updated_dataset = response.body;
+    this.datasetCleanseMetadata(dataset);
+    expect(updated_dataset).toMatchObject(dataset);
+  };
+
+  datasetUpdatePublishTest = async (dataset, curr_user) => {
+    await this.datasetUpdateAndTest(dataset, curr_user);
+    let published_dataset = await this.datasetPublishAndFetch(dataset.uuid, curr_user)
+    expect(published_dataset).toMatchObject(dataset);
+    return published_dataset;
+  };
+
   // record
 
   // permission group
