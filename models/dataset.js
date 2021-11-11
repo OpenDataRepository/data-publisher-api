@@ -482,7 +482,7 @@ async function publishRecurser(uuid, user, session, template) {
       } else if (err instanceof Util.PermissionDeniedError) {
         // TODO: add a test case for this case
         // If the user doesn't have permissions, assume they want to link the published version of the dataset
-        // But before we can link the published version of the record, we must make sure it exists
+        // But before we can link the published version of the dataset, we must make sure it exists
         let related_dataset_published = await SharedFunctions.latestPublished(Dataset, related_dataset);
         if(!related_dataset_published) {
           throw new Util.InputError(`invalid link to dataset ${related_dataset}, which has no published version to link`);

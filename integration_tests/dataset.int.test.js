@@ -1286,7 +1286,7 @@ describe("lastUpdate", () => {
       expect((new Date(response.body)).getTime()).toBeGreaterThan(timestamp.getTime());
     });
 
-    test("basic published, related_datasets. available to anyone with view permissions", async () => {
+    test("basic published, with related_datasets. available to anyone with view permissions", async () => {
       let template = {
         name:"t1"
       };
@@ -1482,7 +1482,7 @@ describe("lastUpdate", () => {
       expect(response.statusCode).toBe(401);
     });
 
-    test("must have edit or view permissions to get last update of published", async () => {
+    test("must have view permissions to get last update of published", async () => {
       let template = {
         "name":"t1"
       };

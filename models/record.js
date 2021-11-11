@@ -156,6 +156,14 @@ async function validateAndCreateOrUpdateRecurser(record, dataset, template, user
     throw new Util.PermissionDeniedError(`Do not have edit permissions required to create/update records in dataset ${dataset.uuid}`);
   }
 
+  // Make sure no record switches datasets
+  let latest_published_record = await SharedFunctions.latestPublished(Record, record.uuid, session);
+  if (latest_published_record) {
+    if(record.dataset_uuid != latest_published_record.dataset_uuid) {
+      throw new Util.InputError(`Record ${record.uuid} expected dataset ${latest_published_record.dataset_uuid}, but received ${record.dataset_uuid}. Once a record is published, it's dataset may never be changed.`);
+    }
+  }
+
   // Verify that the dataset uuid specified by the record matches the dataset uuid of the dataset
   if(record.dataset_uuid != dataset.uuid) {
     throw new Util.InputError(`The dataset uuid provided by the record: ${record.dataset_uuid} does not correspond to the dataset uuid expected by the dataset: ${dataset.uuid}`);
@@ -212,6 +220,9 @@ async function validateAndCreateOrUpdateRecurser(record, dataset, template, user
     } catch(err) {
       if (err instanceof Util.NotFoundError) {
         throw new Util.InputError(err.message);
+      } else if (err instanceof Util.PermissionDeniedError) {
+        // If we don't have admin permissions to the related_record, don't try to update/create it. Just link it
+        related_record = record.related_records[i].uuid;
       } else {
         throw err;
       }
@@ -330,7 +341,7 @@ async function draftFetchOrCreate(uuid, user) {
         } catch (err) {
           if (err instanceof Util.PermissionDeniedError || err instanceof Util.NotFoundError) {
             // If we don't have permission for the published version, or a published version doesn't exist, just attach a uuid and a flag marking no_permissions
-            related_record = {uuid: related_dataset_uuid, no_permissions: true};
+            related_record = {uuid: record_draft.related_records[i], no_permissions: true};
           } 
           else {
             throw err;
@@ -373,15 +384,16 @@ async function publishRecurser(uuid, dataset, template, user, session) {
     throw new Util.PermissionDeniedError(`Do not have edit permissions required to publish records in dataset ${dataset.uuid}`);
   }
 
-  // verify that the dataset uuid on the record draft and the expected dataset uuid match
-  if (record_draft.dataset_uuid != dataset.uuid) {
-    throw new Error(`The record draft ${record_draft} does not reference the dataset required ${dataset.uuid}. Cannot publish.`);
-  }
-
   // check that the draft update is more recent than the last dataset publish
   if ((await SharedFunctions.latest_published_time_for_uuid(DatasetModel.collection(), record_draft.dataset_uuid)) > record_draft.updated_at) {
     throw new Util.InputError(`Record ${record_draft.uuid}'s dataset has been published more recently than when the record was last updated. 
     Update the record again before publishing.`);
+  }
+
+  // verify that the dataset uuid on the record draft and the expected dataset uuid match
+  // This check should never fail, unless there is a bug in my code. Still, it doesn't hurt to be safe.
+  if (record_draft.dataset_uuid != dataset.uuid) {
+    throw new Error(`The record draft ${record_draft} does not reference the dataset required ${dataset.uuid}. Cannot publish.`);
   }
 
   let changes = false;
@@ -573,6 +585,7 @@ async function lastUpdate(uuid, user) {
   }
 
   let edit_permission = await PermissionGroupModel.has_permission(user, draft.dataset_uuid, PermissionGroupModel.PERMISSION_EDIT);
+  let view_permission = await PermissionGroupModel.has_permission(user, draft.dataset_uuid, PermissionGroupModel.PERMISSION_VIEW);
   let published = await SharedFunctions.latestPublished(Record, uuid);
 
   if(!edit_permission) {
@@ -605,15 +618,15 @@ async function lastUpdate(uuid, user) {
 
 }
 
-// TODO: modify this function to handle record-specific permissions when I remember how
 async function userHasAccessToPublishedRecord(record, user) {
   let dataset = await SharedFunctions.latestPublished(DatasetModel.collection(), record.dataset_uuid);
-  // If public, then automatic yes
-  if (dataset.public_date && Util.compareTimeStamp((new Date).getTime(), dataset.public_date)){
+  // If both the dataset and the record are public, then everyone has view access
+  if (dataset.public_date && Util.compareTimeStamp((new Date).getTime(), dataset.public_date) &&
+      record.public_date && Util.compareTimeStamp((new Date).getTime(), record.public_date)){
     return true;
   }
 
-  // Otherwise, check, if we have view permissions
+  // Otherwise, check if we have view permissions
   return await PermissionGroupModel.has_permission(user, dataset.uuid, PermissionGroupModel.PERMISSION_VIEW);
 }
 

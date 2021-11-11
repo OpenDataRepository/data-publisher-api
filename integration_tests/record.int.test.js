@@ -3,8 +3,7 @@ const MongoDB = require('../lib/mongoDB');
 var { app, init: appInit } = require('../app');
 var HelperClass = require('./common_test_operations')
 var Helper = new HelperClass(app);
-
-const ValidUUID = "47356e57-eec2-431b-8059-f61d5f9a6bc6";
+var { PERMISSION_ADMIN, PERMISSION_EDIT, PERMISSION_VIEW } = require('../models/permission_group');
 
 beforeAll(async () => {
   await appInit();
@@ -26,14 +25,17 @@ afterAll(async () => {
   await MongoDB.close();
 });
 
-const deleteRecordUpdatedAtValues = async (record) => {
+const recordCleanseMetadata = async (record) => {
   if(!record) {
     return;
   }  
   delete record.updated_at;
+  delete record._id;
+  delete record.publish_date;
+  delete record.dataset_id;
   if(record.related_records) {
     for(record of record.related_records) {
-      deleteRecordUpdatedAtValues(record);
+      recordCleanseMetadata(record);
     }
   }
 }
@@ -81,7 +83,7 @@ const recordUpdateAndTest = async (record, uuid, curr_user) => {
   response = await recordDraftGet(uuid, curr_user);
   expect(response.statusCode).toBe(200);
   let updated_record = response.body;
-  deleteRecordUpdatedAtValues(record);
+  recordCleanseMetadata(record);
   expect(updated_record).toMatchObject(record);
 };
 
@@ -113,10 +115,18 @@ const recordPublishAndTest = async (uuid, record, curr_user) => {
   expect(response.statusCode).toBe(200);
   let published = response.body;
   expect(published).toHaveProperty("publish_date");
-  deleteRecordUpdatedAtValues(record);
+  recordCleanseMetadata(record);
   expect(published).toMatchObject(record);
   return published;
 }
+
+const recordCreatePublishTest = async (record, curr_user) => {
+  let uuid = await recordCreateAndTest(record, curr_user);
+  record.uuid = uuid;
+  let published = await recordPublishAndTest(uuid, record, curr_user)
+  expect(published).toMatchObject(record);
+  return published;
+};
 
 const draftExisting = async (uuid) => {
   let response = await request(app)
@@ -352,6 +362,105 @@ describe("create (and get draft)", () => {
 
     });
 
+    test("one related record, which already exists", async () => {
+
+      let template = {
+        name:"t1",
+        related_templates:[{
+          name: "t2"
+        }]
+      };
+      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+
+      let dataset = {
+        name:"d1",
+        template_uuid: template.uuid,
+        related_datasets:[{
+          name: "d2",
+          template_uuid: template.related_templates[0].uuid 
+        }]
+      };
+      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+
+      let related_record = {
+        dataset_uuid: dataset.related_datasets[0].uuid
+      };
+
+      let related_record_uuid = await recordCreateAndTest(related_record, Helper.DEF_CURR_USER);
+
+      related_record.uuid = related_record_uuid;
+
+      let record = {
+        dataset_uuid: dataset.uuid,
+        related_records: [related_record]
+      };
+
+      await recordCreateAndTest(record, Helper.DEF_CURR_USER);
+
+    });
+
+    test("link one related record user only has view permissions for, and one the user has no permissions for", async () => {
+
+      let template = {
+        name:"t1",
+        related_templates:[
+          {
+            name: "t1.1"
+          },
+          {
+            name: "t1.2"
+          }
+        ]
+      };
+      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+
+      let dataset = {
+        name:"d1",
+        template_uuid: template.uuid,
+        related_datasets:[
+          {
+            name: "d1.1",
+            template_uuid: template.related_templates[0].uuid
+          },
+          {
+            name: "d1.2",
+            template_uuid: template.related_templates[1].uuid
+          }
+        ]
+      };
+      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+
+      let related_record_1 = {
+        dataset_uuid: dataset.related_datasets[0].uuid
+      };
+      let related_record_2 = {
+        dataset_uuid: dataset.related_datasets[1].uuid
+      };
+
+      let related_record_1_published = await recordCreatePublishTest(related_record_1, Helper.DEF_CURR_USER);
+      let related_record_2_published = await recordCreatePublishTest(related_record_2, Helper.DEF_CURR_USER);
+
+      related_record_1.uuid = related_record_1_published.uuid;
+      related_record_2.uuid = related_record_2_published.uuid;
+
+      let both_users = [Helper.DEF_CURR_USER, Helper.USER_2];
+      let response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, dataset.uuid, PERMISSION_EDIT, both_users);
+      expect(response.statusCode).toBe(200);
+      response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, related_record_1.dataset_uuid, PERMISSION_VIEW, both_users);
+      expect(response.statusCode).toBe(200);
+
+      // response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, template.uuid, PERMISSION_VIEW, view_users);
+      // expect(response.statusCode).toBe(200);
+
+      let record = {
+        dataset_uuid: dataset.uuid,
+        related_records: [related_record_1, {uuid: related_record_2_published.uuid}]
+      };
+
+      await recordCreateAndTest(record, Helper.USER_2);
+
+    });
+
   });
 
   describe("Failure cases", () => {
@@ -372,7 +481,7 @@ describe("create (and get draft)", () => {
       expect(response.statusCode).toBe(400);
 
       record = {
-        dataset_uuid: ValidUUID
+        dataset_uuid: Helper.VALID_UUID
       };
 
       response = await recordCreate(record, Helper.DEF_CURR_USER);
@@ -408,7 +517,7 @@ describe("create (and get draft)", () => {
       expect(response.statusCode).toBe(400);
     })
 
-    test("Related record must point to the correct template uuid", async () => {
+    test("Related record must point to the correct dataset uuid", async () => {
 
       let template = {
         "name":"t1",
@@ -551,6 +660,29 @@ describe("create (and get draft)", () => {
       expect(response.statusCode).toBe(400);
 
     });
+
+    test("Must have edit permissions on the dataset", async () => {
+      let template = {
+        name:"t1"
+      };
+      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+
+      let dataset = {
+        name: "d1",
+        template_uuid: template.uuid
+      };
+      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+
+      let both_users = [Helper.DEF_CURR_USER, Helper.USER_2];
+      let response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, dataset.uuid, PERMISSION_VIEW, both_users);
+      expect(response.statusCode).toBe(200);
+
+      let record = {
+        dataset_uuid: dataset.uuid
+      };
+      response = await recordCreate(record, Helper.USER_2);
+      expect(response.statusCode).toBe(401);
+    })
 
   });
 });
@@ -732,20 +864,43 @@ describe("update", () => {
 
     test("uuid in request and in object must match", async () => {
 
-      let response = await recordUpdate(record, ValidUUID, Helper.DEF_CURR_USER);
+      let response = await recordUpdate(record, Helper.VALID_UUID, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
 
     });
 
     test("uuid must exist", async () => {
 
-      record.uuid = ValidUUID;
+      record.uuid = Helper.VALID_UUID;
 
-      let response = await recordUpdate(record, ValidUUID, Helper.DEF_CURR_USER);
+      let response = await recordUpdate(record, Helper.VALID_UUID, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(404);
 
     });
 
+    test("must have edit permissions on the dataset", async () => {
+      record.fields[0].value = "sad";
+      let response = await recordUpdate(record, record.uuid, Helper.USER_2);
+      expect(response.statusCode).toBe(401);
+    });
+
+    test("once a record is published, its dataset may never be changed", async () => {
+      record = await recordPublishAndTest(record.uuid, record, Helper.DEF_CURR_USER);
+      let dataset_alternative = {
+        name: "alternative",
+        template_uuid: template.uuid,
+        related_datasets: [{
+            name: "d1.1",
+            uuid: dataset.related_datasets[0].uuid,
+            template_uuid: template.related_templates[0].uuid
+          }
+        ]
+      };
+      dataset_alternative = await Helper.datasetCreatePublishTest(dataset_alternative, Helper.DEF_CURR_USER);
+      record.dataset_uuid = dataset_alternative.uuid;
+      let response = await recordUpdate(record, record.uuid, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(400);
+    });
   });
 
 });
@@ -759,7 +914,6 @@ describe("delete", () => {
   });
 
   test("basic delete", async () => {
-
     // Delete the parent record
     let response = await recordDelete(record.uuid, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(200);
@@ -771,7 +925,16 @@ describe("delete", () => {
     // But the child still should
     response = await recordDraftGet(record.related_records[0].uuid, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(200);
+  });
 
+  test("uuid must exist", async () => {
+    let response = await recordDelete(Helper.VALID_UUID, Helper.DEF_CURR_USER);
+    expect(response.statusCode).toBe(404);
+  });
+
+  test("must have edit permissions", async () => {
+    let response = await recordDelete(record.uuid, Helper.USER_2);
+    expect(response.statusCode).toBe(401);
   });
 });
 
@@ -903,7 +1066,7 @@ describe("publish (and get published)", () => {
     });
 
     test("Record with uuid does not exist", async () => {
-      await publishFailureTest(ValidUUID, Helper.DEF_CURR_USER, 404, new Date());
+      await publishFailureTest(Helper.VALID_UUID, Helper.DEF_CURR_USER, 404, new Date());
     });
 
     test("No changes to publish", async () => {
@@ -911,7 +1074,7 @@ describe("publish (and get published)", () => {
       await publishFailureTest(record.uuid, Helper.DEF_CURR_USER, 400);
     });
 
-    test("A new template has been published since this record was last updated", async () => {
+    test("A new dataset has been published since this record was last updated", async () => {
       // publish original data
       await recordPublishAndTest(record.uuid, record, Helper.DEF_CURR_USER);
       // update record
@@ -942,6 +1105,90 @@ describe("publish (and get published)", () => {
       await recordPublishAndTest(record.uuid, record, Helper.DEF_CURR_USER);
     });
 
+    test("Must have edit permissions to publish", async () => {
+      let template = { 
+        "name": "t1"
+      };
+      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      let dataset = {
+        name: "d1",
+        template_uuid: template.uuid
+      }
+      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+
+      let record = {
+        dataset_uuid: dataset.uuid
+      }
+
+      let record_uuid = await recordCreateAndTest(record, Helper.DEF_CURR_USER);
+
+      let last_update = await recordLastUpdateAndTest(record_uuid, Helper.DEF_CURR_USER);
+      let response = await recordPublish(record_uuid, last_update, Helper.USER_2);
+      expect(response.statusCode).toBe(401);
+      
+    });
+
+  });
+});
+
+describe("get published", () => {
+  test("if user does not have view access to linked properties, an empty object replaces that property", async () => {
+    
+    let template = { 
+      name: "t1",
+      related_templates: [{name: "t1.1"}]
+    };
+    template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);  
+
+    let dataset = { 
+      name: "d1",
+      template_uuid: template.uuid,
+      related_datasets: [{
+        name: "d1.1",
+        template_uuid: template.related_templates[0].uuid
+      }]
+    };
+    dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);  
+    
+    let record = { 
+      dataset_uuid: dataset.uuid,
+      related_records: [{
+        dataset_uuid: dataset.related_datasets[0].uuid
+      }]
+    };
+    record = await recordCreatePublishTest(record, Helper.DEF_CURR_USER);  
+    
+    let view_users = [Helper.USER_2, Helper.DEF_CURR_USER];
+    let response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, dataset.uuid, PERMISSION_VIEW, view_users);
+    expect(response.statusCode).toBe(200);
+
+    record.related_records[0] = {uuid: record.related_records[0].uuid};
+    // Fetch parent dataset, check that the related_dataset is fetched as blank 
+    // since the second user
+    response = await recordLatestPublishedGet(record.uuid, Helper.USER_2);
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toMatchObject(record);   
+  });
+
+  test("must have view permissions", async () => {
+    let template = { 
+      name: "t1"
+    };
+    template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);  
+
+    let dataset = { 
+      name: "d1",
+      template_uuid: template.uuid
+    };
+    dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);  
+
+    let record = { 
+      dataset_uuid: dataset.uuid
+    };
+    record = await recordCreatePublishTest(record, Helper.DEF_CURR_USER);  
+
+    let response = await recordLatestPublishedGet(record.uuid, Helper.USER_2);
+    expect(response.statusCode).toBe(401);
   });
 });
 
@@ -1026,6 +1273,119 @@ describe("recordLastUpdate", () => {
       expect(last_update.getTime()).toBeGreaterThan(between_updates.getTime());
     });
 
+    test("sub record updated and published later than parent dataset", async () => {
+
+      let template = {
+        "name": "t1",
+        "related_templates": [{
+          "name": "t1.1",
+          fields: [{name: "t1.1f1"}]
+        }]
+      };
+      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+
+      let dataset = {
+        name: "d1",
+        template_uuid: template.uuid,
+        related_datasets: [{
+          name: "d1.1",
+          template_uuid: template.related_templates[0].uuid
+        }]
+      };
+      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+
+      let record = {
+        dataset_uuid: dataset.uuid,
+        related_records: [{
+          dataset_uuid: dataset.related_datasets[0].uuid,
+          fields: [{value: "naruto"}]
+        }]
+      };
+      record = await recordCreatePublishTest(record, Helper.DEF_CURR_USER);
+
+      let related_record = record.related_records[0];
+      related_record.fields[0].value = "pokemon";
+
+      let response = await recordUpdate(related_record, related_record.uuid, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toEqual(200);
+
+      let time1 = new Date();
+      await recordPublishAndTest(related_record.uuid, related_record, Helper.DEF_CURR_USER);
+      let time2 = new Date();
+
+      response = await recordLastUpdate(record.uuid, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+      expect((new Date(response.body)).getTime()).toBeGreaterThan(time1.getTime());
+      expect((new Date(response.body)).getTime()).toBeLessThan(time2.getTime());
+    });
+
+    test("grandchild updated, but child deleted. Updated time should still be grandchild updated", async () => {
+      let template = {
+        "name": "1",
+        "related_templates": [{
+          "name": "2",
+          "related_templates": [{
+            "name": "3",
+            fields: [{name: "t3f1"}]
+          }]
+        }]
+      };
+      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+
+      let dataset = {
+        name: "1",
+        template_uuid: template.uuid,
+        related_datasets: [{
+          name: "2",
+          template_uuid: template.related_templates[0].uuid,
+          related_datasets: [{
+            name: "3",
+            template_uuid: template.related_templates[0].related_templates[0].uuid
+          }]
+        }]
+      };
+      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+
+      let record = {
+        dataset_uuid: dataset.uuid,
+        related_records: [{
+          dataset_uuid: dataset.related_datasets[0].uuid,
+          related_records: [{
+            dataset_uuid: dataset.related_datasets[0].related_datasets[0].uuid,
+            fields: [{value: 'waffle'}]
+          }]
+        }]
+      };
+      let uuid = await recordCreateAndTest(record, Helper.DEF_CURR_USER);
+
+      // create
+      let response = await recordDraftGet(uuid, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+      record = response.body;
+
+      let record2 = record.related_records[0];
+      let record3 = record2.related_records[0];
+
+      // publish
+      await recordPublishAndTest(uuid, record, Helper.DEF_CURR_USER);
+
+      // Update grandchild
+      record3.fields[0].value = "jutsu";
+
+      response = await recordUpdate(record3, record3.uuid, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+
+      response = await recordDraftGet(record3.uuid, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+      let update_3_timestamp = response.body.updated_at;
+
+      // Now get the update timestamp for the grandparent. It should be that of the grandchild.
+      response = await recordLastUpdate(uuid, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+      expect(response.body).toEqual(update_3_timestamp);
+      
+    });
+
   });
 
   describe("failure", () => {
@@ -1033,9 +1393,51 @@ describe("recordLastUpdate", () => {
       let response = await recordLastUpdate("18", Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
 
-      response = await recordLastUpdate(ValidUUID, Helper.DEF_CURR_USER);
+      response = await recordLastUpdate(Helper.VALID_UUID, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(404);
     })
+
+    test("must have edit permissions to get last update of draft", async () => {
+      let template = {
+        "name":"t1"
+      };
+      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+
+      let dataset = {
+        name: "d1",
+        template_uuid: template.uuid
+      };
+      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+
+      let record = {
+        dataset_uuid: dataset.uuid
+      };
+      let uuid = await recordCreateAndTest(record, Helper.DEF_CURR_USER);
+
+      let response = await recordLastUpdate(uuid, Helper.USER_2);
+      expect(response.statusCode).toBe(401);
+    });
+
+    test("must have view permissions to get last update of published", async () => {
+      let template = {
+        "name":"t1"
+      };
+      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+
+      let dataset = {
+        name: "d1",
+        template_uuid: template.uuid
+      };
+      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+
+      let record = {
+        dataset_uuid: dataset.uuid
+      };
+      record = await recordCreatePublishTest(record, Helper.DEF_CURR_USER);
+
+      let response = await recordLastUpdate(record.uuid, Helper.USER_2);
+      expect(response.statusCode).toBe(401);
+    });
   });
 })
 

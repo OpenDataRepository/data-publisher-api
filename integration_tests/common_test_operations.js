@@ -15,6 +15,7 @@ module.exports = class Helper {
     let db = MongoDB.db();
     await db.collection('templates').deleteMany();
     await db.collection('template_fields').deleteMany();
+    await db.collection('datasets').deleteMany();
     await db.collection('records').deleteMany();
     await db.collection('permission_groups').deleteMany();
   };
@@ -326,7 +327,6 @@ module.exports = class Helper {
       .get(`/permission_group/${uuid}/${category}`)
       .set('Accept', 'application/json');
   };
-
 
   updatePermissionGroup = async (current_user, uuid, category, users) => {
     return await request(this.app)
