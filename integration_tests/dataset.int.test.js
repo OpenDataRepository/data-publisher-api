@@ -279,7 +279,8 @@ describe("create (and get draft)", () => {
     test("All properties must be of the correct type", async () => {
 
       let template = {
-        name:"t1"
+        name:"t1",
+        public_date: (new Date()).toISOString(),
       };
 
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
@@ -451,6 +452,26 @@ describe("create (and get draft)", () => {
             ]
           }
         ]
+      };
+      let response = await Helper.datasetCreate(dataset, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(400);
+
+    });
+
+    test("Public date must be greater than template public date", async () => {
+
+      let template = {
+        name:"t1"
+      };
+
+      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+
+      let dataset = {
+        name: "t1",
+        description: "des1",
+        public_date: (new Date()).toISOString(),
+        template_uuid: template.uuid,
+        related_datasets: []
       };
       let response = await Helper.datasetCreate(dataset, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);

@@ -336,24 +336,24 @@ module.exports = class Helper {
       .set('Accept', 'application/json');
   }
 
-  testPermissionGroup = async (uuid, category, statusCode, user) => {
+  testPermissionGroup = async (uuid, category, statusCode, users) => {
     let response = await this.getPermissionGroup(uuid, category);
     if(!statusCode) {
       statusCode = 200;
     }
     expect(response.statusCode).toBe(statusCode);
     if(statusCode == 200) {
-      if (!user) {
-        user = this.DEF_CURR_USER;
-      }
-      expect(response.body).toEqual([user]);
+      expect(response.body).toEqual(users);
     }
   };
 
   testPermissionGroupsInitializedFor = async (uuid, user) => {
-    await this.testPermissionGroup(uuid, PERMISSION_ADMIN, 200, user);
-    await this.testPermissionGroup(uuid, PERMISSION_EDIT, 200, user);
-    await this.testPermissionGroup(uuid, PERMISSION_VIEW, 200, user);
+    if(!user) {
+      user = Helper.DEF_CURR_USER;
+    }
+    await this.testPermissionGroup(uuid, PERMISSION_ADMIN, 200, [user]);
+    await this.testPermissionGroup(uuid, PERMISSION_EDIT, 200, []);
+    await this.testPermissionGroup(uuid, PERMISSION_VIEW, 200, []);
   }
 }
 

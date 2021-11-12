@@ -32,3 +32,13 @@ exports.get = async function(req, res, next) {
     next(err);
   }
 }
+
+// This endpoint exists only for the purpose of integration testing
+exports.testing_has_permission = async function(req, res, next) {
+  try {
+    let result = await Model.has_permission(req.cookies.user, req.params.uuid, req.params.category);
+    res.send(result);
+  } catch(err) {
+    next(err);
+  }
+}

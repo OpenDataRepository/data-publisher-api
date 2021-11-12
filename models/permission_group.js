@@ -24,16 +24,23 @@ exports.init = async function() {
   PermissionGroup = await collection();
 }
 
-// TODO: re-write this function to convert category into a list of category and it's superior categories.
-// Ex: "VIEW" should translate to ["VIEW", "EDIT", "ADMIN"], and "EDIT" should translate to ["EDIT", "ADMIN"]
+// If a user has permission to this category or a superior one, return true
 async function has_permission(user, uuid, category) {
+  let categories = [category];
+  if(category == PERMISSION_EDIT) {
+    categories.push(PERMISSION_ADMIN);
+  }
+  if(category == PERMISSION_VIEW) {
+    categories.push(PERMISSION_EDIT);
+    categories.push(PERMISSION_ADMIN);
+  }
   let cursor = await PermissionGroup.find(
-    {uuid, category, users: user}
+    {uuid, category: { "$in" : categories }, users: user}
   );
   return (await cursor.hasNext());
 }
 
-async function create_permission(uuid, category, user_name, session) {
+async function create_permission(uuid, category, users, session) {
   // uuid must be valid
   if (!uuidValidate(uuid)) {
     throw new Util.NotFoundError();
@@ -43,7 +50,7 @@ async function create_permission(uuid, category, user_name, session) {
     {
       uuid,
       category,
-      users: [user_name]
+      users: users 
     },
     { session }
   );
@@ -54,9 +61,9 @@ async function create_permission(uuid, category, user_name, session) {
 
 exports.initialize_permissions_for = async function(current_user, uuid, session) {
   // TODO: after the user model is implemented, verify that current_user is a real user in the database
-  await create_permission(uuid, PERMISSION_ADMIN, current_user, session);
-  await create_permission(uuid, PERMISSION_EDIT, current_user, session);
-  await create_permission(uuid, PERMISSION_VIEW, current_user, session);
+  await create_permission(uuid, PERMISSION_ADMIN, [current_user], session);
+  await create_permission(uuid, PERMISSION_EDIT, [], session);
+  await create_permission(uuid, PERMISSION_VIEW, [], session);
 }
 
 exports.replace_permissions = async function(current_user, uuid, category, users) {
@@ -72,16 +79,20 @@ exports.replace_permissions = async function(current_user, uuid, category, users
     throw new Util.PermissionDeniedError(`You do not have the permission level (admin) required to modify these permissions`);
   }
 
-  let current_user_found = false;
-    // TODO: after the user model is implemented, verify that each user_name exists
-    // Also verify that current_user is one of the user_names included
-  for(user_name of users) {
-    if(user_name == current_user) {
-      current_user_found = true;
+  // TODO: after the user model is implemented, verify that each user_name exists
+  // Also verify that current_user is one of the user_names included
+
+  // If this is the admin category, cannot remove the current user
+  if(category == PERMISSION_ADMIN) {
+    let current_user_found = false;
+    for(user_name of users) {
+      if(user_name == current_user) {
+        current_user_found = true;
+      }
     }
-  }
-  if(!current_user_found) {
-    throw new Util.InputError(`Can not alter permissions without including the current user in the permissions list`);
+    if(!current_user_found) {
+      throw new Util.InputError(`Can not alter permissions without including the current user in the permissions list`);
+    }
   }
 
   let response = await PermissionGroup.updateOne(

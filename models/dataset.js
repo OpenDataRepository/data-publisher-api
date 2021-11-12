@@ -154,6 +154,9 @@ async function validateAndCreateOrUpdateRecurser(dataset, template, user, sessio
       throw new Util.InputError('dataset public_date property must be in valid date format');
     }
     public_date = new Date(dataset.public_date);
+    if(!template.public_date || public_date < (new Date(template.public_date))) {
+      throw new Util.InputError(`public_date for dataset must be later than the public_date for it's template. date provided: ${public_date.toISOString()}, template uuid: ${template.uuid}, template public_date: ${template.public_date}`);
+    }
   }
 
   // Need to determine if this draft is any different from the published one.
@@ -286,7 +289,6 @@ async function fetchDraftOrCreateFromPublished(uuid, session) {
 
   return dataset_draft;
 }
-
 
 // Fetches the dataset draft with the given uuid, recursively looking up related_datasets.
 // If a draft of a given dataset doesn't exist, a new one will be generated using the last published dataset.
