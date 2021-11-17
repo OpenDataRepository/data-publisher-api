@@ -142,6 +142,77 @@ describe("update (and get)",  () => {
 
   });
 
+  test("cannot delete users from template view category", async () => {
+    let template = {
+      name: "t1"
+    }
+    template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+
+    let view_users = ['a', 'b', Helper.DEF_CURR_USER];
+    let response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, template.uuid, PERMISSION_VIEW, view_users);
+    expect(response.statusCode).toBe(200);
+    response = await Helper.getPermissionGroup(template.uuid, PERMISSION_VIEW);
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toEqual(view_users);
+
+    view_users = ['b', Helper.DEF_CURR_USER];
+    response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, template.uuid, PERMISSION_VIEW, view_users);
+    expect(response.statusCode).toBe(400);
+
+  });
+
+  test("any user deleted from template admin or edit is added to template view", async () => {
+    let template = {
+      name: "t1"
+    }
+    template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+
+    let users = ['a', 'b', Helper.DEF_CURR_USER];
+    let response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, template.uuid, PERMISSION_EDIT, users);
+    expect(response.statusCode).toBe(200);
+    response = await Helper.getPermissionGroup(template.uuid, PERMISSION_EDIT);
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toEqual(users);
+
+    users = ['b', Helper.DEF_CURR_USER];
+    response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, template.uuid, PERMISSION_EDIT, users);
+    expect(response.statusCode).toBe(200);
+    response = await Helper.getPermissionGroup(template.uuid, PERMISSION_EDIT);
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toEqual(users);
+    response = await Helper.getPermissionGroup(template.uuid, PERMISSION_VIEW);
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toEqual(['a']);
+  });
+
+  test("cannot add users to dataset permissions unless they have template view permission", async () => {
+    let template = {
+      name: "t1"
+    }
+    template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+
+    let dataset = {
+      name: "d1",
+      template_uuid: template.uuid
+    }
+    dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+
+    let view_users = ['a', Helper.DEF_CURR_USER];
+    let response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, dataset.uuid, PERMISSION_VIEW, view_users);
+    expect(response.statusCode).toBe(400);
+
+    response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, template.uuid, PERMISSION_VIEW, view_users);
+    expect(response.statusCode).toBe(200);
+
+    response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, dataset.uuid, PERMISSION_VIEW, view_users);
+    expect(response.statusCode).toBe(200);
+
+    response = await Helper.getPermissionGroup(dataset.uuid, PERMISSION_VIEW);
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toEqual(view_users);
+
+  });
+
 });
 
 describe("get",  () => {

@@ -127,11 +127,6 @@ async function validateAndCreateOrUpdateRecurser(dataset, template, user, sessio
     throw new Util.InputError(`The template uuid provided by the dataset (${dataset.template_uuid}) does not correspond to the template uuid expected by the template (${template.uuid})`);
   }
 
-  // Verify that the user has at least view permissions on this template
-  if(!(await TemplateModel.userHasAccessToPublishedTemplate(template, user))) {
-    throw new Util.InputError(`You do not have the view permissions required to create/update a dataset from template ${dataset.template_uuid}`);
-  }
-
   // Build object to create/update
   let name = "";
   let description = "";
@@ -794,4 +789,15 @@ exports.latestPublishedWithoutPermissions = async function(uuid) {
 
 exports.collection = function() {
   return Dataset;
+}
+
+exports.template_uuid = async function(uuid) {
+  let dataset = await SharedFunctions.latestPublished(Dataset, uuid);
+  if(!dataset) {
+    dataset = await SharedFunctions.draft(Dataset, uuid);
+  }
+
+  if(dataset) {
+    return dataset.template_uuid;
+  }
 }

@@ -59,14 +59,24 @@ async function create_permission(uuid, category, users, session) {
   } 
 }
 
-exports.initialize_permissions_for = async function(current_user, uuid, session) {
-  // TODO: after the user model is implemented, verify that current_user is a real user in the database
-  await create_permission(uuid, PERMISSION_ADMIN, [current_user], session);
-  await create_permission(uuid, PERMISSION_EDIT, [], session);
-  await create_permission(uuid, PERMISSION_VIEW, [], session);
+async function read_permissions(uuid, category) {
+  // uuid must be valid
+  if (!uuidValidate(uuid)) {
+    throw new Util.NotFoundError();
+  }
+
+  let cursor = await PermissionGroup.find({
+    uuid,
+    category
+  });
+  if (!(await cursor.hasNext())) {
+    throw new Util.NotFoundError();
+  } 
+  let first_result = await cursor.next();
+  return first_result.users;
 }
 
-exports.replace_permissions = async function(current_user, uuid, category, users) {
+async function replace_permissions(current_user, uuid, category, users) {
   // uuid must be valid
   if (!uuidValidate(uuid)) {
     throw new Util.NotFoundError();
@@ -99,29 +109,32 @@ exports.replace_permissions = async function(current_user, uuid, category, users
     {uuid, category},
     {$set: {users}}
   );
-  if (response.modifiedCount != 1) {
-    throw new Error(`PermissionGroup.create_permission: Failed to insert ${uuid}. Number of insertions = ${response.modifiedCount}`);
+  if (!response.result.ok) {
+    throw new Error(`PermissionGroup.replace_permission: Failed to update ${uuid}.`);
   } 
 }
 
-exports.read_permissions = async function(uuid, category) {
-  // uuid must be valid
-  if (!uuidValidate(uuid)) {
-    throw new Util.NotFoundError();
-  }
+exports.initialize_permissions_for = async function(current_user, uuid, session) {
+  // TODO: after the user model is implemented, verify that current_user is a real user in the database
+  await create_permission(uuid, PERMISSION_ADMIN, [current_user], session);
+  await create_permission(uuid, PERMISSION_EDIT, [], session);
+  await create_permission(uuid, PERMISSION_VIEW, [], session);
+}
 
-  let cursor = await PermissionGroup.find({
-    uuid,
-    category
-  });
-  if (!(await cursor.hasNext())) {
-    throw new Util.NotFoundError();
-  } 
-  let first_result = await cursor.next();
-  return first_result.users;
+exports.replace_permissions = replace_permissions;
+
+exports.read_permissions = read_permissions;
+
+exports.add_permissions = async function(user, uuid, category, users) {
+  // Combine current users at this permission level with the new users at this permission level
+  let current_users = await read_permissions(uuid, category);
+  let combined_users = Array.from(new Set([...current_users, ...users]));
+  await replace_permissions(user, uuid, category, combined_users);
 }
 
 exports.has_permission = has_permission;
+
 exports.PERMISSION_ADMIN = PERMISSION_ADMIN;
 exports.PERMISSION_EDIT = PERMISSION_EDIT;
 exports.PERMISSION_VIEW = PERMISSION_VIEW;
+exports.collection = collection;

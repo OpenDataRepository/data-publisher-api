@@ -444,7 +444,11 @@ describe("create (and get draft)", () => {
       related_record_2.uuid = related_record_2_published.uuid;
 
       let both_users = [Helper.DEF_CURR_USER, Helper.USER_2];
-      let response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, dataset.uuid, PERMISSION_EDIT, both_users);
+      let response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, template.uuid, PERMISSION_EDIT, both_users);
+      expect(response.statusCode).toBe(200);
+      response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, dataset.uuid, PERMISSION_EDIT, both_users);
+      expect(response.statusCode).toBe(200);
+      response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, template.related_templates[0].uuid, PERMISSION_VIEW, both_users);
       expect(response.statusCode).toBe(200);
       response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, related_record_1.dataset_uuid, PERMISSION_VIEW, both_users);
       expect(response.statusCode).toBe(200);
@@ -674,7 +678,9 @@ describe("create (and get draft)", () => {
       dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
 
       let both_users = [Helper.DEF_CURR_USER, Helper.USER_2];
-      let response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, dataset.uuid, PERMISSION_VIEW, both_users);
+      let response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, template.uuid, PERMISSION_VIEW, both_users);
+      expect(response.statusCode).toBe(200);
+      response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, dataset.uuid, PERMISSION_VIEW, both_users);
       expect(response.statusCode).toBe(200);
 
       let record = {
@@ -1159,7 +1165,9 @@ describe("get published", () => {
     record = await recordCreatePublishTest(record, Helper.DEF_CURR_USER);  
     
     let view_users = [Helper.USER_2, Helper.DEF_CURR_USER];
-    let response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, dataset.uuid, PERMISSION_VIEW, view_users);
+    let response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, template.uuid, PERMISSION_VIEW, view_users);
+    expect(response.statusCode).toBe(200);
+    response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, dataset.uuid, PERMISSION_VIEW, view_users);
     expect(response.statusCode).toBe(200);
 
     record.related_records[0] = {uuid: record.related_records[0].uuid};

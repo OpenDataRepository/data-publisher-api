@@ -211,7 +211,9 @@ describe("create (and get draft)", () => {
       related_dataset_2.uuid = related_dataset_2_published.uuid;
 
       let view_users = [Helper.DEF_CURR_USER, Helper.USER_2];
-      let response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, related_dataset_1_published.uuid, PERMISSION_VIEW, view_users);
+      let response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, template.related_templates[0].uuid, PERMISSION_VIEW, view_users);
+      expect(response.statusCode).toBe(200);
+      response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, related_dataset_1_published.uuid, PERMISSION_VIEW, view_users);
       expect(response.statusCode).toBe(200);
 
       response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, template.uuid, PERMISSION_VIEW, view_users);
@@ -687,6 +689,8 @@ describe("get draft", () => {
     let response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, dataset.uuid, PERMISSION_ADMIN, users);
     expect(response.statusCode).toBe(200);
 
+    response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, template.related_templates[0].uuid, PERMISSION_VIEW, users);
+    expect(response.statusCode).toBe(200);
     response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, dataset.related_datasets[0].uuid, PERMISSION_VIEW, users);
     expect(response.statusCode).toBe(200);
 
@@ -922,8 +926,10 @@ describe("publish (and get published)", () => {
       response = await Helper.datasetUpdate(draft.uuid, draft, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
 
-      // Give user 2 edit and view permissions to parent template
+      // Give user 2 edit and view permissions to parent dataset
       let view_users = [Helper.DEF_CURR_USER, Helper.USER_2];
+      response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, template.uuid, PERMISSION_VIEW, view_users);
+      expect(response.statusCode).toBe(200);
       response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, dataset.uuid, PERMISSION_VIEW, view_users);
       expect(response.statusCode).toBe(200);
       response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, dataset.uuid, PERMISSION_ADMIN, view_users);
@@ -1134,6 +1140,8 @@ describe("publish (and get published)", () => {
       expect(response.statusCode).toBe(401);
 
       // Even if that user has view permissions, they still shouldn't be able to publish
+      response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, template.uuid, PERMISSION_VIEW, [Helper.DEF_CURR_USER, Helper.USER_2]);
+      expect(response.statusCode).toBe(200);
       response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, uuid, PERMISSION_VIEW, [Helper.DEF_CURR_USER, Helper.USER_2]);
       expect(response.statusCode).toBe(200);
 
@@ -1198,7 +1206,9 @@ describe("get published", () => {
     dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);  
     
     let view_users = [Helper.USER_2, Helper.DEF_CURR_USER];
-    let response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, dataset.uuid, PERMISSION_VIEW, view_users);
+    let response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, template.uuid, PERMISSION_VIEW, view_users);
+    expect(response.statusCode).toBe(200);
+    response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, dataset.uuid, PERMISSION_VIEW, view_users);
     expect(response.statusCode).toBe(200);
 
     dataset.related_datasets[0] = {uuid: dataset.related_datasets[0].uuid};
@@ -1324,6 +1334,8 @@ describe("lastUpdate", () => {
       expect((new Date(response.body)).getTime()).toBeGreaterThan(timestamp.getTime());
 
       let view_users = [Helper.USER_2, Helper.DEF_CURR_USER];
+      response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, template.uuid, PERMISSION_VIEW, view_users);
+      expect(response.statusCode).toBe(200);
       response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, dataset.uuid, PERMISSION_VIEW, view_users);
       expect(response.statusCode).toBe(200);
 
