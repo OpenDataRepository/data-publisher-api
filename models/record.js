@@ -180,23 +180,33 @@ async function validateAndCreateOrUpdateRecurser(record, dataset, template, user
     public_date = new Date(record.public_date);
   }
 
+  // Fields are a bit more complicated
   if(!record.fields) {
     record.fields = [];
   }
   if (!Array.isArray(record.fields)){
     throw new Util.InputError('fields property must be of type array');
   }
-  if(record.fields.length != template.fields.length) {
-    throw new Util.InputError(`fields of record must correspond to fields of its template`);
+  // Create a map of records to fields
+  let record_field_map = {};
+  for (let field of record.fields) {
+    if(!field.uuid) {
+      throw new Util.InputError(`Each field in the record must supply a template_field uuid`);
+    }
+    if (record_field_map[field.uuid]) {
+      throw new Util.InputError(`A record can only supply a single value for each field`);
+    }
+    record_field_map[field.uuid] = field.value;
   }
-  for (let i = 0; i < record.fields.length; i++) {
+  for (let field of template.fields) {
     fields.push({
-      name: template.fields[i].name,
-      description: template.fields[i].description,
-      // TODO: Should I verify that the name of template.fields[i] and record.fields[i] match?
-      value: record.fields[i].value
+      uuid: field.uuid,
+      name: field.name,
+      description: field.description,
+      value: record_field_map[field.uuid]
     });
   }
+  // TODO: should I make the same change for related_records?
 
   // Need to determine if this draft is any different from the published one.
   let changes = false;

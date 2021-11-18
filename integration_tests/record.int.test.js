@@ -194,7 +194,9 @@ describe("create (and get draft)", () => {
       };
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
+      name_field.uuid = template.fields[0].uuid;
       name_field.value = "Caleb";
+      color_field.uuid = template.fields[1].uuid;
       color_field.value = "yellow - like the sun";
 
       let dataset = {
@@ -245,7 +247,9 @@ describe("create (and get draft)", () => {
       };
       dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
 
+      name_field.uuid = template.fields[0].uuid;
       name_field.value = "Caleb";
+      color_field.uuid = template.related_templates[0].fields[0].uuid;
       color_field.value = "yellow - like the sun";
 
       let record = {
@@ -690,6 +694,67 @@ describe("create (and get draft)", () => {
       expect(response.statusCode).toBe(401);
     })
 
+    test("Each field in the record must supply a template_field uuid", async () => {
+
+      let name_field = {
+        name: "name",
+        description: "someone's name"
+      };
+      let template = {
+        "name":"t1",
+        "fields":[name_field]
+      };
+      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+
+      name_field.uuid = template.fields[0].uuid;
+      name_field.value = "Caleb";
+
+      let dataset = {
+        name: "d1",
+        template_uuid: template.uuid
+      };
+      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+
+      delete name_field.uuid;
+      let record = {
+        dataset_uuid: dataset.uuid,
+        fields: [name_field]
+      };
+      let response = await recordCreate(record, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(400);
+
+    });
+
+    test("A record can only supply a single value for each field", async () => {
+
+      let name_field = {
+        name: "name",
+        description: "someone's name"
+      };
+      let template = {
+        "name":"t1",
+        "fields":[name_field]
+      };
+      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+
+      name_field.uuid = template.fields[0].uuid;
+      name_field.value = "Caleb";
+
+      let dataset = {
+        name: "d1",
+        template_uuid: template.uuid
+      };
+      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+
+      let record = {
+        dataset_uuid: dataset.uuid,
+        fields: [name_field, name_field]
+      };
+      let response = await recordCreate(record, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(400);
+
+    });
+
   });
 });
 
@@ -725,7 +790,9 @@ const populateWithDummyTemplateAndRecord = async () => {
   };
   dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
 
+  f1.uuid = template.fields[0].uuid;
   f1.value = "happy";
+  f2.uuid = template.related_templates[0].fields[0].uuid;
   f2.value = "strawberry";
 
   let record = {
@@ -760,6 +827,7 @@ describe("update", () => {
     });
 
     test("updating a related_record creates drafts of parents but not children", async () => {
+      let field = {"name": "t1.1.1 f1"};
       // Create and publish template
       let template = {
         "name":"t1",
@@ -767,7 +835,7 @@ describe("update", () => {
           "name": "t1.1",
           "related_templates":[{
             "name": "t1.1.1",
-            "fields": [{"name": "t1.1.1 f1"}],
+            "fields": [field],
             "related_templates":[{
               "name": "t1.1.1.1"
             }]
@@ -797,13 +865,16 @@ describe("update", () => {
       };
       dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
 
+      field.uuid = template.related_templates[0].related_templates[0].fields[0].uuid;
+      field.value = "strawberry";
+
       let record = {
         dataset_uuid: dataset.uuid,
         related_records: [{
           dataset_uuid: dataset.related_datasets[0].uuid,
           related_records: [{
             dataset_uuid: dataset.related_datasets[0].related_datasets[0].uuid,
-            fields: [{value: "strawberry"}],
+            fields: [field],
             related_records: [{
               dataset_uuid: dataset.related_datasets[0].related_datasets[0].related_datasets[0].uuid,
             }]
@@ -976,13 +1047,14 @@ describe("publish (and get published)", () => {
 
     test("Complex publish - changes in a nested property result in publishing for all parent properties", async () => {
       // Create and publish template
+      let field = {"name": "f1"};
       let template = {
         "name":"1",
         "related_templates":[{
           "name": "2",
           "related_templates":[{
             "name": "3",
-            "fields": [{"name": "f1"}],
+            "fields": [field],
             "related_templates":[{
               "name": "4"
             }]
@@ -1005,13 +1077,16 @@ describe("publish (and get published)", () => {
       };
       dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
 
+      field.uuid = template.related_templates[0].related_templates[0].fields[0].uuid;
+      field.value = "strawberry";
+
       let record = {
         dataset_uuid: dataset.uuid,
         related_records: [{
           dataset_uuid: dataset.related_datasets[0].uuid,
           related_records: [{
             dataset_uuid: dataset.related_datasets[0].related_datasets[0].uuid,
-            fields: [{value: "strawberry"}],
+            fields: [field],
             related_records: [{
               dataset_uuid: dataset.related_datasets[0].related_datasets[0].related_datasets[0].uuid,
             }]
@@ -1036,9 +1111,6 @@ describe("publish (and get published)", () => {
 
       // Record the date before we publish a second time
       let intermediate_publish_date = (new Date()).getTime();
-
-      // TODO: I think this is failing because update isn't creating a draft
-      // Need to test this more precisely. 
 
       // Now publish the record again
       let published = await recordPublishAndTest(record_uuid, record, Helper.DEF_CURR_USER);
@@ -1283,6 +1355,7 @@ describe("recordLastUpdate", () => {
 
     test("sub record updated and published later than parent dataset", async () => {
 
+      let field = {name: "t1.1f1"};
       let template = {
         "name": "t1",
         "related_templates": [{
@@ -1302,11 +1375,14 @@ describe("recordLastUpdate", () => {
       };
       dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
 
+      field.uuid = template.related_templates[0].fields[0].uuid;
+      field.value = "naruto";
+
       let record = {
         dataset_uuid: dataset.uuid,
         related_records: [{
           dataset_uuid: dataset.related_datasets[0].uuid,
-          fields: [{value: "naruto"}]
+          fields: [field]
         }]
       };
       record = await recordCreatePublishTest(record, Helper.DEF_CURR_USER);
@@ -1328,13 +1404,14 @@ describe("recordLastUpdate", () => {
     });
 
     test("grandchild updated, but child deleted. Updated time should still be grandchild updated", async () => {
+      let field = {name: "t3f1"};
       let template = {
         "name": "1",
         "related_templates": [{
           "name": "2",
           "related_templates": [{
             "name": "3",
-            fields: [{name: "t3f1"}]
+            fields: [field]
           }]
         }]
       };
@@ -1354,13 +1431,16 @@ describe("recordLastUpdate", () => {
       };
       dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
 
+      field.uuid = template.related_templates[0].related_templates[0].fields[0].uuid;
+      field.value = 'waffle';
+
       let record = {
         dataset_uuid: dataset.uuid,
         related_records: [{
           dataset_uuid: dataset.related_datasets[0].uuid,
           related_records: [{
             dataset_uuid: dataset.related_datasets[0].related_datasets[0].uuid,
-            fields: [{value: 'waffle'}]
+            fields: [field]
           }]
         }]
       };
@@ -1454,45 +1534,45 @@ test("full range of operations with big data", async () => {
   let t1f1 = {name: "t1f1"};
   let t1f2 = {name: "t1f2"};
   let t1f3 = {name: "t1f3"};
-  let t3_1f1 = {name: "t3.1f1"};
-  let t3_1f2 = {name: "t3.1f2"};
-  let t4_1f1 = {name: "t4.1f1"};
-  let t4_1f2 = {name: "t4.1f2"};
-  let t3_2f1 = {name: "t3.2f1"};
-  let t3_2f2 = {name: "t3.2f2"};
-  let t4_3f1 = {name: "t4.3f1"};
-  let t4_3f2 = {name: "t4.3f2"};
+  let t111f1 = {name: "t1.1.1f1"};
+  let t111f2 = {name: "t1.1.1f2"};
+  let t1111f1 = {name: "t1.1.1.1f1"};
+  let t1111f2 = {name: "t1.1.1.1f2"};
+  let t112f1 = {name: "t1.1.2f1"};
+  let t112f2 = {name: "t1.1.2f2"};
+  let t1121f1 = {name: "t1.1.2.1f1"};
+  let t1121f2 = {name: "t1.1.2.1f2"};
 
   let template = {
     name: "1",
     fields: [t1f1, t1f2, t1f3],
     related_templates: [
       {
-        name: "2.1",
+        name: "1.1",
         related_templates: [
           {
-            name: "3.1",
-            fields: [t3_1f1, t3_1f2],
+            name: "1.1.1",
+            fields: [t111f1, t111f2],
             related_templates: [
               {
-                name: "4.1",
-                fields: [t4_1f1, t4_1f2]
+                name: "1.1.1.1",
+                fields: [t1111f1, t1111f2]
               },
               {
-                name: "4.2"
+                name: "1.1.1.2"
               }
             ]
           },
           {
-            name: "3.2",
-            fields: [t3_2f1, t3_2f2],
+            name: "1.1.2",
+            fields: [t112f1, t112f2],
             related_templates: [
               {
-                name: "4.3",
-                fields: [t4_3f1, t4_3f2]
+                name: "1.1.2.1",
+                fields: [t1121f1, t1121f2]
               },
               {
-                name: "4.4"
+                name: "1.1.2.2"
               }
             ]
           }
@@ -1536,9 +1616,21 @@ test("full range of operations with big data", async () => {
   };
   dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
 
+  t1f1.uuid = template.fields[0].uuid;
+  t1f2.uuid = template.fields[1].uuid;
+  t1f3.uuid = template.fields[2].uuid;
+  t111f1.uuid = template.related_templates[0].related_templates[0].fields[0].uuid;
+  t111f2.uuid = template.related_templates[0].related_templates[0].fields[1].uuid;
+  t1111f1.uuid = template.related_templates[0].related_templates[0].related_templates[0].fields[0].uuid;
+  t1111f2.uuid = template.related_templates[0].related_templates[0].related_templates[0].fields[1].uuid;
+  t112f1.uuid = template.related_templates[0].related_templates[1].fields[0].uuid;
+  t112f2.uuid = template.related_templates[0].related_templates[1].fields[1].uuid;
+  t1121f1.uuid = template.related_templates[0].related_templates[1].related_templates[0].fields[0].uuid;
+  t1121f2.uuid = template.related_templates[0].related_templates[1].related_templates[0].fields[1].uuid;
+
   t1f1.value = "pumpkin";
-  t3_1f2.value = "friend";
-  t4_3f1.value = "mango";
+  t111f2.value = "friend";
+  t1121f1.value = "mango";
 
   let record = {
     dataset_uuid: dataset.uuid,
@@ -1549,11 +1641,11 @@ test("full range of operations with big data", async () => {
         related_records: [
           {
             dataset_uuid: dataset.related_datasets[0].related_datasets[0].uuid,
-            fields: [t3_1f1, t3_1f2],
+            fields: [t111f1, t111f2],
             related_records: [
               {
                 dataset_uuid: dataset.related_datasets[0].related_datasets[0].related_datasets[0].uuid,
-                fields: [t4_1f1, t4_1f2]
+                fields: [t1111f1, t1111f2]
               },
               {
                 dataset_uuid: dataset.related_datasets[0].related_datasets[0].related_datasets[1].uuid
@@ -1562,11 +1654,11 @@ test("full range of operations with big data", async () => {
           },
           {
             dataset_uuid: dataset.related_datasets[0].related_datasets[1].uuid,
-            fields: [t3_2f1, t3_2f2],
+            fields: [t112f1, t112f2],
             related_records: [
               {
                 dataset_uuid: dataset.related_datasets[0].related_datasets[1].related_datasets[0].uuid,
-                fields: [t4_3f1, t4_3f2]
+                fields: [t1121f1, t1121f2]
               },
               {
                 dataset_uuid: dataset.related_datasets[0].related_datasets[1].related_datasets[1].uuid

@@ -300,7 +300,23 @@ describe("create (and get draft after a create)", () => {
       await failureTest(invalidRelatedTemplates, Helper.DEF_CURR_USER, 400);
     })
 
-  })
+    test("A given template may only have a maximum of one instance of a field", async () => {
+  
+      let field = {
+        "name": "naruto"
+      };
+      field = await Helper.templateFieldCreatePublishTest(field, Helper.DEF_CURR_USER);
+
+      let template = { 
+        "name": "create template",
+        "description": "a template to test a create",
+        "fields": [field, field],
+      };
+      let response = await Helper.templateCreate(template, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(400);
+    });
+    
+  });
   
 });
 

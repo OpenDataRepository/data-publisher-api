@@ -395,6 +395,14 @@ async function validateAndCreateOrUpdate(template, user, session) {
       template.fields[i] = template.fields[i].uuid
     }
     fields = template.fields
+    // It is a requirement that no field be repeated. Verify this
+    let field_uuids = new Set();
+    for(let field of fields) {
+      if(field_uuids.has(field)) {
+        throw new Util.InputError(`Each template may only have one instance of any template field. Field ${field} duplicated`);
+      }
+      field_uuids.add(field);
+    }
   }
   // Reursively handle each of the related_templates
   if (template.related_templates !== undefined) {
