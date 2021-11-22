@@ -190,6 +190,9 @@ async function validateAndCreateOrUpdateRecurser(record, dataset, template, user
   // Create a map of records to fields
   let record_field_map = {};
   for (let field of record.fields) {
+    if(!Util.isObject(field)) {
+      throw new Util.InputError(`Each field in the record must be a json object`);
+    }
     if(!field.uuid) {
       throw new Util.InputError(`Each field in the record must supply a template_field uuid`);
     }
@@ -206,7 +209,6 @@ async function validateAndCreateOrUpdateRecurser(record, dataset, template, user
       value: record_field_map[field.uuid]
     });
   }
-  // TODO: should I make the same change for related_records?
 
   // Need to determine if this draft is any different from the published one.
   let changes = false;
@@ -218,27 +220,51 @@ async function validateAndCreateOrUpdateRecurser(record, dataset, template, user
   if (!Array.isArray(record.related_records)){
     throw new Util.InputError('related_records property must be of type array');
   }
-  if(record.related_records.length != dataset.related_datasets.length) {
-    throw new Util.InputError(`related_records of record must correspond to related_datasets of its dataset`);
+  if(record.related_records.length > dataset.related_datasets.length) {
+    throw new Util.InputError(`related_records of record cannot have more references than related_datasets of its dataset`);
   }
-  for (let i = 0; i < record.related_records.length; i++) {
-    let related_record;
+  let related_record_map = {};
+  for (let related_record of record.related_records) {
+    if(!Util.isObject(related_record)) {
+      throw new Util.InputError(`Each related_record in the record must be a json object`);
+    }
+    if(!related_record.dataset_uuid) {
+      throw new Util.InputError(`Each related_record in the record must supply a dataset_uuid`);
+    }
+    if(!related_record_map[related_record.dataset_uuid]) {
+      related_record_map[related_record.dataset_uuid] = [related_record];
+    } else {
+      related_record_map[related_record.dataset_uuid].push(related_record);
+    }
+  }
+  for (let i = 0; i < dataset.related_datasets.length; i++) {
+    let related_dataset_uuid = dataset.related_datasets[i].uuid;
+    if(!related_record_map[related_dataset_uuid] || related_record_map[related_dataset_uuid].length == 0) {
+      continue;
+    }
+    let related_record = related_record_map[related_dataset_uuid].shift();
     try {
       let new_changes;
-      [new_changes, related_record] = await validateAndCreateOrUpdateRecurser(record.related_records[i], dataset.related_datasets[i], template.related_templates[i], user, session);
+      [new_changes, related_record] = await validateAndCreateOrUpdateRecurser(related_record, dataset.related_datasets[i], template.related_templates[i], user, session);
       changes = changes || new_changes;
     } catch(err) {
       if (err instanceof Util.NotFoundError) {
         throw new Util.InputError(err.message);
       } else if (err instanceof Util.PermissionDeniedError) {
         // If we don't have admin permissions to the related_record, don't try to update/create it. Just link it
-        related_record = record.related_records[i].uuid;
+        related_record = related_record.uuid;
       } else {
         throw err;
       }
     }
     // After validating and updating the related_record, replace the related_record with a uuid reference
     related_records.push(related_record);
+  }
+  // Make sure the user didn't submit any extraneous data
+  for (related_dataset_uuid in related_record_map) {
+    if(related_record_map[related_dataset_uuid].length > 0) {
+      throw new Util.InputError(`Sumitted extraneous related_record with dataset_uuid: ${related_dataset_uuid}`);
+    }
   }
 
   // Now process the record data provided
@@ -351,7 +377,8 @@ async function draftFetchOrCreate(uuid, user) {
         } catch (err) {
           if (err instanceof Util.PermissionDeniedError || err instanceof Util.NotFoundError) {
             // If we don't have permission for the published version, or a published version doesn't exist, just attach a uuid and a flag marking no_permissions
-            related_record = {uuid: record_draft.related_records[i], no_permissions: true};
+            related_record = await fetchDraftOrCreateFromPublished(record_draft.related_records[i]);
+            related_record = {uuid: related_record.uuid, dataset_uuid: related_record.dataset_uuid, no_permissions: true};
           } 
           else {
             throw err;

@@ -964,11 +964,12 @@ describe("publish (and get published)", () => {
         name: "d1",
         template_uuid: template.uuid
       }
-      await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      let dataset_published = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
 
       template.description = "naruto";
       await Helper.templateUpdatePublishTest(template, Helper.DEF_CURR_USER);
 
+      dataset.uuid = dataset_published.uuid;
       await Helper.datasetUpdatePublishTest(dataset, Helper.DEF_CURR_USER);
       
     });
@@ -1261,6 +1262,7 @@ test("get published for a certain date", async () => {
 
   // dataset.uuid = uuid;
   dataset.description = "2";
+  dataset.uuid = uuid;
 
   response = await Helper.datasetUpdate(uuid, dataset, Helper.DEF_CURR_USER);
   expect(response.statusCode).toBe(200);

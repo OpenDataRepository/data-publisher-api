@@ -462,10 +462,46 @@ describe("create (and get draft)", () => {
 
       let record = {
         dataset_uuid: dataset.uuid,
-        related_records: [related_record_1, {uuid: related_record_2_published.uuid}]
+        related_records: [related_record_1, {uuid: related_record_2_published.uuid, dataset_uuid: related_record_2_published.dataset_uuid}]
       };
 
       await recordCreateAndTest(record, Helper.USER_2);
+
+    });
+
+    test("2 related records, but only 1 supplied", async () => {
+
+      let template1 = {
+        "name":"1",
+        "fields":[],
+        "related_templates":[{"name":"1.1"}, {"name":"1.2"}]
+      };
+      template1 = await Helper.templateCreatePublishTest(template1, Helper.DEF_CURR_USER);
+
+      let dataset = {
+        name: "d1",
+        template_uuid: template1.uuid,
+        related_datasets: [
+          {
+            name: "d1.1",
+            template_uuid: template1.related_templates[0].uuid
+          },
+          {
+            name: "d1.2",
+            template_uuid: template1.related_templates[1].uuid
+          }
+        ]
+      };
+      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+
+      let record = {
+        dataset_uuid: dataset.uuid,
+        related_records: [{
+          dataset_uuid: dataset.related_datasets[1].uuid,
+        }]
+      };
+
+      await recordCreateAndTest(record, Helper.DEF_CURR_USER);
 
     });
 
@@ -751,6 +787,61 @@ describe("create (and get draft)", () => {
         fields: [name_field, name_field]
       };
       let response = await recordCreate(record, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(400);
+
+    });
+
+    test("record cannot take related_record not accepted by template/dataset", async () => {
+
+      let template1 = {
+        "name":"1",
+        "fields":[],
+        "related_templates":[{"name":"1.1"}, {"name":"1.2"}]
+      };
+      template1 = await Helper.templateCreatePublishTest(template1, Helper.DEF_CURR_USER);
+
+      let dataset = {
+        name: "d1",
+        template_uuid: template1.uuid,
+        related_datasets: [
+          {
+            name: "d1.1",
+            template_uuid: template1.related_templates[0].uuid
+          },
+          {
+            name: "d1.2",
+            template_uuid: template1.related_templates[1].uuid
+          }
+        ]
+      };
+      let dataset1 = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      let dataset2 = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+
+      // First try to create a record with a related_record using an invalid dataset_uuid
+      let record = {
+        dataset_uuid: dataset1.uuid,
+        related_records: [
+          {
+            dataset_uuid: dataset2.related_datasets[0].uuid
+          }
+        ]
+      };
+      let response = await recordCreate(record, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(400);
+
+      // Second try to create a record with a related_record using a valid dataset_uuid, but more times than it's supported
+      record = {
+        dataset_uuid: dataset1.uuid,
+        related_records: [
+          {
+            dataset_uuid: dataset1.related_datasets[0].uuid
+          },
+          {
+            dataset_uuid: dataset1.related_datasets[0].uuid
+          }
+        ]
+      };
+      response = await recordCreate(record, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
 
     });

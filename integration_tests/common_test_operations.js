@@ -226,13 +226,13 @@ module.exports = class Helper {
     expect(response.statusCode).toBe(200);
     expect(response.body.inserted_uuid).toBeTruthy();
   
-    dataset.uuid = response.body.inserted_uuid;
+    let uuid = response.body.inserted_uuid;
     
-    response = await this.datasetDraftGet(dataset.uuid, curr_user);
+    response = await this.datasetDraftGet(uuid, curr_user);
     expect(response.statusCode).toBe(200);
     let created_dataset = response.body;
     expect(created_dataset).toMatchObject(dataset);
-    return dataset.uuid;
+    return created_dataset.uuid;
   };
 
   datasetUpdate = async (uuid, dataset, curr_user) => {
@@ -280,9 +280,9 @@ module.exports = class Helper {
 
   datasetCreatePublishTest = async (dataset, curr_user) => {
     let uuid = await this.datasetCreateAndTest(dataset, curr_user);
-    let dataset_template = await this.datasetPublishAndFetch(uuid, curr_user)
-    expect(dataset_template).toMatchObject(dataset);
-    return dataset_template;
+    let dataset_published = await this.datasetPublishAndFetch(uuid, curr_user)
+    expect(dataset_published).toMatchObject(dataset);
+    return dataset_published;
   };
 
   datasetCleanseMetadata = async (dataset) => {
