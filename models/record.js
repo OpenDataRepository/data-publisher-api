@@ -1,6 +1,7 @@
 const MongoDB = require('../lib/mongoDB');
 const { v4: uuidv4, validate: uuidValidate } = require('uuid');
 const Util = require('../lib/util');
+const TemplateFieldModel = require('./template_field');
 const TemplateModel = require('./template');
 const DatasetModel = require('./dataset');
 const PermissionGroupModel = require('./permission_group');
@@ -199,15 +200,33 @@ async function validateAndCreateOrUpdateRecurser(record, dataset, template, user
     if (record_field_map[field.uuid]) {
       throw new Util.InputError(`A record can only supply a single value for each field`);
     }
-    record_field_map[field.uuid] = field.value;
+    let record_field_data = {value: field.value};
+    if(field.radio_option_uuid) {
+      record_field_data.radio_option_uuid = field.radio_option_uuid;
+    }
+    record_field_map[field.uuid] = record_field_data;
   }
   for (let field of template.fields) {
-    fields.push({
+    let field_object = {
       uuid: field.uuid,
       name: field.name,
       description: field.description,
-      value: record_field_map[field.uuid]
-    });
+    };
+    let record_field_data = record_field_map[field.uuid];
+    if(field.radio_options) {
+      if(!record_field_data.radio_option_uuid) {
+        throw new Util.InputError(`Template field ${field.uuid} expects radio option`);
+      }
+      let value = TemplateFieldModel.findRadioOptionValue(field.radio_options, record_field_data.radio_option_uuid);
+      if(!value) {
+        throw new Util.InputError(`Template field ${field.uuid} does not support radio option uuid ${record_field_data.radio_option_uuid}`);
+      }
+      field_object.value = value;
+      field_object.radio_option_uuid = record_field_data.radio_option_uuid;
+    } else {
+      field_object.value = record_field_data.value;
+    }
+    fields.push(field_object);
   }
 
   // Need to determine if this draft is any different from the published one.

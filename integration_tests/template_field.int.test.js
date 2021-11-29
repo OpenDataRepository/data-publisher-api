@@ -26,6 +26,16 @@ const templateFieldUpdate = async (uuid, data, current_user) => {
     .set('Accept', 'application/json');
 };
 
+const templateFieldUpdateAndTest = async (template_field, curr_user) => {
+  delete template_field.updated_at
+  let response = await templateFieldUpdate(template_field.uuid, template_field, curr_user);
+  expect(response.statusCode).toBe(200);
+
+  response = await Helper.templateFieldDraftGet(template_field.uuid, curr_user);
+  expect(response.statusCode).toBe(200);
+  expect(response.body).toMatchObject(template_field);
+}
+
 const templateFieldLatestPublishedBeforeDate = async (uuid, timestamp, current_user) => {
   return await request(app)
     .get(`/template_field/${uuid}/${timestamp}`)
@@ -39,17 +49,85 @@ const templateFieldDraftDelete = async (uuid, current_user) => {
 };
 
 describe("create (and get draft after a create)", () => {
-  test("Success", async () => {
-    let data = {
-      name: "field",
-      description: "",
-      public_date: (new Date()).toISOString(),
-    };
-    let uuid = await Helper.templateFieldCreateAndTest(data, Helper.DEF_CURR_USER);
+  describe("success cases", () => {
+    test("Basic, no radio options", async () => {
+      let data = {
+        name: "field",
+        description: "",
+        public_date: (new Date()).toISOString(),
+      };
+      let uuid = await Helper.templateFieldCreateAndTest(data, Helper.DEF_CURR_USER);
+  
+      // Now test that all permission groups were created successfully
+      await Helper.testPermissionGroupsInitializedFor(uuid, Helper.DEF_CURR_USER);
+  
+    });
 
-    // Now test that all permission groups were created successfully
-    await Helper.testPermissionGroupsInitializedFor(uuid, Helper.DEF_CURR_USER);
+    test("with radio options 1-dimensional", async () => {
+      let data = {
+        name: "f1",
+        public_date: (new Date()).toISOString(),
+        radio_options: [
+          {
+            name: "naruto"
+          },
+          {
+            name: "sasuke"
+          },
+          {
+            name: "sakura"
+          }
+        ]
+      };
+      await Helper.templateFieldCreateAndTest(data, Helper.DEF_CURR_USER);
+    });
 
+    test("with radio options multi-dimensional", async () => {
+      let data = {
+        name: "f1",
+        public_date: (new Date()).toISOString(),
+        radio_options: [
+          {
+            name: "Sarutobi",
+            radio_options: [
+              {
+                name: "Jiraiya",
+                radio_options: [
+                  {
+                    name: "Naruto",
+                    radio_options: [
+                      {
+                        name: "Konohamaru",
+                      },
+                    ]
+                  },
+                ]
+              },
+              {
+                name: "Orochimaru",
+                radio_options: [
+                  {
+                    name: "Kabuto"
+                  },
+                  {
+                    name: "Sasuke"
+                  }
+                ]
+              },
+              {
+                name: "Tsunade",
+                radio_options: [
+                  {
+                    name: "Sakura"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      };
+      await Helper.templateFieldCreateAndTest(data, Helper.DEF_CURR_USER);
+    });
   });
 
   describe("failure cases", () => {
@@ -84,37 +162,148 @@ describe("create (and get draft after a create)", () => {
       await failureTest(data, 400);
     })
 
+    test("radio options", async () => {
+      let data = {
+        name: "f1",
+        public_date: (new Date()).toISOString(),
+        radio_options: "must be array"
+      };
+      // radio options must be an array
+      let response = await Helper.templateFieldCreate(data, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(400);
+
+      // radio options must contain objects
+      data.radio_options = ["elements must be objects"];
+      response = await Helper.templateFieldCreate(data, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(400);
+
+      // each radio option must have a name
+      data.radio_options = [{}];
+      response = await Helper.templateFieldCreate(data, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(400);
+
+      // each radio option name must be a string
+      data.radio_options = [{name: 6}];
+      response = await Helper.templateFieldCreate(data, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(400);
+
+    });
+
   });
 
 });
 
 describe("update (and get draft after an update)", () => {
 
-  let uuid;
+  let template_field;
 
   beforeEach(async() => {
-    let data = { 
+    template_field = { 
       "name": "field",
       "description": "description"
     };
-    uuid = await Helper.templateFieldCreateAndTest(data, Helper.DEF_CURR_USER);
+    template_field.uuid = await Helper.templateFieldCreateAndTest(template_field, Helper.DEF_CURR_USER);
   });
 
-  test("Success", async () => {
+  describe("success cases", () => {
+    test("Basic", async () => {
 
-    let data = { 
-      "uuid": uuid,
-      "name": "different name",
-      public_date: (new Date()).toISOString()
-    };
+      let data = { 
+        "uuid": template_field.uuid,
+        "name": "different name",
+        public_date: (new Date()).toISOString()
+      };
 
-    let response = await templateFieldUpdate(uuid, data, Helper.DEF_CURR_USER);
-    expect(response.statusCode).toBe(200);
-  
-    response = await Helper.templateFieldDraftGet(uuid, Helper.DEF_CURR_USER);
-    expect(response.statusCode).toBe(200);
-    expect(response.body).toMatchObject(data);
+      let response = await templateFieldUpdate(template_field.uuid, data, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+    
+      response = await Helper.templateFieldDraftGet(template_field.uuid, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+      expect(response.body).toMatchObject(data);
 
+    });
+
+    test("with radio options 1-dimensional", async () => {
+      template_field.radio_options = [
+        {
+          name: "naruto"
+        },
+        {
+          name: "sasuke"
+        },
+        {
+          name: "sakura"
+        }
+      ];
+      await templateFieldUpdateAndTest(template_field, Helper.DEF_CURR_USER);
+
+      let response = await Helper.templateFieldDraftGet(template_field.uuid, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+      template_field = response.body;
+
+      template_field.radio_options.push({
+        name: "caleb"
+      });
+      await templateFieldUpdateAndTest(template_field, Helper.DEF_CURR_USER);
+
+    });
+
+    test("with radio options multi-dimensional", async () => {
+      let template_field = {
+        name: "f1",
+        public_date: (new Date()).toISOString(),
+        radio_options: [
+          {
+            name: "Sarutobi",
+            radio_options: [
+              {
+                name: "Jiraiya",
+                radio_options: [
+                  {
+                    name: "Naruto",
+                    radio_options: [
+                      {
+                        name: "Konohamaru",
+                      },
+                    ]
+                  },
+                ]
+              },
+              {
+                name: "Orochimaru",
+                radio_options: [
+                  {
+                    name: "Kabuto"
+                  },
+                  {
+                    name: "Sasuke"
+                  }
+                ]
+              },
+              {
+                name: "Tsunade",
+                radio_options: [
+                  {
+                    name: "Sakura"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      };
+      let uuid = await Helper.templateFieldCreateAndTest(template_field, Helper.DEF_CURR_USER);
+
+      let response = await Helper.templateFieldDraftGet(uuid, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+      template_field = response.body;
+
+      template_field.radio_options.push({
+        name: "caleb"
+      });
+      await templateFieldUpdateAndTest(template_field, Helper.DEF_CURR_USER);
+
+    });
   });
 
   describe("Failure cases", () => {
@@ -125,7 +314,7 @@ describe("update (and get draft after an update)", () => {
         "name": "name"
       };
 
-      let response = await templateFieldUpdate(uuid, data, Helper.DEF_CURR_USER);
+      let response = await templateFieldUpdate(template_field.uuid, data, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
 
     })
@@ -145,13 +334,35 @@ describe("update (and get draft after an update)", () => {
     test("user must have edit permissions", async () => {
 
       let data = { 
-        "uuid": uuid,
+        "uuid": template_field.uuid,
         "name": "different name"
       };
   
-      let response = await templateFieldUpdate(uuid, data);
+      let response = await templateFieldUpdate(template_field.uuid, data);
       expect(response.statusCode).toBe(401);
     })
+
+    test("radio options", async () => {
+      template_field.radio_options = [
+        {name: "caleb"},
+        {name: "naruto"}
+      ];
+      await templateFieldUpdateAndTest(template_field, Helper.DEF_CURR_USER);
+      let response = await Helper.templateFieldDraftGet(template_field.uuid, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+      template_field = response.body;
+
+      // radio options uuids supplied must exist
+      template_field.radio_options[0].uuid = Helper.VALID_UUID;
+      response = await templateFieldUpdate(template_field, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(400);
+
+      // radio options uuids supplied must exist
+      template_field.radio_options[0].uuid = template_field.radio_options[1].uuid;
+      response = await templateFieldUpdate(template_field, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(400);
+
+    });
   })
   
 });

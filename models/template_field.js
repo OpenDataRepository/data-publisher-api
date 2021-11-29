@@ -2,6 +2,7 @@ const MongoDB = require('../lib/mongoDB');
 const { v4: uuidv4, validate: uuidValidate } = require('uuid');
 const Util = require('../lib/util');
 const PermissionGroupModel = require('./permission_group');
+const SharedFunctions = require('./shared_functions');
 
 var TemplateField;
 
@@ -94,6 +95,71 @@ function fieldEquals(field1, field2) {
   return field1.name == field2.name && field1.description == field2.description && field1.public_date == field2.public_date;
 }
 
+function parseRadioOptions(radio_options, previous_radio_options_uuids, current_radio_options_uuids) {
+  if(!Array.isArray(radio_options)) {
+    throw new Util.InputError(`Radio options must be an array.`);
+  }
+  let return_radio_options = [];
+  for(radio_option of radio_options) {
+    if(!Util.isObject(radio_option)) {
+      throw new Util.InputError(`Each radio_option in the field must be a json object`);
+    }
+    let cleansed_radio_option = {};
+    if (!radio_option.name) {
+      throw new Util.InputError('each radio option must have a name');
+    }
+    if (typeof(radio_option.name) !== 'string'){
+      throw new Util.InputError('each radio option name must be of type string');
+    }
+    cleansed_radio_option.name = radio_option.name;
+    
+    if(radio_option.radio_options) {
+      cleansed_radio_option.radio_options = parseRadioOptions(radio_option.radio_options, previous_radio_options_uuids, current_radio_options_uuids);
+    } else {
+      if (radio_option.uuid) {
+        if(!previous_radio_options_uuids.has(radio_option.uuid)) {
+          throw new Util.InputError(`Cannot provide radio option uuid ${radio_option.uuid}. May only specify uuids that already exist.`);
+        }
+        if(current_radio_options_uuids.has(radio_option.uuid)) {
+          throw new Util.InputError(`Radio option uuid ${radio_option.uuid} duplicated. Each option may only be supplied once`);
+        }
+        current_radio_options_uuids.add(radio_option.uuid);
+        cleansed_radio_option.uuid = radio_option.uuid;
+      } else {
+        cleansed_radio_option.uuid = uuidv4();
+      }
+    }
+    return_radio_options.push(cleansed_radio_option)
+  }
+  return return_radio_options;
+}
+
+function buildRadioOptionSet(radio_options, set) {
+  for(option of radio_options) {
+    if(option.uuid) {
+      set.add(option.uuid);
+    }
+    if(option.radio_options) {
+      buildRadioOptionSet(option.radio_options, set);
+    }
+  }
+}
+
+function findRadioOptionValue(radio_options, uuid) {
+  for(let radio_option of radio_options) {
+    if(radio_option.uuid == uuid) {
+      return radio_option.name;
+    }
+    if(radio_option.radio_options) {
+      let value = findRadioOptionValue(radio_option.radio_options, uuid);
+      if(value) {
+        return value;
+      }
+    }
+  }
+  return undefined;
+}
+
 // Updates the field with the given uuid if provided in the field object. 
 // If no uuid is included in the field object., create a new field.
 // Also validate input. 
@@ -115,11 +181,7 @@ async function validateAndCreateOrUpdate(field, user, session) {
     }
 
     // Field uuid must exist
-    let cursor = await TemplateField.find(
-      {"uuid": field.uuid},
-      {session}
-    );
-    if (!(await cursor.hasNext())) {
+    if (!(await SharedFunctions.exists(TemplateField, field.uuid))) {
       throw new Util.NotFoundError(`No field exists with uuid ${field.uuid}`);
     }
 
@@ -166,6 +228,14 @@ async function validateAndCreateOrUpdate(field, user, session) {
     }
     public_date = new Date(field.public_date);
   }
+  if(field.radio_options) {
+    let latest_field = await SharedFunctions.latestDocument(TemplateField, field.uuid);
+    let previous_radio_options_uuids = new Set();
+    if(latest_field && latest_field.radio_options) {
+      buildRadioOptionSet(latest_field.radio_options, previous_radio_options_uuids);
+    }
+    field.radio_options = parseRadioOptions(field.radio_options, previous_radio_options_uuids, new Set());
+  }
 
   // Update the template field in the database
   let new_field = {
@@ -176,6 +246,9 @@ async function validateAndCreateOrUpdate(field, user, session) {
   }
   if (public_date) {
     new_field.public_date = public_date;
+  }
+  if(field.radio_options) {
+    new_field.radio_options = field.radio_options;
   }
 
   // If this draft is identical to the latest published, delete it.
@@ -209,21 +282,6 @@ async function validateAndCreateOrUpdate(field, user, session) {
   return [true, field.uuid];
 }
 
-async function draft(uuid, session) {
-  let cursor = await TemplateField.find(
-    {"uuid": uuid, 'publish_date': {'$exists': false}},
-    {session}
-  );
-  if(!(await cursor.hasNext())) {
-    return null;
-  } 
-  let draft = await cursor.next();
-  if (await cursor.hasNext()) {
-    throw `TemplateField.draft: Multiple drafts found for field with uuid ${uuid}`;
-  }
-  return draft;
-}
-
 async function draftFetchOrCreate(uuid, user, session) {
 
   if (!uuidValidate(uuid)) {
@@ -231,7 +289,7 @@ async function draftFetchOrCreate(uuid, user, session) {
   }
   
   // See if a draft of this template field exists. 
-  let template_field_draft = await draft(uuid, session);
+  let template_field_draft = await SharedFunctions.draft(TemplateField, uuid, session);
 
   // If a draft of this template field already exists, return it.
   if (template_field_draft) {
@@ -298,7 +356,7 @@ async function publishField(uuid, session, last_update, user) {
   let has_permission = await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT);
 
   // Check if a draft with this uuid exists
-  let field_draft = await draft(uuid, session);
+  let field_draft = await SharedFunctions.draft(TemplateField, uuid, session);
   if(!field_draft) {
     // There is no draft of this uuid. Get the latest published field instead.
     if (!published_field) {
@@ -492,7 +550,7 @@ exports.draftDelete = async function(uuid, user) {
     throw new Util.InputError('The uuid provided is not in proper uuid format.');
   }
 
-  let field = await draft(uuid);
+  let field = await SharedFunctions.draft(TemplateField, uuid);
   if(!field) {
     throw new Util.NotFoundError();
   }
@@ -513,7 +571,7 @@ exports.lastUpdate = async function(uuid, user) {
     throw new Util.InputError('The uuid provided is not in proper uuid format.');
   }
 
-  let field_draft = await draft(uuid);
+  let field_draft = await SharedFunctions.draft(TemplateField, uuid);
   let field_published = await latestPublished(uuid);
   let edit_permission = await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT);
   let view_permission = await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_VIEW);
@@ -573,3 +631,5 @@ exports.duplicate = async function(field, user, session) {
   } 
   return field.uuid;
 }
+
+exports.findRadioOptionValue = findRadioOptionValue;

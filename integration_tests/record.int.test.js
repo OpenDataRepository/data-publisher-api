@@ -505,6 +505,70 @@ describe("create (and get draft)", () => {
 
     });
 
+    test("With radio buttons", async () => {
+
+      let field = {
+        name: "f1",
+        public_date: (new Date()).toISOString(),
+        radio_options: [
+          {
+            name: "naruto"
+          },
+          {
+            name: "sasuke"
+          },
+          {
+            name: "sakura"
+          },
+          {
+            name: "caleb",
+            radio_options: [
+              {
+                name: "super_duper"
+              }
+            ]
+          }
+        ]
+      };
+      let template = {
+        "name":"t1",
+        "fields":[field]
+      };
+      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+
+      field.uuid = template.fields[0].uuid;
+      field.radio_options = template.fields[0].radio_options;
+
+      let dataset = {
+        name: "d1",
+        template_uuid: template.uuid
+      };
+      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+
+      let radio_option_uuid_1 = field.radio_options[0].uuid;
+      let radio_option_uuid_2 = field.radio_options[3].radio_options[0].uuid;
+
+      field.radio_option_uuid = radio_option_uuid_1;
+      delete field.radio_options;
+      delete field.public_date;
+
+      let record = {
+        dataset_uuid: dataset.uuid,
+        fields: [field]
+      };
+      let uuid = await recordCreateAndTest(record, Helper.DEF_CURR_USER);
+      let response = await recordDraftGet(uuid, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+      expect(response.body.fields[0].value).toEqual("naruto");
+
+      record.fields[0].radio_option_uuid = radio_option_uuid_2;
+      uuid = await recordCreateAndTest(record, Helper.DEF_CURR_USER);
+      response = await recordDraftGet(uuid, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+      expect(response.body.fields[0].value).toEqual("super_duper");
+
+    });
+
   });
 
   describe("Failure cases", () => {
@@ -841,6 +905,53 @@ describe("create (and get draft)", () => {
           }
         ]
       };
+      response = await recordCreate(record, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(400);
+
+    });
+
+    test("radio options invalid", async () => {
+
+      let field = {
+        name: "f1",
+        public_date: (new Date()).toISOString(),
+        radio_options: [
+          {
+            name: "naruto"
+          },
+          {
+            name: "sasuke"
+          },
+          {
+            name: "sakura"
+          }
+        ]
+      };
+      let template = {
+        "name":"t1",
+        "fields":[field]
+      };
+      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+
+      field.uuid = template.fields[0].uuid;
+      field.radio_options = template.fields[0].radio_options;
+
+      let dataset = {
+        name: "d1",
+        template_uuid: template.uuid
+      };
+      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+
+      // do not supply radio_option_uuid
+      let record = {
+        dataset_uuid: dataset.uuid,
+        fields: [field]
+      };
+      let response = await recordCreate(record, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(400);
+
+      // radio_option_uuid supplied not supported
+      record.dataset_uuid = Helper.VALID_UUID;
       response = await recordCreate(record, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
 

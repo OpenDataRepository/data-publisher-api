@@ -3,7 +3,7 @@ const Util = require('../lib/util');
 
 // Fetches the draft with the given uuid. 
 // Does not look up fields or related_templates
-exports.draft = async (collection, uuid, session) => {
+const draft = async (collection, uuid, session) => {
   let cursor = await collection.find(
     {"uuid": uuid, 'publish_date': {'$exists': false}}, 
     {session}
@@ -18,6 +18,7 @@ exports.draft = async (collection, uuid, session) => {
   }
   return draft;
 }
+exports.draft = draft;
 
 // Fetches the latest published document with the given uuid. 
 // Does not look up related documents
@@ -33,6 +34,15 @@ const latestPublished = async (collection, uuid, session) => {
   return await cursor.next();
 }
 exports.latestPublished = latestPublished;
+
+exports.latestDocument = async (collection, uuid) => {
+  let result = await draft(collection, uuid);
+  if(result) {
+    return result;
+  }
+  result = await latestPublished(collection, uuid);
+  return result;
+}
 
 // Returns true if the document exists
 exports.exists = async (collection, uuid, session) => {
@@ -56,7 +66,7 @@ exports.uuidFor_id = async (collection, _id, session) => {
   return document.uuid;
 }
 
-exports.latest_published_id_for_uuid = async function(collection, uuid) {
+exports.latest_published_id_for_uuid = async (collection, uuid) => {
   let document = await latestPublished(collection, uuid);
   return document ? document._id : null;
 }
@@ -92,7 +102,7 @@ exports.publishDateFor_id = async (collection, _id, session) => {
   return document.publish_date;
 }
 
-exports.latest_published_time_for_uuid = async function(collection, uuid) {
+exports.latest_published_time_for_uuid = async (collection, uuid) => {
   let document = await latestPublished(collection, uuid);
   return document ? document.publish_date : null;
 }
