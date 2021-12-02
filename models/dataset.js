@@ -92,7 +92,7 @@ async function draftDifferentFromLastPublished(draft) {
 }
 
 // A recursive helper for validateAndCreateOrUpdate.
-async function validateAndCreateOrUpdateRecurser(dataset, template, user, session) {
+async function validateAndCreateOrUpdateRecurser(dataset, template, user, session, group_uuid) {
 
   // dataset must be an object
   if (!Util.isObject(dataset)) {
@@ -115,6 +115,8 @@ async function validateAndCreateOrUpdateRecurser(dataset, template, user, sessio
     if (!(await PermissionGroupModel.has_permission(user, dataset.uuid, PermissionGroupModel.PERMISSION_ADMIN))) {
       throw new Util.PermissionDeniedError(`Do not have admin permissions for dataset uuid: ${dataset.uuid}`);
     }
+
+    group_uuid = (await SharedFunctions.latestDocument(Dataset, dataset.uuid)).group_uuid;
   }
   // Otherwise, this is a create, so generate a new uuid
   else {
@@ -172,7 +174,7 @@ async function validateAndCreateOrUpdateRecurser(dataset, template, user, sessio
     let related_dataset;
     try {
       let new_changes;
-      [new_changes, related_dataset] = await validateAndCreateOrUpdateRecurser(dataset.related_datasets[i], template.related_templates[i], user, session);
+      [new_changes, related_dataset] = await validateAndCreateOrUpdateRecurser(dataset.related_datasets[i], template.related_templates[i], user, session, group_uuid);
       changes = changes || new_changes;
     } catch(err) {
       if (err instanceof Util.NotFoundError) {
@@ -194,6 +196,7 @@ async function validateAndCreateOrUpdateRecurser(dataset, template, user, sessio
     template_uuid: dataset.template_uuid,
     name: name,
     description: description,
+    group_uuid,
     related_datasets: related_datasets
   };
   if(public_date) {
@@ -263,7 +266,19 @@ async function validateAndCreateOrUpdate(dataset, user, session) {
     throw error;
   }
 
-  return await validateAndCreateOrUpdateRecurser(dataset, template, user, session);
+  // If this dataset does not already have a group uuid, create one for it
+  let group_uuid;
+  if (dataset.uuid) {
+    let previous_dataset = await SharedFunctions.latestDocument(Dataset, dataset.uuid);
+    if (previous_dataset) {
+      group_uuid = previous_dataset.group_uuid;
+    }
+  }
+  if(!group_uuid) {
+    group_uuid = uuidv4();
+  }
+
+  return await validateAndCreateOrUpdateRecurser(dataset, template, user, session, group_uuid);
 
 }
 
@@ -300,7 +315,7 @@ async function draftFetchOrCreate(uuid, user, session) {
   }
   
   // Make sure this user has a permission to be working with drafts
-  if (!(await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_ADMIN))) {
+  if (!(await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_ADMIN, session))) {
     throw new Util.PermissionDeniedError(`You do not have the edit permissions required to view draft ${uuid}`);
   }
 
@@ -654,6 +669,55 @@ async function latestPublishedWithJoinsAndPermissions(uuid, user) {
   return await latestPublishedBeforeDateWithJoinsAndPermissions(uuid, new Date(), user);
 }
 
+async function duplicateRecursor(original_dataset, original_group_uuid, new_group_uuid, user, session) {
+  // verify that this user is in the 'view' permission group
+  if (!(await SharedFunctions.userHasAccessToPublishedResource(original_dataset, user, PermissionGroupModel))) {
+    throw new Util.PermissionDeniedError(`Do not have view permissions required to duplicate dataset: ${original_dataset.uuid}`);
+  }
+
+  if(original_dataset.group_uuid != original_group_uuid) {
+    return original_dataset.uuid;
+  }
+
+  let new_dataset = {
+    uuid: uuidv4(),
+    updated_at: new Date(),
+    template_uuid: original_dataset.template_uuid,
+    group_uuid: new_group_uuid,
+    related_datasets: []
+  }
+  for(dataset of original_dataset.related_datasets) {
+    try {
+      new_dataset.related_datasets.push(await duplicateRecursor(dataset, original_group_uuid, new_group_uuid, user, session));
+    } catch(error) {
+      if(!(error instanceof Util.PermissionDeniedError)) {
+        throw error;
+      }
+    }
+  }
+
+  // If a draft of this record already exists: overwrite it, using it's same uuid
+  // If a draft of this record doesn't exist: create a new draft
+  // Fortunately both cases can be handled with a single MongoDB UpdateOne query using upsert: true
+  let response = await Dataset.insertOne(
+    new_dataset, 
+    {session}
+  );
+  if (response.insertedCount != 1) {
+    throw new Error(`Dataset.duplicateRecursor: Inserted: ${response.insertedCount}.`);
+  } 
+  await PermissionGroupModel.initialize_permissions_for(user, new_dataset.uuid, session);
+
+  return new_dataset.uuid;
+}
+
+async function duplicate(uuid, user, session) {
+  let original_dataset = await latestPublishedWithJoinsAndPermissions(uuid, user);
+  let original_group_uuid = original_dataset.group_uuid;
+  let new_uuid = await duplicateRecursor(original_dataset, original_group_uuid, uuidv4(), user, session);
+  return await draftFetchOrCreate(new_uuid, user, session);
+}
+
 // Wraps the actual request to create with a transaction
 exports.create = async function(dataset, user) {
   const session = MongoDB.newSession();
@@ -799,5 +863,26 @@ exports.template_uuid = async function(uuid) {
 
   if(dataset) {
     return dataset.template_uuid;
+  }
+}
+
+// Wraps the actual request to duplicate with a transaction
+exports.duplicate = async function(uuid, user) {
+  const session = MongoDB.newSession();
+  let new_dataset;
+  try {
+    await session.withTransaction(async () => {
+      try {
+        new_dataset = await duplicate(uuid, user, session);
+      } catch(err) {
+        await session.abortTransaction();
+        throw err;
+      }
+    });
+    session.endSession();
+    return new_dataset;
+  } catch(err) {
+    session.endSession();
+    throw err;
   }
 }

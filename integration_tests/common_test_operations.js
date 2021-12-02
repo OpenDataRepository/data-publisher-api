@@ -231,6 +231,7 @@ module.exports = class Helper {
     response = await this.datasetDraftGet(uuid, curr_user);
     expect(response.statusCode).toBe(200);
     let created_dataset = response.body;
+    this.datasetCleanseMetadata(dataset);
     expect(created_dataset).toMatchObject(dataset);
     return created_dataset.uuid;
   };
@@ -285,7 +286,7 @@ module.exports = class Helper {
     return dataset_published;
   };
 
-  datasetCleanseMetadata = async (dataset) => {
+  datasetCleanseMetadata = (dataset) => {
     if(!dataset) {
       return;
     }  

@@ -38,6 +38,12 @@ const datasetLatestPublishedBeforeDate = async (uuid, timestamp, curr_user) => {
     .set('Cookie', [`user=${curr_user}`]);
 }
 
+const datasetDuplicate = async (uuid, curr_user) => {
+  return await request(app)
+    .post(`/dataset/${uuid}/duplicate`)
+    .set('Cookie', [`user=${curr_user}`]);
+}
+
 describe("create (and get draft)", () => {
   describe("Success cases", () => {
 
@@ -228,6 +234,70 @@ describe("create (and get draft)", () => {
       await Helper.datasetCreateAndTest(dataset, Helper.USER_2);
 
     });
+
+    test("group ids are the same for datasets created together, but different for anything linked that was created elsewhere", async () => {
+
+      let template = {
+        name:"t1",
+        related_templates:[
+          {
+            name: "t1.1",
+            related_templates:[{
+              name: "t1.1.1"
+            }]
+          },
+          {
+            name: "t1.2",
+            related_templates:[{
+              name: "t1.2.1"
+            }]
+          }
+        ]
+      };
+      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+
+      let dataset12 = {
+        name: "d1.2",
+        template_uuid: template.related_templates[1].uuid,
+        related_datasets: [{
+          name: "d1.2.1",
+          template_uuid: template.related_templates[1].related_templates[0].uuid
+        }]
+      }
+      let uuid12 = await Helper.datasetCreateAndTest(dataset12, Helper.DEF_CURR_USER);
+      let response = await Helper.datasetDraftGet(uuid12, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+      dataset12 = response.body;
+      Helper.datasetCleanseMetadata(dataset12);
+
+      let dataset1 = {
+        name: "d1",
+        template_uuid: template.uuid,
+        related_datasets: [
+          {
+            name: "d1.1",
+            template_uuid: template.related_templates[0].uuid,
+            related_datasets: [{
+              name: "d1.1.1",
+              template_uuid: template.related_templates[0].related_templates[0].uuid
+            }]
+          },
+          dataset12
+        ]
+      };
+      let uuid1 = await Helper.datasetCreateAndTest(dataset1, Helper.DEF_CURR_USER);
+      response = await Helper.datasetDraftGet(uuid1, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+      dataset1 = response.body;
+
+      // check that dataset 1, 1.1, and 1.1.1 all have the same group_uuid, and that 1.2 and 1.2.1 have the same group_uuid (but different than 1)
+      expect(dataset1.group_uuid).toEqual(dataset1.related_datasets[0].group_uuid);
+      expect(dataset1.group_uuid).toEqual(dataset1.related_datasets[0].related_datasets[0].group_uuid);
+      expect(dataset1.group_uuid).not.toEqual(dataset1.related_datasets[1].group_uuid);
+      expect(dataset1.related_datasets[1].group_uuid).toEqual(dataset1.related_datasets[1].related_datasets[0].group_uuid);
+
+    });
+
   });
 
   describe("Failure cases", () => {
@@ -1590,3 +1660,148 @@ describe("delete", () => {
     expect(response.statusCode).toBe(401);
   });
 });
+
+describe("duplicate", () => {
+  describe("success", () => {
+    test("normal test, some things in the same group_uuid and some not", async () => {
+      let template = {
+        name:"t1",
+        related_templates:[
+          {
+            name: "t1.1",
+            related_templates:[{
+              name: "t1.1.1"
+            }]
+          },
+          {
+            name: "t1.2",
+            related_templates:[{
+              name: "t1.2.1"
+            }]
+          }
+        ]
+      };
+      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+
+      let dataset12 = {
+        template_uuid: template.related_templates[1].uuid,
+        related_datasets: [{
+          template_uuid: template.related_templates[1].related_templates[0].uuid
+        }]
+      }
+      let uuid12 = await Helper.datasetCreateAndTest(dataset12, Helper.DEF_CURR_USER);
+      let response = await Helper.datasetDraftGet(uuid12, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+      dataset12 = response.body;
+      Helper.datasetCleanseMetadata(dataset12);
+
+      let dataset1 = {
+        template_uuid: template.uuid,
+        related_datasets: [
+          {
+            template_uuid: template.related_templates[0].uuid,
+            related_datasets: [{
+              template_uuid: template.related_templates[0].related_templates[0].uuid
+            }]
+          },
+          dataset12
+        ]
+      };
+      let uuid1 = await Helper.datasetCreateAndTest(dataset1, Helper.DEF_CURR_USER);
+      dataset1 = await Helper.datasetPublishAndFetch(uuid1, Helper.DEF_CURR_USER)
+
+      // Necessary because fetching the published doesn't guarentee the order of the related_datasets
+      let dataset11;
+      if(dataset1.related_datasets[0].uuid = dataset12.uuid) {
+        dataset12 = dataset1.related_datasets[0];
+        dataset11 = dataset1.related_datasets[1];
+      } else {
+        dataset12 = dataset1.related_datasets[1];
+        dataset11 = dataset1.related_datasets[0];
+      }
+
+      expect(dataset1.group_uuid).toEqual(dataset11.group_uuid);
+      expect(dataset1.group_uuid).toEqual(dataset11.related_datasets[0].group_uuid);
+      expect(dataset1.group_uuid).not.toEqual(dataset12.group_uuid);
+      expect(dataset12.group_uuid).toEqual(dataset12.related_datasets[0].group_uuid);
+
+      response = await datasetDuplicate(uuid1, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+      let new_dataset = response.body;
+
+      let new_dataset_11;
+      let new_dataset_12;
+      if(new_dataset.related_datasets[0].template_uuid == dataset11.template_uuid) {
+        new_dataset_11 = new_dataset.related_datasets[0];
+        new_dataset_12 = new_dataset.related_datasets[1];
+      } else {
+        new_dataset_11 = new_dataset.related_datasets[1];
+        new_dataset_12 = new_dataset.related_datasets[0];
+      }
+
+      // Expect duplicate to keep all of the templates of the original
+      expect(new_dataset.template_uuid).toEqual(dataset1.template_uuid);
+      expect(new_dataset_11.template_uuid).toEqual(dataset11.template_uuid);
+      expect(new_dataset_11.related_datasets[0].template_uuid).toEqual(dataset11.related_datasets[0].template_uuid);
+      expect(new_dataset_12.template_uuid).toEqual(dataset12.template_uuid);
+      expect(new_dataset_12.related_datasets[0].template_uuid).toEqual(dataset12.related_datasets[0].template_uuid);
+
+      // Expect duplicate to keep the group categories as found in the original dataset
+      expect(new_dataset.group_uuid).toEqual(new_dataset_11.group_uuid);
+      expect(new_dataset.group_uuid).toEqual(new_dataset_11.related_datasets[0].group_uuid);
+      expect(new_dataset_12.group_uuid).toEqual(dataset12.group_uuid)
+      expect(new_dataset.group_uuid).not.toEqual(new_dataset_12.group_uuid);
+      expect(new_dataset_12.group_uuid).toEqual(new_dataset_12.related_datasets[0].group_uuid);
+
+    });
+    // TODO: Duplicate a dataset with a couple items in the same category id
+    test("if don't have a permission to a related_template, it is dropped and parent is still duplicated", async () => {
+      let template = {
+        name:"t1",
+        public_date: (new Date()).toISOString(),
+        related_templates:[
+          {
+            name: "t1.1"
+          }
+        ]
+      };
+      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+
+      let related_dataset = {
+        template_uuid: template.related_templates[0].uuid
+      };
+      related_dataset = await Helper.datasetCreatePublishTest(related_dataset, Helper.DEF_CURR_USER);
+
+      let dataset = {
+        template_uuid: template.uuid,
+        public_date: (new Date()).toISOString(),
+        related_datasets: [related_dataset]
+      };
+      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+
+      response = await datasetDuplicate(dataset.uuid, Helper.USER_2);
+      expect(response.statusCode).toBe(200);
+      let new_dataset = response.body;
+
+      expect(new_dataset.template_uuid).toEqual(dataset.template_uuid);
+      expect(new_dataset.related_datasets).toEqual([]);
+    });
+  });
+
+  describe("failure", () => {
+    test("need read permissions to duplicate", async () => {
+      let template = {
+        name:"t1"
+      };
+      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+
+      let dataset = {
+        template_uuid: template.uuid
+      };
+      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+
+      response = await datasetDuplicate(dataset.uuid, Helper.USER_2);
+      expect(response.statusCode).toBe(401);
+    });
+  });
+})

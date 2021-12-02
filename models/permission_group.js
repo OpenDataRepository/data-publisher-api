@@ -25,7 +25,7 @@ exports.init = async function() {
 }
 
 // If a user has permission to this category or a superior one, return true
-async function has_permission(user, uuid, category) {
+async function has_permission(user, uuid, category, session) {
   let categories = [category];
   if(category == PERMISSION_EDIT) {
     categories.push(PERMISSION_ADMIN);
@@ -35,7 +35,8 @@ async function has_permission(user, uuid, category) {
     categories.push(PERMISSION_ADMIN);
   }
   let cursor = await PermissionGroup.find(
-    {uuid, category: { "$in" : categories }, users: user}
+    {uuid, category: { "$in" : categories }, users: user},
+    {session}
   );
   return (await cursor.hasNext());
 }
