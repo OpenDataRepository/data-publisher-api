@@ -51,12 +51,21 @@ async function createDraftFromPublished(published) {
 
 }
 
+function datesEqual(d1, d2) {
+  if (d1 == d2) {
+    return true;
+  }
+  if (d1 != undefined && d2 != undefined && d1.getTime() === d2.getTime()) {
+    return true;
+  }
+  return false;
+}
+
 function draftsEqual(draft1, draft2) {
   return draft1.uuid == draft2.uuid &&
          draft1.template_uuid == draft2.template_uuid &&
-         draft1.name == draft2.name &&
-         draft1.description == draft2.description &&
-         draft1.public_date == draft2.public_date &&
+         datesEqual(draft1.public_date, draft2.public_date) &&
+         // TODO: order shouldn't matter. At least, fetching published documents doesn't keep order. Resolve this.
          Util.arrayEqual(draft1.related_datasets, draft2.related_datasets);
 }
 
@@ -130,22 +139,8 @@ async function validateAndCreateOrUpdateRecurser(dataset, template, user, sessio
   }
 
   // Build object to create/update
-  let name = "";
-  let description = "";
   let public_date;
   let related_datasets = [];
-  if (dataset.name !== undefined) {
-    if (typeof(dataset.name) !== 'string'){
-      throw new Util.InputError('name property must be of type string');
-    }
-    name = dataset.name
-  }
-  if (dataset.description !== undefined) {
-    if (typeof(dataset.description) !== 'string'){
-      throw new Util.InputError('description property must be of type string');
-    }
-    description = dataset.description
-  }
   if (dataset.public_date) {
     if (!Date.parse(dataset.public_date)){
       throw new Util.InputError('dataset public_date property must be in valid date format');
@@ -194,8 +189,6 @@ async function validateAndCreateOrUpdateRecurser(dataset, template, user, sessio
   let dataset_to_save = {
     uuid: dataset.uuid,
     template_uuid: dataset.template_uuid,
-    name: name,
-    description: description,
     group_uuid,
     related_datasets: related_datasets
   };

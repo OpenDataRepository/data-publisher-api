@@ -167,7 +167,6 @@ describe("create (and get draft)", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
-        name: "d1",
         template_uuid: template.uuid
       };
       dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
@@ -200,7 +199,6 @@ describe("create (and get draft)", () => {
       color_field.value = "yellow - like the sun";
 
       let dataset = {
-        name: "d1",
         template_uuid: template.uuid
       };
       dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
@@ -238,10 +236,8 @@ describe("create (and get draft)", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
-        name: "d1",
         template_uuid: template.uuid,
         related_datasets: [{
-          name: "d1.1",
           template_uuid: template.related_templates[0].uuid
         }]
       };
@@ -298,27 +294,21 @@ describe("create (and get draft)", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       let dataset = { 
-        name: "d1",
         template_uuid: template.uuid,
         related_datasets: [
           { 
-            name: "d2",
             template_uuid: template.related_templates[0].uuid,
             related_datasets: [
               { 
-                name: "d3",
                 template_uuid: template.related_templates[0].related_templates[0].uuid,
                 related_datasets: [
                   { 
-                    name: "d4",
                     template_uuid: template.related_templates[0].related_templates[0].related_templates[0].uuid,
                     related_datasets: [
                       { 
-                        name: "d5",
                         template_uuid: template.related_templates[0].related_templates[0].related_templates[0].related_templates[0].uuid,
                         related_datasets: [
                           { 
-                            name: "d6",
                             template_uuid: template.related_templates[0].related_templates[0].related_templates[0].related_templates[0].related_templates[0].uuid,
                           }
                         ]
@@ -377,10 +367,8 @@ describe("create (and get draft)", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
-        name:"d1",
         template_uuid: template.uuid,
         related_datasets:[{
-          name: "d2",
           template_uuid: template.related_templates[0].uuid 
         }]
       };
@@ -419,15 +407,12 @@ describe("create (and get draft)", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
-        name:"d1",
         template_uuid: template.uuid,
         related_datasets:[
           {
-            name: "d1.1",
             template_uuid: template.related_templates[0].uuid
           },
           {
-            name: "d1.2",
             template_uuid: template.related_templates[1].uuid
           }
         ]
@@ -479,15 +464,12 @@ describe("create (and get draft)", () => {
       template1 = await Helper.templateCreatePublishTest(template1, Helper.DEF_CURR_USER);
 
       let dataset = {
-        name: "d1",
         template_uuid: template1.uuid,
         related_datasets: [
           {
-            name: "d1.1",
             template_uuid: template1.related_templates[0].uuid
           },
           {
-            name: "d1.2",
             template_uuid: template1.related_templates[1].uuid
           }
         ]
@@ -540,7 +522,6 @@ describe("create (and get draft)", () => {
       field.radio_options = template.fields[0].radio_options;
 
       let dataset = {
-        name: "d1",
         template_uuid: template.uuid
       };
       dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
@@ -605,7 +586,6 @@ describe("create (and get draft)", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
-        "name":"d1",
         template_uuid: template.uuid
       };
       dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
@@ -641,17 +621,14 @@ describe("create (and get draft)", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
-        name: "d1",
         template_uuid: template.uuid,
         related_datasets: [{
-          name: "d1.1",
           template_uuid: template.related_templates[0].uuid
         }]
       }
       dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
 
       let other_dataset = {
-        name: "d1.2",
         template_uuid: other_template.uuid
       }
       other_dataset = await Helper.datasetCreatePublishTest(other_dataset, Helper.DEF_CURR_USER);
@@ -700,27 +677,21 @@ describe("create (and get draft)", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       let dataset = { 
-        name: "d1",
         template_uuid: template.uuid,
         related_datasets: [
           { 
-            name: "d2",
             template_uuid: template.related_templates[0].uuid,
             related_datasets: [
               { 
-                name: "d3",
                 template_uuid: template.related_templates[0].related_templates[0].uuid,
                 related_datasets: [
                   { 
-                    name: "d4",
                     template_uuid: template.related_templates[0].related_templates[0].related_templates[0].uuid,
                     related_datasets: [
                       { 
-                        name: "d5",
                         template_uuid: template.related_templates[0].related_templates[0].related_templates[0].related_templates[0].uuid,
                         related_datasets: [
                           { 
-                            name: "d6",
                             template_uuid: template.related_templates[0].related_templates[0].related_templates[0].related_templates[0].related_templates[0].uuid,
                           }
                         ]
@@ -776,7 +747,6 @@ describe("create (and get draft)", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
-        name: "d1",
         template_uuid: template.uuid
       };
       dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
@@ -810,7 +780,6 @@ describe("create (and get draft)", () => {
       name_field.value = "Caleb";
 
       let dataset = {
-        name: "d1",
         template_uuid: template.uuid
       };
       dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
@@ -841,7 +810,6 @@ describe("create (and get draft)", () => {
       name_field.value = "Caleb";
 
       let dataset = {
-        name: "d1",
         template_uuid: template.uuid
       };
       dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
@@ -865,15 +833,12 @@ describe("create (and get draft)", () => {
       template1 = await Helper.templateCreatePublishTest(template1, Helper.DEF_CURR_USER);
 
       let dataset = {
-        name: "d1",
         template_uuid: template1.uuid,
         related_datasets: [
           {
-            name: "d1.1",
             template_uuid: template1.related_templates[0].uuid
           },
           {
-            name: "d1.2",
             template_uuid: template1.related_templates[1].uuid
           }
         ]
@@ -937,7 +902,6 @@ describe("create (and get draft)", () => {
       field.radio_options = template.fields[0].radio_options;
 
       let dataset = {
-        name: "d1",
         template_uuid: template.uuid
       };
       dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
@@ -971,6 +935,7 @@ const populateWithDummyTemplateAndRecord = async () => {
 
   let template = { 
     "name": "t1",
+    public_date: (new Date()).toISOString(),
     "fields": [f1],
     "related_templates": [
       { 
@@ -982,10 +947,8 @@ const populateWithDummyTemplateAndRecord = async () => {
   template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
   let dataset = {
-    name: "d1",
     template_uuid: template.uuid,
     related_datasets: [{
-        name: "d1.1",
         template_uuid: template.related_templates[0].uuid
       }
     ]
@@ -1047,16 +1010,12 @@ describe("update", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
-        name: "d1",
         template_uuid: template.uuid,
         related_datasets: [{
-            name: "d1.1",
             template_uuid: template.related_templates[0].uuid,
             related_datasets: [{
-                name: "d1.1.1",
                 template_uuid: template.related_templates[0].related_templates[0].uuid,
                 related_datasets: [{
-                    name: "d1.1.1.1",
                     template_uuid: template.related_templates[0].related_templates[0].related_templates[0].uuid
                   }
                 ]
@@ -1116,7 +1075,7 @@ describe("update", () => {
 
     test("if update includes no changes since last published but a new dataset has been published, a new draft is created", async () => {
       await recordPublishAndTest(record.uuid, record, Helper.DEF_CURR_USER);
-      dataset.description = "naruto";
+      dataset.public_date = (new Date()).toISOString();
       await Helper.datasetUpdatePublishTest(dataset, Helper.DEF_CURR_USER);
       await recordUpdateAndTest(record, record.uuid, Helper.DEF_CURR_USER);
       expect(await draftExisting(record.uuid)).toBeTruthy();
@@ -1166,10 +1125,8 @@ describe("update", () => {
     test("once a record is published, its dataset may never be changed", async () => {
       record = await recordPublishAndTest(record.uuid, record, Helper.DEF_CURR_USER);
       let dataset_alternative = {
-        name: "alternative",
         template_uuid: template.uuid,
         related_datasets: [{
-            name: "d1.1",
             uuid: dataset.related_datasets[0].uuid,
             template_uuid: template.related_templates[0].uuid
           }
@@ -1226,7 +1183,6 @@ describe("publish (and get published)", () => {
       };
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
       let dataset = {
-        name: "d1",
         template_uuid: template.uuid
       }
       dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
@@ -1361,7 +1317,7 @@ describe("publish (and get published)", () => {
       record.fields[0].value = "waffle";
       await recordUpdateAndTest(record, record.uuid, Helper.DEF_CURR_USER);
       // update dataset and publish
-      dataset.description = "shadow-clone jutsu!";
+      dataset.public_date = (new Date()).toISOString();
       await Helper.datasetUpdatePublishTest(dataset, Helper.DEF_CURR_USER);
       // fail to publish record because it's dataset was just published
       await publishFailureTest(record.uuid, Helper.DEF_CURR_USER, 400);
@@ -1391,7 +1347,6 @@ describe("publish (and get published)", () => {
       };
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
       let dataset = {
-        name: "d1",
         template_uuid: template.uuid
       }
       dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
@@ -1421,10 +1376,8 @@ describe("get published", () => {
     template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);  
 
     let dataset = { 
-      name: "d1",
       template_uuid: template.uuid,
       related_datasets: [{
-        name: "d1.1",
         template_uuid: template.related_templates[0].uuid
       }]
     };
@@ -1459,7 +1412,6 @@ describe("get published", () => {
     template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);  
 
     let dataset = { 
-      name: "d1",
       template_uuid: template.uuid
     };
     dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);  
@@ -1524,7 +1476,6 @@ describe("recordLastUpdate", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
-        "name":"d1",
         template_uuid: template.uuid
       };
       dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
@@ -1568,10 +1519,8 @@ describe("recordLastUpdate", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
-        name: "d1",
         template_uuid: template.uuid,
         related_datasets: [{
-          name: "d1.1",
           template_uuid: template.related_templates[0].uuid
         }]
       };
@@ -1620,13 +1569,10 @@ describe("recordLastUpdate", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
-        name: "1",
         template_uuid: template.uuid,
         related_datasets: [{
-          name: "2",
           template_uuid: template.related_templates[0].uuid,
           related_datasets: [{
-            name: "3",
             template_uuid: template.related_templates[0].related_templates[0].uuid
           }]
         }]
@@ -1694,7 +1640,6 @@ describe("recordLastUpdate", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
-        name: "d1",
         template_uuid: template.uuid
       };
       dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
@@ -1715,7 +1660,6 @@ describe("recordLastUpdate", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
-        name: "d1",
         template_uuid: template.uuid
       };
       dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
