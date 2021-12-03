@@ -17,17 +17,6 @@ async function collection() {
   return TemplateField;
 }
 
-async function userHasAccessToPublishedField(field, user) {
-  // If public, then anyone can view
-  let public_date = field.public_date;
-  if(public_date && Util.compareTimeStamp((new Date).getTime(), public_date)) {
-    return true;
-  }
-
-  // Otherwise, check, if we have view permissions
-  return await PermissionGroupModel.has_permission(user, field.uuid, PermissionGroupModel.PERMISSION_VIEW);
-}
-
 // Creates a draft from the published version.
 function createDraftFromPublished(published) {
   let draft = published;
@@ -64,7 +53,7 @@ async function latestPublishedBeforeDateWithPermissions(uuid, date, user) {
   }
 
   // Ensure user has permission to view
-  if (!(await userHasAccessToPublishedField(field, user))) {
+  if (!(await SharedFunctions.userHasAccessToPublishedResource(field, user, PermissionGroupModel))) {
     throw new Util.PermissionDeniedError(`Do not have permission to view template field with uuid ${uuid}`);
   }
 
@@ -414,30 +403,6 @@ async function publishField(uuid, session, last_update, user) {
   return [return_id, changes];
 }
 
-async function uuidFor_id(_id, session) {
-  let cursor = await TemplateField.find(
-    {"_id": _id}, 
-    {session}
-  );
-  if (!(await cursor.hasNext())) {
-    return null;
-  }
-  let document = await cursor.next();
-  return document.uuid;
-}
-
-async function publishDateFor_id(_id, session) {
-  let cursor = await TemplateField.find(
-    {"_id": _id}, 
-    {session}
-  );
-  if (!(await cursor.hasNext())) {
-    return null;
-  }
-  let document = await cursor.next();
-  return document.publish_date;
-}
-
 async function lastupdateFor(uuid, session) {
   let draft = await draftFetchOrCreate(uuid, session);
   if(!draft) {
@@ -449,10 +414,8 @@ async function lastupdateFor(uuid, session) {
 exports.collection = collection;
 exports.validateAndCreateOrUpdate = validateAndCreateOrUpdate;
 exports.publishField = publishField;
-exports.uuidFor_id = uuidFor_id;
 exports.draft = draftFetchOrCreate;
 exports.lastupdateFor = lastupdateFor;
-exports.publishDateFor_id = publishDateFor_id;
 exports.latestPublishedWithoutPermissions = latestPublished;
 
 // Wraps the request to create with a transaction
@@ -600,14 +563,12 @@ exports.lastUpdate = async function(uuid, user) {
   return field_draft.updated_at;
 }
 
-exports.userHasAccessToPublishedField = userHasAccessToPublishedField;
-
 exports.duplicate = async function(field, user, session) {
   // 1. Error checking
   if(!field) {
     throw new Util.NotFoundError();
   }
-  if(!(await userHasAccessToPublishedField(field, user))) {
+  if(!(await SharedFunctions.userHasAccessToPublishedResource(field, user, PermissionGroupModel))) {
     throw new Util.PermissionDeniedError();
   }
 

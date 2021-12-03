@@ -3,7 +3,6 @@ const MongoDB = require('../lib/mongoDB');
 var { PERMISSION_ADMIN, PERMISSION_EDIT, PERMISSION_VIEW } = require('../models/permission_group');
 var { app, init: appInit } = require('../app');
 var HelperClass = require('./common_test_operations');
-const { draftDelete } = require("../models/template_field");
 var Helper = new HelperClass(app);
 
 beforeAll(async () => {
