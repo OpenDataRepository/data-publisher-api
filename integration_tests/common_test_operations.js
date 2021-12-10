@@ -110,6 +110,7 @@ module.exports = class Helper {
       .set('Accept', 'application/json');
   };
 
+  // TODO: rename v2 to the original and fix everything
   templateCreateAndTest = async (template, current_user) => {
     let response = await this.templateCreate(template, current_user);
     expect(response.statusCode).toBe(200);
@@ -120,6 +121,17 @@ module.exports = class Helper {
     expect(response.statusCode).toBe(200);
     expect(response.body).toMatchObject(template);
     return uuid;
+  };
+  templateCreateAndTestV2 = async (template, current_user) => {
+    let response = await this.templateCreate(template, current_user);
+    expect(response.statusCode).toBe(200);
+    let uuid = response.body.inserted_uuid;
+    expect(uuid).toBeTruthy();
+  
+    response = await this.templateDraftGet(uuid, current_user)
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toMatchObject(template);
+    return response.body;
   };
 
   templateLastUpdate = async(uuid, curr_user) => {
@@ -159,8 +171,10 @@ module.exports = class Helper {
   };
 
   templateCreatePublishTest = async (template, curr_user) => {
-    let uuid = await this.templateCreateAndTest(template, curr_user);
-    let published_template = await this.templatePublishAndFetch(uuid, curr_user)
+    let created_template = await this.templateCreateAndTestV2(template, curr_user);
+    let published_template = await this.templatePublishAndFetch(created_template.uuid, curr_user)
+    this.templateSortFieldsAndRelatedTemplates(template);
+    this.templateSortFieldsAndRelatedTemplates(published_template);
     expect(published_template).toMatchObject(template);
     return published_template;
   };
@@ -187,6 +201,21 @@ module.exports = class Helper {
     }
   }
 
+  templateSortFieldsAndRelatedTemplates = (template) => {
+    if(!template) {
+      return;
+    } 
+    if(template.fields) {
+      template.fields.sort((f1, f2) => {f1.name > f2.name});
+    } 
+    if(template.related_templates) {
+      template.related_templates.sort((t1, t2) => {t1.name > t2.name});
+      for(let related_template of template.related_templates) {
+        this.templateSortFieldsAndRelatedTemplates(related_template);
+      }
+    }
+  }
+
   templateUpdateAndTest = async (template, curr_user) => {
     this.templateCleanseMetadata(template);
     let response = await this.templateUpdate(template.uuid, template, curr_user);
@@ -199,7 +228,7 @@ module.exports = class Helper {
 
   templateUpdatePublishTest = async (template, curr_user) => {
     await this.templateUpdateAndTest(template, curr_user);
-    let published_template = await this.templatePublishAndFetch(template.uuid, curr_user)
+    let published_template = await this.templatePublishAndFetch(template.uuid, curr_user);
     expect(published_template).toMatchObject(template);
     return published_template;
   };

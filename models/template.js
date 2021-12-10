@@ -614,39 +614,65 @@ async function publishedWithJoins(pipelineMatchConditions) {
 
   let current_pipeline = pipeline;
 
-  let pipeline_addon = {
-    '$lookup': {
-      'from': "templates",
-      'let': { 'ids': "$related_templates"},
-      'pipeline': [
-        { 
-          '$match': { 
-            '$expr': { 
-              '$and': [
-                { '$in': [ "$_id",  "$$ids" ] },
-              ]
+  let pipeline_addons = [
+    {
+      '$lookup': {
+        'from': "templates",
+        'let': { 'ids': "$related_templates"},
+        'pipeline': [
+          { 
+            '$match': { 
+              '$expr': { 
+                '$and': [
+                  { '$in': [ "$_id",  "$$ids" ] },
+                ]
+              }
             }
-          }
-        },
-        {
-          '$lookup': {
-            'from': "template_fields",
-            'foreignField': "_id",
-            'localField': "fields",
-            'as': "fields"
           },
+          {
+            '$lookup': {
+              'from': "template_fields",
+              'foreignField': "_id",
+              'localField': "fields",
+              'as': "fields"
+            },
+          }
+        ],
+        'as': "related_templates_objects"
+      }
+    },
+    {
+      "$addFields": {
+        "related_templates_objects_ids": { 
+          "$map": {
+            "input": "$related_templates_objects",
+            "in": "$$this._id"
+          }
         }
-      ],
-      'as': "related_templates"
-    }
-  }
+      }
+    },
+    {
+      "$addFields": {
+        "related_templates": { 
+          "$map": {
+            "input": "$related_templates",
+            "in": {"$arrayElemAt":[
+              "$related_templates_objects",
+              {"$indexOfArray":["$related_templates_objects_ids","$$this"]}
+            ]}
+          }
+        }
+      }
+    },
+    {"$project":{"related_templates_objects":0,"related_templates_objects_ids":0}}
+  ]
 
   for(let i = 0; i < 5; i++) {
     // go one level deeper into related_templates
-    current_pipeline.push(pipeline_addon);
-    current_pipeline = pipeline_addon['$lookup']['pipeline'];
+    current_pipeline.push(...pipeline_addons);
+    current_pipeline = pipeline_addons[0]['$lookup']['pipeline'];
     // create a copy
-    pipeline_addon = JSON.parse(JSON.stringify(pipeline_addon));
+    pipeline_addons = JSON.parse(JSON.stringify(pipeline_addons));
   }
   let response = await Template.aggregate(pipeline);
   if (await response.hasNext()){

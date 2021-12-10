@@ -1061,6 +1061,23 @@ describe("get published", () => {
     expect(response.body).toMatchObject(template_published);   
   });
 
+  test("One template has multiple references to the same sub-template, and the mongo query can fetch it properly", async () => {
+
+    let related_template = {
+      "name": "t2"
+    };
+    let template = {
+      "name":"t1",
+      "related_templates":[related_template]
+    };
+
+    template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+
+    template.related_templates.push(template.related_templates[0]);
+    await Helper.templateUpdatePublishTest(template, Helper.DEF_CURR_USER);
+
+  });
+
   test("must have view permissions", async () => {
     let other_user = 'other';
     let template = { 
