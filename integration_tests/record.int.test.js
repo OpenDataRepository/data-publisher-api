@@ -67,6 +67,19 @@ const recordCreateAndTest = async (data, curr_user) => {
   expect(record).toMatchObject(data);
   return uuid;
 };
+const recordCreateAndTestV2 = async (data, curr_user) => {
+  let response = await recordCreate(data, curr_user);
+  expect(response.statusCode).toBe(200);
+  let uuid = response.body.inserted_uuid;
+
+  data.uuid = uuid;
+  
+  response = await recordDraftGet(uuid, curr_user);
+  expect(response.statusCode).toBe(200);
+  let record = response.body;
+  expect(record).toMatchObject(data);
+  return record;
+};
 
 const recordUpdate = async (record, uuid, curr_user) => {
   return await request(app)
@@ -155,6 +168,28 @@ const recordLastUpdateAndTest = async(uuid, curr_user) => {
   expect(response.statusCode).toBe(200);
   return new Date(response.body);
 }
+
+const recordPublishAndFetch = async (uuid, curr_user) => {
+  let response = await recordLastUpdate(uuid, curr_user);
+  expect(response.statusCode).toBe(200);
+  let last_update = response.body;
+
+  response = await recordPublish(uuid, last_update, curr_user);
+  expect(response.statusCode).toBe(200);
+
+  response = await recordLatestPublishedGet(uuid, curr_user);
+  expect(response.statusCode).toBe(200);
+  let published_record = response.body;
+  expect(published_record).toHaveProperty("publish_date");
+  return published_record;
+};
+
+const recordUpdatePublishTest = async (record, curr_user) => {
+  await recordUpdateAndTest(record, record.uuid, curr_user);
+  let published_record = await recordPublishAndFetch(record.uuid, curr_user)
+  expect(published_record).toMatchObject(record);
+  return published_record;
+};
 
 describe("create (and get draft)", () => {
   describe("Success cases", () => {
@@ -1403,6 +1438,44 @@ describe("get published", () => {
     response = await recordLatestPublishedGet(record.uuid, Helper.USER_2);
     expect(response.statusCode).toBe(200);
     expect(response.body).toMatchObject(record);   
+  });
+
+  test("One record has multiple references to the same sub-record, and the mongo query can fetch it properly", async () => {
+
+    let template = {
+      "name":"t1",
+      "related_templates":[{name: "t2"}]
+    };
+
+    template = await Helper.templateCreateAndTestV2(template, Helper.DEF_CURR_USER);
+
+    template.related_templates.push(template.related_templates[0]);
+    template = await Helper.templateUpdatePublishTest(template, Helper.DEF_CURR_USER);
+
+    let dataset = {
+      template_uuid: template.uuid,
+      related_datasets: [
+        {template_uuid: template.related_templates[0].uuid},
+        {template_uuid: template.related_templates[0].uuid}
+      ]
+    };
+    dataset = await Helper.datasetCreateAndTestV2(dataset, Helper.DEF_CURR_USER);
+
+    dataset.related_datasets[1] = dataset.related_datasets[0];
+    await Helper.datasetUpdatePublishTest(dataset, Helper.DEF_CURR_USER);
+
+    let record = {
+      dataset_uuid: dataset.uuid,
+      related_records: [
+        {dataset_uuid: dataset.related_datasets[0].uuid},
+        {dataset_uuid: dataset.related_datasets[1].uuid}
+      ]
+    };
+    record = await recordCreateAndTestV2(record, Helper.DEF_CURR_USER);
+
+    record.related_records[1] = record.related_records[0];
+    await recordUpdatePublishTest(record, Helper.DEF_CURR_USER);
+
   });
 
   test("must have view permissions", async () => {

@@ -595,31 +595,57 @@ async function latestPublishedBeforeDateWithJoins(uuid, date) {
 
   let current_pipeline = pipeline;
 
-  let pipeline_addon = {
-    '$lookup': {
-      'from': "records",
-      'let': { 'ids': "$related_records"},
-      'pipeline': [
-        { 
-          '$match': { 
-            '$expr': { 
-              '$and': [
-                { '$in': [ "$_id",  "$$ids" ] },
-              ]
+  let pipeline_addons = [
+    {
+      '$lookup': {
+        'from': "records",
+        'let': { 'ids': "$related_records"},
+        'pipeline': [
+          { 
+            '$match': { 
+              '$expr': { 
+                '$and': [
+                  { '$in': [ "$_id",  "$$ids" ] },
+                ]
+              }
             }
           }
+        ],
+        'as': "related_records_objects"
+      }
+    },
+    {
+      "$addFields": {
+        "related_records_objects_ids": { 
+          "$map": {
+            "input": "$related_records_objects",
+            "in": "$$this._id"
+          }
         }
-      ],
-      'as': "related_records"
-    }
-  }
+      }
+    },
+    {
+      "$addFields": {
+        "related_records": { 
+          "$map": {
+            "input": "$related_records",
+            "in": {"$arrayElemAt":[
+              "$related_records_objects",
+              {"$indexOfArray":["$related_records_objects_ids","$$this"]}
+            ]}
+          }
+        }
+      }
+    },
+    {"$project":{"related_records_objects":0,"related_records_objects_ids":0}}
+  ];
 
   for(let i = 0; i < 5; i++) {
-    // go one level deeper into related_templates
-    current_pipeline.push(pipeline_addon);
-    current_pipeline = pipeline_addon['$lookup']['pipeline'];
+    // go one level deeper into related_records
+    current_pipeline.push(...pipeline_addons);
+    current_pipeline = pipeline_addons[0]['$lookup']['pipeline'];
     // create a copy
-    pipeline_addon = JSON.parse(JSON.stringify(pipeline_addon));
+    pipeline_addons = JSON.parse(JSON.stringify(pipeline_addons));
   }
   let response = await Record.aggregate(pipeline);
   if (await response.hasNext()){

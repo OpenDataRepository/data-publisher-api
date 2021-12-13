@@ -264,6 +264,20 @@ module.exports = class Helper {
     expect(created_dataset).toMatchObject(dataset);
     return created_dataset.uuid;
   };
+  datasetCreateAndTestV2 = async (dataset, curr_user) => {
+    let response = await this.datasetCreate(dataset, curr_user);
+    expect(response.statusCode).toBe(200);
+    expect(response.body.inserted_uuid).toBeTruthy();
+  
+    let uuid = response.body.inserted_uuid;
+    
+    response = await this.datasetDraftGet(uuid, curr_user);
+    expect(response.statusCode).toBe(200);
+    let created_dataset = response.body;
+    this.datasetCleanseMetadata(dataset);
+    expect(created_dataset).toMatchObject(dataset);
+    return created_dataset;
+  };
 
   datasetUpdate = async (uuid, dataset, curr_user) => {
     return await request(this.app)
