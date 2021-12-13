@@ -95,7 +95,7 @@ function equals(template_1, template_2) {
   return template_1.uuid == template_2.uuid && 
          template_1.name == template_2.name &&
          template_1.description == template_2.description &&
-         template_1.public_date == template_2.public_date &&
+         Util.datesEqual(template_1.public_date, template_2.public_date) &&
          Util.arrayEqual(template_1.fields, template_2.fields) &&
          Util.arrayEqual(template_1.related_templates, template_2.related_templates);
 }
@@ -665,7 +665,7 @@ async function publishedWithJoins(pipelineMatchConditions) {
       }
     },
     {"$project":{"related_templates_objects":0,"related_templates_objects_ids":0}}
-  ]
+  ];
 
   for(let i = 0; i < 5; i++) {
     // go one level deeper into related_templates

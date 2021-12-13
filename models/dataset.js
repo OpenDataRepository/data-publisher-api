@@ -51,21 +51,10 @@ async function createDraftFromPublished(published) {
 
 }
 
-function datesEqual(d1, d2) {
-  if (d1 == d2) {
-    return true;
-  }
-  if (d1 != undefined && d2 != undefined && d1.getTime() === d2.getTime()) {
-    return true;
-  }
-  return false;
-}
-
 function draftsEqual(draft1, draft2) {
   return draft1.uuid == draft2.uuid &&
          draft1.template_uuid == draft2.template_uuid &&
-         datesEqual(draft1.public_date, draft2.public_date) &&
-         // TODO: order shouldn't matter. At least, fetching published documents doesn't keep order. Resolve this.
+         Util.datesEqual(draft1.public_date, draft2.public_date) &&
          Util.arrayEqual(draft1.related_datasets, draft2.related_datasets);
 }
 
@@ -599,31 +588,57 @@ async function latestPublishedBeforeDateWithJoins(uuid, date) {
 
   let current_pipeline = pipeline;
 
-  let pipeline_addon = {
-    '$lookup': {
-      'from': "datasets",
-      'let': { 'ids': "$related_datasets"},
-      'pipeline': [
-        { 
-          '$match': { 
-            '$expr': { 
-              '$and': [
-                { '$in': [ "$_id",  "$$ids" ] },
-              ]
+  let pipeline_addons = [
+    {
+      '$lookup': {
+        'from': "datasets",
+        'let': { 'ids': "$related_datasets"},
+        'pipeline': [
+          { 
+            '$match': { 
+              '$expr': { 
+                '$and': [
+                  { '$in': [ "$_id",  "$$ids" ] },
+                ]
+              }
             }
           }
+        ],
+        'as': "related_datasets_objects"
+      }
+    },
+    {
+      "$addFields": {
+        "related_datasets_objects_ids": { 
+          "$map": {
+            "input": "$related_datasets_objects",
+            "in": "$$this._id"
+          }
         }
-      ],
-      'as': "related_datasets"
-    }
-  }
+      }
+    },
+    {
+      "$addFields": {
+        "related_datasets": { 
+          "$map": {
+            "input": "$related_datasets",
+            "in": {"$arrayElemAt":[
+              "$related_datasets_objects",
+              {"$indexOfArray":["$related_datasets_objects_ids","$$this"]}
+            ]}
+          }
+        }
+      }
+    },
+    {"$project":{"related_datasets_objects":0,"related_datasets_objects_ids":0}}
+  ];
 
   for(let i = 0; i < 5; i++) {
-    // go one level deeper into related_templates
-    current_pipeline.push(pipeline_addon);
-    current_pipeline = pipeline_addon['$lookup']['pipeline'];
+    // go one level deeper into related_datasets
+    current_pipeline.push(...pipeline_addons);
+    current_pipeline = pipeline_addons[0]['$lookup']['pipeline'];
     // create a copy
-    pipeline_addon = JSON.parse(JSON.stringify(pipeline_addon));
+    pipeline_addons = JSON.parse(JSON.stringify(pipeline_addons));
   }
   let response = await Dataset.aggregate(pipeline);
   if (await response.hasNext()){
@@ -662,18 +677,28 @@ async function latestPublishedWithJoinsAndPermissions(uuid, user) {
   return await latestPublishedBeforeDateWithJoinsAndPermissions(uuid, new Date(), user);
 }
 
-async function duplicateRecursor(original_dataset, original_group_uuid, new_group_uuid, user, session) {
+async function duplicateRecursor(original_dataset, original_group_uuid, new_group_uuid, uuid_dictionary, user, session) {
   // verify that this user is in the 'view' permission group
   if (!(await SharedFunctions.userHasAccessToPublishedResource(original_dataset, user, PermissionGroupModel))) {
     throw new Util.PermissionDeniedError(`Do not have view permissions required to duplicate dataset: ${original_dataset.uuid}`);
   }
 
+  // If this dataset wasn't created with the top-level dataset we're duplicating, reference it instead of creating a duplicate
   if(original_dataset.group_uuid != original_group_uuid) {
     return original_dataset.uuid;
   }
 
+  // If a uuid from the old dataset has already been seen, it is a duplicate reference.
+  if(original_dataset.uuid in uuid_dictionary) {
+    return uuid_dictionary[original_dataset.uuid];
+  } 
+
+  // Otherwise, create a new uuid for the uuid_dictionary
+  let uuid = uuidv4();
+  uuid_dictionary[original_dataset.uuid] = uuid;
+
   let new_dataset = {
-    uuid: uuidv4(),
+    uuid,
     updated_at: new Date(),
     template_uuid: original_dataset.template_uuid,
     group_uuid: new_group_uuid,
@@ -681,7 +706,7 @@ async function duplicateRecursor(original_dataset, original_group_uuid, new_grou
   }
   for(dataset of original_dataset.related_datasets) {
     try {
-      new_dataset.related_datasets.push(await duplicateRecursor(dataset, original_group_uuid, new_group_uuid, user, session));
+      new_dataset.related_datasets.push(await duplicateRecursor(dataset, original_group_uuid, new_group_uuid, uuid_dictionary, user, session));
     } catch(error) {
       if(!(error instanceof Util.PermissionDeniedError)) {
         throw error;
@@ -707,7 +732,8 @@ async function duplicateRecursor(original_dataset, original_group_uuid, new_grou
 async function duplicate(uuid, user, session) {
   let original_dataset = await latestPublishedWithJoinsAndPermissions(uuid, user);
   let original_group_uuid = original_dataset.group_uuid;
-  let new_uuid = await duplicateRecursor(original_dataset, original_group_uuid, uuidv4(), user, session);
+  let uuid_dictionary = {};
+  let new_uuid = await duplicateRecursor(original_dataset, original_group_uuid, uuidv4(), uuid_dictionary, user, session);
   return await draftFetchOrCreate(new_uuid, user, session);
 }
 
