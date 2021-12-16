@@ -1,9 +1,10 @@
 const MongoDB = require('../lib/mongoDB');
-const TemplateFieldModel = require('./template_field');
-const PermissionGroupModel = require('./permission_group');
 const { v4: uuidv4, validate: uuidValidate } = require('uuid');
 const Util = require('../lib/util');
+const TemplateFieldModel = require('./template_field');
+const PermissionGroupModel = require('./permission_group');
 const SharedFunctions = require('./shared_functions');
+const LegacyUuidToNewUuidMapperModel = require('./legacy_uuid_to_new_uuid_mapper');
 
 var Template;
 var TemplateField;
@@ -1032,6 +1033,93 @@ async function duplicate(uuid, user, session) {
   return await duplicateRecursor(template, user, session)
 }
 
+async function importTemplate(template, user, session) {
+  if(!Util.isObject(template)) {
+    throw new Util.InputError('Template to import must be a json object.');
+  }
+  if(!template.template_uuid || typeof(template.template_uuid) !== 'string') {
+    throw new Util.InputError('Template provided to import must have a template_uuid, which is a string.');
+  }
+  // Now get the matching uuid for the imported uuid
+  let uuid = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(template.template_uuid, session);
+  // If the uuid is found, then this has already been imported and cannot be imported again
+  if(uuid) {
+    return uuid;
+  }
+  uuid = await LegacyUuidToNewUuidMapperModel.create_new_uuid_for_old(template.template_uuid, session);
+  await PermissionGroupModel.initialize_permissions_for(user, uuid, session);
+
+  // Populate template properties
+  let new_template = {
+    uuid,
+    name: "",
+    description: "", 
+    fields: [],
+    related_templates: []
+  }
+  if (template.name !== undefined) {
+    if (typeof(template.name) !== 'string'){
+      throw new Util.InputError('name property must be of type string');
+    }
+    new_template.name = template.name
+  }
+  if (template.description !== undefined) {
+    if (typeof(template.description) !== 'string'){
+      throw new Util.InputError('description property must be of type string');
+    }
+    new_template.description = template.description
+  }
+  if (template.public_date) {
+    if (!Date.parse(template.public_date)){
+      throw new Util.InputError('template public_date property must be in valid date format');
+    }
+    new_template.public_date = new Date(template.public_date);
+  }
+  if (template.updated_at) {
+    if (!Date.parse(template.updated_at)){
+      throw new Util.InputError('template updated_at property must be in valid date format');
+    }
+    new_template.updated_at = new Date(template.updated_at);
+  }
+
+  // Recursively handle each of the fields
+  if (template.fields !== undefined) {
+    if (!Array.isArray(template.fields)){
+      throw new Util.InputError('fields property must be of type array');
+    }
+    for (let field of template.fields) {
+      new_template.fields.push(await TemplateFieldModel.importField(field, user, session));
+    }
+    // It is a requirement that no field be repeated. Verify this
+    let field_uuids = new Set();
+    for(let field of new_template.fields) {
+      if(field_uuids.has(field)) {
+        throw new Util.InputError(`Each template may only have one instance of any template field. Field ${field} duplicated`);
+      }
+      field_uuids.add(field);
+    }
+  }
+  // Reursively handle each of the related_templates
+  if (template.related_databases !== undefined) {
+    if (!Array.isArray(template.related_databases)){
+      throw new Util.InputError('related_templates property must be of type array');
+    }
+    for (let related_template of template.related_databases) {
+      new_template.related_templates.push(await importTemplate(related_template, user, session));
+    }
+  }
+
+  // Insert template into the database
+  let response = await Template.insertOne(
+    new_template,
+    {session}
+  )
+  if (response.insertedCount != 1) {
+    throw `Template.importTemplate: should be 1 inserted document. Instead: ${response.insertedCount}`;
+  }
+  return uuid;
+}
+
 // Wraps the actual request to create with a transaction
 exports.create = async function(template, user) {
   const session = MongoDB.newSession();
@@ -1188,6 +1276,27 @@ exports.duplicate = async function(uuid, user) {
     });
     session.endSession();
     return new_uuid;
+  } catch(err) {
+    session.endSession();
+    throw err;
+  }
+}
+
+// Wraps the actual request to import with a transaction
+exports.importTemplate = async function(template, user) {
+  const session = MongoDB.newSession();
+  try {
+    var new_template;
+    await session.withTransaction(async () => {
+      try {
+        new_template = await importTemplate(template, user, session);
+      } catch(err) {
+        await session.abortTransaction();
+        throw err;
+      }
+    });
+    session.endSession();
+    return new_template;
   } catch(err) {
     session.endSession();
     throw err;

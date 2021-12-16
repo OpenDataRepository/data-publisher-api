@@ -194,6 +194,11 @@ module.exports = class Helper {
     delete template.updated_at;
     delete template._id;
     delete template.publish_date;
+    if(template.fields) {
+      for(let field of template.fields) {
+        delete field.updated_at;
+      }
+    }
     if(template.related_templates) {
       for(template of template.related_templates) {
         this.templateCleanseMetadata(template);

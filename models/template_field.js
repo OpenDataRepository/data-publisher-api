@@ -3,6 +3,7 @@ const { v4: uuidv4, validate: uuidValidate } = require('uuid');
 const Util = require('../lib/util');
 const PermissionGroupModel = require('./permission_group');
 const SharedFunctions = require('./shared_functions');
+const LegacyUuidToNewUuidMapperModel = require('./legacy_uuid_to_new_uuid_mapper');
 
 var TemplateField;
 
@@ -147,6 +148,40 @@ function findRadioOptionValue(radio_options, uuid) {
     }
   }
   return undefined;
+}
+
+async function importRadioOptions(radio_options, session) {
+  if(!Array.isArray(radio_options)) {
+    throw new Util.InputError(`Radio options must be an array.`);
+  }
+  let return_radio_options = [];
+  for(radio_option of radio_options) {
+    if(!Util.isObject(radio_option)) {
+      throw new Util.InputError(`Each radio_option in the field must be a json object`);
+    }
+    let cleansed_radio_option = {};
+    if (!radio_option.name || typeof(radio_option.name) !== 'string') {
+      throw new Util.InputError('each radio option must have a name of type string ');
+    }
+    cleansed_radio_option.name = radio_option.name;
+    
+    if(radio_option.radio_options) {
+      cleansed_radio_option.radio_options = await importRadioOptions(radio_option.radio_options, session);
+    } else {
+      if (!radio_option.template_radio_option_uuid) {
+        throw new Util.InputError(`All radio options provided imported must include a radio option uuid`);
+      }
+      // Map old radio option to new. If old has been seen before, that's an error
+      let uuid = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(radio_option.template_radio_option_uuid, session);
+      if(uuid) {
+        throw new Util.InputError(`Uuid ${radio_option.template_radio_option_uuid} has already been imported once and cannot be imported again.`);
+      }
+      uuid = await LegacyUuidToNewUuidMapperModel.create_new_uuid_for_old(radio_option.template_radio_option_uuid, session);
+      cleansed_radio_option.uuid = uuid;
+    }
+    return_radio_options.push(cleansed_radio_option);
+  }
+  return return_radio_options;
 }
 
 // Updates the field with the given uuid if provided in the field object. 
@@ -594,3 +629,61 @@ exports.duplicate = async function(field, user, session) {
 }
 
 exports.findRadioOptionValue = findRadioOptionValue;
+
+exports.importField = async function(field, user, session) {
+  if(!Util.isObject(field)) {
+    throw new Util.InputError('Field to import must be a json object.');
+  }
+  if(!field.template_field_uuid || typeof(field.template_field_uuid) !== 'string') {
+    throw new Util.InputError('Field provided to import must have a template_field_uuid, which is a string.');
+  }
+  // Now get the matching uuid for the imported uuid
+  let uuid = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(field.template_field_uuid, session);
+  // If the uuid is found, then this has already been imported and cannot be imported again
+  if(uuid) {
+    return uuid;
+  }
+
+  let new_field = {
+    name: "",
+    description: ""
+  };
+  new_field.uuid = await LegacyUuidToNewUuidMapperModel.create_new_uuid_for_old(field.template_field_uuid, session);
+  await PermissionGroupModel.initialize_permissions_for(user, new_field.uuid, session);
+  if (field.name) {
+    if (typeof(field.name) !== 'string'){
+      throw new Util.InputError('field name property must be of type string');
+    }
+    new_field.name = field.name;
+  }
+  if (field.description) {
+    if (typeof(field.description) !== 'string'){
+      throw new Util.InputError('field description property must be of type string');
+    }
+    new_field.description = field.description;
+  }
+  if (field.public_date) {
+    if (!Date.parse(field.public_date)){
+      throw new Util.InputError('field public_date property must be in valid date format');
+    }
+    new_field.public_date = new Date(field.public_date);
+  }
+  if (field.updated_at) {
+    if (!Date.parse(field.updated_at)){
+      throw new Util.InputError('field updated_at property must be in valid date format');
+    }
+    new_field.updated_at = new Date(field.updated_at);
+  }
+  if (field.radio_options) {
+    new_field.radio_options = await importRadioOptions(field.radio_options, session);
+  }
+
+  let response = await TemplateField.insertOne(
+    new_field,
+    {session}
+  );
+  if (response.insertedCount != 1) {
+    throw new Error(`TemplateField.importField: should be 1 inserted document. Instead: ${response.insertedCount}`);
+  }
+  return new_field.uuid;
+}
