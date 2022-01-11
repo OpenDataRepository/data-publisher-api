@@ -17,7 +17,11 @@ exports.draft_get = async function(req, res, next) {
 exports.get_latest_published = async function(req, res, next) {
   try {
     let template = await TemplateModel.latestPublished(req.params.uuid, req.cookies.user);
-    res.json(template);
+    if(template) {
+      res.json(template);
+    } else {
+      throw new Util.NotFoundError();
+    }
   } catch(err) {
     next(err);
   }
@@ -26,7 +30,11 @@ exports.get_latest_published = async function(req, res, next) {
 exports.get_published_before_timestamp = async function(req, res, next) {
   try {
     let template = await TemplateModel.publishedBeforeDate(req.params.uuid, new Date(req.params.timestamp), req.cookies.user);
-    res.json(template);
+    if(template) {
+      res.json(template);
+    } else {
+      throw new Util.NotFoundError();
+    }
   } catch(err) {
     next(err);
   }

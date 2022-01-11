@@ -696,8 +696,7 @@ async function publishedWithJoins(pipelineMatchConditions) {
   if (await response.hasNext()){
     return await response.next();
   } else {
-    // TODO: in this case template field returns null instead of throwing an error. The same should be done here. 
-    throw new Util.NotFoundError(`No template with desired conditions exists`);
+    return null;
   }
 }
 
@@ -754,6 +753,9 @@ async function filterPublishedTemplateForPermissions(template, user) {
 
 async function latestPublishedBeforeDateWithJoinsAndPermissions(uuid, date, user) {
   let template = await latestPublishedBeforeDateWithJoins(uuid, date);
+  if(!template) {
+    return null;
+  }
   await filterPublishedTemplateForPermissions(template, user);
   return template;
 } 
@@ -851,10 +853,14 @@ async function draftFetchOrCreate(uuid, user, session) {
       if (err instanceof Util.PermissionDeniedError) {
         // If we don't have permission for the draft, get the latest published instead
         try {
-          related_template = await latestPublishedWithJoinsAndPermissions(related_template_uuid, user)
+          related_template = await latestPublishedWithJoinsAndPermissions(related_template_uuid, user);
+          if(!related_template) {
+            // If a published version doesn't exist, just attach a uuid
+            related_template = {uuid: related_template_uuid};
+          }
         } catch (err) {
           if (err instanceof Util.PermissionDeniedError || err instanceof Util.NotFoundError) {
-            // If we don't have permission for the published version, or a published version doesn't exist, just attach a uuid
+            // If we don't have permission for the published version
             related_template = {uuid: related_template_uuid, no_permissions: true};
           } else {
             throw err;

@@ -238,8 +238,11 @@ async function validateAndCreateOrUpdate(dataset, user, session) {
   let template;
   try {
     template = await TemplateModel.latestPublished(dataset.template_uuid, user);
+    if(!template) {
+      throw new Util.InputError(`a valid template_uuid was not provided for dataset with uuid ${dataset.uuid}`);
+    }
   } catch(error) {
-    if(error instanceof Util.NotFoundError || error instanceof Util.InputError) {
+    if(error instanceof Util.InputError) {
       throw new Util.InputError(`a valid template_uuid was not provided for dataset with uuid ${dataset.uuid}`);
     }
     // if(error instanceof Util.PermissionDeniedError) {
