@@ -18,6 +18,7 @@ module.exports = class Helper {
     await db.collection('datasets').deleteMany();
     await db.collection('records').deleteMany();
     await db.collection('permission_groups').deleteMany();
+    await db.collection('legacy_uuid_to_new_uuid_mapper').deleteMany();
   };
 
   // template field

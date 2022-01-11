@@ -184,111 +184,123 @@ async function importRadioOptions(radio_options, session) {
   return return_radio_options;
 }
 
+function initializeNewDraftWithPropertiesSharedWithImport(input_field, uuid, updated_at) {
+  let output_field = {
+    uuid, 
+    name: "",
+    description: "",
+    updated_at
+  };
+  if (input_field.name !== undefined) {
+    if (typeof(input_field.name) !== 'string'){
+      throw new Util.InputError('name property must be of type string');
+    }
+    output_field.name = input_field.name
+  }
+  if (input_field.description !== undefined) {
+    if (typeof(input_field.description) !== 'string'){
+      throw new Util.InputError('description property must be of type string');
+    }
+    output_field.description = input_field.description
+  }
+  return output_field;
+}
+
+async function initializeNewDraftWithProperties(input_field, uuid, updated_at) {
+  let output_field = initializeNewDraftWithPropertiesSharedWithImport(input_field, uuid, updated_at);
+  if (input_field.public_date) {
+    if (!Date.parse(input_field.public_date)){
+      throw new Util.InputError('template public_date property must be in valid date format');
+    }
+    output_field.public_date = new Date(input_field.public_date);
+  }
+  if(input_field.radio_options) {
+    let latest_field = await SharedFunctions.latestDocument(TemplateField, uuid);
+    let previous_radio_options_uuids = new Set();
+    if(latest_field && latest_field.radio_options) {
+      buildRadioOptionSet(latest_field.radio_options, previous_radio_options_uuids);
+    }
+    output_field.radio_options = parseRadioOptions(input_field.radio_options, previous_radio_options_uuids, new Set());
+  }
+  return output_field;
+}
+
+async function initializeNewImportedDraftWithProperties(input_field, uuid, session) {
+  if (input_field.updated_at && Date.parse(input_field.updated_at)) {
+    input_field.updated_at = new Date(input_field.updated_at);
+  } else {
+    input_field.updated_at = undefined;
+  }
+  let output_field = initializeNewDraftWithPropertiesSharedWithImport(input_field, uuid, input_field.updated_at);
+  if (input_field._field_metadata && Util.isObject(input_field._field_metadata) && input_field._field_metadata._public_date) {
+    if (Date.parse(input_field._field_metadata._public_date)){
+      output_field.public_date = new Date(input_field.public_date);
+    }
+  }
+  if(input_field.radio_options) {
+    output_field.radio_options = await importRadioOptions(input_field.radio_options, session);
+  }
+  return output_field;
+}
+
 // Updates the field with the given uuid if provided in the field object. 
 // If no uuid is included in the field object., create a new field.
 // Also validate input. 
 // Return:
 // 1. A boolean: true if there were changes from the last published.
 // 2. The uuid of the template field created / updated
-async function validateAndCreateOrUpdate(field, user, session) {
+async function validateAndCreateOrUpdate(input_field, user, session, updated_at) {
 
   // Field must be an object
-  if (!Util.isObject(field)) {
-    throw new Util.InputError(`field provided is not an object: ${field}`);
+  if (!Util.isObject(input_field)) {
+    throw new Util.InputError(`field provided is not an object: ${input_field}`);
   }
 
+  let uuid;
   // If a field uuid is provided, this is an update
-  if (field.uuid) {
+  if (input_field.uuid) {
     // Field uuid must be a valid uuid
-    if (!uuidValidate(field.uuid)) {
+    if (!uuidValidate(input_field.uuid)) {
       throw new Util.InputError("uuid must conform to standard uuid format");
     }
 
     // Field uuid must exist
-    if (!(await SharedFunctions.exists(TemplateField, field.uuid))) {
-      throw new Util.NotFoundError(`No field exists with uuid ${field.uuid}`);
+    if (!(await SharedFunctions.exists(TemplateField, input_field.uuid))) {
+      throw new Util.NotFoundError(`No field exists with uuid ${input_field.uuid}`);
     }
-
-    // There should be a maximum of one draft per uuid
-    cursor = await TemplateField.find(
-      {"uuid": field.uuid, 
-      'publish_date': {'$exists': false}});
-    if ((await cursor.count()) > 1) {
-      throw new Error(`Multiple drafts found of field with uuid ${field.uuid}`);
-    } 
 
     // verify that this user is in the 'edit' permission group
-    if (!(await PermissionGroupModel.has_permission(user, field.uuid, PermissionGroupModel.PERMISSION_EDIT))) {
+    if (!(await PermissionGroupModel.has_permission(user, input_field.uuid, PermissionGroupModel.PERMISSION_EDIT))) {
       throw new Util.PermissionDeniedError();
     }
+
+    uuid = input_field.uuid;
   } 
   // Otherwise, this is a create
   else {
     // Generate a uuid for the new template_field
-    field.uuid = uuidv4();
+    uuid = uuidv4();
     // create a permissions group for the new template_field
-    await PermissionGroupModel.initialize_permissions_for(user, field.uuid);
+    await PermissionGroupModel.initialize_permissions_for(user, uuid, session);
   }
 
   // Populate field properties
-  let name = "";
-  let description = "";
-  let public_date;
-  if (field.name) {
-    if (typeof(field.name) !== 'string'){
-      throw new Util.InputError('field name property must be of type string');
-    }
-    name = field.name;
-  }
-  if (field.description) {
-    if (typeof(field.description) !== 'string'){
-      throw new Util.InputError('field description property must be of type string');
-    }
-    description = field.description;
-  }
-  if (field.public_date) {
-    if (!Date.parse(field.public_date)){
-      throw new Util.InputError('field public_date property must be in valid date format');
-    }
-    public_date = new Date(field.public_date);
-  }
-  if(field.radio_options) {
-    let latest_field = await SharedFunctions.latestDocument(TemplateField, field.uuid);
-    let previous_radio_options_uuids = new Set();
-    if(latest_field && latest_field.radio_options) {
-      buildRadioOptionSet(latest_field.radio_options, previous_radio_options_uuids);
-    }
-    field.radio_options = parseRadioOptions(field.radio_options, previous_radio_options_uuids, new Set());
-  }
-
-  // Update the template field in the database
-  let new_field = {
-    uuid: field.uuid,
-    name: name,
-    description: description,
-    updated_at: new Date()
-  }
-  if (public_date) {
-    new_field.public_date = public_date;
-  }
-  if(field.radio_options) {
-    new_field.radio_options = field.radio_options;
-  }
+  let new_field = await initializeNewDraftWithProperties(input_field, uuid, updated_at);
 
   // If this draft is identical to the latest published, delete it.
-  let old_field = await fetchPublishedAndConvertToDraft(field.uuid);
+  let old_field = await fetchPublishedAndConvertToDraft(uuid);
   if (old_field) {
     let changes = !fieldEquals(new_field, old_field);
     if (!changes) {
       // Delete the current draft
       try {
-        await draftDelete(field.uuid);
+        await draftDelete(uuid);
       } catch(err) {
         if (!(err instanceof Util.NotFoundError)) {
           throw err;
         }
       }
-      return [false, field.uuid];
+      return [false, uuid];
     }
   }
 
@@ -296,14 +308,14 @@ async function validateAndCreateOrUpdate(field, user, session) {
   // If a draft of this field doesn't exist: create a new draft
   // Fortunately both cases can be handled with a single MongoDB UpdateOne query using 'upsert: true'
   let response = await TemplateField.updateOne(
-    {"uuid": field.uuid, 'publish_date': {'$exists': false}}, 
+    {uuid, 'publish_date': {'$exists': false}}, 
     {$set: new_field}, 
     {'upsert': true, session}
   );
-  if (response.modifiedCount != 1 && response.upsertedCount != 1) {
-    throw new Error(`TemplateField.validateAndCreateOrUpdateTemplateField: Modified: ${response.modifiedCount}. Upserted: ${response.upsertedCount}`);
+  if (response.upsertedCount != 1 && response.matchedCount != 1) {
+    throw new Error(`TemplateField.validateAndCreateOrUpdateTemplateField: Modified: ${response.upsertedCount}. Matched: ${response.matchedCount}`);
   } 
-  return [true, field.uuid];
+  return [true, uuid];
 }
 
 async function draftFetchOrCreate(uuid, user, session) {
@@ -460,7 +472,7 @@ exports.create = async function(field, user) {
   try {
     await session.withTransaction(async () => {
       try {
-        [_, inserted_uuid] = await validateAndCreateOrUpdate(field, user, session);
+        [_, inserted_uuid] = await validateAndCreateOrUpdate(field, user, session, new Date());
       } catch(err) {
         await session.abortTransaction();
         throw err;
@@ -501,7 +513,7 @@ exports.update = async function(field, user) {
   try {
     await session.withTransaction(async () => {
       try {
-        await validateAndCreateOrUpdate(field, user, session);
+        await validateAndCreateOrUpdate(field, user, session, new Date());
       } catch(err) {
         await session.abortTransaction();
         throw err;
@@ -639,51 +651,42 @@ exports.importField = async function(field, user, session) {
   }
   // Now get the matching uuid for the imported uuid
   let uuid = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(field.template_field_uuid, session);
-  // If the uuid is found, then this has already been imported and cannot be imported again
+  // If the uuid is found, then this has already been imported. Import again if we have edit permissions
   if(uuid) {
-    return uuid;
+    if(!PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT, session)) {
+      throw new Util.PermissionDeniedError(`You do not have edit permissions required to import template field ${field.template_field_uuid}. It has already been imported.`);
+    }
+  } else {
+    uuid = await LegacyUuidToNewUuidMapperModel.create_new_uuid_for_old(field.template_field_uuid, session);
+    await PermissionGroupModel.initialize_permissions_for(user, uuid, session);
   }
 
-  let new_field = {
-    name: "",
-    description: ""
-  };
-  new_field.uuid = await LegacyUuidToNewUuidMapperModel.create_new_uuid_for_old(field.template_field_uuid, session);
-  await PermissionGroupModel.initialize_permissions_for(user, new_field.uuid, session);
-  if (field.name) {
-    if (typeof(field.name) !== 'string'){
-      throw new Util.InputError('field name property must be of type string');
+  let new_field = await initializeNewImportedDraftWithProperties(field, uuid, session);
+
+  // If this draft is identical to the latest published, delete it.
+  let old_field = await fetchPublishedAndConvertToDraft(uuid);
+  if (old_field) {
+    let changes = !fieldEquals(new_field, old_field);
+    if (!changes) {
+      // Delete the current draft
+      try {
+        await draftDelete(uuid);
+      } catch(err) {
+        if (!(err instanceof Util.NotFoundError)) {
+          throw err;
+        }
+      }
+      return [false, uuid];
     }
-    new_field.name = field.name;
-  }
-  if (field.description) {
-    if (typeof(field.description) !== 'string'){
-      throw new Util.InputError('field description property must be of type string');
-    }
-    new_field.description = field.description;
-  }
-  if (field.public_date) {
-    if (!Date.parse(field.public_date)){
-      throw new Util.InputError('field public_date property must be in valid date format');
-    }
-    new_field.public_date = new Date(field.public_date);
-  }
-  if (field.updated_at) {
-    if (!Date.parse(field.updated_at)){
-      throw new Util.InputError('field updated_at property must be in valid date format');
-    }
-    new_field.updated_at = new Date(field.updated_at);
-  }
-  if (field.radio_options) {
-    new_field.radio_options = await importRadioOptions(field.radio_options, session);
   }
 
-  let response = await TemplateField.insertOne(
-    new_field,
-    {session}
+  let response = await TemplateField.updateOne(
+    {"uuid": new_field.uuid, 'publish_date': {'$exists': false}}, 
+    {$set: new_field}, 
+    {'upsert': true, session}
   );
-  if (response.insertedCount != 1) {
-    throw new Error(`TemplateField.importField: should be 1 inserted document. Instead: ${response.insertedCount}`);
-  }
-  return new_field.uuid;
+  if (response.upsertedCount != 1 && response.matchedCount != 1) {
+    throw new Error(`TemplateField.importField: Upserted: ${response.upsertedCount}. Matched: ${response.matchedCount}`);
+  } 
+  return [true, uuid];
 }

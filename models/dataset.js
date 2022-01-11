@@ -212,8 +212,8 @@ async function validateAndCreateOrUpdateRecurser(dataset, template, user, sessio
     {$set: dataset_to_save}, 
     {'upsert': true, session}
   );
-  if (response.modifiedCount != 1 && response.upsertedCount != 1) {
-    throw `Dataset.validateAndCreateOrUpdate: Modified: ${response.modifiedCount}. Upserted: ${response.upsertedCount}`;
+  if (response.upsertedCount != 1 && response.matchedCount != 1) {
+    throw new Error(`Dataset.validateAndCreateOrUpdate: Upserted: ${response.upsertedCount}. Matched: ${response.matchedCount}`);
   } 
 
   // If successfull, return the uuid of the created / updated dataset

@@ -27,7 +27,7 @@ exports.get_new_uuid_from_old = async (uuid, session) => {
     return null;
   }
   let document = await cursor.next();
-  return document.uuid;
+  return document.new_uuid;
 }
 
 exports.create_new_uuid_for_old = async (old_uuid, session) => {
@@ -37,7 +37,7 @@ exports.create_new_uuid_for_old = async (old_uuid, session) => {
     {session}
   )
   if (response.insertedCount != 1) {
-    throw `LegacyUuidToNewUuidMapper.createNewUuidForOld: should be 1 inserted document. Instead: ${response.insertedCount}`;
+    throw new Error(`LegacyUuidToNewUuidMapper.createNewUuidForOld: should be 1 inserted document. Instead: ${response.insertedCount}`);
   }
   return new_uuid;
 }

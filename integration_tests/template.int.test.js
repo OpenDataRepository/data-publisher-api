@@ -417,6 +417,17 @@ describe("update (and get draft after an update)", () => {
       expect(response.body).toMatchObject(template);
 
     });
+
+    test("Parent template has two related templates references pointing to the same template", async () => {
+      let response = await Helper.templateDraftGet(uuid, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+      let template = response.body;
+
+      template.related_templates.push(template.related_templates[0]);
+      response = await Helper.templateUpdate(uuid, template, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+
+    });
   
   })
 

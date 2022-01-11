@@ -29,6 +29,12 @@ const importTemplate = async (template, curr_user) => {
     .set('Accept', 'application/json');
 }
 
+const templateDraftGetAndTest = async (uuid, curr_user) => {
+  let response = await Helper.templateDraftGet(uuid, curr_user);
+  expect(response.statusCode).toBe(200);
+  return response.body;
+};
+
 const cleanseInputTemplateField = (field) => {
   delete field.internal_id;
   delete field.fieldtype;
@@ -71,9 +77,8 @@ const fieldsEqual = (f1, f2, uuid_mapper) => {
     uuid_mapper[f1.uuid] = f2.uuid;
   }
   if(f1.name != f2.name || 
-     f1.description != f2.description 
-    //  ||
-    //  !Util.datesEqual(new Date(t1.updated_at), new Date(t2.updated_at))
+     f1.description != f2.description ||
+     !Util.datesEqual(new Date(f1.updated_at), new Date(f2.updated_at))
   ) {
     return false;
   }
@@ -108,10 +113,24 @@ const templatesEqual = (t1, t2, uuid_mapper) => {
   if(t2.related_databases) {
     t2.related_templates = t2.related_databases
   }
+  if(!t1.fields) {
+    t1.fields = [];
+  }
+  if(!t2.fields) {
+    t2.fields = [];
+  }
+  if(!t1.related_templates) {
+    t1.related_templates = [];
+  }
+  if(!t2.related_templates) {
+    t2.related_templates = [];
+  }
   if(t1.name != t2.name || 
     t1.description != t2.description || 
-    // !Util.datesEqual(new Date(t1.updated_at), new Date(t2.updated_at)) ||
+    !Util.datesEqual(new Date(t1.updated_at), new Date(t2.updated_at)) ||
+    typeof(t1.fields) != typeof(t2.fields) ||
     t1.fields.length != t2.fields.length ||
+    typeof(t1.related_templates) != typeof(t2.related_templates) ||
     t1.related_templates.length != t2.related_templates.length) {
     return false;
   }
@@ -132,26 +151,243 @@ const templatesEqual = (t1, t2, uuid_mapper) => {
   return true;
 }
 
-test("import template", async () => {
-  let rawdata = fs.readFileSync(__dirname + '/test_data/template.txt');
-  let old_template = JSON.parse(rawdata);
 
-  let response = await importTemplate(old_template, Helper.DEF_CURR_USER);
-  expect(response.statusCode).toBe(200);
-  let uuid = response.body.new_uuid;
+describe("template", () => {
 
-  response = await Helper.templateDraftGet(uuid, Helper.DEF_CURR_USER);
-  expect(response.statusCode).toBe(200);
-  let new_template = response.body;
-  console.log(new_template);
+  describe("success", () => {
 
-  expect(templatesEqual(new_template, old_template, {})).toBeTruthy();
+    test("basic", async () => {
+      let template = {
+        template_uuid: "1", 
+        name: "naruto", 
+        description: "awesome", 
+        updated_at: (new Date()).toISOString(),
+        fields: [],
+        related_databases: []
+      };
+      let response = await importTemplate(template, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+      let uuid = response.body.new_uuid;
+  
+      let new_template = await templateDraftGetAndTest(uuid, Helper.DEF_CURR_USER);
+      expect(templatesEqual(new_template, template, {})).toBeTruthy();
+    });
+  
+    test("includes fields and related databases 1 level deep", async () => {
+      let name = "";
+      let description = "";
+      let updated_at = (new Date()).toISOString();
+      let template = {
+        template_uuid: "t1", 
+        name, description, updated_at,
+        fields: [{
+          template_field_uuid: "t1f1",
+          name, description, updated_at
+        }],
+        related_databases: [{
+          template_uuid: "t1.1",
+          name, description, updated_at
+        }]
+      };
+      let response = await importTemplate(template, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+      let uuid = response.body.new_uuid;
+  
+      let new_template = await templateDraftGetAndTest(uuid, Helper.DEF_CURR_USER);
+      expect(templatesEqual(new_template, template, {})).toBeTruthy();
+    });
+  
+    test("includes fields and related databases 2 levels deed", async () => {
+      let name = "";
+      let description = "";
+      let updated_at = (new Date()).toISOString();
+      let template = {
+        template_uuid: "t1", 
+        name, description, updated_at,
+        fields: [{
+          template_field_uuid: "t1f1",
+          name, description, updated_at
+        }],
+        related_databases: [{
+          template_uuid: "t1.1",
+          name, description, updated_at,
+          fields: [{
+            template_field_uuid: "t1.1f1",
+            name, description, updated_at
+          }],
+          related_databases: [{
+            template_uuid: "t1.1.1", 
+            name, description, updated_at
+          }]
+        }]
+      };
+      let response = await importTemplate(template, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+      let uuid = response.body.new_uuid;
+  
+      let new_template = await templateDraftGetAndTest(uuid, Helper.DEF_CURR_USER);
+      expect(templatesEqual(new_template, template, {})).toBeTruthy();
+    });
+  
+    test("import the same template twice", async () => {
+      let template = {
+        template_uuid: "1", 
+        name: "naruto", 
+        description: "awesome", 
+        updated_at: (new Date()).toISOString(),
+        fields: [],
+        related_databases: []
+      };
+  
+      // Import first time
+  
+      let response = await importTemplate(template, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+      let uuid = response.body.new_uuid;
+  
+      let new_template = await templateDraftGetAndTest(uuid, Helper.DEF_CURR_USER);
+      expect(templatesEqual(new_template, template, {})).toBeTruthy();
+  
+      // Import second time
+  
+      response = await importTemplate(template, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+      uuid = response.body.new_uuid;
+      new_template = await templateDraftGetAndTest(uuid, Helper.DEF_CURR_USER);
+      expect(templatesEqual(new_template, template, {})).toBeTruthy();  
+    })
+  
+    test("can import same template a second time as long as you have edit permissions", async () => {
+      let template = {
+        template_uuid: "1", 
+        name: "naruto", 
+        description: "awesome", 
+        updated_at: (new Date()).toISOString(),
+        fields: [],
+        related_databases: []
+      };
+  
+      // Import first time
+  
+      let response = await importTemplate(template, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+      let uuid = response.body.new_uuid;
+  
+      let new_template = await templateDraftGetAndTest(uuid, Helper.DEF_CURR_USER);
+      expect(templatesEqual(new_template, template, {})).toBeTruthy();
+  
+      // Import second time
+    
+      response = await importTemplate(template, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+      let uuid2 = response.body.new_uuid;
 
-  cleanseInputTemplate(old_template);
-  expect(new_template).toMatchObject(old_template);
+      expect(uuid).toEqual(uuid2);
 
-  Helper.templateCleanseMetadata(new_template);
-  let published_template = await Helper.templatePublishAndFetch(new_template.uuid, Helper.DEF_CURR_USER);
-  expect(published_template).toMatchObject(new_template);
+      let new_template_2 = await templateDraftGetAndTest(uuid, Helper.DEF_CURR_USER);
+      expect(templatesEqual(new_template_2, new_template, {})).toBeTruthy();
+    })
+  
+    test("import template with real data", async () => {
+      let rawdata = fs.readFileSync(__dirname + '/test_data/template.txt');
+      let old_template = JSON.parse(rawdata);
+    
+      let response = await importTemplate(old_template, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+      let uuid = response.body.new_uuid;
+    
+      let new_template = await templateDraftGetAndTest(uuid, Helper.DEF_CURR_USER);
+    
+      expect(templatesEqual(new_template, old_template, {})).toBeTruthy();
+    
+      cleanseInputTemplate(old_template);
+      expect(new_template).toMatchObject(old_template);
+    
+      Helper.templateCleanseMetadata(new_template);
+      let published_template = await Helper.templatePublishAndFetch(new_template.uuid, Helper.DEF_CURR_USER);
+      expect(published_template).toMatchObject(new_template);
+    });
+
+  });
+
+  describe("failure", () => {
+
+    const failureTest = async (template, curr_user, responseCode) => {
+      let response = await importTemplate(template, curr_user);
+      expect(response.statusCode).toBe(responseCode);
+    };
+
+    test("Input must be an object", async () => {
+      let template = [];
+      await failureTest(template, Helper.DEF_CURR_USER, 400);
+    });
+
+    test("Template must include a template_uuid, which is a string", async () => {
+      let template = {};
+      await failureTest(template, Helper.DEF_CURR_USER, 400);
+
+      template = {template_uuid: 5};
+      await failureTest(template, Helper.DEF_CURR_USER, 400);
+    });
+
+    test("Must have edit permissions to import a second time", async () => {
+      let template = {
+        template_uuid: "1", 
+        name: "naruto", 
+        description: "awesome", 
+        updated_at: (new Date()).toISOString(),
+        fields: [],
+        related_databases: []
+      };
+  
+      // Import first time
+  
+      let response = await importTemplate(template, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+      let uuid = response.body.new_uuid;
+  
+      let new_template = await templateDraftGetAndTest(uuid, Helper.DEF_CURR_USER);
+      expect(templatesEqual(new_template, template, {})).toBeTruthy();
+  
+      // Import second time
+  
+      await failureTest(template, Helper.USER_2, 401);
+    });
+
+    test("Fields and related_templates must be arrays", async () => {
+      let invalidFields = {
+        template_uuid: "1",
+        fields: ""
+      };
+      let invalidRelatedTemplates = {
+        template_uuid: "2",
+        related_databases: {}
+      };
+      await failureTest(invalidFields, Helper.DEF_CURR_USER, 400);
+      await failureTest(invalidRelatedTemplates, Helper.DEF_CURR_USER, 400);
+    });
+
+    test("Each of fields and related_templates must be valid", async () => {
+      let invalidFields = { 
+        template_uuid: "1",
+        "fields": [
+          { 
+            "name": 5
+          }
+        ]
+      };
+      let invalidRelatedTemplates = { 
+        template_uuid: "1",
+        "related_databases": [
+          { 
+            "name": 5
+          }
+        ]
+      };
+      await failureTest(invalidFields, Helper.DEF_CURR_USER, 400);
+      await failureTest(invalidRelatedTemplates, Helper.DEF_CURR_USER, 400);
+    });
+
+  });
 
 });

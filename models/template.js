@@ -228,6 +228,56 @@ async function createDraftFromLastPublishedWithSession(uuid) {
   }
 }
 
+function initializeNewDraftWithPropertiesSharedWithImport(input_template, uuid, updated_at) {
+  let output_template = {
+    uuid, 
+    name: "",
+    description: "",
+    updated_at,
+    fields: [],
+    related_templates: []
+  };
+  if (input_template.name !== undefined) {
+    if (typeof(input_template.name) !== 'string'){
+      throw new Util.InputError('name property must be of type string');
+    }
+    output_template.name = input_template.name
+  }
+  if (input_template.description !== undefined) {
+    if (typeof(input_template.description) !== 'string'){
+      throw new Util.InputError('description property must be of type string');
+    }
+    output_template.description = input_template.description
+  }
+  return output_template;
+}
+
+function initializeNewDraftWithProperties(input_template, uuid, updated_at) {
+  let output_template = initializeNewDraftWithPropertiesSharedWithImport(input_template, uuid, updated_at);
+  if (input_template.public_date) {
+    if (!Date.parse(input_template.public_date)){
+      throw new Util.InputError('template public_date property must be in valid date format');
+    }
+    output_template.public_date = new Date(input_template.public_date);
+  }
+  return output_template;
+}
+
+function initializeNewImportedDraftWithProperties(input_template, uuid) {
+  if (input_template.updated_at && Date.parse(input_template.updated_at)) {
+    input_template.updated_at = new Date(input_template.updated_at);
+  } else {
+    input_template.updated_at = undefined;
+  }
+  let output_template = initializeNewDraftWithPropertiesSharedWithImport(input_template, uuid, input_template.updated_at);
+  if (input_template._database_metadata && Util.isObject(input_template._database_metadata) && input_template._database_metadata._public_date) {
+    if (Date.parse(input_template._database_metadata._public_date)){
+      output_template.public_date = new Date(input_template.public_date);
+    }
+  }
+  return output_template;
+}
+
 // If a uuid is provided, update the template with the provided uuid.
 // Otherwise, create a new template.
 // If the updated template is the same as the last published, delete the draft instead of updating. 
@@ -235,160 +285,127 @@ async function createDraftFromLastPublishedWithSession(uuid) {
 // Return:
 // 1. A boolean indicating true if there were changes from the last published.
 // 2. The uuid of the template created / updated
-async function validateAndCreateOrUpdate(template, user, session) {
+async function validateAndCreateOrUpdate(input_template, user, session, updated_at) {
 
   // Template must be an object
-  if (!Util.isObject(template)) {
-    // if (uuidValidate(template.uuid)) {
-    //   return [false, template]
-    // }
-    throw new Util.InputError(`template provided is not an object: ${template}`);
+  if (!Util.isObject(input_template)) {
+    throw new Util.InputError(`template provided is not an object: ${input_template}`);
   }
 
+  let uuid;
   // If a template uuid is provided, this is an update
-  if (template.uuid) {
+  if (input_template.uuid) {
     // Template must have a valid uuid. 
-    if (!uuidValidate(template.uuid)) {
+    if (!uuidValidate(input_template.uuid)) {
       throw new Util.InputError("each template must have a valid uuid property");
     }
     
     // Template uuid must exist
-    if (!(await SharedFunctions.exists(Template, template.uuid, session))) {
-      throw new Util.NotFoundError(`No template exists with uuid ${template.uuid}`);
+    if (!(await SharedFunctions.exists(Template, input_template.uuid, session))) {
+      throw new Util.NotFoundError(`No template exists with uuid ${input_template.uuid}`);
     }
     
     // verify that this user is in the 'edit' permission group
-    if (!(await PermissionGroupModel.has_permission(user, template.uuid, PermissionGroupModel.PERMISSION_EDIT))) {
+    if (!(await PermissionGroupModel.has_permission(user, input_template.uuid, PermissionGroupModel.PERMISSION_EDIT))) {
       // TODO: probably at some point there should be 2 error codes here. 
       // 1: the user linked a public template. In this case assume they just want to link it without making changes
       // 2. the user linked a draft. In this case they're trying to make a change without permission.
-      throw new Util.PermissionDeniedError(`Do not have edit permissions for template uuid: ${template.uuid}`);
+      throw new Util.PermissionDeniedError(`Do not have edit permissions for template uuid: ${input_template.uuid}`);
     }
+
+    uuid = input_template.uuid;
   }
   // Otherwise, this is a create
   else {
     // Generate a uuid for the new template
-    template.uuid = uuidv4();
+    uuid = uuidv4();
     // create a permissions group for the new template
     // TODO: can I think of a way to test that this was done with the session?
-    await PermissionGroupModel.initialize_permissions_for(user, template.uuid, session);
+    await PermissionGroupModel.initialize_permissions_for(user, uuid, session);
   }
+
+  // Populate template properties
+  let new_template = initializeNewDraftWithProperties(input_template, uuid, updated_at);
 
   // Need to determine if this draft is any different from the published one.
   let changes = false;
 
-  // Populate template properties
-  let name = "";
-  let description = "";
-  let public_date;
-  let fields = [];
-  let related_templates = [];
-  if (template.name !== undefined) {
-    if (typeof(template.name) !== 'string'){
-      throw new Util.InputError('name property must be of type string');
-    }
-    name = template.name
-  }
-  if (template.description !== undefined) {
-    if (typeof(template.description) !== 'string'){
-      throw new Util.InputError('description property must be of type string');
-    }
-    description = template.description
-  }
-  if (template.public_date) {
-    if (!Date.parse(template.public_date)){
-      throw new Util.InputError('template public_date property must be in valid date format');
-    }
-    public_date = new Date(template.public_date);
-  }
   // Reursively handle each of the fields
-  if (template.fields !== undefined) {
-    if (!Array.isArray(template.fields)){
+  if (input_template.fields !== undefined) {
+    if (!Array.isArray(input_template.fields)){
       throw new Util.InputError('fields property must be of type array');
     }
-    for (let i = 0; i < template.fields.length; i++) {
+    for (let field of input_template.fields) {
+      let field_uuid;
       try {
-        changes |= (await TemplateFieldModel.validateAndCreateOrUpdate(template.fields[i], user, session))[0];
+        let more_changes;
+        [more_changes, field_uuid] = await TemplateFieldModel.validateAndCreateOrUpdate(field, user, session, updated_at);
+        changes |= more_changes;
       } catch(err) {
         if (err instanceof Util.NotFoundError) {
           throw new Util.InputError(err.message);
         } else if (err instanceof Util.PermissionDeniedError) {
-
+          field_uuid = field.uuid;
         } else {
           throw err;
         }
       }
       // After validating and updating the field, replace the imbedded field with a uuid reference
-      template.fields[i] = template.fields[i].uuid
+      new_template.fields.push(field_uuid);
     }
-    fields = template.fields
     // It is a requirement that no field be repeated. Verify this
+    if(Util.anyDuplicateInArray(new_template.fields)) {
+      throw new Util.InputError(`Each template may only have one instance of any template field.`);
+    }
     let field_uuids = new Set();
-    for(let field of fields) {
+    for(let field of new_template.fields) {
       if(field_uuids.has(field)) {
         throw new Util.InputError(`Each template may only have one instance of any template field. Field ${field} duplicated`);
       }
       field_uuids.add(field);
     }
   }
-  // Reursively handle each of the related_templates
-  if (template.related_templates !== undefined) {
-    if (!Array.isArray(template.related_templates)){
+  // Recursively handle each of the related_templates
+  if (input_template.related_templates !== undefined) {
+    if (!Array.isArray(input_template.related_templates)){
       throw new Util.InputError('related_templates property must be of type array');
     }
-    for (let i = 0; i < template.related_templates.length; i++) {
+    for (let related_template of input_template.related_templates) {
+      let related_template_uuid;
       try {
-        changes |= (await validateAndCreateOrUpdate(template.related_templates[i], user, session))[0];
+        let more_changes;
+        [more_changes, related_template_uuid] = await validateAndCreateOrUpdate(related_template, user, session, updated_at);
+        changes |= more_changes;
       } catch(err) {
         if (err instanceof Util.NotFoundError) {
           throw new Util.InputError(err.message);
         } else if (err instanceof Util.PermissionDeniedError) {
           // If the user doesn't have edit permissions, assume they want to link the published version of the template, or keep something another editor added
+          related_template_uuid = related_template.uuid;
         } else {
           throw err;
         }
       }
       // After validating and updating the related_template, replace the imbedded related_template with a uuid reference
-      template.related_templates[i] = template.related_templates[i].uuid
+      new_template.related_templates.push(related_template_uuid);
     }
-    related_templates = template.related_templates
-  }
-
-  // Ensure there is only one draft of this template. If there are multiple drafts, that is a critical error.
-  cursor = await Template.find({"uuid": template.uuid, 'publish_date': {'$exists': false}});
-  if ((await cursor.count()) > 1) {
-    throw new Exception(`Template.validateAndCreateOrUpdate: Multiple drafts found of template with uuid ${template.uuid}`);
-  } 
-
-  // Update/create the template in the database
-  let new_template = {
-    name: name,
-    description: description,
-    fields: fields,
-    related_templates: related_templates,
-    updated_at: new Date(),
-    uuid: template.uuid
-  }
-  if (public_date) {
-    new_template.public_date = public_date;
   }
 
   // If this draft is identical to the latest published, delete it.
   // The reason to do so is so when a change is submitted, we won't create drafts of sub-templates.
-  // We notify the user when a draft is created so they can publish it. So we don't want to create sub-template drafts
-  // every time a parent draft is updated.
+  // Only create drafts for the templates that actually have changes
   if (!changes) {
     changes = await draftDifferentFromLastPublished(new_template);
     if (!changes) {
       // Delete the current draft
       try {
-        await draftDelete(template.uuid);
+        await draftDelete(uuid);
       } catch (err) {
         if (!(err instanceof Util.NotFoundError)) {
           throw err;
         }
       }
-      return [false, null];
+      return [false, uuid];
     }
   }
 
@@ -396,16 +413,16 @@ async function validateAndCreateOrUpdate(template, user, session) {
   // If a draft of this template doesn't exist: create a new draft
   // Fortunately both cases can be handled with a single MongoDB UpdateOne query using upsert: true
   let response = await Template.updateOne(
-    {"uuid": template.uuid, 'publish_date': {'$exists': false}}, 
+    {uuid, 'publish_date': {'$exists': false}}, 
     {$set: new_template}, 
     {'upsert': true, session}
   );
-  if (response.modifiedCount != 1 && response.upsertedCount != 1) {
-    throw `Template.validateAndCreateOrUpdate: Modified: ${response.modifiedCount}. Upserted: ${response.upsertedCount}`;
+  if (response.upsertedCount != 1 && response.matchedCount != 1) {
+    throw new Error(`Template.validateAndCreateOrUpdate: Upserted: ${response.upsertedCount}. Matched: ${response.matchedCount}`);
   } 
 
   // If successfull, return the uuid of the created / updated template
-  return [true, template.uuid];
+  return [true, uuid];
 
 }
 
@@ -1033,6 +1050,7 @@ async function duplicate(uuid, user, session) {
   return await duplicateRecursor(template, user, session)
 }
 
+// TODO: as of now, import doesn't include group_uuids at all
 async function importTemplate(template, user, session) {
   if(!Util.isObject(template)) {
     throw new Util.InputError('Template to import must be a json object.');
@@ -1041,46 +1059,23 @@ async function importTemplate(template, user, session) {
     throw new Util.InputError('Template provided to import must have a template_uuid, which is a string.');
   }
   // Now get the matching uuid for the imported uuid
-  let uuid = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(template.template_uuid, session);
-  // If the uuid is found, then this has already been imported and cannot be imported again
+  let old_uuid = template.template_uuid;
+  let uuid = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(old_uuid, session);
+  // If the uuid is found, then this has already been imported. Import again if we have edit permissions
   if(uuid) {
-    return uuid;
+    if(!(await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT, session))) {
+      throw new Util.PermissionDeniedError(`You do not have edit permissions required to import template ${old_uuid}. It has already been imported.`);
+    }
+  } else {
+    uuid = await LegacyUuidToNewUuidMapperModel.create_new_uuid_for_old(old_uuid, session);
+    await PermissionGroupModel.initialize_permissions_for(user, uuid, session);
   }
-  uuid = await LegacyUuidToNewUuidMapperModel.create_new_uuid_for_old(template.template_uuid, session);
-  await PermissionGroupModel.initialize_permissions_for(user, uuid, session);
 
   // Populate template properties
-  let new_template = {
-    uuid,
-    name: "",
-    description: "", 
-    fields: [],
-    related_templates: []
-  }
-  if (template.name !== undefined) {
-    if (typeof(template.name) !== 'string'){
-      throw new Util.InputError('name property must be of type string');
-    }
-    new_template.name = template.name
-  }
-  if (template.description !== undefined) {
-    if (typeof(template.description) !== 'string'){
-      throw new Util.InputError('description property must be of type string');
-    }
-    new_template.description = template.description
-  }
-  if (template.public_date) {
-    if (!Date.parse(template.public_date)){
-      throw new Util.InputError('template public_date property must be in valid date format');
-    }
-    new_template.public_date = new Date(template.public_date);
-  }
-  if (template.updated_at) {
-    if (!Date.parse(template.updated_at)){
-      throw new Util.InputError('template updated_at property must be in valid date format');
-    }
-    new_template.updated_at = new Date(template.updated_at);
-  }
+  let new_template = initializeNewImportedDraftWithProperties(template, uuid);
+
+  // Need to determine if this draft is any different from the published one.
+  let changes = false;
 
   // Recursively handle each of the fields
   if (template.fields !== undefined) {
@@ -1088,15 +1083,24 @@ async function importTemplate(template, user, session) {
       throw new Util.InputError('fields property must be of type array');
     }
     for (let field of template.fields) {
-      new_template.fields.push(await TemplateFieldModel.importField(field, user, session));
+      let field_uuid;
+      try {
+        let more_changes;
+        [more_changes, field_uuid] = await TemplateFieldModel.importField(field, user, session);
+        changes |= more_changes;
+      } catch(err) {
+        if (err instanceof Util.PermissionDeniedError) {
+          field_uuid = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(field.template_field_uuid, session);
+        } else {
+          throw err;
+        }
+      }
+      // After validating and updating the field, replace the imbedded field with a uuid reference
+      new_template.fields.push(field_uuid);
     }
     // It is a requirement that no field be repeated. Verify this
-    let field_uuids = new Set();
-    for(let field of new_template.fields) {
-      if(field_uuids.has(field)) {
-        throw new Util.InputError(`Each template may only have one instance of any template field. Field ${field} duplicated`);
-      }
-      field_uuids.add(field);
+    if(Util.anyDuplicateInArray(new_template.fields)) {
+      throw new Util.InputError(`Each template may only have one instance of any template field.`);
     }
   }
   // Reursively handle each of the related_templates
@@ -1105,19 +1109,52 @@ async function importTemplate(template, user, session) {
       throw new Util.InputError('related_templates property must be of type array');
     }
     for (let related_template of template.related_databases) {
-      new_template.related_templates.push(await importTemplate(related_template, user, session));
+      let related_template_uuid;
+      try {
+        let more_changes;
+        [more_changes, related_template_uuid] = await importTemplate(related_template, user, session);
+        changes |= more_changes;
+      } catch(err) {
+        if (err instanceof Util.PermissionDeniedError) {
+          // If the user doesn't have edit permissions, assume they want to link the published version of the template, or keep something another editor added
+          related_template_uuid = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(related_template.template_uuid, session);;
+        } else {
+          throw err;
+        }
+      }
+      // After validating and updating the related_template, replace the imbedded related_template with a uuid reference
+      new_template.related_templates.push(related_template_uuid);
     }
   }
 
-  // Insert template into the database
-  let response = await Template.insertOne(
-    new_template,
-    {session}
-  )
-  if (response.insertedCount != 1) {
-    throw `Template.importTemplate: should be 1 inserted document. Instead: ${response.insertedCount}`;
+  // If this draft is identical to the latest published, delete it.
+  // The reason to do so is so when a change is submitted, we won't create drafts of sub-templates.
+  // Only create drafts for the templates that actually have changes
+  if (!changes) {
+    changes = await draftDifferentFromLastPublished(new_template);
+    if (!changes) {
+      // Delete the current draft
+      try {
+        await draftDelete(uuid);
+      } catch (err) {
+        if (!(err instanceof Util.NotFoundError)) {
+          throw err;
+        }
+      }
+      return [false, uuid];
+    }
   }
-  return uuid;
+
+  let response = await Template.updateOne(
+    {"uuid": new_template.uuid, 'publish_date': {'$exists': false}}, 
+    {$set: new_template}, 
+    {'upsert': true, session}
+  );
+  if (response.upsertedCount != 1 && response.matchedCount != 1) {
+    throw new Error(`Template.importTemplate: Upserted: ${response.upsertedCount}. Matched: ${response.matchedCount}`);
+  } 
+
+  return [changes, uuid];
 }
 
 // Wraps the actual request to create with a transaction
@@ -1127,7 +1164,7 @@ exports.create = async function(template, user) {
   try {
     await session.withTransaction(async () => {
       try {
-        [_, inserted_uuid] = await validateAndCreateOrUpdate(template, user, session);
+        [_, inserted_uuid] = await validateAndCreateOrUpdate(template, user, session, new Date());
       } catch(err) {
         await session.abortTransaction();
         throw err;
@@ -1147,7 +1184,7 @@ exports.update = async function(template, user) {
   try {
     await session.withTransaction(async () => {
       try {
-        await validateAndCreateOrUpdate(template, user, session);
+        await validateAndCreateOrUpdate(template, user, session, new Date());
       } catch(err) {
         await session.abortTransaction();
         throw err;
@@ -1286,17 +1323,17 @@ exports.duplicate = async function(uuid, user) {
 exports.importTemplate = async function(template, user) {
   const session = MongoDB.newSession();
   try {
-    var new_template;
+    var new_template_uuid;
     await session.withTransaction(async () => {
       try {
-        new_template = await importTemplate(template, user, session);
+        new_template_uuid = (await importTemplate(template, user, session))[1];
       } catch(err) {
         await session.abortTransaction();
         throw err;
       }
     });
     session.endSession();
-    return new_template;
+    return new_template_uuid;
   } catch(err) {
     session.endSession();
     throw err;
