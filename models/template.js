@@ -207,6 +207,7 @@ async function templateUUIDsThatReference(uuid, templateOrField) {
 
 async function createDraftFromLastPublished(uuid, session) {
   let draft = await draftFetchOrCreate(uuid, session);
+  // TODO: this is a bug. should be draft, user, session. Fix and add test case
   await validateAndCreateOrUpdate(draft, session);
 }
 
@@ -270,10 +271,9 @@ function initializeNewImportedDraftWithProperties(input_template, uuid) {
     input_template.updated_at = undefined;
   }
   let output_template = initializeNewDraftWithPropertiesSharedWithImport(input_template, uuid, input_template.updated_at);
-  if (input_template._database_metadata && Util.isObject(input_template._database_metadata) && input_template._database_metadata._public_date) {
-    if (Date.parse(input_template._database_metadata._public_date)){
-      output_template.public_date = new Date(input_template.public_date);
-    }
+  if (input_template._database_metadata && Util.isObject(input_template._database_metadata) && 
+      input_template._database_metadata._public_date && Date.parse(input_template._database_metadata._public_date)) {
+    output_template.public_date = new Date(input_template.public_date);
   }
   return output_template;
 }
@@ -399,7 +399,7 @@ async function validateAndCreateOrUpdate(input_template, user, session, updated_
     if (!changes) {
       // Delete the current draft
       try {
-        await draftDelete(uuid);
+        await SharedFunctions.draftDelete(Template, uuid);
       } catch (err) {
         if (!(err instanceof Util.NotFoundError)) {
           throw err;
@@ -965,25 +965,6 @@ async function lastUpdateFor(uuid, user, session) {
 
 }
 
-async function draftDelete(uuid, user) {
-
-  if (!uuidValidate(uuid)) {
-    throw new Util.InputError('The uuid provided is not in proper uuid format.');
-  }
-
-  if(!(await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT))) {
-    throw new Util.PermissionDeniedError(`You do not have edit permissions for template ${uuid}.`);
-  }
-
-  let response = await Template.deleteMany({ uuid, publish_date: {'$exists': false} });
-  if (!response.deletedCount) {
-    throw new Util.NotFoundError(`A draft does not exist with uuid ${uuid}`);
-  }
-  if (response.deletedCount > 1) {
-    console.error(`draftDelete: Template with uuid '${uuid}' had more than one draft to delete.`);
-  }
-}
-
 async function duplicateRecursor(template, user, session) {
   // 1. Error checking
   if(!template) {
@@ -1141,7 +1122,7 @@ async function importTemplate(template, user, session) {
     if (!changes) {
       // Delete the current draft
       try {
-        await draftDelete(uuid);
+        await SharedFunctions.draftDelete(Template, uuid);
       } catch (err) {
         if (!(err instanceof Util.NotFoundError)) {
           throw err;
@@ -1293,7 +1274,22 @@ exports.latestPublishedWithoutPermissions = async function(uuid) {
 
 exports.publishedByIdWithoutPermissions = publishedByIdWithJoins;
 
-exports.draftDelete = draftDelete;
+exports.draftDelete = async function(uuid, user) {
+
+  if (!uuidValidate(uuid)) {
+    throw new Util.InputError('The uuid provided is not in proper uuid format.');
+  }
+
+  if(!(await SharedFunctions.draft(Template, uuid))) {
+    throw new Util.NotFoundError(`No draft exists with uuid ${uuid}`);
+  }
+
+  if(!(await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT))) {
+    throw new Util.PermissionDeniedError(`You do not have edit permissions for template ${uuid}.`);
+  }
+
+  await SharedFunctions.draftDelete(Template, uuid);
+};
 
 exports.latest_published_id_for_uuid = async function(uuid) {
   let template = await SharedFunctions.latestPublished(Template, uuid);

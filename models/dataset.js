@@ -90,53 +90,61 @@ async function draftDifferentFromLastPublished(draft) {
 }
 
 // A recursive helper for validateAndCreateOrUpdate.
-async function validateAndCreateOrUpdateRecurser(dataset, template, user, session, group_uuid) {
+async function validateAndCreateOrUpdateRecurser(input_dataset, template, user, session, group_uuid, updated_at) {
 
   // dataset must be an object
-  if (!Util.isObject(dataset)) {
-    throw new Util.InputError(`dataset provided is not an object or a valid uuid: ${dataset}`);
+  if (!Util.isObject(input_dataset)) {
+    throw new Util.InputError(`dataset provided is not an object or a valid uuid: ${input_dataset}`);
   }
 
+  let uuid;
   // If a dataset uuid is provided, this is an update
-  if (dataset.uuid) {
+  if (input_dataset.uuid) {
     // Dataset must have a valid uuid. 
-    if (!uuidValidate(dataset.uuid)) {
+    if (!uuidValidate(input_dataset.uuid)) {
       throw new Util.InputError("each dataset must have a valid uuid property");
     }
     
     // Dataset uuid must exist
-    if (!(await SharedFunctions.exists(Dataset, dataset.uuid, session))) {
-      throw new Util.NotFoundError(`No dataset exists with uuid ${dataset.uuid}`);
+    if (!(await SharedFunctions.exists(Dataset, input_dataset.uuid, session))) {
+      throw new Util.NotFoundError(`No dataset exists with uuid ${input_dataset.uuid}`);
     }
 
     // verify that this user is in the 'admin' permission group
-    if (!(await PermissionGroupModel.has_permission(user, dataset.uuid, PermissionGroupModel.PERMISSION_ADMIN))) {
-      throw new Util.PermissionDeniedError(`Do not have admin permissions for dataset uuid: ${dataset.uuid}`);
+    if (!(await PermissionGroupModel.has_permission(user, input_dataset.uuid, PermissionGroupModel.PERMISSION_ADMIN))) {
+      throw new Util.PermissionDeniedError(`Do not have admin permissions for dataset uuid: ${input_dataset.uuid}`);
     }
 
-    group_uuid = (await SharedFunctions.latestDocument(Dataset, dataset.uuid)).group_uuid;
+    uuid = input_dataset.uuid;
+    group_uuid = (await SharedFunctions.latestDocument(Dataset, uuid)).group_uuid;
   }
   // Otherwise, this is a create, so generate a new uuid
   else {
-    dataset.uuid = uuidv4();
-    await PermissionGroupModel.initialize_permissions_for(user, dataset.uuid, session);
+    uuid = uuidv4();
+    await PermissionGroupModel.initialize_permissions_for(user, uuid, session);
   }
 
   // Verify that the template uuid provided by the user is the correct template uuid expected by the latest published template
-  if(dataset.template_uuid != template.uuid) {
-    throw new Util.InputError(`The template uuid provided by the dataset (${dataset.template_uuid}) does not correspond to the template uuid expected by the template (${template.uuid})`);
+  if(input_dataset.template_uuid != template.uuid) {
+    throw new Util.InputError(`The template uuid provided by the dataset (${input_dataset.template_uuid}) does not correspond to the template uuid expected by the template (${template.uuid})`);
   }
 
   // Build object to create/update
-  let public_date;
-  let related_datasets = [];
-  if (dataset.public_date) {
-    if (!Date.parse(dataset.public_date)){
+  let new_dataset = {
+    uuid,
+    template_uuid: input_dataset.template_uuid,
+    group_uuid,
+    updated_at,
+    related_datasets: []
+  };
+
+  if (input_dataset.public_date) {
+    if (!Date.parse(input_dataset.public_date)){
       throw new Util.InputError('dataset public_date property must be in valid date format');
     }
-    public_date = new Date(dataset.public_date);
-    if(!template.public_date || public_date < (new Date(template.public_date))) {
-      throw new Util.InputError(`public_date for dataset must be later than the public_date for it's template. date provided: ${public_date.toISOString()}, template uuid: ${template.uuid}, template public_date: ${template.public_date}`);
+    new_dataset.public_date = new Date(input_dataset.public_date);
+    if(!template.public_date || new_dataset.public_date < (new Date(template.public_date))) {
+      throw new Util.InputError(`public_date for dataset must be later than the public_date for it's template. date provided: ${new_dataset.public_date.toISOString()}, template uuid: ${template.uuid}, template public_date: ${template.public_date}`);
     }
   }
 
@@ -144,72 +152,60 @@ async function validateAndCreateOrUpdateRecurser(dataset, template, user, sessio
   let changes = false;
 
   // Recurse into related_datasets
-  if(!dataset.related_datasets) {
-    dataset.related_datasets = [];
+  if(!input_dataset.related_datasets) {
+    input_dataset.related_datasets = [];
   }
-  // Recurse into related_datasets
-  if (!Array.isArray(dataset.related_datasets)){
+  if (!Array.isArray(input_dataset.related_datasets)){
     throw new Util.InputError('related_datasets property must be of type array');
   }
-  if(dataset.related_datasets.length != template.related_templates.length) {
+  if(input_dataset.related_datasets.length != template.related_templates.length) {
     throw new Util.InputError(`related_datasets of dataset must correspond to related_templates of its template`);
   }
-  for (let i = 0; i < dataset.related_datasets.length; i++) {
+  for (let i = 0; i < input_dataset.related_datasets.length; i++) {
     let related_dataset;
     try {
       let new_changes;
-      [new_changes, related_dataset] = await validateAndCreateOrUpdateRecurser(dataset.related_datasets[i], template.related_templates[i], user, session, group_uuid);
+      // TODO: this shouldn't be ordered! I have to use a more complicated system to get the matching elements. 
+      // The dataset and template could be in a different order
+      [new_changes, related_dataset] = await validateAndCreateOrUpdateRecurser(input_dataset.related_datasets[i], template.related_templates[i], user, session, group_uuid, updated_at);
       changes = changes || new_changes;
     } catch(err) {
       if (err instanceof Util.NotFoundError) {
         throw new Util.InputError(err.message);
       } else if (err instanceof Util.PermissionDeniedError) {
         // If we don't have admin permissions to the related_dataset, don't try to update/create it. Just link it
-        related_dataset = dataset.related_datasets[i].uuid;
+        related_dataset = input_dataset.related_datasets[i].uuid;
       } else {
         throw err;
       }
     }
     // After validating and updating the related_dataset, replace the object with a uuid reference
-    related_datasets.push(related_dataset);
-  }
-
-  // Create the dataset to save
-  let dataset_to_save = {
-    uuid: dataset.uuid,
-    template_uuid: dataset.template_uuid,
-    group_uuid,
-    related_datasets: related_datasets
-  };
-  if(public_date) {
-    dataset_to_save.public_date = public_date;
+    new_dataset.related_datasets.push(related_dataset);
   }
 
   // If this draft is identical to the latest published, delete it.
-  // The reason to do so is so when a change is submitted, we won't create drafts of sub-datasets.
+  // The reason to do so is so when an update to a dataset is submitted, we won't create drafts of sub-datasets that haven't changed.
   if (!changes) {
-    changes = await draftDifferentFromLastPublished(dataset_to_save);
+    changes = await draftDifferentFromLastPublished(new_dataset);
     if (!changes) {
       // Delete the current draft
       try {
-        await SharedFunctions.draftDelete(Dataset, dataset.uuid);
+        await SharedFunctions.draftDelete(Dataset, uuid);
       } catch (err) {
         if (!(err instanceof Util.NotFoundError)) {
           throw err;
         }
       }
-      return [false, dataset.uuid];
+      return [false, uuid];
     }
   }
 
-  dataset_to_save.updated_at = new Date();
-
-  // If a draft of this record already exists: overwrite it, using it's same uuid
-  // If a draft of this record doesn't exist: create a new draft
+  // If a draft of this dataset already exists: overwrite it, using it's same uuid
+  // If a draft of this dataset doesn't exist: create a new draft
   // Fortunately both cases can be handled with a single MongoDB UpdateOne query using upsert: true
   let response = await Dataset.updateOne(
-    {"uuid": dataset.uuid, 'publish_date': {'$exists': false}}, 
-    {$set: dataset_to_save}, 
+    {uuid, 'publish_date': {'$exists': false}}, 
+    {$set: new_dataset}, 
     {'upsert': true, session}
   );
   if (response.upsertedCount != 1 && response.matchedCount != 1) {
@@ -217,7 +213,7 @@ async function validateAndCreateOrUpdateRecurser(dataset, template, user, sessio
   } 
 
   // If successfull, return the uuid of the created / updated dataset
-  return [true, dataset.uuid];
+  return [true, uuid];
 
 }
 
@@ -263,7 +259,9 @@ async function validateAndCreateOrUpdate(dataset, user, session) {
     group_uuid = uuidv4();
   }
 
-  return await validateAndCreateOrUpdateRecurser(dataset, template, user, session, group_uuid);
+  let updated_at = new Date();
+
+  return await validateAndCreateOrUpdateRecurser(dataset, template, user, session, group_uuid, updated_at);
 
 }
 
@@ -563,7 +561,7 @@ async function publish(dataset_uuid, user, session, last_update) {
 
 // Fetches the last dataset with the given uuid published before the given date. 
 // Also recursively looks up fields and related_templates.
-async function latestPublishedBeforeDateWithJoins(uuid, date) {
+async function latestPublishedBeforeDateWithJoins(uuid, date, session) {
   // Validate uuid and date are valid
   if (!uuidValidate(uuid)) {
     throw new Util.InputError('The uuid provided is not in proper uuid format.');
@@ -643,7 +641,7 @@ async function latestPublishedBeforeDateWithJoins(uuid, date) {
     // create a copy
     pipeline_addons = JSON.parse(JSON.stringify(pipeline_addons));
   }
-  let response = await Dataset.aggregate(pipeline);
+  let response = await Dataset.aggregate(pipeline, {session});
   if (await response.hasNext()){
     return await response.next();
   } else {
@@ -668,7 +666,7 @@ async function filterPublishedForPermissions(dataset, user) {
   await filterPublishedForPermissionsRecursor(dataset, user);
 }
 
-async function latestPublishedBeforeDateWithJoinsAndPermissions(uuid, date, user) {
+async function latestPublishedBeforeDateWithJoinsAndPermissions(uuid, date, user, session) {
   let dataset = await latestPublishedBeforeDateWithJoins(uuid, date);
   await filterPublishedForPermissions(dataset, user);
   return dataset;
@@ -676,8 +674,8 @@ async function latestPublishedBeforeDateWithJoinsAndPermissions(uuid, date, user
 
 // Fetches the last published dataset with the given uuid. 
 // Also recursively looks up related_datasets.
-async function latestPublishedWithJoinsAndPermissions(uuid, user) {
-  return await latestPublishedBeforeDateWithJoinsAndPermissions(uuid, new Date(), user);
+async function latestPublishedWithJoinsAndPermissions(uuid, user, session) {
+  return await latestPublishedBeforeDateWithJoinsAndPermissions(uuid, new Date(), user, session);
 }
 
 async function duplicateRecursor(original_dataset, original_group_uuid, new_group_uuid, uuid_dictionary, user, session) {
@@ -738,6 +736,131 @@ async function duplicate(uuid, user, session) {
   let uuid_dictionary = {};
   let new_uuid = await duplicateRecursor(original_dataset, original_group_uuid, uuidv4(), uuid_dictionary, user, session);
   return await draftFetchOrCreate(new_uuid, user, session);
+}
+
+async function importDatasetFromCombinedRecursor(record, template, user, session) {
+  if(!Util.isObject(record)) {
+    throw new Util.InputError('Record to import must be a json object.');
+  }
+  if(!record.template_uuid || typeof(record.template_uuid) !== 'string') {
+    throw new Util.InputError('Record provided to import must have a template_uuid, which is a string.');
+  }
+  // Template must have already been imported
+  let new_template_uuid = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(record.template_uuid, session);
+  if(!new_template_uuid) {
+    throw new Util.InputError('template_uuid provided does not exist.');
+  }
+
+  if(template.uuid != new_template_uuid) {
+    throw new Util.InputError(`template expects template_uuid ${template.uuid}. Record ${record.record_uuid} suuplied uuid ${new_template_uuid}`);
+  }
+
+  // template must be published and user must have read access
+  let latest_published_template = await TemplateModel.latestPublished(new_template_uuid, user);
+  if(!latest_published_template) {
+    throw new Util.InputError(`Cannot import record with template_uuid ${record.template_uuid} because the template 
+    (converted to uuid ${new_template_uuid}) has not yet been published.`);
+  }
+
+  if(!record.database_uuid || typeof(record.database_uuid) !== 'string') {
+    throw new Util.InputError(`Record provided to import ${record.record_uuid} must have a database_uuid, which is a string.`);
+  }
+
+  // Now get the matching database uuid for the imported database uuid
+  let old_uuid = record.database_uuid;
+  let dataset_uuid = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(old_uuid, session);
+  // If the uuid is found, then this has already been imported. Import again if we have edit permissions
+  if(dataset_uuid) {
+    if(!(await PermissionGroupModel.has_permission(user, dataset_uuid, PermissionGroupModel.PERMISSION_ADMIN, session))) {
+      throw new Util.PermissionDeniedError(`You do not have edit permissions required to import database ${old_uuid}. It has already been imported.`);
+    }
+  } else {
+    dataset_uuid = await LegacyUuidToNewUuidMapperModel.create_new_uuid_for_old(old_uuid, session);
+    await PermissionGroupModel.initialize_permissions_for(user, dataset_uuid, session);
+  }
+
+  // continue here with normal update procedures
+
+  // Build object to create/update
+  let new_dataset = {
+    uuid: dataset_uuid,
+    template_uuid: new_template_uuid
+  };
+
+  if (record._record_metadata && Util.isObject(record._record_metadata) && 
+      record._record_metadata._public_date && Date.parse(record._record_metadata._public_date)) {
+    new_dataset.public_date = new Date(record._record_metadata._public_date);
+  }
+
+  // Need to determine if this draft is any different from the published one.
+  let changes = false;
+
+  // Recurse into related_records
+  new_dataset.related_datasets = [];
+  if(!record.records) {
+    record.records = [];
+  }
+  if (!Array.isArray(record.records)){
+    throw new Util.InputError('records property must be of type array');
+  }
+  if(record.records.length != template.related_templates.length) {
+    throw new Util.InputError(`records of each record must correspond to related_templates of its template`);
+  }
+  for (let i = 0; i < record.records.length; i++) {
+    let related_dataset;
+    try {
+      let new_changes;
+      // TODO: this shouldn't be ordered 
+      [new_changes, related_dataset] = await importDatasetFromCombinedRecursor(record.records[i], template.related_templates[i], user, session);
+      changes = changes || new_changes;
+    } catch(err) {
+      if (err instanceof Util.PermissionDeniedError) {
+        // If we don't have admin permissions to the related_dataset, don't try to update/create it. Just link it
+        related_dataset = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(record.records[i].database_uuid, session);
+      } else {
+        throw err;
+      }
+    }
+    // After validating and updating the related_dataset, replace the object with a uuid reference
+    new_dataset.related_datasets.push(related_dataset);
+  }
+
+  if (record.updated_at && Date.parse(record.updated_at)) {
+    new_dataset.updated_at = new Date(record.updated_at);
+  }
+  
+  // If this draft is identical to the latest published, delete it.
+  // The reason to do so is so when an update to a dataset is submitted, we won't create drafts of sub-datasets that haven't changed.
+  if (!changes) {
+    changes = await draftDifferentFromLastPublished(new_dataset);
+    if (!changes) {
+      // Delete the current draft
+      try {
+        await SharedFunctions.draftDelete(Dataset, dataset_uuid);
+      } catch (err) {
+        if (!(err instanceof Util.NotFoundError)) {
+          throw err;
+        }
+      }
+      return [false, dataset_uuid];
+    }
+  }
+
+  // If a draft of this dataset already exists: overwrite it, using it's same uuid
+  // If a draft of this dataset doesn't exist: create a new draft
+  // Fortunately both cases can be handled with a single MongoDB UpdateOne query using upsert: true
+  let response = await Dataset.updateOne(
+    {"uuid": dataset_uuid, 'publish_date': {'$exists': false}}, 
+    {$set: new_dataset}, 
+    {'upsert': true, session}
+  );
+  if (response.upsertedCount != 1 && response.matchedCount != 1) {
+    throw new Error(`Dataset.importDatasetFromCombinedRecursor: Upserted: ${response.upsertedCount}. Matched: ${response.matchedCount}`);
+  } 
+
+  // If successfull, return the uuid of the created / updated dataset
+  return [true, dataset_uuid];
+  
 }
 
 // Wraps the actual request to create with a transaction
@@ -908,3 +1031,6 @@ exports.duplicate = async function(uuid, user) {
     throw err;
   }
 }
+
+exports.importDatasetFromCombinedRecursor = importDatasetFromCombinedRecursor;
+exports.publishWithoutChecks = publishRecurser;

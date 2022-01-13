@@ -127,71 +127,17 @@ async function draftDifferentFromLastPublished(draft) {
   return false;
 }
 
-// A recursive helper for validateAndCreateOrUpdate.
-async function validateAndCreateOrUpdateRecurser(record, dataset, template, user, session) {
-
-  // Record must be an object or valid uuid
-  if (!Util.isObject(record)) {
-    throw new Util.InputError(`record provided is not an object: ${record}`);
-  }
-
-  // If a record uuid is provided, this is an update
-  if (record.uuid) {
-    // Record must have a valid uuid. 
-    if (!uuidValidate(record.uuid)) {
-      throw new Util.InputError("each record must have a valid uuid property");
-    }
-    
-    // Record uuid must exist
-    if (!(await SharedFunctions.exists(Record, record.uuid, session))) {
-      throw new Util.NotFoundError(`No record exists with uuid ${record.uuid}`);
-    }
-
-  }
-  // Otherwise, this is a create, so generate a new uuid
-  else {
-    record.uuid = uuidv4();
-  }
-
-  // verify that this user is in the 'edit' permission group
-  if (!(await PermissionGroupModel.has_permission(user, dataset.uuid, PermissionGroupModel.PERMISSION_EDIT))) {
-    throw new Util.PermissionDeniedError(`Do not have edit permissions required to create/update records in dataset ${dataset.uuid}`);
-  }
-
-  // Make sure no record switches datasets
-  let latest_published_record = await SharedFunctions.latestPublished(Record, record.uuid, session);
-  if (latest_published_record) {
-    if(record.dataset_uuid != latest_published_record.dataset_uuid) {
-      throw new Util.InputError(`Record ${record.uuid} expected dataset ${latest_published_record.dataset_uuid}, but received ${record.dataset_uuid}. Once a record is published, it's dataset may never be changed.`);
-    }
-  }
-
-  // Verify that the dataset uuid specified by the record matches the dataset uuid of the dataset
-  if(record.dataset_uuid != dataset.uuid) {
-    throw new Util.InputError(`The dataset uuid provided by the record: ${record.dataset_uuid} does not correspond to the dataset uuid expected by the dataset: ${dataset.uuid}`);
-  }
-
-  let public_date;
-  let fields = [];
-  let related_records = [];
-
-  if (record.public_date) {
-    if (!Date.parse(record.public_date)){
-      throw new Util.InputError('record public_date property must be in valid date format');
-    }
-    public_date = new Date(record.public_date);
-  }
-
+function createRecordFieldsFromInputRecordAndTemplate(record_fields, template_fields) {
   // Fields are a bit more complicated
-  if(!record.fields) {
-    record.fields = [];
+  if(!record_fields) {
+    record_fields = [];
   }
-  if (!Array.isArray(record.fields)){
+  if (!Array.isArray(record_fields)){
     throw new Util.InputError('fields property must be of type array');
   }
   // Create a map of records to fields
   let record_field_map = {};
-  for (let field of record.fields) {
+  for (let field of record_fields) {
     if(!Util.isObject(field)) {
       throw new Util.InputError(`Each field in the record must be a json object`);
     }
@@ -207,7 +153,10 @@ async function validateAndCreateOrUpdateRecurser(record, dataset, template, user
     }
     record_field_map[field.uuid] = record_field_data;
   }
-  for (let field of template.fields) {
+
+  let result_fields = [];
+
+  for (let field of template_fields) {
     let field_object = {
       uuid: field.uuid,
       name: field.name,
@@ -227,31 +176,97 @@ async function validateAndCreateOrUpdateRecurser(record, dataset, template, user
     } else {
       field_object.value = record_field_data.value;
     }
-    fields.push(field_object);
+    result_fields.push(field_object);
   }
+
+  return result_fields;
+}
+
+// A recursive helper for validateAndCreateOrUpdate.
+async function validateAndCreateOrUpdateRecurser(input_record, dataset, template, user, session, updated_at) {
+
+  // Record must be an object or valid uuid
+  if (!Util.isObject(input_record)) {
+    throw new Util.InputError(`record provided is not an object: ${input_record}`);
+  }
+
+  let uuid;
+  // If a record uuid is provided, this is an update
+  if (input_record.uuid) {
+    // Record must have a valid uuid. 
+    if (!uuidValidate(input_record.uuid)) {
+      throw new Util.InputError("each record must have a valid uuid property");
+    }
+    
+    // Record uuid must exist
+    if (!(await SharedFunctions.exists(Record, input_record.uuid, session))) {
+      throw new Util.NotFoundError(`No record exists with uuid ${input_record.uuid}`);
+    }
+
+    uuid = input_record.uuid;
+  }
+  // Otherwise, this is a create, so generate a new uuid
+  else {
+    uuid = uuidv4();
+  }
+
+  // verify that this user is in the 'edit' permission group
+  if (!(await PermissionGroupModel.has_permission(user, dataset.uuid, PermissionGroupModel.PERMISSION_EDIT))) {
+    throw new Util.PermissionDeniedError(`Do not have edit permissions required to create/update records in dataset ${dataset.uuid}`);
+  }
+
+  // Make sure no record switches datasets
+  let latest_published_record = await SharedFunctions.latestPublished(Record, uuid, session);
+  if (latest_published_record) {
+    if(input_record.dataset_uuid != latest_published_record.dataset_uuid) {
+      throw new Util.InputError(`Record ${uuid} expected dataset ${latest_published_record.dataset_uuid}, but received ${input_record.dataset_uuid}. Once a record is published, it's dataset may never be changed.`);
+    }
+  }
+
+  // Verify that the dataset uuid specified by the record matches the dataset uuid of the dataset
+  if(input_record.dataset_uuid != dataset.uuid) {
+    throw new Util.InputError(`The dataset uuid provided by the record: ${input_record.dataset_uuid} does not correspond to the dataset uuid expected by the dataset: ${dataset.uuid}`);
+  }
+
+  // Now process the record data provided
+  let new_record = {
+    uuid,
+    dataset_uuid: input_record.dataset_uuid,
+    updated_at,
+    related_records: []
+  };
+
+  if (input_record.public_date) {
+    if (!Date.parse(input_record.public_date)){
+      throw new Util.InputError('record public_date property must be in valid date format');
+    }
+    new_record.public_date = new Date(input_record.public_date);
+  }
+
+  new_record.fields = createRecordFieldsFromInputRecordAndTemplate(input_record.fields, template.fields);
 
   // Need to determine if this draft is any different from the published one.
   let changes = false;
 
   // Recurse into related_records
-  if(!record.related_records) {
-    record.related_records = [];
+  if(!input_record.related_records) {
+    input_record.related_records = [];
   }
-  if (!Array.isArray(record.related_records)){
+  if (!Array.isArray(input_record.related_records)){
     throw new Util.InputError('related_records property must be of type array');
   }
-  if(record.related_records.length > dataset.related_datasets.length) {
+  if(input_record.related_records.length > dataset.related_datasets.length) {
     throw new Util.InputError(`related_records of record cannot have more references than related_datasets of its dataset`);
   }
   let related_record_map = {};
-  for (let related_record of record.related_records) {
+  for (let related_record of input_record.related_records) {
     if(!Util.isObject(related_record)) {
       throw new Util.InputError(`Each related_record in the record must be a json object`);
     }
     if(!related_record.dataset_uuid) {
       throw new Util.InputError(`Each related_record in the record must supply a dataset_uuid`);
     }
-    if(!related_record_map[related_record.dataset_uuid]) {
+    if(!(related_record.dataset_uuid in related_record_map)) {
       related_record_map[related_record.dataset_uuid] = [related_record];
     } else {
       related_record_map[related_record.dataset_uuid].push(related_record);
@@ -265,7 +280,7 @@ async function validateAndCreateOrUpdateRecurser(record, dataset, template, user
     let related_record = related_record_map[related_dataset_uuid].shift();
     try {
       let new_changes;
-      [new_changes, related_record] = await validateAndCreateOrUpdateRecurser(related_record, dataset.related_datasets[i], template.related_templates[i], user, session);
+      [new_changes, related_record] = await validateAndCreateOrUpdateRecurser(related_record, dataset.related_datasets[i], template.related_templates[i], user, session, updated_at);
       changes = changes || new_changes;
     } catch(err) {
       if (err instanceof Util.NotFoundError) {
@@ -278,7 +293,7 @@ async function validateAndCreateOrUpdateRecurser(record, dataset, template, user
       }
     }
     // After validating and updating the related_record, replace the related_record with a uuid reference
-    related_records.push(related_record);
+    new_record.related_records.push(related_record);
   }
   // Make sure the user didn't submit any extraneous data
   for (related_dataset_uuid in related_record_map) {
@@ -287,50 +302,37 @@ async function validateAndCreateOrUpdateRecurser(record, dataset, template, user
     }
   }
 
-  // Now process the record data provided
-  let record_to_save = {
-    uuid: record.uuid,
-    dataset_uuid: record.dataset_uuid,
-    fields: fields,
-    related_records: related_records
-  };
-  if(public_date) {
-    record_to_save.public_date = public_date;
-  }
-
   // If this draft is identical to the latest published, delete it.
   // The reason to do so is so when a change is submitted, we won't create drafts of sub-records.
   if (!changes) {
-    changes = await draftDifferentFromLastPublished(record_to_save);
+    changes = await draftDifferentFromLastPublished(new_record);
     if (!changes) {
       // Delete the current draft
       try {
-        await SharedFunctions.draftDelete(Record, record.uuid);
+        await SharedFunctions.draftDelete(Record, uuid);
       } catch (err) {
         if (!(err instanceof Util.NotFoundError)) {
           throw err;
         }
       }
-      return [false, record.uuid];
+      return [false, uuid];
     }
   }
-
-  record_to_save.updated_at = new Date();
 
   // If a draft of this record already exists: overwrite it, using it's same uuid
   // If a draft of this record doesn't exist: create a new draft
   // Fortunately both cases can be handled with a single MongoDB UpdateOne query using upsert: true
   let response = await Record.updateOne(
-    {"uuid": record.uuid, 'publish_date': {'$exists': false}}, 
-    {$set: record_to_save}, 
+    {uuid, 'publish_date': {'$exists': false}}, 
+    {$set: new_record}, 
     {'upsert': true, session}
   );
-  if (response.modifiedCount != 1 && response.upsertedCount != 1) {
-    throw `Record.validateAndCreateOrUpdate: Modified: ${response.modifiedCount}. Upserted: ${response.upsertedCount}`;
+  if (response.upsertedCount != 1 && response.matchedCount != 1) {
+    throw new Error(`Record.validateAndCreateOrUpdate: Upserted: ${response.upsertedCount}. Matched: ${response.matchedCount}`);
   } 
 
   // If successfull, return the uuid of the created / updated record
-  return [true, record.uuid];
+  return [true, uuid];
 
 }
 
@@ -360,7 +362,9 @@ async function validateAndCreateOrUpdate(record, user, session) {
   }
   let template = await TemplateModel.publishedByIdWithoutPermissions(dataset.template_id);
 
-  return await validateAndCreateOrUpdateRecurser(record, dataset, template, user, session);
+  let updated_at = new Date();
+
+  return await validateAndCreateOrUpdateRecurser(record, dataset, template, user, session, updated_at);
 
 }
 
@@ -743,6 +747,186 @@ async function latestPublishedWithJoinsAndPermissions(uuid, user) {
   return await latestPublishedBeforeDateWithJoinsAndPermissions(uuid, new Date(), user);
 }
 
+// TODO: see if there is anything else I need to do for this 
+async function importRecordFromCombinedRecursor(input_record, dataset, template, user, session) {
+  if(!Util.isObject(input_record)) {
+    throw new Util.InputError('Record to import must be a json object.');
+  }
+  if(!input_record.record_uuid || typeof(input_record.record_uuid) !== 'string') {
+    throw new Util.InputError(`Each record to be imported must have a record uuid, which is a string.`);
+  }
+
+  // Now get the matching database uuid for the imported database uuid
+  let old_dataset_uuid = input_record.database_uuid;
+  let new_dataset_uuid = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(old_dataset_uuid, session);
+  let old_record_uuid = input_record.record_uuid;
+  let new_record_uuid = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(old_record_uuid, session);
+  // If the uuid is found, then this has already been imported. Import again if we have edit permissions
+  if(new_record_uuid) {
+    if(!(await PermissionGroupModel.has_permission(user, new_dataset_uuid, PermissionGroupModel.PERMISSION_ADMIN, session))) {
+      throw new Util.PermissionDeniedError(`You do not have edit permissions required to import record ${old_record_uuid}. It has already been imported.`);
+    }
+  } else {
+    new_record_uuid = await LegacyUuidToNewUuidMapperModel.create_new_uuid_for_old(old_record_uuid, session);
+    await PermissionGroupModel.initialize_permissions_for(user, new_record_uuid, session);
+  }
+
+  // Build object to create/update
+  let new_record = {
+    uuid: new_record_uuid,
+    dataset_uuid: new_dataset_uuid
+  };
+
+  if (input_record.updated_at && Date.parse(input_record.updated_at)) {
+    new_record.updated_at = new Date(input_record.updated_at);
+  }
+
+  if (input_record._record_metadata && Util.isObject(input_record._record_metadata) && 
+  input_record._record_metadata._public_date && Date.parse(input_record._record_metadata._public_date)) {
+    new_record.public_date = new Date(input_record._record_metadata._public_date);
+  }
+
+  // Need to determine if this draft is any different from the published one.
+  let changes = false;
+
+  new_record.fields = createRecordFieldsFromInputRecordAndTemplate(record.fields, template.fields);
+
+  // Recurse into related_records
+  if(!input_record.records) {
+    input_record.records = [];
+  }
+  if (!Array.isArray(input_record.records)){
+    throw new Util.InputError('records property must be of type array');
+  }
+  if(input_record.records.length > dataset.related_datasets.length) {
+    throw new Util.InputError(`records of record cannot have more references than related_datasets of its dataset (database)`);
+  }
+  let related_record_map = {};
+  for (let related_record of input_record.records) {
+    if(!Util.isObject(related_record)) {
+      throw new Util.InputError(`Each related_record in the record must be a json object`);
+    }
+    let related_dataset_uuid = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(related_record.database_uuid, session);
+    if(!(related_dataset_uuid in related_record_map)) {
+      related_record_map[related_dataset_uuid] = [related_record];
+    } else {
+      related_record_map[related_dataset_uuid].push(related_record);
+    }
+  }
+  for (let i = 0; i < dataset.related_datasets.length; i++) {
+    let related_dataset_uuid = dataset.related_datasets[i].uuid;
+    if(!related_record_map[related_dataset_uuid] || related_record_map[related_dataset_uuid].length == 0) {
+      continue;
+    }
+    let related_record = related_record_map[related_dataset_uuid].shift();
+    try {
+      let new_changes;
+      [new_changes, related_record] = await importRecordFromCombinedRecursor(related_record, dataset.related_datasets[i], template.related_templates[i], user, session, updated_at);
+      changes = changes || new_changes;
+    } catch(err) {
+      if (err instanceof Util.NotFoundError) {
+        throw new Util.InputError(err.message);
+      } else if (err instanceof Util.PermissionDeniedError) {
+        // If we don't have admin permissions to the related_record, don't try to update/create it. Just link it
+        related_record = related_record.uuid;
+      } else {
+        throw err;
+      }
+    }
+    // After validating and updating the related_record, replace the related_record with a uuid reference
+    new_record.related_records.push(related_record);
+  }
+  // Make sure the user didn't submit any extraneous data
+  for (related_dataset_uuid in related_record_map) {
+    if(related_record_map[related_dataset_uuid].length > 0) {
+      throw new Util.InputError(`Sumitted extraneous related_record with dataset_uuid: ${related_dataset_uuid}`);
+    }
+  }
+
+  // If this draft is identical to the latest published, delete it.
+  // The reason to do so is so when an update to a dataset is submitted, we won't create drafts of sub-datasets that haven't changed.
+  if (!changes) {
+    changes = await draftDifferentFromLastPublished(new_record);
+    if (!changes) {
+      // Delete the current draft
+      try {
+        await SharedFunctions.draftDelete(Record, new_record_uuid);
+      } catch (err) {
+        if (!(err instanceof Util.NotFoundError)) {
+          throw err;
+        }
+      }
+      return [false, new_record_uuid];
+    }
+  }  
+  
+  // If a draft of this record already exists: overwrite it, using it's same uuid
+  // If a draft of this record doesn't exist: create a new draft
+  // Fortunately both cases can be handled with a single MongoDB UpdateOne query using upsert: true
+  let response = await Record.updateOne(
+    {"uuid": new_record_uuid, 'publish_date': {'$exists': false}}, 
+    {$set: new_record}, 
+    {'upsert': true, session}
+  );
+  if (response.upsertedCount != 1 && response.matchedCount != 1) {
+    throw new Error(`Record.importRecordFromCombinedRecursor: Upserted: ${response.upsertedCount}. Matched: ${response.matchedCount}`);
+  } 
+
+  // If successfull, return the uuid of the created / updated dataset
+  return [true, new_record_uuid];
+
+}
+
+async function importDatasetAndRecord(record, user, session) {
+  // If importing dataset and record together, import dataset and publish it before importing the record draft
+
+  // A couple options here:
+  // 1. Do dataset and records at the same time
+  // 2. Do dataset first, publish it, then record. 
+  // Second one makes more sense, so we only need to publish once
+  // I guess first one might be a bit easier to code, but I think the second makes the most sense abstractly. Let's try the second first
+
+  if(!Util.isObject(record)) {
+    throw new Util.InputError('Record to import must be a json object.');
+  }
+
+  // Template must have already been imported
+  if(!record.template_uuid || typeof(record.template_uuid) !== 'string') {
+    throw new Util.InputError('Record provided to import must have a template_uuid, which is a string.');
+  }
+  let new_template_uuid = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(record.template_uuid, session);
+  if(!new_template_uuid) {
+    throw new Util.InputError('the template_uuid linked in the record you wish to import has not yet been imported.');
+  }
+  // template must be published and user must have read access
+  let template = await TemplateModel.latestPublished(new_template_uuid, user);
+  if(!template) {
+    throw new Util.InputError(`Template ${new_template_uuid} must be published before it's dataset/record can be imported`);
+  }
+
+  // Import dataset
+  let changes, dataset_uuid = await DatasetModel.importDatasetFromCombinedRecursor(record, template, user, session);
+  // Publish dataset
+  if(changes) {
+    await DatasetModel.publishWithoutChecks(dataset_uuid, user, session, template);
+  }
+  let dataset = await DatasetModel.latestPublished(dataset_uuid, user, session);
+  // Import record
+  await importRecordFromCombinedRecursor(record, dataset, template, user, session);
+}
+
+// TODO: test
+async function importDatasetsAndRecords(records, user, session) {
+  if(!Array.isArray(records)) {
+    throw new Util.InputError(`'records' must be a valid array`);
+  }
+
+  let result_uuids = [];
+  for(let record of records) {
+    result_uuids.push(await importDatasetAndRecord(record, user, session));
+  }
+}
+
 // Wraps the actual request to create with a transaction
 exports.create = async function(record, user) {
   const session = MongoDB.newSession();
@@ -838,4 +1022,25 @@ exports.draftDelete = async function(uuid, user) {
 
 exports.draftExisting = async function(uuid) {
   return (await SharedFunctions.draft(Record, uuid)) ? true : false;
+}
+
+// Wraps the actual request to importDatasetsAndRecords with a transaction
+exports.importDatasetsAndRecords = async function(records, user) {
+  const session = MongoDB.newSession();
+  try {
+    var new_records;
+    await session.withTransaction(async () => {
+      try {
+        new_records = await importDatasetsAndRecords(records, user, session);
+      } catch(err) {
+        await session.abortTransaction();
+        throw err;
+      }
+    });
+    session.endSession();
+    return new_records;
+  } catch(err) {
+    session.endSession();
+    throw err;
+  }
 }
