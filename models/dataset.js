@@ -159,29 +159,51 @@ async function validateAndCreateOrUpdateRecurser(input_dataset, template, user, 
     throw new Util.InputError('related_datasets property must be of type array');
   }
   if(input_dataset.related_datasets.length != template.related_templates.length) {
-    throw new Util.InputError(`related_datasets of dataset must correspond to related_templates of its template`);
+    throw new Util.InputError(`related_datasets of dataset must have the same length as related_templates of its template`);
   }
-  for (let i = 0; i < input_dataset.related_datasets.length; i++) {
-    let related_dataset;
+  let related_dataset_map = {};
+  for (let related_dataset of input_dataset.related_datasets) {
+    if(!Util.isObject(related_dataset)) {
+      throw new Util.InputError(`Each related_dataset in the dataset must be a json object`);
+    }
+    if(!related_dataset.template_uuid) {
+      // There is a chance the user will link a dataset they don't have view access to.
+      // In this case, there will be no template_uuid. Thus, try to fetch the template uuid. 
+      let existing_dataset = await SharedFunctions.latestDocument(Dataset, related_dataset.uuid);
+      if(!existing_dataset) {
+        throw new Util.InputError(`Each related_dataset in the dataset must supply a template_uuid`);
+      }
+      related_dataset.template_uuid = existing_dataset.template_uuid;
+    }
+    if(!(related_dataset.template_uuid in related_dataset_map)) {
+      related_dataset_map[related_dataset.template_uuid] = [related_dataset];
+    } else {
+      related_dataset_map[related_dataset.template_uuid].push(related_dataset);
+    }
+  }
+  for (let related_template of template.related_templates) {
+    let related_template_uuid = related_template.uuid;
+    if(!related_dataset_map[related_template_uuid] || related_dataset_map[related_template_uuid].length == 0) {
+      throw new Util.InputError(`The related_datasets for the dataset must match up to the related_templates expected by the template`);
+    }
+    let related_dataset = related_dataset_map[related_template_uuid].shift();
     try {
       let new_changes;
-      // TODO: this shouldn't be ordered! I have to use a more complicated system to get the matching elements. 
-      // The dataset and template could be in a different order
-      [new_changes, related_dataset] = await validateAndCreateOrUpdateRecurser(input_dataset.related_datasets[i], template.related_templates[i], user, session, group_uuid, updated_at);
+      [new_changes, related_dataset] = await validateAndCreateOrUpdateRecurser(related_dataset, related_template, user, session, group_uuid, updated_at);
       changes = changes || new_changes;
     } catch(err) {
       if (err instanceof Util.NotFoundError) {
         throw new Util.InputError(err.message);
       } else if (err instanceof Util.PermissionDeniedError) {
         // If we don't have admin permissions to the related_dataset, don't try to update/create it. Just link it
-        related_dataset = input_dataset.related_datasets[i].uuid;
+        related_dataset = related_dataset.uuid;
       } else {
         throw err;
       }
     }
-    // After validating and updating the related_dataset, replace the object with a uuid reference
+    // After validating and updating the related_dataset, replace the related_dataset with a uuid reference
     new_dataset.related_datasets.push(related_dataset);
-  }
+  } 
 
   // If this draft is identical to the latest published, delete it.
   // The reason to do so is so when an update to a dataset is submitted, we won't create drafts of sub-datasets that haven't changed.
@@ -810,7 +832,7 @@ async function importDatasetFromCombinedRecursor(record, template, user, session
     let related_dataset;
     try {
       let new_changes;
-      // TODO: this shouldn't be ordered 
+      // TODO: this shouldn't be ordered. Model it after createOrUpdate
       [new_changes, related_dataset] = await importDatasetFromCombinedRecursor(record.records[i], template.related_templates[i], user, session);
       changes = changes || new_changes;
     } catch(err) {

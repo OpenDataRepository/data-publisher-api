@@ -278,6 +278,34 @@ describe("create (and get draft)", () => {
 
     });
 
+    test("Can match dataset to template even if the order of related_datasets does not match related_templates", async () => {
+
+      let template = {
+        name:"t1",
+        related_templates: [
+          {name: "t1.1"},
+          {name: "t1.2"}
+        ]
+      };
+
+      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+
+      // uuid list using the templates in the wrong order
+      dataset = {
+        template_uuid: template.uuid,
+        related_datasets: [
+          { 
+            template_uuid: template.related_templates[1].uuid
+          },
+          { 
+            template_uuid: template.related_templates[0].uuid
+          }
+        ]
+      };
+      response = await Helper.datasetCreate(dataset, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+    });
+
   });
 
   describe("Failure cases", () => {
@@ -395,12 +423,12 @@ describe("create (and get draft)", () => {
       let response = await Helper.datasetCreate(dataset, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
 
-      // uuid list using the templates in the wrong order
+      // related_datasets don't match up to related_templates
       dataset = {
         template_uuid: template.uuid,
         related_datasets: [
           { 
-            template_uuid: template.related_templates[1].uuid
+            template_uuid: template.related_templates[0].uuid
           },
           { 
             template_uuid: template.related_templates[0].uuid
