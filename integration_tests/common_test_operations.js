@@ -370,6 +370,13 @@ module.exports = class Helper {
 
   // record
 
+  recordDraftGet = async (uuid, curr_user) => {
+    return await request(this.app)
+      .get(`/record/${uuid}/draft`)
+      .set('Cookie', [`user=${curr_user}`])
+      .set('Accept', 'application/json');
+  };
+
   // permission group
 
   getPermissionGroup = async (uuid, category) => {

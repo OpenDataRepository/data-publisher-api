@@ -4,6 +4,7 @@ const Util = require('../lib/util');
 const TemplateModel = require('./template');
 const PermissionGroupModel = require('./permission_group');
 const SharedFunctions = require('./shared_functions');
+const LegacyUuidToNewUuidMapperModel = require('./legacy_uuid_to_new_uuid_mapper');
 
 var Dataset;
 
@@ -451,7 +452,7 @@ async function publishRecurser(uuid, user, session, template) {
   }
 
   // verify that this user is in the 'admin' permission group
-  if (!(await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_ADMIN))) {
+  if (!(await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_ADMIN, session))) {
     throw new Util.PermissionDeniedError(`Do not have admin permissions for dataset uuid: ${uuid}`);
   }
 
@@ -671,26 +672,26 @@ async function latestPublishedBeforeDateWithJoins(uuid, date, session) {
   }
 }
 
-async function filterPublishedForPermissionsRecursor(dataset, user) {
+async function filterPublishedForPermissionsRecursor(dataset, user, session) {
   for(let i = 0; i < dataset.related_datasets.length; i++) {
-    if(!(await SharedFunctions.userHasAccessToPublishedResource(dataset.related_datasets[i], user, PermissionGroupModel))) {
+    if(!(await SharedFunctions.userHasAccessToPublishedResource(dataset.related_datasets[i], user, PermissionGroupModel, session))) {
       dataset.related_datasets[i] = {uuid: dataset.related_datasets[i].uuid};
     } else {
-      await filterPublishedForPermissionsRecursor(dataset.related_datasets[i], user);
+      await filterPublishedForPermissionsRecursor(dataset.related_datasets[i], user, session);
     }
   }
 }
 
-async function filterPublishedForPermissions(dataset, user) {
-  if(!(await SharedFunctions.userHasAccessToPublishedResource(dataset, user, PermissionGroupModel))) {
+async function filterPublishedForPermissions(dataset, user, session) {
+  if(!(await SharedFunctions.userHasAccessToPublishedResource(dataset, user, PermissionGroupModel, session))) {
     throw new Util.PermissionDeniedError(`Do not have view access to dataset ${dataset.uuid}`);
   }
   await filterPublishedForPermissionsRecursor(dataset, user);
 }
 
 async function latestPublishedBeforeDateWithJoinsAndPermissions(uuid, date, user, session) {
-  let dataset = await latestPublishedBeforeDateWithJoins(uuid, date);
-  await filterPublishedForPermissions(dataset, user);
+  let dataset = await latestPublishedBeforeDateWithJoins(uuid, date, session);
+  await filterPublishedForPermissions(dataset, user, session);
   return dataset;
 } 
 
@@ -809,6 +810,10 @@ async function importDatasetFromCombinedRecursor(record, template, user, session
     template_uuid: new_template_uuid
   };
 
+  if (record.updated_at && Date.parse(record.updated_at)) {
+    new_dataset.updated_at = new Date(record.updated_at);
+  }
+
   if (record._record_metadata && Util.isObject(record._record_metadata) && 
       record._record_metadata._public_date && Date.parse(record._record_metadata._public_date)) {
     new_dataset.public_date = new Date(record._record_metadata._public_date);
@@ -828,28 +833,44 @@ async function importDatasetFromCombinedRecursor(record, template, user, session
   if(record.records.length != template.related_templates.length) {
     throw new Util.InputError(`records of each record must correspond to related_templates of its template`);
   }
-  for (let i = 0; i < record.records.length; i++) {
-    let related_dataset;
+  let related_record_map = {};
+  for (let related_record of record.records) {
+    if(!Util.isObject(related_record)) {
+      throw new Util.InputError(`Each record in records must be a json object`);
+    }
+    if(!related_record.template_uuid) {
+      throw new Util.InputError(`Each record in records must supply a template_uuid`);
+    }
+    let new_template_uuid = record.template_uuid
+    if(!(new_template_uuid in related_record_map)) {
+      related_record_map[new_template_uuid] = [related_record];
+    } else {
+      related_record_map[new_template_uuid].push(related_record);
+    }
+  }
+  for (let related_template of template.related_templates) {
+    let related_template_uuid = related_template.uuid
+    if(!related_record_map[related_template_uuid] || related_record_map[related_template_uuid].length == 0) {
+      throw new Util.InputError(`The records in record must match up to the related_templates expected by the template`);
+    }
+    let related_record = related_record_map[related_template_uuid].shift();
     try {
       let new_changes;
-      // TODO: this shouldn't be ordered. Model it after createOrUpdate
-      [new_changes, related_dataset] = await importDatasetFromCombinedRecursor(record.records[i], template.related_templates[i], user, session);
+      [new_changes, related_dataset] = await importDatasetFromCombinedRecursor(related_record, related_template, user, session);
       changes = changes || new_changes;
     } catch(err) {
-      if (err instanceof Util.PermissionDeniedError) {
+      if (err instanceof Util.NotFoundError) {
+        throw new Util.InputError(err.message);
+      } else if (err instanceof Util.PermissionDeniedError) {
         // If we don't have admin permissions to the related_dataset, don't try to update/create it. Just link it
-        related_dataset = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(record.records[i].database_uuid, session);
+        related_dataset = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(related_record.database_uuid, session);
       } else {
         throw err;
       }
     }
-    // After validating and updating the related_dataset, replace the object with a uuid reference
+    // After validating and updating the related_dataset, replace the related_dataset with a uuid reference
     new_dataset.related_datasets.push(related_dataset);
-  }
-
-  if (record.updated_at && Date.parse(record.updated_at)) {
-    new_dataset.updated_at = new Date(record.updated_at);
-  }
+  } 
   
   // If this draft is identical to the latest published, delete it.
   // The reason to do so is so when an update to a dataset is submitted, we won't create drafts of sub-datasets that haven't changed.

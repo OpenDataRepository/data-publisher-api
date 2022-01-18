@@ -1,5 +1,6 @@
 const { InputError } = require('../lib/util');
 const TemplateModel = require('../models/template');
+const RecordModel = require('../models/record');
 
 exports.template = async function(req, res, next) {
   try {
@@ -16,8 +17,8 @@ exports.datasets_and_records = async function(req, res, next) {
     if(!data || !data.records) {
       throw new InputError(`Must submit an object with property records`)
     }
-    let new_uuid = await RecordModel.importDatasetsAndRecords(data.records, req.cookies.user);
-    res.send({new_uuid});
+    let record_uuids = await RecordModel.importDatasetsAndRecords(data.records, req.cookies.user);
+    res.send({record_uuids});
   } catch(err) {
     next(err);
   }

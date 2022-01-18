@@ -6,6 +6,7 @@ const TemplateModel = require('./template');
 const DatasetModel = require('./dataset');
 const PermissionGroupModel = require('./permission_group');
 const SharedFunctions = require('./shared_functions');
+const LegacyUuidToNewUuidMapperModel = require('./legacy_uuid_to_new_uuid_mapper');
 
 var Record;
 
@@ -127,6 +128,7 @@ async function draftDifferentFromLastPublished(draft) {
   return false;
 }
 
+// TODO: implement both create/update and import to accept multiple radio options (rename to just options)
 function createRecordFieldsFromInputRecordAndTemplate(record_fields, template_fields) {
   // Fields are a bit more complicated
   if(!record_fields) {
@@ -789,7 +791,7 @@ async function importRecordFromCombinedRecursor(input_record, dataset, template,
   // Need to determine if this draft is any different from the published one.
   let changes = false;
 
-  new_record.fields = createRecordFieldsFromInputRecordAndTemplate(record.fields, template.fields);
+  new_record.fields = createRecordFieldsFromInputRecordAndTemplate(input_record.fields, template.fields);
 
   // Recurse into related_records
   if(!input_record.records) {
@@ -905,17 +907,16 @@ async function importDatasetAndRecord(record, user, session) {
   }
 
   // Import dataset
-  let changes, dataset_uuid = await DatasetModel.importDatasetFromCombinedRecursor(record, template, user, session);
+  let [changes, dataset_uuid] = await DatasetModel.importDatasetFromCombinedRecursor(record, template, user, session);
   // Publish dataset
   if(changes) {
     await DatasetModel.publishWithoutChecks(dataset_uuid, user, session, template);
   }
   let dataset = await DatasetModel.latestPublished(dataset_uuid, user, session);
   // Import record
-  await importRecordFromCombinedRecursor(record, dataset, template, user, session);
+  return await importRecordFromCombinedRecursor(record, dataset, template, user, session);
 }
 
-// TODO: test
 async function importDatasetsAndRecords(records, user, session) {
   if(!Array.isArray(records)) {
     throw new Util.InputError(`'records' must be a valid array`);
@@ -925,6 +926,7 @@ async function importDatasetsAndRecords(records, user, session) {
   for(let record of records) {
     result_uuids.push(await importDatasetAndRecord(record, user, session));
   }
+  return result_uuids;
 }
 
 // Wraps the actual request to create with a transaction
@@ -1028,17 +1030,17 @@ exports.draftExisting = async function(uuid) {
 exports.importDatasetsAndRecords = async function(records, user) {
   const session = MongoDB.newSession();
   try {
-    var new_records;
+    var new_uuids;
     await session.withTransaction(async () => {
       try {
-        new_records = await importDatasetsAndRecords(records, user, session);
+        new_uuids = await importDatasetsAndRecords(records, user, session);
       } catch(err) {
         await session.abortTransaction();
         throw err;
       }
     });
     session.endSession();
-    return new_records;
+    return new_uuids;
   } catch(err) {
     session.endSession();
     throw err;

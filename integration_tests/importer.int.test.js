@@ -68,7 +68,7 @@ const cleanseInputTemplate = (template) => {
   }
 }
 
-const fieldsEqual = (f1, f2, uuid_mapper) => {
+const templatefieldsEqual = (f1, f2, uuid_mapper) => {
   if(f1.uuid in uuid_mapper) {
     if(f2.uuid != uuid_mapper[f1.uuid]) {
       return false;
@@ -137,7 +137,7 @@ const templatesEqual = (t1, t2, uuid_mapper) => {
   t1.fields.sort((f1, f2) => {return f1.name - f2.name});
   t2.fields.sort((f1, f2) => {return f1.name - f2.name});
   for(let i = 0; i < t1.fields.length; i++) {
-    if(!fieldsEqual(t1.fields[i], t2.fields[i], uuid_mapper)) {
+    if(!templatefieldsEqual(t1.fields[i], t2.fields[i], uuid_mapper)) {
       return false;
     }
   }
@@ -150,6 +150,123 @@ const templatesEqual = (t1, t2, uuid_mapper) => {
   }
   return true;
 }
+
+const importTemplatePublishAndTest = async (template, curr_user) => {
+  let response = await importTemplate(template, curr_user);
+  expect(response.statusCode).toBe(200);
+  let uuid = response.body.new_uuid;
+
+  let new_template = await templateDraftGetAndTest(uuid, curr_user);
+  expect(templatesEqual(new_template, template, {})).toBeTruthy();
+
+  return await Helper.templatePublishAndFetch(uuid, curr_user);
+}
+
+const importCombinedDatasetsAndRecords = async (datasets_and_records, curr_user) => {
+  return await request(app)
+    .post(`/import/datasets_and_records/`)
+    .set('Cookie', [`user=${curr_user}`])
+    .send({records: datasets_and_records})
+    .set('Accept', 'application/json');
+}
+
+const recordfieldsEqual = (old_field, new_field, uuid_mapper) => {
+  if(!(old_field.template_field_uuid in uuid_mapper)) {
+    throw new Error(`uuid ${old_field.template_field_uuid} was never imported and should not be tested`);
+  }
+  if(new_field.uuid != uuid_mapper[old_field.template_field_uuid]) {
+    return false;
+  }
+  if(old_field.field_name != new_field.name) {
+    return false;
+  }
+  if(typeof(old_field.value) == 'string') {
+    if(old_field.value != new_field.value) {
+      return false;
+    }
+  } else {
+    if(typeof(old_field.value) != typeof(new_field.values))
+    for(let i = 0; i < old_field.value.length; i++) {
+      if(old_field.value[i].name != new_field.values[i].name) {
+        return false;
+      }
+    }
+    if(old_field.value.name != new_field.value) {
+      return false;
+    }
+  }
+  return true;
+}
+
+const compareOldAndNewDatabaseAndRecord = async (old_record_and_database, new_dataset, new_record, uuid_mapper) => {
+  // Check record_uuid
+  if(old_record_and_database.record_uuid in uuid_mapper) {
+    if(new_record.uuid != uuid_mapper[old_record_and_database.record_uuid]) {
+      return false;
+    }
+  } else {
+    uuid_mapper[old_record_and_database.uuid] = new_record.uuid;
+  }
+  // Check dataset_uuid
+  if(new_dataset.uuid != new_record.dataset_uuid) {
+    return false;
+  }
+  if(old_record_and_database.database_uuid in uuid_mapper) {
+    if(new_dataset.uuid != uuid_mapper[old_record_and_database.new_dataset]) {
+      return false;
+    }
+  } else {
+    uuid_mapper[old_record_and_database.database_uuid] = new_dataset.uuid;
+  }
+  // Check template_uuid
+  if(old_record_and_database.template_uuid in uuid_mapper) {
+    if(new_database.template_uuid != uuid_mapper[old_record_and_database.template_uuid]) {
+      return false;
+    }
+  } else {
+    uuid_mapper[old_record_and_database.template_uuid] = new_dataset.template_uuid;
+  }
+
+  if(typeof(old_record_and_database.fields) != typeof(new_record.fields) ||
+    old_record_and_database.fields.length != new_record.fields.length ||
+    typeof(old_record_and_database.records) != typeof(new_dataset.related_datasets) ||
+    old_record_and_database.records.length != new_dataset.related_datasets.length ||
+    old_record_and_database.records.length != new_record.related_records.length) {
+    return false;
+  }
+  old_record_and_database.fields.sort((f1, f2) => {return f1.field_name - f2.field_name});
+  new_record.fields.sort((f1, f2) => {return f1.name - f2.name});
+  for(let i = 0; i < old_record_and_database.fields.length; i++) {
+    if(!recordfieldsEqual(old_record_and_database.fields[i], new_record.fields[i], uuid_mapper)) {
+      return false;
+    }
+  }
+  // TODO: probably need to sort this if this is actually gonna work
+  for(let i = 0; i < old_record_and_database.related_templates.length; i++) {
+    if(!compareOldAndNewDatabaseAndRecord(old_record_and_database.records[i], new_dataset.related_datasets[i], new_record.related_records[i], uuid_mapper)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+const importDatasetsRecordsTest = async (datasets_and_records, curr_user, uuid_mapper) => {
+  let response = await importCombinedDatasetsAndRecords(datasets_and_records, curr_user);
+  expect(response.statusCode).toBe(200);
+  let record_uuids = response.body.record_uuids;
+  expect(record_uuids.length).toBe(datasets_and_records.length);
+  for(let i = 0; i < datasets_and_records.length; i++) {
+
+    let new_record_uuid = record_uuids[i];
+    let new_record = await Helper.recordDraftGet(new_record_uuid, curr_user);
+    let new_dabase_uuid = new_record.database_uuid;
+    let new_database = await Helper.datasetLatestPublished(new_dabase_uuid, curr_user);
+    let old_record_and_database = datasets_and_records[i];
+
+    compareOldAndNewDatabaseAndRecord(old_record_and_database, new_database, new_record, uuid_mapper);
+  }
+};
 
 
 describe("template", () => {
@@ -390,4 +507,33 @@ describe("template", () => {
 
   });
 
+});
+
+describe("comebineddatasetsandrecords", () => {
+
+  describe("success", () => {
+
+    test("basic", async () => {
+      let template_uuid = "t1";
+      let template = {
+        template_uuid, 
+        name: "naruto", 
+        description: "awesome", 
+        updated_at: (new Date()).toISOString(),
+        fields: [],
+        related_databases: []
+      };
+      await importTemplatePublishAndTest(template, Helper.DEF_CURR_USER);
+
+      let record = {
+        record_uuid: "r1",
+        database_uuid: "d1",
+        template_uuid,
+        fields: [],
+        records: []
+      };
+      await importDatasetsRecordsTest([record], Helper.DEF_CURR_USER, {});
+    });
+
+  });
 });
