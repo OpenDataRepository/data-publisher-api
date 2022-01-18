@@ -67,7 +67,7 @@ describe("create (and get draft after a create)", () => {
       let data = {
         name: "f1",
         public_date: (new Date()).toISOString(),
-        radio_options: [
+        options: [
           {
             name: "naruto"
           },
@@ -86,16 +86,16 @@ describe("create (and get draft after a create)", () => {
       let data = {
         name: "f1",
         public_date: (new Date()).toISOString(),
-        radio_options: [
+        options: [
           {
             name: "Sarutobi",
-            radio_options: [
+            options: [
               {
                 name: "Jiraiya",
-                radio_options: [
+                options: [
                   {
                     name: "Naruto",
-                    radio_options: [
+                    options: [
                       {
                         name: "Konohamaru",
                       },
@@ -105,7 +105,7 @@ describe("create (and get draft after a create)", () => {
               },
               {
                 name: "Orochimaru",
-                radio_options: [
+                options: [
                   {
                     name: "Kabuto"
                   },
@@ -116,7 +116,7 @@ describe("create (and get draft after a create)", () => {
               },
               {
                 name: "Tsunade",
-                radio_options: [
+                options: [
                   {
                     name: "Sakura"
                   }
@@ -166,24 +166,24 @@ describe("create (and get draft after a create)", () => {
       let data = {
         name: "f1",
         public_date: (new Date()).toISOString(),
-        radio_options: "must be array"
+        options: "must be array"
       };
       // radio options must be an array
       let response = await Helper.templateFieldCreate(data, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
 
       // radio options must contain objects
-      data.radio_options = ["elements must be objects"];
+      data.options = ["elements must be objects"];
       response = await Helper.templateFieldCreate(data, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
 
       // each radio option must have a name
-      data.radio_options = [{}];
+      data.options = [{}];
       response = await Helper.templateFieldCreate(data, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
 
       // each radio option name must be a string
-      data.radio_options = [{name: 6}];
+      data.options = [{name: 6}];
       response = await Helper.templateFieldCreate(data, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
 
@@ -224,7 +224,7 @@ describe("update (and get draft after an update)", () => {
     });
 
     test("with radio options 1-dimensional", async () => {
-      template_field.radio_options = [
+      template_field.options = [
         {
           name: "naruto"
         },
@@ -241,7 +241,7 @@ describe("update (and get draft after an update)", () => {
       expect(response.statusCode).toBe(200);
       template_field = response.body;
 
-      template_field.radio_options.push({
+      template_field.options.push({
         name: "caleb"
       });
       await templateFieldUpdateAndTest(template_field, Helper.DEF_CURR_USER);
@@ -252,16 +252,16 @@ describe("update (and get draft after an update)", () => {
       let template_field = {
         name: "f1",
         public_date: (new Date()).toISOString(),
-        radio_options: [
+        options: [
           {
             name: "Sarutobi",
-            radio_options: [
+            options: [
               {
                 name: "Jiraiya",
-                radio_options: [
+                options: [
                   {
                     name: "Naruto",
-                    radio_options: [
+                    options: [
                       {
                         name: "Konohamaru",
                       },
@@ -271,7 +271,7 @@ describe("update (and get draft after an update)", () => {
               },
               {
                 name: "Orochimaru",
-                radio_options: [
+                options: [
                   {
                     name: "Kabuto"
                   },
@@ -282,7 +282,7 @@ describe("update (and get draft after an update)", () => {
               },
               {
                 name: "Tsunade",
-                radio_options: [
+                options: [
                   {
                     name: "Sakura"
                   }
@@ -298,7 +298,7 @@ describe("update (and get draft after an update)", () => {
       expect(response.statusCode).toBe(200);
       template_field = response.body;
 
-      template_field.radio_options.push({
+      template_field.options.push({
         name: "caleb"
       });
       await templateFieldUpdateAndTest(template_field, Helper.DEF_CURR_USER);
@@ -343,7 +343,7 @@ describe("update (and get draft after an update)", () => {
     })
 
     test("radio options", async () => {
-      template_field.radio_options = [
+      template_field.options = [
         {name: "caleb"},
         {name: "naruto"}
       ];
@@ -353,12 +353,12 @@ describe("update (and get draft after an update)", () => {
       template_field = response.body;
 
       // radio options uuids supplied must exist
-      template_field.radio_options[0].uuid = Helper.VALID_UUID;
+      template_field.options[0].uuid = Helper.VALID_UUID;
       response = await templateFieldUpdate(template_field, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
 
       // radio options uuids supplied must exist
-      template_field.radio_options[0].uuid = template_field.radio_options[1].uuid;
+      template_field.options[0].uuid = template_field.options[1].uuid;
       response = await templateFieldUpdate(template_field, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
 

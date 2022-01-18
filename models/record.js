@@ -150,8 +150,10 @@ function createRecordFieldsFromInputRecordAndTemplate(record_fields, template_fi
       throw new Util.InputError(`A record can only supply a single value for each field`);
     }
     let record_field_data = {value: field.value};
-    if(field.radio_option_uuid) {
-      record_field_data.radio_option_uuid = field.radio_option_uuid;
+    if(field.option_uuid) {
+      record_field_data.option_uuid = field.option_uuid;
+    } else if (field.radio_option_uuid) {
+      record_field_data.option_uuid = field.radio_option_uuid;
     }
     record_field_map[field.uuid] = record_field_data;
   }
@@ -165,16 +167,16 @@ function createRecordFieldsFromInputRecordAndTemplate(record_fields, template_fi
       description: field.description,
     };
     let record_field_data = record_field_map[field.uuid];
-    if(field.radio_options) {
-      if(!record_field_data.radio_option_uuid) {
-        throw new Util.InputError(`Template field ${field.uuid} expects radio option`);
+    if(field.options) {
+      if(!record_field_data.option_uuid) {
+        throw new Util.InputError(`Template field ${field.uuid} expects option`);
       }
-      let value = TemplateFieldModel.findRadioOptionValue(field.radio_options, record_field_data.radio_option_uuid);
+      let value = TemplateFieldModel.findOptionValue(field.options, record_field_data.option_uuid);
       if(!value) {
-        throw new Util.InputError(`Template field ${field.uuid} does not support radio option uuid ${record_field_data.radio_option_uuid}`);
+        throw new Util.InputError(`Template field ${field.uuid} does not support option uuid ${record_field_data.option_uuid}`);
       }
       field_object.value = value;
-      field_object.radio_option_uuid = record_field_data.radio_option_uuid;
+      field_object.option_uuid = record_field_data.option_uuid;
     } else {
       field_object.value = record_field_data.value;
     }

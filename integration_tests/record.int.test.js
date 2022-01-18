@@ -522,12 +522,12 @@ describe("create (and get draft)", () => {
 
     });
 
-    test("With radio buttons", async () => {
+    test("With options", async () => {
 
       let field = {
         name: "f1",
         public_date: (new Date()).toISOString(),
-        radio_options: [
+        options: [
           {
             name: "naruto"
           },
@@ -539,7 +539,7 @@ describe("create (and get draft)", () => {
           },
           {
             name: "caleb",
-            radio_options: [
+            options: [
               {
                 name: "super_duper"
               }
@@ -554,18 +554,18 @@ describe("create (and get draft)", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       field.uuid = template.fields[0].uuid;
-      field.radio_options = template.fields[0].radio_options;
+      field.options = template.fields[0].options;
 
       let dataset = {
         template_uuid: template.uuid
       };
       dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
 
-      let radio_option_uuid_1 = field.radio_options[0].uuid;
-      let radio_option_uuid_2 = field.radio_options[3].radio_options[0].uuid;
+      let option_uuid_1 = field.options[0].uuid;
+      let option_uuid_2 = field.options[3].options[0].uuid;
 
-      field.radio_option_uuid = radio_option_uuid_1;
-      delete field.radio_options;
+      field.option_uuid = option_uuid_1;
+      delete field.options;
       delete field.public_date;
 
       let record = {
@@ -577,7 +577,7 @@ describe("create (and get draft)", () => {
       expect(response.statusCode).toBe(200);
       expect(response.body.fields[0].value).toEqual("naruto");
 
-      record.fields[0].radio_option_uuid = radio_option_uuid_2;
+      record.fields[0].option_uuid = option_uuid_2;
       uuid = await recordCreateAndTest(record, Helper.DEF_CURR_USER);
       response = await recordDraftGet(uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
@@ -910,12 +910,12 @@ describe("create (and get draft)", () => {
 
     });
 
-    test("radio options invalid", async () => {
+    test("options invalid", async () => {
 
       let field = {
         name: "f1",
         public_date: (new Date()).toISOString(),
-        radio_options: [
+        options: [
           {
             name: "naruto"
           },
@@ -934,7 +934,7 @@ describe("create (and get draft)", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       field.uuid = template.fields[0].uuid;
-      field.radio_options = template.fields[0].radio_options;
+      field.options = template.fields[0].options;
 
       let dataset = {
         template_uuid: template.uuid

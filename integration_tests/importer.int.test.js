@@ -68,30 +68,29 @@ const cleanseInputTemplate = (template) => {
   }
 }
 
-const templatefieldsEqual = (f1, f2, uuid_mapper) => {
-  if(f1.uuid in uuid_mapper) {
-    if(f2.uuid != uuid_mapper[f1.uuid]) {
+const templatefieldsEqual = (before, after, uuid_mapper) => {
+  if(before.template_field_uuid in uuid_mapper) {
+    if(after.uuid != uuid_mapper[before.template_field_uuid]) {
       return false;
     }
   } else {
-    uuid_mapper[f1.uuid] = f2.uuid;
+    uuid_mapper[before.template_field_uuid] = after.uuid;
   }
-  if(f1.name != f2.name || 
-     f1.description != f2.description ||
-     !Util.datesEqual(new Date(f1.updated_at), new Date(f2.updated_at))
+  if(after.name != before.name || 
+    after.description != before.description ||
+     !Util.datesEqual(new Date(after.updated_at), new Date(before.updated_at))
   ) {
     return false;
   }
-  if(f1.radio_options || f2.radio_options) {
-    if(!f1.radio_options || 
-       !f2.radio_options ||
-       f1.radio_options.length != f2.radio_options.length) {
+  if(before.radio_options) {
+    if(!after.options ||
+       before.radio_options.length != after.options.length) {
       return false;
     }
-    f1.radio_options.sort((r1, r2) => {return r1.name - r2.name});
-    f2.radio_options.sort((r1, r2) => {return r1.name - r2.name});
-    for(let i = 0; i < f1.radio_options.length; i++) {
-      if(f1.radio_options[i].name != f2.radio_options[i].name) {
+    before.radio_options.sort((r1, r2) => {return r1.name - r2.name});
+    after.options.sort((r1, r2) => {return r1.name - r2.name});
+    for(let i = 0; i < before.radio_options.length; i++) {
+      if(after.options[i].name != before.radio_options[i].name) {
         return false;
       }
     }
@@ -99,52 +98,38 @@ const templatefieldsEqual = (f1, f2, uuid_mapper) => {
   return true;
 }
 
-const templatesEqual = (t1, t2, uuid_mapper) => {
-  if(t1.uuid in uuid_mapper) {
-    if(t2.uuid != uuid_mapper[t1.uuid]) {
+const templatesEqual = (before, after, uuid_mapper) => {
+  if(before.template_uuid in uuid_mapper) {
+    if(after.uuid != uuid_mapper[before.template_uuid]) {
       return false;
     }
   } else {
-    uuid_mapper[t1.uuid] = t2.uuid;
+    uuid_mapper[before.template_uuid] = after.uuid;
   }
-  if(t1.related_databases) {
-    t1.related_templates = t1.related_databases
+  if(!before.fields) {
+    before.fields = [];
   }
-  if(t2.related_databases) {
-    t2.related_templates = t2.related_databases
+  if(!before.related_databases) {
+    before.related_databases = [];
   }
-  if(!t1.fields) {
-    t1.fields = [];
-  }
-  if(!t2.fields) {
-    t2.fields = [];
-  }
-  if(!t1.related_templates) {
-    t1.related_templates = [];
-  }
-  if(!t2.related_templates) {
-    t2.related_templates = [];
-  }
-  if(t1.name != t2.name || 
-    t1.description != t2.description || 
-    !Util.datesEqual(new Date(t1.updated_at), new Date(t2.updated_at)) ||
-    typeof(t1.fields) != typeof(t2.fields) ||
-    t1.fields.length != t2.fields.length ||
-    typeof(t1.related_templates) != typeof(t2.related_templates) ||
-    t1.related_templates.length != t2.related_templates.length) {
+  if(after.name != before.name || 
+    after.description != before.description || 
+    !Util.datesEqual(new Date(after.updated_at), new Date(before.updated_at)) ||
+    after.fields.length != before.fields.length ||
+    after.related_templates.length != before.related_databases.length) {
     return false;
   }
-  t1.fields.sort((f1, f2) => {return f1.name - f2.name});
-  t2.fields.sort((f1, f2) => {return f1.name - f2.name});
-  for(let i = 0; i < t1.fields.length; i++) {
-    if(!templatefieldsEqual(t1.fields[i], t2.fields[i], uuid_mapper)) {
+  before.fields.sort((f1, f2) => {return f1.name - f2.name});
+  after.fields.sort((f1, f2) => {return f1.name - f2.name});
+  for(let i = 0; i < before.fields.length; i++) {
+    if(!templatefieldsEqual(before.fields[i], after.fields[i], uuid_mapper)) {
       return false;
     }
   }
-  t1.related_templates.sort((t1, t2) => {return t1.name - t2.name});
-  t2.related_templates.sort((t1, t2) => {return t1.name - t2.name});
-  for(let i = 0; i < t1.related_templates.length; i++) {
-    if(!templatesEqual(t1.related_templates[i], t2.related_templates[i], uuid_mapper)) {
+  before.related_databases.sort((t1, t2) => {return t1.name - t2.name});
+  after.related_templates.sort((t1, t2) => {return t1.name - t2.name});
+  for(let i = 0; i < before.related_databases.length; i++) {
+    if(!templatesEqual(before.related_databases[i], after.related_templates[i], uuid_mapper)) {
       return false;
     }
   }
@@ -157,7 +142,7 @@ const importTemplatePublishAndTest = async (template, curr_user) => {
   let uuid = response.body.new_uuid;
 
   let new_template = await templateDraftGetAndTest(uuid, curr_user);
-  expect(templatesEqual(new_template, template, {})).toBeTruthy();
+  expect(templatesEqual(template, new_template, {})).toBeTruthy();
 
   return await Helper.templatePublishAndFetch(uuid, curr_user);
 }
@@ -287,7 +272,7 @@ describe("template", () => {
       let uuid = response.body.new_uuid;
   
       let new_template = await templateDraftGetAndTest(uuid, Helper.DEF_CURR_USER);
-      expect(templatesEqual(new_template, template, {})).toBeTruthy();
+      expect(templatesEqual(template, new_template, {})).toBeTruthy();
     });
   
     test("includes fields and related databases 1 level deep", async () => {
@@ -311,7 +296,7 @@ describe("template", () => {
       let uuid = response.body.new_uuid;
   
       let new_template = await templateDraftGetAndTest(uuid, Helper.DEF_CURR_USER);
-      expect(templatesEqual(new_template, template, {})).toBeTruthy();
+      expect(templatesEqual(template, new_template, {})).toBeTruthy();
     });
   
     test("includes fields and related databases 2 levels deed", async () => {
@@ -343,7 +328,7 @@ describe("template", () => {
       let uuid = response.body.new_uuid;
   
       let new_template = await templateDraftGetAndTest(uuid, Helper.DEF_CURR_USER);
-      expect(templatesEqual(new_template, template, {})).toBeTruthy();
+      expect(templatesEqual(template, new_template, {})).toBeTruthy();
     });
   
     test("import the same template twice", async () => {
@@ -363,7 +348,7 @@ describe("template", () => {
       let uuid = response.body.new_uuid;
   
       let new_template = await templateDraftGetAndTest(uuid, Helper.DEF_CURR_USER);
-      expect(templatesEqual(new_template, template, {})).toBeTruthy();
+      expect(templatesEqual(template, new_template, {})).toBeTruthy();
   
       // Import second time
   
@@ -371,7 +356,7 @@ describe("template", () => {
       expect(response.statusCode).toBe(200);
       uuid = response.body.new_uuid;
       new_template = await templateDraftGetAndTest(uuid, Helper.DEF_CURR_USER);
-      expect(templatesEqual(new_template, template, {})).toBeTruthy();  
+      expect(templatesEqual(template, new_template, {})).toBeTruthy();  
     })
   
     test("can import same template a second time as long as you have edit permissions", async () => {
@@ -391,7 +376,7 @@ describe("template", () => {
       let uuid = response.body.new_uuid;
   
       let new_template = await templateDraftGetAndTest(uuid, Helper.DEF_CURR_USER);
-      expect(templatesEqual(new_template, template, {})).toBeTruthy();
+      expect(templatesEqual(template, new_template, {})).toBeTruthy();
   
       // Import second time
     
@@ -402,7 +387,7 @@ describe("template", () => {
       expect(uuid).toEqual(uuid2);
 
       let new_template_2 = await templateDraftGetAndTest(uuid, Helper.DEF_CURR_USER);
-      expect(templatesEqual(new_template_2, new_template, {})).toBeTruthy();
+      expect(templatesEqual(template, new_template_2, {})).toBeTruthy();
     })
   
     test("import template with real data", async () => {
@@ -415,10 +400,10 @@ describe("template", () => {
     
       let new_template = await templateDraftGetAndTest(uuid, Helper.DEF_CURR_USER);
     
-      expect(templatesEqual(new_template, old_template, {})).toBeTruthy();
+      expect(templatesEqual(old_template, new_template, {})).toBeTruthy();
     
-      cleanseInputTemplate(old_template);
-      expect(new_template).toMatchObject(old_template);
+      // cleanseInputTemplate(old_template);
+      // expect(new_template).toMatchObject(old_template);
     
       Helper.templateCleanseMetadata(new_template);
       let published_template = await Helper.templatePublishAndFetch(new_template.uuid, Helper.DEF_CURR_USER);
@@ -464,7 +449,7 @@ describe("template", () => {
       let uuid = response.body.new_uuid;
   
       let new_template = await templateDraftGetAndTest(uuid, Helper.DEF_CURR_USER);
-      expect(templatesEqual(new_template, template, {})).toBeTruthy();
+      expect(templatesEqual(template, new_template, {})).toBeTruthy();
   
       // Import second time
   

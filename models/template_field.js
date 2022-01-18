@@ -85,63 +85,63 @@ function fieldEquals(field1, field2) {
   return field1.name == field2.name && field1.description == field2.description && field1.public_date == field2.public_date;
 }
 
-function parseRadioOptions(radio_options, previous_radio_options_uuids, current_radio_options_uuids) {
-  if(!Array.isArray(radio_options)) {
-    throw new Util.InputError(`Radio options must be an array.`);
+function parseOptions(options, previous_options_uuids, current_options_uuids) {
+  if(!Array.isArray(options)) {
+    throw new Util.InputError(`options must be an array.`);
   }
-  let return_radio_options = [];
-  for(radio_option of radio_options) {
-    if(!Util.isObject(radio_option)) {
-      throw new Util.InputError(`Each radio_option in the field must be a json object`);
+  let return_options = [];
+  for(option of options) {
+    if(!Util.isObject(option)) {
+      throw new Util.InputError(`Each option in the field must be a json object`);
     }
-    let cleansed_radio_option = {};
-    if (!radio_option.name) {
-      throw new Util.InputError('each radio option must have a name');
+    let cleansed_option = {};
+    if (!option.name) {
+      throw new Util.InputError('each option must have a name');
     }
-    if (typeof(radio_option.name) !== 'string'){
-      throw new Util.InputError('each radio option name must be of type string');
+    if (typeof(option.name) !== 'string'){
+      throw new Util.InputError('each option name must be of type string');
     }
-    cleansed_radio_option.name = radio_option.name;
+    cleansed_option.name = option.name;
     
-    if(radio_option.radio_options) {
-      cleansed_radio_option.radio_options = parseRadioOptions(radio_option.radio_options, previous_radio_options_uuids, current_radio_options_uuids);
+    if(option.options) {
+      cleansed_option.options = parseOptions(option.options, previous_options_uuids, current_options_uuids);
     } else {
-      if (radio_option.uuid) {
-        if(!previous_radio_options_uuids.has(radio_option.uuid)) {
-          throw new Util.InputError(`Cannot provide radio option uuid ${radio_option.uuid}. May only specify uuids that already exist.`);
+      if (option.uuid) {
+        if(!previous_options_uuids.has(option.uuid)) {
+          throw new Util.InputError(`Cannot provide option uuid ${option.uuid}. May only specify uuids that already exist.`);
         }
-        if(current_radio_options_uuids.has(radio_option.uuid)) {
-          throw new Util.InputError(`Radio option uuid ${radio_option.uuid} duplicated. Each option may only be supplied once`);
+        if(current_options_uuids.has(option.uuid)) {
+          throw new Util.InputError(`Option uuid ${option.uuid} duplicated. Each option may only be supplied once`);
         }
-        current_radio_options_uuids.add(radio_option.uuid);
-        cleansed_radio_option.uuid = radio_option.uuid;
+        current_options_uuids.add(option.uuid);
+        cleansed_option.uuid = option.uuid;
       } else {
-        cleansed_radio_option.uuid = uuidv4();
+        cleansed_option.uuid = uuidv4();
       }
     }
-    return_radio_options.push(cleansed_radio_option)
+    return_options.push(cleansed_option)
   }
-  return return_radio_options;
+  return return_options;
 }
 
-function buildRadioOptionSet(radio_options, set) {
-  for(option of radio_options) {
+function buildOptionSet(options, set) {
+  for(let option of options) {
     if(option.uuid) {
       set.add(option.uuid);
     }
-    if(option.radio_options) {
-      buildRadioOptionSet(option.radio_options, set);
+    if(option.options) {
+      buildOptionSet(option.options, set);
     }
   }
 }
 
-function findRadioOptionValue(radio_options, uuid) {
-  for(let radio_option of radio_options) {
-    if(radio_option.uuid == uuid) {
-      return radio_option.name;
+function findOptionValue(options, uuid) {
+  for(let option of options) {
+    if(option.uuid == uuid) {
+      return option.name;
     }
-    if(radio_option.radio_options) {
-      let value = findRadioOptionValue(radio_option.radio_options, uuid);
+    if(option.options) {
+      let value = findOptionValue(option.options, uuid);
       if(value) {
         return value;
       }
@@ -154,19 +154,19 @@ async function importRadioOptions(radio_options, session) {
   if(!Array.isArray(radio_options)) {
     throw new Util.InputError(`Radio options must be an array.`);
   }
-  let return_radio_options = [];
+  let return_options = [];
   for(radio_option of radio_options) {
     if(!Util.isObject(radio_option)) {
       throw new Util.InputError(`Each radio_option in the field must be a json object`);
     }
-    let cleansed_radio_option = {};
+    let cleansed_option = {};
     if (!radio_option.name || typeof(radio_option.name) !== 'string') {
       throw new Util.InputError('each radio option must have a name of type string ');
     }
-    cleansed_radio_option.name = radio_option.name;
+    cleansed_option.name = radio_option.name;
     
     if(radio_option.radio_options) {
-      cleansed_radio_option.radio_options = await importRadioOptions(radio_option.radio_options, session);
+      cleansed_option.options = await importRadioOptions(radio_option.radio_options, session);
     } else {
       if (!radio_option.template_radio_option_uuid) {
         throw new Util.InputError(`All radio options provided imported must include a radio option uuid`);
@@ -177,11 +177,11 @@ async function importRadioOptions(radio_options, session) {
         throw new Util.InputError(`Uuid ${radio_option.template_radio_option_uuid} has already been imported once and cannot be imported again.`);
       }
       uuid = await LegacyUuidToNewUuidMapperModel.create_new_uuid_for_old(radio_option.template_radio_option_uuid, session);
-      cleansed_radio_option.uuid = uuid;
+      cleansed_option.uuid = uuid;
     }
-    return_radio_options.push(cleansed_radio_option);
+    return_options.push(cleansed_option);
   }
-  return return_radio_options;
+  return return_options;
 }
 
 function initializeNewDraftWithPropertiesSharedWithImport(input_field, uuid, updated_at) {
@@ -214,13 +214,13 @@ async function initializeNewDraftWithProperties(input_field, uuid, updated_at) {
     }
     output_field.public_date = new Date(input_field.public_date);
   }
-  if(input_field.radio_options) {
+  if(input_field.options) {
     let latest_field = await SharedFunctions.latestDocument(TemplateField, uuid);
-    let previous_radio_options_uuids = new Set();
-    if(latest_field && latest_field.radio_options) {
-      buildRadioOptionSet(latest_field.radio_options, previous_radio_options_uuids);
+    let previous_options_uuids = new Set();
+    if(latest_field && latest_field.options) {
+      buildOptionSet(latest_field.options, previous_options_uuids);
     }
-    output_field.radio_options = parseRadioOptions(input_field.radio_options, previous_radio_options_uuids, new Set());
+    output_field.options = parseOptions(input_field.options, previous_options_uuids, new Set());
   }
   return output_field;
 }
@@ -238,7 +238,7 @@ async function initializeNewImportedDraftWithProperties(input_field, uuid, sessi
     }
   }
   if(input_field.radio_options) {
-    output_field.radio_options = await importRadioOptions(input_field.radio_options, session);
+    output_field.options = await importRadioOptions(input_field.radio_options, session);
   }
   return output_field;
 }
@@ -640,7 +640,7 @@ exports.duplicate = async function(field, user, session) {
   return field.uuid;
 }
 
-exports.findRadioOptionValue = findRadioOptionValue;
+exports.findOptionValue = findOptionValue;
 
 exports.importField = async function(field, user, session) {
   if(!Util.isObject(field)) {
