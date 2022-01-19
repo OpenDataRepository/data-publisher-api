@@ -564,7 +564,7 @@ describe("create (and get draft)", () => {
       let option_uuid_1 = field.options[0].uuid;
       let option_uuid_2 = field.options[3].options[0].uuid;
 
-      field.option_uuid = option_uuid_1;
+      field.values = [{uuid: option_uuid_1}];
       delete field.options;
       delete field.public_date;
 
@@ -575,13 +575,16 @@ describe("create (and get draft)", () => {
       let uuid = await recordCreateAndTest(record, Helper.DEF_CURR_USER);
       let response = await recordDraftGet(uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
-      expect(response.body.fields[0].value).toEqual("naruto");
+      expect(response.body.fields[0].values).toEqual([{uuid: option_uuid_1, name: "naruto"}]);
 
-      record.fields[0].option_uuid = option_uuid_2;
+      record.fields[0].values = [{uuid: option_uuid_1}, {uuid: option_uuid_2}];
       uuid = await recordCreateAndTest(record, Helper.DEF_CURR_USER);
       response = await recordDraftGet(uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
-      expect(response.body.fields[0].value).toEqual("super_duper");
+      expect(response.body.fields[0].values).toEqual([
+        {uuid: option_uuid_1, name: "naruto"},
+        {uuid: option_uuid_2, name: "super_duper"}
+      ]);
 
     });
 

@@ -135,6 +135,17 @@ function buildOptionSet(options, set) {
   }
 }
 
+function buildOptionMap(options, map) {
+  for(let option of options) {
+    if(option.uuid) {
+      map[option.uuid] = option.name
+    }
+    if(option.options) {
+      buildOptionMap(option.options, map);
+    }
+  }
+}
+
 function findOptionValue(options, uuid) {
   for(let option of options) {
     if(option.uuid == uuid) {
@@ -148,6 +159,20 @@ function findOptionValue(options, uuid) {
     }
   }
   return undefined;
+}
+
+function optionUuidsToValues(options, uuids) {
+  // First build a map of uuid -> value
+  // Then, for each uuid, attach an object with the uuids + values
+  let uuid_to_value_map = {};
+  buildOptionMap(options, uuid_to_value_map);
+
+  let values = [];
+  for(uuid of uuids) {
+    values.push({uuid, name: uuid_to_value_map[uuid]});
+  }
+
+  return values;
 }
 
 async function importRadioOptions(radio_options, session) {
@@ -640,7 +665,7 @@ exports.duplicate = async function(field, user, session) {
   return field.uuid;
 }
 
-exports.findOptionValue = findOptionValue;
+exports.optionUuidsToValues = optionUuidsToValues;
 
 exports.importField = async function(field, user, session) {
   if(!Util.isObject(field)) {

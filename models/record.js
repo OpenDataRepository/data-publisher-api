@@ -150,10 +150,15 @@ function createRecordFieldsFromInputRecordAndTemplate(record_fields, template_fi
       throw new Util.InputError(`A record can only supply a single value for each field`);
     }
     let record_field_data = {value: field.value};
-    if(field.option_uuid) {
-      record_field_data.option_uuid = field.option_uuid;
-    } else if (field.radio_option_uuid) {
-      record_field_data.option_uuid = field.radio_option_uuid;
+    if(field.values) {
+      record_field_data.option_uuids = field.values.map(obj => obj.uuid);
+    } else if (field.template_field_uuid && field.value && Array.isArray(field.value)) {
+      record_field_data.option_uuids = 
+        Promise.all(
+          field.value.map(obj => 
+            LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(obj.template_radio_option_uuid, session)
+          )
+        );
     }
     record_field_map[field.uuid] = record_field_data;
   }
@@ -168,15 +173,10 @@ function createRecordFieldsFromInputRecordAndTemplate(record_fields, template_fi
     };
     let record_field_data = record_field_map[field.uuid];
     if(field.options) {
-      if(!record_field_data.option_uuid) {
-        throw new Util.InputError(`Template field ${field.uuid} expects option`);
+      if(!record_field_data.option_uuids) {
+        throw new Util.InputError(`Template field ${field.uuid} expects a property values containing a list of objects with uuids for the desired options`);
       }
-      let value = TemplateFieldModel.findOptionValue(field.options, record_field_data.option_uuid);
-      if(!value) {
-        throw new Util.InputError(`Template field ${field.uuid} does not support option uuid ${record_field_data.option_uuid}`);
-      }
-      field_object.value = value;
-      field_object.option_uuid = record_field_data.option_uuid;
+      field_object.values = TemplateFieldModel.optionUuidsToValues(field.options, record_field_data.option_uuids);
     } else {
       field_object.value = record_field_data.value;
     }
