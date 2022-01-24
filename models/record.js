@@ -128,7 +128,32 @@ async function draftDifferentFromLastPublished(draft) {
   return false;
 }
 
-// TODO: implement both create/update and import to accept multiple radio options (rename to just options)
+function createRecordFieldsFromTemplateFieldsAndMap(template_fields, record_field_map) {
+  let result_fields = [];
+
+  for (let field of template_fields) {
+    let field_uuid = field.uuid;
+    let field_object = {
+      uuid: field_uuid,
+      name: field.name,
+      description: field.description,
+    };
+    let record_field_data = record_field_map[field_uuid];
+    if(field.options) {
+      if(record_field_data.option_uuids) {
+        field_object.values = TemplateFieldModel.optionUuidsToValues(field.options, record_field_data.option_uuids);
+      } else {
+        field_object.values = [];
+      }
+    } else {
+      field_object.value = record_field_data.value;
+    }
+    result_fields.push(field_object);
+  }
+
+  return result_fields;
+}
+
 function createRecordFieldsFromInputRecordAndTemplate(record_fields, template_fields) {
   // Fields are a bit more complicated
   if(!record_fields) {
@@ -152,38 +177,47 @@ function createRecordFieldsFromInputRecordAndTemplate(record_fields, template_fi
     let record_field_data = {value: field.value};
     if(field.values) {
       record_field_data.option_uuids = field.values.map(obj => obj.uuid);
-    } else if (field.template_field_uuid && field.value && Array.isArray(field.value)) {
-      record_field_data.option_uuids = 
-        Promise.all(
-          field.value.map(obj => 
-            LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(obj.template_radio_option_uuid, session)
-          )
-        );
     }
     record_field_map[field.uuid] = record_field_data;
   }
 
-  let result_fields = [];
+  return createRecordFieldsFromTemplateFieldsAndMap(template_fields, record_field_map);
+}
 
-  for (let field of template_fields) {
-    let field_object = {
-      uuid: field.uuid,
-      name: field.name,
-      description: field.description,
-    };
-    let record_field_data = record_field_map[field.uuid];
-    if(field.options) {
-      if(!record_field_data.option_uuids) {
-        throw new Util.InputError(`Template field ${field.uuid} expects a property values containing a list of objects with uuids for the desired options`);
-      }
-      field_object.values = TemplateFieldModel.optionUuidsToValues(field.options, record_field_data.option_uuids);
-    } else {
-      field_object.value = record_field_data.value;
+async function createRecordFieldsFromImportRecordAndTemplate(record_fields, template_fields) {
+  // Fields are a bit more complicated
+  if(!record_fields) {
+    record_fields = [];
+  }
+  if (!Array.isArray(record_fields)){
+    throw new Util.InputError('fields property must be of type array');
+  }
+  // Create a map of records to fields
+  let record_field_map = {};
+  for (let field of record_fields) {
+    if(!Util.isObject(field)) {
+      throw new Util.InputError(`Each field in the record must be a json object`);
     }
-    result_fields.push(field_object);
+    if(!field.template_field_uuid) {
+      throw new Util.InputError(`Each field in the record must supply a template_field_uuid`);
+    }
+    let field_uuid = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(field.template_field_uuid);
+    if (record_field_map[field_uuid]) {
+      throw new Util.InputError(`A record can only supply a single value for each field`);
+    }
+    let record_field_data = {value: field.value};
+    if(field.value && Array.isArray(field.value)) {
+      record_field_data.option_uuids = 
+        await Promise.all(
+          field.value.map(obj => 
+            LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(obj.template_radio_option_uuid)
+          )
+        );
+    }
+    record_field_map[field_uuid] = record_field_data;
   }
 
-  return result_fields;
+  return await createRecordFieldsFromTemplateFieldsAndMap(template_fields, record_field_map);
 }
 
 // A recursive helper for validateAndCreateOrUpdate.
@@ -751,8 +785,7 @@ async function latestPublishedWithJoinsAndPermissions(uuid, user) {
   return await latestPublishedBeforeDateWithJoinsAndPermissions(uuid, new Date(), user);
 }
 
-// TODO: see if there is anything else I need to do for this 
-async function importRecordFromCombinedRecursor(input_record, dataset, template, user, session) {
+async function importRecordFromCombinedRecursor(input_record, dataset, template, user, updated_at, session) {
   if(!Util.isObject(input_record)) {
     throw new Util.InputError('Record to import must be a json object.');
   }
@@ -778,12 +811,10 @@ async function importRecordFromCombinedRecursor(input_record, dataset, template,
   // Build object to create/update
   let new_record = {
     uuid: new_record_uuid,
-    dataset_uuid: new_dataset_uuid
+    dataset_uuid: new_dataset_uuid,
+    updated_at,
+    related_records: []
   };
-
-  if (input_record.updated_at && Date.parse(input_record.updated_at)) {
-    new_record.updated_at = new Date(input_record.updated_at);
-  }
 
   if (input_record._record_metadata && Util.isObject(input_record._record_metadata) && 
   input_record._record_metadata._public_date && Date.parse(input_record._record_metadata._public_date)) {
@@ -793,7 +824,7 @@ async function importRecordFromCombinedRecursor(input_record, dataset, template,
   // Need to determine if this draft is any different from the published one.
   let changes = false;
 
-  new_record.fields = createRecordFieldsFromInputRecordAndTemplate(input_record.fields, template.fields);
+  new_record.fields = await createRecordFieldsFromImportRecordAndTemplate(input_record.fields, template.fields);
 
   // Recurse into related_records
   if(!input_record.records) {
@@ -825,7 +856,7 @@ async function importRecordFromCombinedRecursor(input_record, dataset, template,
     let related_record = related_record_map[related_dataset_uuid].shift();
     try {
       let new_changes;
-      [new_changes, related_record] = await importRecordFromCombinedRecursor(related_record, dataset.related_datasets[i], template.related_templates[i], user, session, updated_at);
+      [new_changes, related_record] = await importRecordFromCombinedRecursor(related_record, dataset.related_datasets[i], template.related_templates[i], user, updated_at, session);
       changes = changes || new_changes;
     } catch(err) {
       if (err instanceof Util.NotFoundError) {
@@ -909,14 +940,16 @@ async function importDatasetAndRecord(record, user, session) {
   }
 
   // Import dataset
-  let [changes, dataset_uuid] = await DatasetModel.importDatasetFromCombinedRecursor(record, template, user, session);
+  let [changes, dataset_uuid] = await DatasetModel.importDatasetFromCombinedRecursor(record, template, user, new Date(), session);
+  // Check what the draft looks like before the published
+  let dataset_draft = await DatasetModel.draftGet(dataset_uuid, user, session);
   // Publish dataset
   if(changes) {
     await DatasetModel.publishWithoutChecks(dataset_uuid, user, session, template);
   }
   let dataset = await DatasetModel.latestPublished(dataset_uuid, user, session);
   // Import record
-  return await importRecordFromCombinedRecursor(record, dataset, template, user, session);
+  return await importRecordFromCombinedRecursor(record, dataset, template, user, new Date(), session);
 }
 
 async function importDatasetsAndRecords(records, user, session) {

@@ -586,6 +586,12 @@ describe("create (and get draft)", () => {
         {uuid: option_uuid_2, name: "super_duper"}
       ]);
 
+      delete record.fields[0].values;
+      uuid = await recordCreateAndTest(record, Helper.DEF_CURR_USER);
+      response = await recordDraftGet(uuid, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+      expect(response.body.fields[0].values).toEqual([]);
+
     });
 
   });
@@ -944,17 +950,13 @@ describe("create (and get draft)", () => {
       };
       dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
 
-      // do not supply radio_option_uuid
+      // option_uuid supplied not supported
+      field.values = [{uuid: "invalid"}];
       let record = {
         dataset_uuid: dataset.uuid,
         fields: [field]
       };
       let response = await recordCreate(record, Helper.DEF_CURR_USER);
-      expect(response.statusCode).toBe(400);
-
-      // radio_option_uuid supplied not supported
-      record.dataset_uuid = Helper.VALID_UUID;
-      response = await recordCreate(record, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
 
     });

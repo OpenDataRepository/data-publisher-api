@@ -686,7 +686,7 @@ async function filterPublishedForPermissions(dataset, user, session) {
   if(!(await SharedFunctions.userHasAccessToPublishedResource(dataset, user, PermissionGroupModel, session))) {
     throw new Util.PermissionDeniedError(`Do not have view access to dataset ${dataset.uuid}`);
   }
-  await filterPublishedForPermissionsRecursor(dataset, user);
+  await filterPublishedForPermissionsRecursor(dataset, user, session);
 }
 
 async function latestPublishedBeforeDateWithJoinsAndPermissions(uuid, date, user, session) {
@@ -761,7 +761,7 @@ async function duplicate(uuid, user, session) {
   return await draftFetchOrCreate(new_uuid, user, session);
 }
 
-async function importDatasetFromCombinedRecursor(record, template, user, session) {
+async function importDatasetFromCombinedRecursor(record, template, user, updated_at, session) {
   if(!Util.isObject(record)) {
     throw new Util.InputError('Record to import must be a json object.');
   }
@@ -807,12 +807,10 @@ async function importDatasetFromCombinedRecursor(record, template, user, session
   // Build object to create/update
   let new_dataset = {
     uuid: dataset_uuid,
-    template_uuid: new_template_uuid
+    template_uuid: new_template_uuid,
+    updated_at,
+    related_datasets: []
   };
-
-  if (record.updated_at && Date.parse(record.updated_at)) {
-    new_dataset.updated_at = new Date(record.updated_at);
-  }
 
   if (record._record_metadata && Util.isObject(record._record_metadata) && 
       record._record_metadata._public_date && Date.parse(record._record_metadata._public_date)) {
@@ -823,7 +821,6 @@ async function importDatasetFromCombinedRecursor(record, template, user, session
   let changes = false;
 
   // Recurse into related_records
-  new_dataset.related_datasets = [];
   if(!record.records) {
     record.records = [];
   }
@@ -841,7 +838,7 @@ async function importDatasetFromCombinedRecursor(record, template, user, session
     if(!related_record.template_uuid) {
       throw new Util.InputError(`Each record in records must supply a template_uuid`);
     }
-    let new_template_uuid = record.template_uuid
+    let new_template_uuid = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(related_record.template_uuid, session);
     if(!(new_template_uuid in related_record_map)) {
       related_record_map[new_template_uuid] = [related_record];
     } else {
@@ -856,7 +853,7 @@ async function importDatasetFromCombinedRecursor(record, template, user, session
     let related_record = related_record_map[related_template_uuid].shift();
     try {
       let new_changes;
-      [new_changes, related_dataset] = await importDatasetFromCombinedRecursor(related_record, related_template, user, session);
+      [new_changes, related_dataset] = await importDatasetFromCombinedRecursor(related_record, related_template, user, updated_at, session);
       changes = changes || new_changes;
     } catch(err) {
       if (err instanceof Util.NotFoundError) {
@@ -928,24 +925,29 @@ exports.create = async function(dataset, user) {
 }
 
 // Wraps the actual request to get with a transaction
-exports.draftGet = async function(uuid, user) {
-  const session = MongoDB.newSession();
-  try {
-    var draft;
-    await session.withTransaction(async () => {
-      try {
-        draft = await draftFetchOrCreate(uuid, user, session);
-      } catch(err) {
-        await session.abortTransaction();
-        throw err;
-      }
-    });
-    session.endSession();
-    return draft;
-  } catch(err) {
-    session.endSession();
-    throw err;
+exports.draftGet = async function(uuid, user, session) {
+  if(!session) {
+    session = MongoDB.newSession();
+    try {
+      var draft;
+      await session.withTransaction(async () => {
+        try {
+          draft = await draftFetchOrCreate(uuid, user, session);
+        } catch(err) {
+          await session.abortTransaction();
+          throw err;
+        }
+      });
+      session.endSession();
+      return draft;
+    } catch(err) {
+      session.endSession();
+      throw err;
+    }
+  } else {
+    return await draftFetchOrCreate(uuid, user, session);
   }
+
 }
 
 // Wraps the actual request to update with a transaction

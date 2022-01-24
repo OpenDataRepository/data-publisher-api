@@ -81,8 +81,38 @@ async function draftDelete(uuid) {
   }
 }
 
+function optionsEqual(options1, options2) {
+  if(!options1 && !options2) {
+    return true;
+  }
+  if(!(Array.isArray(options1) && Array.isArray(options2))) {
+    return false;
+  }
+  if(options1.length != options2.length) {
+    return false;
+  }
+  let options_2_map = {};
+  for(let option of options2) {
+    options_2_map[option.name] = option;
+  }
+  for(let option1 of options1) {
+    if(!(option1.name in options_2_map)) {
+      return false;
+    }
+    option2 = options_2_map[option1.name];
+    if(option1.uuid != option2.uuid) {
+      return false;
+    }
+    if(!optionsEqual(option1.options, option2.options)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 function fieldEquals(field1, field2) {
-  return field1.name == field2.name && field1.description == field2.description && field1.public_date == field2.public_date;
+  return field1.name == field2.name && field1.description == field2.description && 
+    field1.public_date == field2.public_date && optionsEqual(field1.options, field2.options);
 }
 
 function parseOptions(options, previous_options_uuids, current_options_uuids) {
@@ -169,6 +199,9 @@ function optionUuidsToValues(options, uuids) {
 
   let values = [];
   for(uuid of uuids) {
+    if(!(uuid in uuid_to_value_map)) {
+      throw new Util.InputError(`Option uuid ${uuid} is not an option uuid provided by the template`);
+    }
     values.push({uuid, name: uuid_to_value_map[uuid]});
   }
 
@@ -194,14 +227,13 @@ async function importRadioOptions(radio_options, session) {
       cleansed_option.options = await importRadioOptions(radio_option.radio_options, session);
     } else {
       if (!radio_option.template_radio_option_uuid) {
-        throw new Util.InputError(`All radio options provided imported must include a radio option uuid`);
+        throw new Util.InputError(`All radio options must include a radio option uuid unless it recurses to further radio options`);
       }
       // Map old radio option to new. If old has been seen before, that's an error
       let uuid = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(radio_option.template_radio_option_uuid, session);
-      if(uuid) {
-        throw new Util.InputError(`Uuid ${radio_option.template_radio_option_uuid} has already been imported once and cannot be imported again.`);
+      if(!uuid) {
+        uuid = await LegacyUuidToNewUuidMapperModel.create_new_uuid_for_old(radio_option.template_radio_option_uuid, session);
       }
-      uuid = await LegacyUuidToNewUuidMapperModel.create_new_uuid_for_old(radio_option.template_radio_option_uuid, session);
       cleansed_option.uuid = uuid;
     }
     return_options.push(cleansed_option);
@@ -250,13 +282,8 @@ async function initializeNewDraftWithProperties(input_field, uuid, updated_at) {
   return output_field;
 }
 
-async function initializeNewImportedDraftWithProperties(input_field, uuid, session) {
-  if (input_field.updated_at && Date.parse(input_field.updated_at)) {
-    input_field.updated_at = new Date(input_field.updated_at);
-  } else {
-    input_field.updated_at = undefined;
-  }
-  let output_field = initializeNewDraftWithPropertiesSharedWithImport(input_field, uuid, input_field.updated_at);
+async function initializeNewImportedDraftWithProperties(input_field, uuid, updated_at, session) {
+  let output_field = initializeNewDraftWithPropertiesSharedWithImport(input_field, uuid, updated_at);
   if (input_field._field_metadata && Util.isObject(input_field._field_metadata) && input_field._field_metadata._public_date) {
     if (Date.parse(input_field._field_metadata._public_date)){
       output_field.public_date = new Date(input_field.public_date);
@@ -667,7 +694,7 @@ exports.duplicate = async function(field, user, session) {
 
 exports.optionUuidsToValues = optionUuidsToValues;
 
-exports.importField = async function(field, user, session) {
+exports.importField = async function(field, user, updated_at, session) {
   if(!Util.isObject(field)) {
     throw new Util.InputError('Field to import must be a json object.');
   }
@@ -686,7 +713,7 @@ exports.importField = async function(field, user, session) {
     await PermissionGroupModel.initialize_permissions_for(user, uuid, session);
   }
 
-  let new_field = await initializeNewImportedDraftWithProperties(field, uuid, session);
+  let new_field = await initializeNewImportedDraftWithProperties(field, uuid, updated_at, session);
 
   // If this draft is identical to the latest published, delete it.
   let old_field = await fetchPublishedAndConvertToDraft(uuid);

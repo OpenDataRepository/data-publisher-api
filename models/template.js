@@ -264,13 +264,8 @@ function initializeNewDraftWithProperties(input_template, uuid, updated_at) {
   return output_template;
 }
 
-function initializeNewImportedDraftWithProperties(input_template, uuid) {
-  if (input_template.updated_at && Date.parse(input_template.updated_at)) {
-    input_template.updated_at = new Date(input_template.updated_at);
-  } else {
-    input_template.updated_at = undefined;
-  }
-  let output_template = initializeNewDraftWithPropertiesSharedWithImport(input_template, uuid, input_template.updated_at);
+function initializeNewImportedDraftWithProperties(input_template, uuid, updated_at) {
+  let output_template = initializeNewDraftWithPropertiesSharedWithImport(input_template, uuid, updated_at);
   if (input_template._database_metadata && Util.isObject(input_template._database_metadata) && 
       input_template._database_metadata._public_date && Date.parse(input_template._database_metadata._public_date)) {
     output_template.public_date = new Date(input_template.public_date);
@@ -1038,7 +1033,7 @@ async function duplicate(uuid, user, session) {
 }
 
 // TODO: as of now, import doesn't include group_uuids at all
-async function importTemplate(template, user, session) {
+async function importTemplate(template, user, updated_at, session) {
   if(!Util.isObject(template)) {
     throw new Util.InputError('Template to import must be a json object.');
   }
@@ -1059,7 +1054,7 @@ async function importTemplate(template, user, session) {
   }
 
   // Populate template properties
-  let new_template = initializeNewImportedDraftWithProperties(template, uuid);
+  let new_template = initializeNewImportedDraftWithProperties(template, uuid, updated_at);
 
   // Need to determine if this draft is any different from the published one.
   let changes = false;
@@ -1073,7 +1068,7 @@ async function importTemplate(template, user, session) {
       let field_uuid;
       try {
         let more_changes;
-        [more_changes, field_uuid] = await TemplateFieldModel.importField(field, user, session);
+        [more_changes, field_uuid] = await TemplateFieldModel.importField(field, user, updated_at, session);
         changes |= more_changes;
       } catch(err) {
         if (err instanceof Util.PermissionDeniedError) {
@@ -1099,7 +1094,7 @@ async function importTemplate(template, user, session) {
       let related_template_uuid;
       try {
         let more_changes;
-        [more_changes, related_template_uuid] = await importTemplate(related_template, user, session);
+        [more_changes, related_template_uuid] = await importTemplate(related_template, user, updated_at, session);
         changes |= more_changes;
       } catch(err) {
         if (err instanceof Util.PermissionDeniedError) {
@@ -1328,7 +1323,7 @@ exports.importTemplate = async function(template, user) {
     var new_template_uuid;
     await session.withTransaction(async () => {
       try {
-        new_template_uuid = (await importTemplate(template, user, session))[1];
+        new_template_uuid = (await importTemplate(template, user, new Date(), session))[1];
       } catch(err) {
         await session.abortTransaction();
         throw err;
