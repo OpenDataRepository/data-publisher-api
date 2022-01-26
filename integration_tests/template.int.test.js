@@ -314,6 +314,21 @@ describe("create (and get draft after a create)", () => {
       let response = await Helper.templateCreate(template, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
     });
+
+    test("A given template may only have a maximum of one instance of a related_template", async () => {
+  
+      let related_template = {
+        name: "naruto"
+      };
+      related_template = await Helper.templateCreateAndTestV2(related_template, Helper.DEF_CURR_USER);
+
+      let template = { 
+        name: "kakashi",
+        related_templates: [related_template, related_template],
+      };
+      let response = await Helper.templateCreate(template, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(400);
+    });
     
   });
   
@@ -417,17 +432,6 @@ describe("update (and get draft after an update)", () => {
       expect(response.body).toMatchObject(template);
 
     });
-
-    test("Parent template has two related templates references pointing to the same template", async () => {
-      let response = await Helper.templateDraftGet(uuid, Helper.DEF_CURR_USER);
-      expect(response.statusCode).toBe(200);
-      let template = response.body;
-
-      template.related_templates.push(template.related_templates[0]);
-      response = await Helper.templateUpdate(uuid, template, Helper.DEF_CURR_USER);
-      expect(response.statusCode).toBe(200);
-
-    });
   
   })
 
@@ -467,6 +471,17 @@ describe("update (and get draft after an update)", () => {
 
       let response = await Helper.templateUpdate(uuid, template, other_user);
       expect(response.statusCode).toBe(401);
+
+    });
+
+    test("Parent template can only point to any given related template once", async () => {
+      let response = await Helper.templateDraftGet(uuid, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+      let template = response.body;
+
+      template.related_templates.push(template.related_templates[0]);
+      response = await Helper.templateUpdate(uuid, template, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(400);
 
     });
 
@@ -1070,23 +1085,6 @@ describe("get published", () => {
     response = await Helper.templateLatestPublished(template_published.uuid, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(200);
     expect(response.body).toMatchObject(template_published);   
-  });
-
-  test("One template has multiple references to the same sub-template, and the mongo query can fetch it properly", async () => {
-
-    let related_template = {
-      "name": "t2"
-    };
-    let template = {
-      "name":"t1",
-      "related_templates":[related_template]
-    };
-
-    template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
-
-    template.related_templates.push(template.related_templates[0]);
-    await Helper.templateUpdatePublishTest(template, Helper.DEF_CURR_USER);
-
   });
 
   test("must have view permissions", async () => {

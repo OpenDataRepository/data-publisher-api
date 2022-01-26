@@ -352,13 +352,6 @@ async function validateAndCreateOrUpdate(input_template, user, session, updated_
     if(Util.anyDuplicateInArray(new_template.fields)) {
       throw new Util.InputError(`Each template may only have one instance of any template field.`);
     }
-    let field_uuids = new Set();
-    for(let field of new_template.fields) {
-      if(field_uuids.has(field)) {
-        throw new Util.InputError(`Each template may only have one instance of any template field. Field ${field} duplicated`);
-      }
-      field_uuids.add(field);
-    }
   }
   // Recursively handle each of the related_templates
   if (input_template.related_templates !== undefined) {
@@ -383,6 +376,10 @@ async function validateAndCreateOrUpdate(input_template, user, session, updated_
       }
       // After validating and updating the related_template, replace the imbedded related_template with a uuid reference
       new_template.related_templates.push(related_template_uuid);
+    }
+    // Related_templates is really a set, not a list. But Mongo doesn't store sets well, so have to manage it ourselves.
+    if(Util.anyDuplicateInArray(new_template.related_templates)) {
+      throw new Util.InputError(`Each template may only have one instance of every related_template.`);
     }
   }
 

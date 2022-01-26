@@ -159,9 +159,10 @@ async function validateAndCreateOrUpdateRecurser(input_dataset, template, user, 
   if (!Array.isArray(input_dataset.related_datasets)){
     throw new Util.InputError('related_datasets property must be of type array');
   }
-  if(input_dataset.related_datasets.length != template.related_templates.length) {
-    throw new Util.InputError(`related_datasets of dataset must have the same length as related_templates of its template`);
-  }
+  // Requirements:
+  // - Each related template must have a related_dataset pointing to it
+  // - Same related_dataset can't be repeated twice
+  // Plan: go through by template, handle every dataset for that template, then check if the related_dataset list has duplicates
   let related_dataset_map = {};
   for (let related_dataset of input_dataset.related_datasets) {
     if(!Util.isObject(related_dataset)) {
@@ -184,27 +185,33 @@ async function validateAndCreateOrUpdateRecurser(input_dataset, template, user, 
   }
   for (let related_template of template.related_templates) {
     let related_template_uuid = related_template.uuid;
-    if(!related_dataset_map[related_template_uuid] || related_dataset_map[related_template_uuid].length == 0) {
-      throw new Util.InputError(`The related_datasets for the dataset must match up to the related_templates expected by the template`);
+    if(!(related_template_uuid in related_dataset_map)) {
+      throw new Util.InputError(`The dataset must contain a related_dataset for every related_template specified by the template`);
     }
-    let related_dataset = related_dataset_map[related_template_uuid].shift();
-    try {
-      let new_changes;
-      [new_changes, related_dataset] = await validateAndCreateOrUpdateRecurser(related_dataset, related_template, user, session, group_uuid, updated_at);
-      changes = changes || new_changes;
-    } catch(err) {
-      if (err instanceof Util.NotFoundError) {
-        throw new Util.InputError(err.message);
-      } else if (err instanceof Util.PermissionDeniedError) {
-        // If we don't have admin permissions to the related_dataset, don't try to update/create it. Just link it
-        related_dataset = related_dataset.uuid;
-      } else {
-        throw err;
+    let related_datasets = related_dataset_map[related_template_uuid];
+    for(let related_dataset of related_datasets) {
+      try {
+        let new_changes;
+        [new_changes, related_dataset] = await validateAndCreateOrUpdateRecurser(related_dataset, related_template, user, session, group_uuid, updated_at);
+        changes = changes || new_changes;
+      } catch(err) {
+        if (err instanceof Util.NotFoundError) {
+          throw new Util.InputError(err.message);
+        } else if (err instanceof Util.PermissionDeniedError) {
+          // If we don't have admin permissions to the related_dataset, don't try to update/create it. Just link it
+          related_dataset = related_dataset.uuid;
+        } else {
+          throw err;
+        }
       }
+      // After validating and updating the related_dataset, replace the related_dataset with a uuid reference
+      new_dataset.related_datasets.push(related_dataset);
     }
-    // After validating and updating the related_dataset, replace the related_dataset with a uuid reference
-    new_dataset.related_datasets.push(related_dataset);
   } 
+  // Related_datasets is really a set, not a list. But Mongo doesn't store sets well, so have to manage it ourselves.
+  if(Util.anyDuplicateInArray(new_dataset.related_datasets)) {
+    throw new Util.InputError(`Each dataset may only have one instance of every related_dataset.`);
+  }
 
   // If this draft is identical to the latest published, delete it.
   // The reason to do so is so when an update to a dataset is submitted, we won't create drafts of sub-datasets that haven't changed.
@@ -468,15 +475,6 @@ async function publishRecurser(uuid, user, session, template) {
     Update the dataset again before publishing.`);
   }
 
-  // Also require the related_datasets fields to be the same length as the related_templates required by the template
-  if (dataset_draft.related_datasets.length != template.related_templates.length) {
-    throw new Error(
-      `The draft to be published ${dataset_draft.uuid} does not match the template specification ${template.uuid}.
-      The draft expects ${dataset_draft.related_datasets.length} related_datasets, but the template expects ${template.related_templates.length} related_datasets.
-      Error in dataset update implementation.`
-    );
-  }
-
   // One way to determine if there were changes is to check if any sub-datasets have been published more recently than this one
   var last_published_time = 0;
   if(published_dataset) {
@@ -488,9 +486,30 @@ async function publishRecurser(uuid, user, session, template) {
 
   // For each dataset's related_datasets, publish that related_dataset, then replace the uuid with the internal_id.
   // It is possible there weren't any changes to publish, so keep track of whether we actually published anything.
-  for(let i = 0; i < dataset_draft.related_datasets.length; i++) {
-    let related_dataset = dataset_draft.related_datasets[i];
-    let related_template = template.related_templates[i];
+  // Requirements:
+  // - related_dataset can't point to a related_template not supported
+  // - Each related_template must have a related_dataset pointing to it
+  // - related_datasets is a set, so there can't be any duplicates
+  // Plan: Create a map of template_uuid to template, and a set of all template_uuids.
+  // Remove template_uuids from set as we see them. If there are any left at the end, that's an error
+  let related_template_map = {};
+  let templates_unseen = new Set();
+  for (let related_template of template.related_templates) {
+    let related_template_uuid = related_template.uuid;
+    related_template_map[related_template_uuid] = related_template;
+    templates_unseen.add(related_template_uuid);
+  }
+  for(let related_dataset of dataset_draft.related_datasets) {
+    let related_dataset_document = await SharedFunctions.latestDocument(Dataset, related_dataset);
+    if(!related_dataset_document) {
+      throw new Util.InputError(`Cannut publish dataset. One of it's related_references does not exist and was probably deleted after creation.`);
+    }
+    let related_template_uuid = related_dataset_document.template_uuid;
+    if(!(related_template_uuid in related_template_map)) {
+      throw new Util.InputError(`One of the dataset's related_datsets points to a related_template not supported by it's template.`);
+    } 
+    let related_template = related_template_map[related_template_uuid];
+    templates_unseen.delete(related_template_uuid);
     try {
       [related_dataset, _] = await publishRecurser(related_dataset, user, session, related_template);
       related_datasets.push(related_dataset);
@@ -514,6 +533,9 @@ async function publishRecurser(uuid, user, session, template) {
       changes = true;
     }
   }  
+  if(templates_unseen.size > 0) {
+    throw new Util.InputError(`Dataset does not support all related_templates required by the template`);
+  }
 
   // We're trying to figure out if there is anything worth publishing. If none of the sub-properties were published, 
   // see if there are any changes to the top-level dataset from the previous published version

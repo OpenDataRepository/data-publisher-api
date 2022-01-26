@@ -140,13 +140,15 @@ function createRecordFieldsFromTemplateFieldsAndMap(template_fields, record_fiel
     };
     let record_field_data = record_field_map[field_uuid];
     if(field.options) {
-      if(record_field_data.option_uuids) {
+      if(record_field_data && record_field_data.option_uuids) {
         field_object.values = TemplateFieldModel.optionUuidsToValues(field.options, record_field_data.option_uuids);
       } else {
         field_object.values = [];
       }
     } else {
-      field_object.value = record_field_data.value;
+      if(record_field_data) {
+        field_object.value = record_field_data.value;
+      }
     }
     result_fields.push(field_object);
   }
@@ -293,10 +295,18 @@ async function validateAndCreateOrUpdateRecurser(input_record, dataset, template
   if (!Array.isArray(input_record.related_records)){
     throw new Util.InputError('related_records property must be of type array');
   }
-  if(input_record.related_records.length > dataset.related_datasets.length) {
-    throw new Util.InputError(`related_records of record cannot have more references than related_datasets of its dataset`);
+  // Requirements:
+  // - related_records is a set, so there can't be any duplicates
+  // - Every related_record must point to a related_dataset supported by the dataset
+  // Plan: Create a dataset_uuid to dataset map. At the end, check related_records for duplicates
+  let related_dataset_map = {};
+  for (let related_dataset of dataset.related_datasets) {
+    related_dataset_map[related_dataset.uuid] = related_dataset;
   }
-  let related_record_map = {};
+  let related_template_map = {};
+  for (let related_template of template.related_templates) {
+    related_template_map[related_template.uuid] = related_template;
+  }
   for (let related_record of input_record.related_records) {
     if(!Util.isObject(related_record)) {
       throw new Util.InputError(`Each related_record in the record must be a json object`);
@@ -304,21 +314,14 @@ async function validateAndCreateOrUpdateRecurser(input_record, dataset, template
     if(!related_record.dataset_uuid) {
       throw new Util.InputError(`Each related_record in the record must supply a dataset_uuid`);
     }
-    if(!(related_record.dataset_uuid in related_record_map)) {
-      related_record_map[related_record.dataset_uuid] = [related_record];
-    } else {
-      related_record_map[related_record.dataset_uuid].push(related_record);
-    }
-  }
-  for (let i = 0; i < dataset.related_datasets.length; i++) {
-    let related_dataset_uuid = dataset.related_datasets[i].uuid;
-    if(!related_record_map[related_dataset_uuid] || related_record_map[related_dataset_uuid].length == 0) {
-      continue;
-    }
-    let related_record = related_record_map[related_dataset_uuid].shift();
+    if(!(related_record.dataset_uuid in related_dataset_map)) {
+      throw new Util.InputError(`Each related_record in the record must link to a related_dataset supported by the dataset`);
+    } 
+    let related_dataset = related_dataset_map[related_record.dataset_uuid];
+    let related_template = related_template_map[related_dataset.template_uuid];
     try {
       let new_changes;
-      [new_changes, related_record] = await validateAndCreateOrUpdateRecurser(related_record, dataset.related_datasets[i], template.related_templates[i], user, session, updated_at);
+      [new_changes, related_record] = await validateAndCreateOrUpdateRecurser(related_record, related_dataset, related_template, user, session, updated_at);
       changes = changes || new_changes;
     } catch(err) {
       if (err instanceof Util.NotFoundError) {
@@ -333,11 +336,9 @@ async function validateAndCreateOrUpdateRecurser(input_record, dataset, template
     // After validating and updating the related_record, replace the related_record with a uuid reference
     new_record.related_records.push(related_record);
   }
-  // Make sure the user didn't submit any extraneous data
-  for (related_dataset_uuid in related_record_map) {
-    if(related_record_map[related_dataset_uuid].length > 0) {
-      throw new Util.InputError(`Sumitted extraneous related_record with dataset_uuid: ${related_dataset_uuid}`);
-    }
+  // Related_records is really a set, not a list. But Mongo doesn't store sets well, so have to manage it ourselves.
+  if(Util.anyDuplicateInArray(new_record.related_records)) {
+    throw new Util.InputError(`Each record may only have one instance of every related_record.`);
   }
 
   // If this draft is identical to the latest published, delete it.
@@ -504,10 +505,27 @@ async function publishRecurser(uuid, dataset, template, user, session) {
 
   // For each records's related_records, publish that related_record, then replace the uuid with the internal_id.
   // It is possible there weren't any changes to publish, so keep track of whether we actually published anything.
-  for(let i = 0; i < record_draft.related_records.length; i++) {
-    let related_record = record_draft.related_records[i];
-    let related_dataset = dataset.related_datasets[i];
-    let related_template = template.related_templates[i];
+  // Requirements: 
+  // - Each related_record must point to a related_dataset supported by the dataset
+  let related_dataset_map = {};
+  for (let related_dataset of dataset.related_datasets) {
+    related_dataset_map[related_dataset.uuid] = related_dataset;
+  }
+  let related_template_map = {};
+  for (let related_template of template.related_templates) {
+    related_template_map[related_template.uuid] = related_template;
+  }
+  for(let related_record of record_draft.related_records) {
+    let related_record_document = await SharedFunctions.latestDocument(Record, related_record);
+    if(!related_record_document) {
+      throw new Util.InputError(`Cannut publish record. One of it's related_references does not exist and was probably deleted after creation.`);
+    }
+    let related_dataset = related_dataset_map[related_record_document.dataset_uuid];
+    if(!related_dataset) {
+      throw new Util.InputError(`Cannot publish related_record pointing to related_dataset not supported by the dataset. 
+      Dataset may have been published since last record update.`);
+    }
+    let related_template = related_template_map[related_dataset.template_uuid];
     try {
       [related_record, _] = await publishRecurser(related_record, related_dataset, related_template, user, session);
       related_records.push(related_record);

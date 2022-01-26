@@ -594,6 +594,50 @@ describe("create (and get draft)", () => {
 
     });
 
+    test("record not required to supply related_record for each related_dataset", async () => {
+
+      let name_field = {
+        "name": "name",
+        "description": "the name of the person"
+      };
+
+      let color_field = {
+        "name": "favorite color",
+        "description": "the person's favorite color in the whole world"
+      }
+
+      let related_template = {
+        "name":"1.1",
+        "fields":[color_field]
+      };
+
+      let template = {
+        "name":"1",
+        "fields":[name_field],
+        "related_templates":[related_template]
+      };
+      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+
+      name_field.uuid = template.fields[0].uuid;
+
+      let dataset = {
+        template_uuid: template.uuid,
+        related_datasets: [{
+          template_uuid: template.related_templates[0].uuid
+        }]
+      };
+      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+
+      let record = {
+        dataset_uuid: dataset.uuid,
+        fields: [name_field],
+        related_records: []
+      };
+
+      await recordCreateAndTest(record, Helper.DEF_CURR_USER);
+
+    });
+
   });
 
   describe("Failure cases", () => {
@@ -649,7 +693,7 @@ describe("create (and get draft)", () => {
       expect(response.statusCode).toBe(400);
     })
 
-    test("Related record must point to the correct dataset uuid", async () => {
+    test("related_record can only point to a related_dataset supported by the dataset", async () => {
 
       let template = {
         "name":"t1",
@@ -688,7 +732,7 @@ describe("create (and get draft)", () => {
 
     });
 
-    test("Create record with related records going 6 nodes deep, but 2nd-to last record is invalid", async () => {
+    test("Create record with related_records going 6 nodes deep, but 2nd-to last record is invalid", async () => {
   
       let template = { 
         "name": "t1",
@@ -890,7 +934,7 @@ describe("create (and get draft)", () => {
       let dataset1 = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
       let dataset2 = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
 
-      // First try to create a record with a related_record using an invalid dataset_uuid
+      // Try to create a record with a related_record using an invalid dataset_uuid
       let record = {
         dataset_uuid: dataset1.uuid,
         related_records: [
@@ -900,21 +944,6 @@ describe("create (and get draft)", () => {
         ]
       };
       let response = await recordCreate(record, Helper.DEF_CURR_USER);
-      expect(response.statusCode).toBe(400);
-
-      // Second try to create a record with a related_record using a valid dataset_uuid, but more times than it's supported
-      record = {
-        dataset_uuid: dataset1.uuid,
-        related_records: [
-          {
-            dataset_uuid: dataset1.related_datasets[0].uuid
-          },
-          {
-            dataset_uuid: dataset1.related_datasets[0].uuid
-          }
-        ]
-      };
-      response = await recordCreate(record, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
 
     });
@@ -956,6 +985,42 @@ describe("create (and get draft)", () => {
         dataset_uuid: dataset.uuid,
         fields: [field]
       };
+      let response = await recordCreate(record, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(400);
+
+    });
+
+    test("related_records is a set and no related_record can be repeated", async () => {
+
+      let template = {
+        name:"t1",
+        related_templates:[{
+          name: "t2"
+        }]
+      };
+      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+
+      let dataset = {
+        template_uuid: template.uuid,
+        related_datasets:[{
+          template_uuid: template.related_templates[0].uuid 
+        }]
+      };
+      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+
+      let related_record = {
+        dataset_uuid: dataset.related_datasets[0].uuid
+      };
+
+      let related_record_uuid = await recordCreateAndTest(related_record, Helper.DEF_CURR_USER);
+
+      related_record.uuid = related_record_uuid;
+
+      let record = {
+        dataset_uuid: dataset.uuid,
+        related_records: [related_record, related_record]
+      };
+
       let response = await recordCreate(record, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
 
@@ -1443,44 +1508,6 @@ describe("get published", () => {
     response = await recordLatestPublishedGet(record.uuid, Helper.USER_2);
     expect(response.statusCode).toBe(200);
     expect(response.body).toMatchObject(record);   
-  });
-
-  test("One record has multiple references to the same sub-record, and the mongo query can fetch it properly", async () => {
-
-    let template = {
-      "name":"t1",
-      "related_templates":[{name: "t2"}]
-    };
-
-    template = await Helper.templateCreateAndTestV2(template, Helper.DEF_CURR_USER);
-
-    template.related_templates.push(template.related_templates[0]);
-    template = await Helper.templateUpdatePublishTest(template, Helper.DEF_CURR_USER);
-
-    let dataset = {
-      template_uuid: template.uuid,
-      related_datasets: [
-        {template_uuid: template.related_templates[0].uuid},
-        {template_uuid: template.related_templates[0].uuid}
-      ]
-    };
-    dataset = await Helper.datasetCreateAndTestV2(dataset, Helper.DEF_CURR_USER);
-
-    dataset.related_datasets[1] = dataset.related_datasets[0];
-    await Helper.datasetUpdatePublishTest(dataset, Helper.DEF_CURR_USER);
-
-    let record = {
-      dataset_uuid: dataset.uuid,
-      related_records: [
-        {dataset_uuid: dataset.related_datasets[0].uuid},
-        {dataset_uuid: dataset.related_datasets[1].uuid}
-      ]
-    };
-    record = await recordCreateAndTestV2(record, Helper.DEF_CURR_USER);
-
-    record.related_records[1] = record.related_records[0];
-    await recordUpdatePublishTest(record, Helper.DEF_CURR_USER);
-
   });
 
   test("must have view permissions", async () => {
