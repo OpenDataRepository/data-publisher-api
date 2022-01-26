@@ -500,9 +500,9 @@ async function publishRecurser(uuid, user, session, template) {
     templates_unseen.add(related_template_uuid);
   }
   for(let related_dataset of dataset_draft.related_datasets) {
-    let related_dataset_document = await SharedFunctions.latestDocument(Dataset, related_dataset);
+    let related_dataset_document = await SharedFunctions.latestDocument(Dataset, related_dataset, session);
     if(!related_dataset_document) {
-      throw new Util.InputError(`Cannut publish dataset. One of it's related_references does not exist and was probably deleted after creation.`);
+      throw new Util.InputError(`Cannot publish dataset. One of it's related_references does not exist and was probably deleted after creation.`);
     }
     let related_template_uuid = related_dataset_document.template_uuid;
     if(!(related_template_uuid in related_template_map)) {

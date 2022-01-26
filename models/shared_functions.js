@@ -35,12 +35,12 @@ const latestPublished = async (collection, uuid, session) => {
 }
 exports.latestPublished = latestPublished;
 
-exports.latestDocument = async (collection, uuid) => {
-  let result = await draft(collection, uuid);
+exports.latestDocument = async (collection, uuid, session) => {
+  let result = await draft(collection, uuid, session);
   if(result) {
     return result;
   }
-  result = await latestPublished(collection, uuid);
+  result = await latestPublished(collection, uuid, session);
   return result;
 }
 
