@@ -44,7 +44,7 @@ function fieldsEqual(fields1, fields2) {
 }
 
 // Creates a draft from the published version.
-async function createDraftFromPublished(published) {
+async function createDraftFromPublished(published, session) {
 
   // Create a copy of published
   let draft = Object.assign({}, published);
@@ -52,13 +52,13 @@ async function createDraftFromPublished(published) {
   delete draft._id;
   draft.updated_at = draft.publish_date;
   delete draft.publish_date;
-  draft.dataset_uuid = await SharedFunctions.uuidFor_id(DatasetModel.collection(), draft.dataset_id);
+  draft.dataset_uuid = await SharedFunctions.uuidFor_id(DatasetModel.collection(), draft.dataset_id, session);
   delete draft.dataset_id;
 
   // Replace each of the related_record _ids with uuids. 
   let related_records = [];
   for(_id of published.related_records) {
-    let uuid = await SharedFunctions.uuidFor_id(Record, _id);
+    let uuid = await SharedFunctions.uuidFor_id(Record, _id, session);
     if(uuid) {
       related_records.push(uuid);
     } else {
@@ -74,17 +74,17 @@ async function createDraftFromPublished(published) {
 // Fetches a record draft 
 // If it does not exist, it creates a draft from the latest published.
 // Does not lookup related_records
-async function fetchDraftOrCreateFromPublished(uuid) {
-  let record_draft = await SharedFunctions.draft(Record, uuid);
+async function fetchDraftOrCreateFromPublished(uuid, session) {
+  let record_draft = await SharedFunctions.draft(Record, uuid, session);
   if(record_draft) {
     return record_draft;
   }
 
-  let published_record = await SharedFunctions.latestPublished(Record, uuid);
+  let published_record = await SharedFunctions.latestPublished(Record, uuid, session);
   if(!published_record) {
     return null;
   }
-  record_draft = await createDraftFromPublished(published_record);
+  record_draft = await createDraftFromPublished(published_record, session);
 
   return record_draft;
 }
@@ -409,20 +409,20 @@ async function validateAndCreateOrUpdate(record, user, session) {
 
 // Fetches the record draft with the given uuid, recursively looking up related_records.
 // If a draft of a given template doesn't exist, a new one will be generated using the last published record.
-async function draftFetchOrCreate(uuid, user) {
+async function draftFetchOrCreate(uuid, user, session) {
 
   if (!uuidValidate(uuid)) {
     throw new Util.InputError('The uuid provided is not in proper uuid format.');
   }
 
   // See if a draft of this template exists. 
-  let record_draft = await fetchDraftOrCreateFromPublished(uuid);
+  let record_draft = await fetchDraftOrCreateFromPublished(uuid, session);
   if (!record_draft) {
     return null;
   }
 
   // Make sure this user has a permission to be working with drafts
-  if (!(await PermissionGroupModel.has_permission(user, record_draft.dataset_uuid, PermissionGroupModel.PERMISSION_EDIT))) {
+  if (!(await PermissionGroupModel.has_permission(user, record_draft.dataset_uuid, PermissionGroupModel.PERMISSION_EDIT, session))) {
     throw new Util.PermissionDeniedError(`You do not have the edit permissions required to view draft ${uuid}`);
   }
 
@@ -431,16 +431,16 @@ async function draftFetchOrCreate(uuid, user) {
   for(let i = 0; i < record_draft.related_records.length; i++) {
     let related_record;
     try{
-      related_record = await draftFetchOrCreate(record_draft.related_records[i], user);
+      related_record = await draftFetchOrCreate(record_draft.related_records[i], user, session);
     } catch (err) {
       if (err instanceof Util.PermissionDeniedError) {
         // If we don't have permission for the draft, get the latest published instead
         try {
-          related_record = await latestPublishedWithJoinsAndPermissions(record_draft.related_records[i], user)
+          related_record = await latestPublishedWithJoinsAndPermissions(record_draft.related_records[i], user, session)
         } catch (err) {
           if (err instanceof Util.PermissionDeniedError || err instanceof Util.NotFoundError) {
             // If we don't have permission for the published version, or a published version doesn't exist, just attach a uuid and a flag marking no_permissions
-            related_record = await fetchDraftOrCreateFromPublished(record_draft.related_records[i]);
+            related_record = await fetchDraftOrCreateFromPublished(record_draft.related_records[i], session);
             related_record = {uuid: related_record.uuid, dataset_uuid: related_record.dataset_uuid, no_permissions: true};
           } 
           else {
@@ -627,7 +627,7 @@ async function publish(record_uuid, user, session, last_update) {
 
 }
 
-async function latestPublishedBeforeDateWithJoins(uuid, date) {
+async function latestPublishedBeforeDateWithJoins(uuid, date, session) {
   // Validate uuid and date are valid
   if (!uuidValidate(uuid)) {
     throw new Util.InputError('The uuid provided is not in proper uuid format.');
@@ -707,7 +707,7 @@ async function latestPublishedBeforeDateWithJoins(uuid, date) {
     // create a copy
     pipeline_addons = JSON.parse(JSON.stringify(pipeline_addons));
   }
-  let response = await Record.aggregate(pipeline);
+  let response = await Record.aggregate(pipeline, {session});
   if (await response.hasNext()){
     return await response.next();
   } else {
@@ -761,7 +761,7 @@ async function lastUpdate(uuid, user) {
 
 }
 
-async function userHasAccessToPublishedRecord(record, user) {
+async function userHasAccessToPublishedRecord(record, user, session) {
   let dataset = await SharedFunctions.latestPublished(DatasetModel.collection(), record.dataset_uuid);
   // If both the dataset and the record are public, then everyone has view access
   if (dataset.public_date && Util.compareTimeStamp((new Date).getTime(), dataset.public_date) &&
@@ -770,37 +770,37 @@ async function userHasAccessToPublishedRecord(record, user) {
   }
 
   // Otherwise, check if we have view permissions
-  return await PermissionGroupModel.has_permission(user, dataset.uuid, PermissionGroupModel.PERMISSION_VIEW);
+  return await PermissionGroupModel.has_permission(user, dataset.uuid, PermissionGroupModel.PERMISSION_VIEW, session);
 }
 
-async function filterPublishedForPermissionsRecursor(record, user) {
+async function filterPublishedForPermissionsRecursor(record, user, session) {
   for(let i = 0; i < record.related_records.length; i++) {
-    if(!(await userHasAccessToPublishedRecord(record.related_records[i], user, PermissionGroupModel))) {
+    if(!(await userHasAccessToPublishedRecord(record.related_records[i], user, session))) {
       record.related_records[i] = {uuid: record.related_records[i].uuid};
     } else {
-      await filterPublishedForPermissionsRecursor(record.related_records[i], user);
+      await filterPublishedForPermissionsRecursor(record.related_records[i], user, session);
     }
   }
 }
 
 // TODO: use the dataset instead of the record. Also, ignore record specific permissions until I remember how they work
-async function filterPublishedForPermissions(record, user) {
-  if(!(await userHasAccessToPublishedRecord(record, user, PermissionGroupModel))) {
+async function filterPublishedForPermissions(record, user, session) {
+  if(!(await userHasAccessToPublishedRecord(record, user, session))) {
     throw new Util.PermissionDeniedError(`Do not have view access to records in dataset ${record.dataset_uuid}`);
   }
-  await filterPublishedForPermissionsRecursor(record, user);
+  await filterPublishedForPermissionsRecursor(record, user, session);
 }
 
-async function latestPublishedBeforeDateWithJoinsAndPermissions(uuid, date, user) {
-  let record = await latestPublishedBeforeDateWithJoins(uuid, date);
-  await filterPublishedForPermissions(record, user);
+async function latestPublishedBeforeDateWithJoinsAndPermissions(uuid, date, user, session) {
+  let record = await latestPublishedBeforeDateWithJoins(uuid, date, session);
+  await filterPublishedForPermissions(record, user, session);
   return record;
 } 
 
 // Fetches the last published record with the given uuid. 
 // Also recursively looks up related_datasets.
-async function latestPublishedWithJoinsAndPermissions(uuid, user) {
-  return await latestPublishedBeforeDateWithJoinsAndPermissions(uuid, new Date(), user);
+async function latestPublishedWithJoinsAndPermissions(uuid, user, session) {
+  return await latestPublishedBeforeDateWithJoinsAndPermissions(uuid, new Date(), user, session);
 }
 
 async function importRecordFromCombinedRecursor(input_record, dataset, template, user, updated_at, session) {
@@ -823,7 +823,6 @@ async function importRecordFromCombinedRecursor(input_record, dataset, template,
     }
   } else {
     new_record_uuid = await LegacyUuidToNewUuidMapperModel.create_new_uuid_for_old(old_record_uuid, session);
-    await PermissionGroupModel.initialize_permissions_for(user, new_record_uuid, session);
   }
 
   // Build object to create/update
@@ -844,44 +843,39 @@ async function importRecordFromCombinedRecursor(input_record, dataset, template,
 
   new_record.fields = await createRecordFieldsFromImportRecordAndTemplate(input_record.fields, template.fields);
 
-  // Recurse into related_records
-  if(!input_record.records) {
-    input_record.records = [];
+  // Requirements:
+  // - related_records is a set, so there can't be any duplicates
+  // - Every related_record must point to a related_dataset supported by the dataset
+  // Plan: Create a dataset_uuid to dataset map. At the end, check related_records for duplicates
+  let related_dataset_map = {};
+  for (let related_dataset of dataset.related_datasets) {
+    related_dataset_map[related_dataset.uuid] = related_dataset;
   }
-  if (!Array.isArray(input_record.records)){
-    throw new Util.InputError('records property must be of type array');
+  let related_template_map = {};
+  for (let related_template of template.related_templates) {
+    related_template_map[related_template.uuid] = related_template;
   }
-  if(input_record.records.length > dataset.related_datasets.length) {
-    throw new Util.InputError(`records of record cannot have more references than related_datasets of its dataset (database)`);
-  }
-  let related_record_map = {};
   for (let related_record of input_record.records) {
-    if(!Util.isObject(related_record)) {
-      throw new Util.InputError(`Each related_record in the record must be a json object`);
-    }
-    let related_dataset_uuid = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(related_record.database_uuid, session);
-    if(!(related_dataset_uuid in related_record_map)) {
-      related_record_map[related_dataset_uuid] = [related_record];
-    } else {
-      related_record_map[related_dataset_uuid].push(related_record);
-    }
-  }
-  for (let i = 0; i < dataset.related_datasets.length; i++) {
-    let related_dataset_uuid = dataset.related_datasets[i].uuid;
-    if(!related_record_map[related_dataset_uuid] || related_record_map[related_dataset_uuid].length == 0) {
+    // Special import case. If template_uuid is not provided, just skip this part
+    if(!related_record.template_uuid ||  related_record.template_uuid == "") {
       continue;
+    } 
+    let related_dataset_uuid = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(related_record.database_uuid, session);
+    let related_dataset = related_dataset_map[related_dataset_uuid];
+    if(!related_dataset) {
+      console.log(`related_dataset_uuid: ${related_dataset_uuid}, related_dataset: ${related_dataset}`);
     }
-    let related_record = related_record_map[related_dataset_uuid].shift();
+    let related_template = related_template_map[related_dataset.template_uuid];
     try {
       let new_changes;
-      [new_changes, related_record] = await importRecordFromCombinedRecursor(related_record, dataset.related_datasets[i], template.related_templates[i], user, updated_at, session);
+      [new_changes, related_record] = await importRecordFromCombinedRecursor(related_record, related_dataset, related_template, user, updated_at, session);
       changes = changes || new_changes;
     } catch(err) {
       if (err instanceof Util.NotFoundError) {
         throw new Util.InputError(err.message);
       } else if (err instanceof Util.PermissionDeniedError) {
-        // If we don't have admin permissions to the related_record, don't try to update/create it. Just link it
-        related_record = related_record.uuid;
+        // If we don't have admin permissions to the related_dataset, don't try to update/create it. Just link it
+        related_record = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(related_record.record_uuid, session);
       } else {
         throw err;
       }
@@ -889,11 +883,9 @@ async function importRecordFromCombinedRecursor(input_record, dataset, template,
     // After validating and updating the related_record, replace the related_record with a uuid reference
     new_record.related_records.push(related_record);
   }
-  // Make sure the user didn't submit any extraneous data
-  for (related_dataset_uuid in related_record_map) {
-    if(related_record_map[related_dataset_uuid].length > 0) {
-      throw new Util.InputError(`Sumitted extraneous related_record with dataset_uuid: ${related_dataset_uuid}`);
-    }
+  // Related_records is really a set, not a list. But Mongo doesn't store sets well, so have to manage it ourselves.
+  if(Util.anyDuplicateInArray(new_record.related_records)) {
+    throw new Util.InputError(`Each record may only have one instance of every related_record.`);
   }
 
   // If this draft is identical to the latest published, delete it.
@@ -967,7 +959,9 @@ async function importDatasetAndRecord(record, user, session) {
   }
   let dataset = await DatasetModel.latestPublished(dataset_uuid, user, session);
   // Import record
-  return await importRecordFromCombinedRecursor(record, dataset, template, user, new Date(), session);
+  let new_record_uuid = (await importRecordFromCombinedRecursor(record, dataset, template, user, new Date(), session))[1];
+  let record_draft = await draftFetchOrCreate(new_record_uuid, user, session);
+  return new_record_uuid;
 }
 
 async function importDatasetsAndRecords(records, user, session) {

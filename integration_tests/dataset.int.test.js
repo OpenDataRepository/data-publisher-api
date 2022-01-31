@@ -619,6 +619,31 @@ describe("create (and get draft)", () => {
       expect(response.statusCode).toBe(400);
     });
 
+    test("A related_dataset can't reference a related_template not supported by the dataset's template", async () => {
+  
+      let template = { 
+        name: "kakashi",
+        related_templates: [{
+          name: "naruto"
+        }],
+      };
+      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+
+      let other_template = {
+        name: "sasuke"
+      };
+      other_template = await Helper.templateCreatePublishTest(other_template, Helper.DEF_CURR_USER);
+
+      let dataset = { 
+        template_uuid: template.uuid,
+        related_datasets: [{
+          template_uuid: other_template.uuid
+        }]
+      };
+      let response = await Helper.datasetCreate(dataset, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(400);
+    });
+
 
   });
 });

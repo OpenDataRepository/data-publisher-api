@@ -162,11 +162,27 @@ async function validateAndCreateOrUpdateRecurser(input_dataset, template, user, 
   // Requirements:
   // - Each related template must have a related_dataset pointing to it
   // - Same related_dataset can't be repeated twice
-  // Plan: go through by template, handle every dataset for that template, then check if the related_dataset list has duplicates
-  let related_dataset_map = {};
+  // - each related_dataset must point to a supported template
+  // Plan: Create a dcit of supported templates, and sets of unseen templates and seen datasets. 
+  // Go through list of related_datasets. If it's It must be in supported templates, and not in seen datasets.
+  // At the end, check if unseen datasets still has anything
+  let supported_templates = {};
+  let unseen_templates = new Set();
+  let seen_datasets = new Set();
+  for (let related_template of template.related_templates) {
+    supported_templates[related_template.uuid] = related_template;
+    unseen_templates.add(related_template.uuid);
+  }
   for (let related_dataset of input_dataset.related_datasets) {
     if(!Util.isObject(related_dataset)) {
       throw new Util.InputError(`Each related_dataset in the dataset must be a json object`);
+    }
+    if(related_dataset.uuid) {
+      if(seen_datasets.has(related_dataset.uuid)) {
+        throw new Util.InputError(`related_datasets is a set, and as such, no dataset uuid may be duplicated`);
+      } else {
+        seen_datasets.add(related_dataset.uuid);
+      }
     }
     if(!related_dataset.template_uuid) {
       // There is a chance the user will link a dataset they don't have view access to.
@@ -177,40 +193,31 @@ async function validateAndCreateOrUpdateRecurser(input_dataset, template, user, 
       }
       related_dataset.template_uuid = existing_dataset.template_uuid;
     }
-    if(!(related_dataset.template_uuid in related_dataset_map)) {
-      related_dataset_map[related_dataset.template_uuid] = [related_dataset];
-    } else {
-      related_dataset_map[related_dataset.template_uuid].push(related_dataset);
+    if(!(related_dataset.template_uuid in supported_templates)) {
+      throw new Util.InputError(`related_template uuid ${related_dataset.template_uuid} is not supported by template ${template.uuid}`);
     }
-  }
-  for (let related_template of template.related_templates) {
-    let related_template_uuid = related_template.uuid;
-    if(!(related_template_uuid in related_dataset_map)) {
-      throw new Util.InputError(`The dataset must contain a related_dataset for every related_template specified by the template`);
-    }
-    let related_datasets = related_dataset_map[related_template_uuid];
-    for(let related_dataset of related_datasets) {
-      try {
-        let new_changes;
-        [new_changes, related_dataset] = await validateAndCreateOrUpdateRecurser(related_dataset, related_template, user, session, group_uuid, updated_at);
-        changes = changes || new_changes;
-      } catch(err) {
-        if (err instanceof Util.NotFoundError) {
-          throw new Util.InputError(err.message);
-        } else if (err instanceof Util.PermissionDeniedError) {
-          // If we don't have admin permissions to the related_dataset, don't try to update/create it. Just link it
-          related_dataset = related_dataset.uuid;
-        } else {
-          throw err;
-        }
+    let related_template = supported_templates[related_dataset.template_uuid];
+    unseen_templates.delete(related_dataset.template_uuid);
+
+    try {
+      let new_changes;
+      [new_changes, related_dataset] = await validateAndCreateOrUpdateRecurser(related_dataset, related_template, user, session, group_uuid, updated_at);
+      changes = changes || new_changes;
+    } catch(err) {
+      if (err instanceof Util.NotFoundError) {
+        throw new Util.InputError(err.message);
+      } else if (err instanceof Util.PermissionDeniedError) {
+        // If we don't have admin permissions to the related_dataset, don't try to update/create it. Just link it
+        related_dataset = related_dataset.uuid;
+      } else {
+        throw err;
       }
-      // After validating and updating the related_dataset, replace the related_dataset with a uuid reference
-      new_dataset.related_datasets.push(related_dataset);
     }
+    // After validating and updating the related_dataset, replace the related_dataset with a uuid reference
+    new_dataset.related_datasets.push(related_dataset);
   } 
-  // Related_datasets is really a set, not a list. But Mongo doesn't store sets well, so have to manage it ourselves.
-  if(Util.anyDuplicateInArray(new_dataset.related_datasets)) {
-    throw new Util.InputError(`Each dataset may only have one instance of every related_dataset.`);
+  if(unseen_templates.size > 0) {
+    throw new Util.InputError(`Dataset must provide at least one related_dataset corresponding to every related_template required by the template.`);
   }
 
   // If this draft is identical to the latest published, delete it.
@@ -783,6 +790,27 @@ async function duplicate(uuid, user, session) {
   return await draftFetchOrCreate(new_uuid, user, session);
 }
 
+async function createMissingDatasetForImport(template, user, updated_at, session) {
+  let uuid = uuidv4();
+  await PermissionGroupModel.initialize_permissions_for(user, uuid, session);
+  let dataset = {
+    uuid,
+    template_uuid: template.uuid,
+    updated_at,
+    related_datasets: []
+  }
+  for (let related_template of template.related_templates) {
+    dataset.related_datasets.push(await createMissingDatasetForImport(related_template, user, updated_at, session));
+  }
+
+  let response = await Dataset.insertOne(dataset, {session});
+  if (response.insertedCount != 1) {
+    throw new Error(`Dataset.importDatasetFromCombinedRecursor: Inserted: ${response.insertedCount}`);
+  } 
+
+  return uuid;
+}
+
 async function importDatasetFromCombinedRecursor(record, template, user, updated_at, session) {
   if(!Util.isObject(record)) {
     throw new Util.InputError('Record to import must be a json object.');
@@ -829,6 +857,7 @@ async function importDatasetFromCombinedRecursor(record, template, user, updated
   // Build object to create/update
   let new_dataset = {
     uuid: dataset_uuid,
+    imported_dataset_uuid: old_uuid,
     template_uuid: new_template_uuid,
     updated_at,
     related_datasets: []
@@ -842,47 +871,59 @@ async function importDatasetFromCombinedRecursor(record, template, user, updated
   // Need to determine if this draft is any different from the published one.
   let changes = false;
 
-  // Recurse into related_records
+  // Recurse into related_datasets
   if(!record.records) {
     record.records = [];
   }
   if (!Array.isArray(record.records)){
     throw new Util.InputError('records property must be of type array');
   }
-  if(record.records.length != template.related_templates.length) {
-    throw new Util.InputError(`records of each record must correspond to related_templates of its template`);
-  }
-  let related_record_map = {};
-  for (let related_record of record.records) {
-    if(!Util.isObject(related_record)) {
-      throw new Util.InputError(`Each record in records must be a json object`);
-    }
-    if(!related_record.template_uuid) {
-      throw new Util.InputError(`Each record in records must supply a template_uuid`);
-    }
-    let new_template_uuid = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(related_record.template_uuid, session);
-    if(!(new_template_uuid in related_record_map)) {
-      related_record_map[new_template_uuid] = [related_record];
-    } else {
-      related_record_map[new_template_uuid].push(related_record);
-    }
-  }
+
+  // Requirements:
+  // - Each related template must have a related_dataset pointing to it. For import, if create blank datasets if necessary
+  // - Same related_dataset can't be repeated twice
+  // - each related_dataset must point to a supported template
+  // Plan: Create a dict of supported templates, and sets of unseen templates and seen datasets. 
+  // Go through list of related_datasets. If it's It must be in supported templates, and not in seen datasets.
+  // At the end, check if unseen datasets still has anything
+  let supported_templates = {};
+  let unseen_templates = new Set();
+  let seen_datasets = new Set();
   for (let related_template of template.related_templates) {
-    let related_template_uuid = related_template.uuid
-    if(!related_record_map[related_template_uuid] || related_record_map[related_template_uuid].length == 0) {
-      throw new Util.InputError(`The records in record must match up to the related_templates expected by the template`);
+    supported_templates[related_template.uuid] = related_template;
+    unseen_templates.add(related_template.uuid);
+  }
+  for (let related_dataset of record.records) {
+    if(!Util.isObject(related_dataset)) {
+      throw new Util.InputError(`Each related_dataset in the dataset must be a json object`);
     }
-    let related_record = related_record_map[related_template_uuid].shift();
+    if(!related_dataset.database_uuid) {
+      if(seen_datasets.has(related_dataset.database_uuid)) {
+        throw new Util.InputError(`related_datasets is a set, and as such, no dataset uuid may be duplicated`);
+      } else {
+        seen_datasets.add(related_dataset.database_uuid);
+      }
+    }
+    if(!related_dataset.template_uuid ||  related_dataset.template_uuid == "") {
+      continue;
+    } 
+    let new_related_template_uuid = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(related_dataset.template_uuid, session);
+    if(!(new_related_template_uuid in supported_templates)) {
+      throw new Util.InputError(`related_template uuid ${new_related_template_uuid} is not supported by template ${template.uuid}`);
+    }
+    let related_template = supported_templates[new_related_template_uuid];
+    unseen_templates.delete(new_related_template_uuid);
+
     try {
       let new_changes;
-      [new_changes, related_dataset] = await importDatasetFromCombinedRecursor(related_record, related_template, user, updated_at, session);
+      [new_changes, related_dataset] = await importDatasetFromCombinedRecursor(related_dataset, related_template, user, updated_at, session);
       changes = changes || new_changes;
     } catch(err) {
       if (err instanceof Util.NotFoundError) {
         throw new Util.InputError(err.message);
       } else if (err instanceof Util.PermissionDeniedError) {
         // If we don't have admin permissions to the related_dataset, don't try to update/create it. Just link it
-        related_dataset = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(related_record.database_uuid, session);
+        related_dataset = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(related_dataset.database_uuid, session);
       } else {
         throw err;
       }
@@ -890,6 +931,16 @@ async function importDatasetFromCombinedRecursor(record, template, user, updated
     // After validating and updating the related_dataset, replace the related_dataset with a uuid reference
     new_dataset.related_datasets.push(related_dataset);
   } 
+  // In the case of import, if there isn't a dataset provided for a required template, just create one for it
+  for(let unseen_template of unseen_templates) {
+    let related_template = supported_templates[unseen_template];
+    changes = true;
+    related_dataset = await createMissingDatasetForImport(related_template, user, updated_at, session);
+    new_dataset.related_datasets.push(related_dataset);
+  }
+
+
+  
   
   // If this draft is identical to the latest published, delete it.
   // The reason to do so is so when an update to a dataset is submitted, we won't create drafts of sub-datasets that haven't changed.
