@@ -1324,6 +1324,35 @@ describe("publish (and get published)", () => {
       // Now publishing the dataset should fail since it no longer matches the template format
       await Helper.datasetPublish(uuid, last_update, Helper.DEF_CURR_USER);
     });
+
+    test("If user doesn't have admin access to linked dataset and that dataset doesn't have a published version, then we can't publish", async () => {
+      let public_date = (new Date()).toISOString();
+      let template = {
+        name:"t1",
+        public_date,
+        related_templates:[{
+          name: "t2",
+          public_date
+        }]
+      };
+
+      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+
+      let related_dataset = {
+        template_uuid: template.related_templates[0].uuid
+      };
+      related_dataset = await Helper.datasetCreateAndTestV2(related_dataset, Helper.USER_2);
+
+      let dataset = {
+        template_uuid: template.uuid,
+        related_datasets:[{uuid: related_dataset.uuid}]
+      };
+      dataset = await Helper.datasetCreateAndTestV2(dataset, Helper.DEF_CURR_USER);
+
+      let last_update = await Helper.datasetLastUpdateAndTest(dataset.uuid, Helper.DEF_CURR_USER);
+      let response = await Helper.datasetPublish(dataset.uuid, last_update, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(400);
+    });
   });
 });
 

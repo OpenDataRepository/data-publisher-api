@@ -524,12 +524,11 @@ async function publishRecurser(uuid, user, session, template) {
       if (err instanceof Util.NotFoundError) {
         throw new Util.InputError(`Internal reference within this draft is invalid. Fetch/update draft to cleanse it.`);
       } else if (err instanceof Util.PermissionDeniedError) {
-        // TODO: add a test case for this case
         // If the user doesn't have permissions, assume they want to link the published version of the dataset
         // But before we can link the published version of the dataset, we must make sure it exists
         let related_dataset_published = await SharedFunctions.latestPublished(Dataset, related_dataset);
         if(!related_dataset_published) {
-          throw new Util.InputError(`invalid link to dataset ${related_dataset}, which has no published version to link`);
+          throw new Util.InputError(`Invalid link to dataset ${related_dataset}, which has no published version to link.`);
         }
         related_datasets.push(related_dataset_published._id);
       } else {

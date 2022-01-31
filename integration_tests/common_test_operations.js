@@ -298,6 +298,12 @@ module.exports = class Helper {
       .set('Cookie', [`user=${curr_user}`]);
   }
 
+  datasetLastUpdateAndTest = async(uuid, curr_user) => {
+    let response = await this.datasetLastUpdate(uuid, curr_user);
+    expect(response.statusCode).toBe(200);
+    return response.body;
+  }
+
   datasetPublish = async (uuid, last_update, curr_user) => {
     return await request(this.app)
       .post(`/dataset/${uuid}/publish`)
@@ -314,11 +320,8 @@ module.exports = class Helper {
   }
 
   datasetPublishAndFetch = async (uuid, curr_user) => {
-    let response = await this.datasetLastUpdate(uuid, curr_user);
-    expect(response.statusCode).toBe(200);
-    let last_update = response.body;
-  
-    response = await this.datasetPublish(uuid, last_update, curr_user);
+    let last_update = await this.datasetLastUpdateAndTest(uuid, curr_user);
+    let response = await this.datasetPublish(uuid, last_update, curr_user);
     expect(response.statusCode).toBe(200);
   
     response = await this.datasetLatestPublished(uuid, curr_user);
