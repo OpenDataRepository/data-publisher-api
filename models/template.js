@@ -273,20 +273,7 @@ function initializeNewImportedDraftWithProperties(input_template, uuid, updated_
   return output_template;
 }
 
-// If a uuid is provided, update the template with the provided uuid.
-// Otherwise, create a new template.
-// If the updated template is the same as the last published, delete the draft instead of updating. 
-// In both cases, validate the given template as well.
-// Return:
-// 1. A boolean indicating true if there were changes from the last published.
-// 2. The uuid of the template created / updated
-async function validateAndCreateOrUpdate(input_template, user, session, updated_at) {
-
-  // Template must be an object
-  if (!Util.isObject(input_template)) {
-    throw new Util.InputError(`template provided is not an object: ${input_template}`);
-  }
-
+async function getUuidFromCreateOrUpdate(input_template, user, session) {
   let uuid;
   // If a template uuid is provided, this is an update
   if (input_template.uuid) {
@@ -318,70 +305,102 @@ async function validateAndCreateOrUpdate(input_template, user, session, updated_
     // TODO: can I think of a way to test that this was done with the session?
     await PermissionGroupModel.initialize_permissions_for(user, uuid, session);
   }
+  return uuid;
+}
+
+async function extractFieldsFromCreateOrUpdate(input_fields, user, session, updated_at) {
+  let return_fields = [];
+  let changes = false;
+  if (input_fields === undefined) {
+    return [return_fields, changes];
+  }
+  if (!Array.isArray(input_fields)){
+    throw new Util.InputError('fields property must be of type array');
+  }
+  for (let field of input_fields) {
+    let field_uuid;
+    try {
+      [changes, field_uuid] = await TemplateFieldModel.validateAndCreateOrUpdate(field, user, session, updated_at);
+    } catch(err) {
+      if (err instanceof Util.NotFoundError) {
+        throw new Util.InputError(err.message);
+      } else if (err instanceof Util.PermissionDeniedError) {
+        field_uuid = field.uuid;
+      } else {
+        throw err;
+      }
+    }
+    // After validating and updating the field, replace the imbedded field with a uuid reference
+    return_fields.push(field_uuid);
+  }
+  // It is a requirement that no field be repeated. Verify this
+  if(Util.anyDuplicateInArray(return_fields)) {
+    throw new Util.InputError(`Each template may only have one instance of any template field.`);
+  }
+  return [return_fields, changes];
+}
+
+async function extractRelatedTemplatesFromCreateOrUpdate(input_related_templates, user, session, updated_at) {
+  let return_related_templates = [];
+  let changes = false;
+  if (input_related_templates === undefined) {
+    return [return_related_templates, changes];
+  }
+  if (!Array.isArray(input_related_templates)){
+    throw new Util.InputError('related_templates property must be of type array');
+  }
+  for (let related_template of input_related_templates) {
+    let related_template_uuid;
+    try {
+      [changes, related_template_uuid] = await validateAndCreateOrUpdate(related_template, user, session, updated_at);
+    } catch(err) {
+      if (err instanceof Util.NotFoundError) {
+        throw new Util.InputError(err.message);
+      } else if (err instanceof Util.PermissionDeniedError) {
+        // If the user doesn't have edit permissions, assume they want to link the published version of the template, or keep something another editor added
+        related_template_uuid = related_template.uuid;
+      } else {
+        throw err;
+      }
+    }
+    // After validating and updating the related_template, replace the imbedded related_template with a uuid reference
+    return_related_templates.push(related_template_uuid);
+  }
+  // Related_templates is really a set, not a list. But Mongo doesn't store sets well, so have to manage it ourselves.
+  if(Util.anyDuplicateInArray(return_related_templates)) {
+    throw new Util.InputError(`Each template may only have one instance of every related_template.`);
+  }
+  return [return_related_templates, changes];
+}
+
+// If a uuid is provided, update the template with the provided uuid.
+// Otherwise, create a new template.
+// If the updated template is the same as the last published, delete the draft instead of updating. 
+// In both cases, validate the given template as well.
+// Return:
+// 1. A boolean indicating true if there were changes from the last published.
+// 2. The uuid of the template created / updated
+async function validateAndCreateOrUpdate(input_template, user, session, updated_at) {
+
+  // Template must be an object
+  if (!Util.isObject(input_template)) {
+    throw new Util.InputError(`template provided is not an object: ${input_template}`);
+  }
+
+  let uuid = await getUuidFromCreateOrUpdate(input_template, user, session);
 
   // Populate template properties
   let new_template = initializeNewDraftWithProperties(input_template, uuid, updated_at);
 
   // Need to determine if this draft is any different from the published one.
-  let changes = false;
+  let changes;
 
-  // Reursively handle each of the fields
-  if (input_template.fields !== undefined) {
-    if (!Array.isArray(input_template.fields)){
-      throw new Util.InputError('fields property must be of type array');
-    }
-    for (let field of input_template.fields) {
-      let field_uuid;
-      try {
-        let more_changes;
-        [more_changes, field_uuid] = await TemplateFieldModel.validateAndCreateOrUpdate(field, user, session, updated_at);
-        changes |= more_changes;
-      } catch(err) {
-        if (err instanceof Util.NotFoundError) {
-          throw new Util.InputError(err.message);
-        } else if (err instanceof Util.PermissionDeniedError) {
-          field_uuid = field.uuid;
-        } else {
-          throw err;
-        }
-      }
-      // After validating and updating the field, replace the imbedded field with a uuid reference
-      new_template.fields.push(field_uuid);
-    }
-    // It is a requirement that no field be repeated. Verify this
-    if(Util.anyDuplicateInArray(new_template.fields)) {
-      throw new Util.InputError(`Each template may only have one instance of any template field.`);
-    }
-  }
-  // Recursively handle each of the related_templates
-  if (input_template.related_templates !== undefined) {
-    if (!Array.isArray(input_template.related_templates)){
-      throw new Util.InputError('related_templates property must be of type array');
-    }
-    for (let related_template of input_template.related_templates) {
-      let related_template_uuid;
-      try {
-        let more_changes;
-        [more_changes, related_template_uuid] = await validateAndCreateOrUpdate(related_template, user, session, updated_at);
-        changes |= more_changes;
-      } catch(err) {
-        if (err instanceof Util.NotFoundError) {
-          throw new Util.InputError(err.message);
-        } else if (err instanceof Util.PermissionDeniedError) {
-          // If the user doesn't have edit permissions, assume they want to link the published version of the template, or keep something another editor added
-          related_template_uuid = related_template.uuid;
-        } else {
-          throw err;
-        }
-      }
-      // After validating and updating the related_template, replace the imbedded related_template with a uuid reference
-      new_template.related_templates.push(related_template_uuid);
-    }
-    // Related_templates is really a set, not a list. But Mongo doesn't store sets well, so have to manage it ourselves.
-    if(Util.anyDuplicateInArray(new_template.related_templates)) {
-      throw new Util.InputError(`Each template may only have one instance of every related_template.`);
-    }
-  }
+  [new_template.fields, changes] = await extractFieldsFromCreateOrUpdate(input_template.fields, user, session, updated_at);
+
+  let more_changes = false;
+  [new_template.related_templates, more_changes] = await extractRelatedTemplatesFromCreateOrUpdate(input_template.related_templates, user, session, updated_at);
+  changes = changes || more_changes;
+  
 
   // If this draft is identical to the latest published, delete it.
   // The reason to do so is so when a change is submitted, we won't create drafts of sub-templates.
