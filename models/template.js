@@ -437,6 +437,71 @@ async function validateAndCreateOrUpdate(input_template, user, session, updated_
 
 }
 
+async function publishFields(input_fields, user, session, last_published_time) {
+  let return_fields = [];
+  let changes = false;
+  // For each template field, publish that field, then replace the uuid with the internal_id.
+  // It is possible there weren't any changes to publish, so keep track of whether we actually published anything.
+  for (let field of input_fields) {
+    try {
+      [field, _] = await TemplateFieldModel.publishField(field, session, null, user);
+      return_fields.push(field);
+    } catch(err) {
+      if (err instanceof Util.NotFoundError) {
+        throw new Util.InputError("Internal reference within this draft is invalid. Fetch/update draft to cleanse it.");
+      } else if (err instanceof Util.PermissionDeniedError) {
+        // If the user doesn't have permissions, assume they want to link the published version of the field
+        // But before we can link the published version of the field, we must make sure it exists and we have view access
+        let published_field = await TemplateFieldModel.latestPublishedWithoutPermissions(field, session);
+        if(!published_field) {
+          throw new Util.InputError(`you do not have edit permissions to the draft of template_field ${uuid}, and a published version does not exist.`);
+        }
+        return_fields.push(published_field._id);
+      } else {
+        throw err;
+      }
+    }
+    // TODO: this should be an async call. Add a test case for it and make it await
+    if (SharedFunctions.publishDateFor_id(TemplateField, field) > last_published_time) {
+      changes = true;
+    }
+  } 
+  return [return_fields, changes];
+}
+
+async function publishRelatedTemplatess(input_related_templates, user, session, last_published_time) {
+  let result_related_templates = [];
+  let changes = false;
+  // For each template's related_templates, publish that related_template, then replace the uuid with the internal_id.
+  // It is possible there weren't any changes to publish, so keep track of whether we actually published anything.
+  for(let related_template of input_related_templates) {
+    try {
+      related_template = await publishRecursor(related_template, user, session);
+      result_related_templates.push(related_template);
+    } catch(err) {
+      if (err instanceof Util.NotFoundError) {
+        throw new Util.InputError("Internal reference within this draft is invalid. Fetch/update draft to cleanse it.");
+      } else if (err instanceof Util.PermissionDeniedError) {
+
+        // If the user doesn't have permissions, assume they want to link the published version of the template
+        // But before we can link the published version of the template, we must make sure it exists
+        let related_template_published = await SharedFunctions.latestPublished(Template, related_template);
+        if(!related_template_published) {
+          throw new Util.InputError(`published template does not exist with uuid ${related_template}`);
+        }
+        result_related_templates.push(related_template_published._id);
+      } else {
+        throw err;
+      }
+    }
+    // TODO: this should be an async call. Add a test case for it and make it await
+    if (SharedFunctions.publishDateFor_id(Template, related_template) > last_published_time) {
+      changes = true;
+    }
+  }
+  return [result_related_templates, changes];
+}
+
 // Publishes the template with the provided uuid
 //   If a draft exists of the template, the user has edit permissions, and the draft has some changes, publish it
 //   If a draft doesn't exist, doesn't have changes, or the user doesn't have edit permissions, return the latest published instead
@@ -488,60 +553,11 @@ async function publishRecursor(uuid, user, session) {
   let fields = [];
   let related_templates = [];
 
-  // For each template field, publish that field, then replace the uuid with the internal_id.
-  // It is possible there weren't any changes to publish, so keep track of whether we actually published anything.
-  for (let field of template_draft.fields) {
-    try {
-      [field, _] = await TemplateFieldModel.publishField(field, session, null, user);
-      fields.push(field);
-    } catch(err) {
-      if (err instanceof Util.NotFoundError) {
-        throw new Util.InputError("Internal reference within this draft is invalid. Fetch/update draft to cleanse it.");
-      } else if (err instanceof Util.PermissionDeniedError) {
-        // If the user doesn't have permissions, assume they want to link the published version of the field
-        // But before we can link the published version of the field, we must make sure it exists and we have view access
-        let published_field = await TemplateFieldModel.latestPublishedWithoutPermissions(field, session);
-        if(!published_field) {
-          throw new Util.InputError(`you do not have edit permissions to the draft of template_field ${uuid}, and a published version does not exist.`);
-        }
-        fields.push(published_field._id);
-      } else {
-        throw err;
-      }
-    }
-    // TODO: this should be an async call. Add a test case for it and make it await
-    if (SharedFunctions.publishDateFor_id(TemplateField, field) > last_published_time) {
-      changes = true;
-    }
-  } 
+  [fields, changes] = await publishFields(template_draft.fields, user, session, last_published_time)
 
-  // For each template's related_templates, publish that related_template, then replace the uuid with the internal_id.
-  // It is possible there weren't any changes to publish, so keep track of whether we actually published anything.
-  for(let related_template of template_draft.related_templates) {
-    try {
-      related_template = await publishRecursor(related_template, user, session);
-      related_templates.push(related_template);
-    } catch(err) {
-      if (err instanceof Util.NotFoundError) {
-        throw new Util.InputError("Internal reference within this draft is invalid. Fetch/update draft to cleanse it.");
-      } else if (err instanceof Util.PermissionDeniedError) {
-
-        // If the user doesn't have permissions, assume they want to link the published version of the template
-        // But before we can link the published version of the template, we must make sure it exists
-        let related_template_published = await SharedFunctions.latestPublished(Template, related_template);
-        if(!related_template_published) {
-          throw new Util.InputError(`published template does not exist with uuid ${related_template}`);
-        }
-        related_templates.push(related_template_published._id);
-      } else {
-        throw err;
-      }
-    }
-    // TODO: this should be an async call. Add a test case for it and make it await
-    if (SharedFunctions.publishDateFor_id(Template, related_template) > last_published_time) {
-      changes = true;
-    }
-  }
+  let more_changes = false;
+  [related_templates, more_changes] = await publishRelatedTemplatess(template_draft.related_templates, user, session, last_published_time)
+  changes = changes || more_changes;
 
   // We're trying to figure out if there is anything worth publishing. If none of the sub-properties were published, 
   // see if there are any changes to the top-level template from the previous published version
@@ -777,49 +793,10 @@ async function latestPublishedWithJoinsAndPermissions(uuid, user) {
   return await latestPublishedBeforeDateWithJoinsAndPermissions(uuid, new Date(), user);
 }
 
-// Fetches the template draft with the given uuid, recursively looking up fields and related_templates.
-// If a draft of a given template doesn't exist, a new one will be generated using the last published template.
-async function draftFetchOrCreate(uuid, user, session) {
-
-  if (!uuidValidate(uuid)) {
-    throw new Util.InputError('The uuid provided is not in proper uuid format.');
-  }
-
-  // For each template in the tree:
-  //   a. If a draft of this template exists:
-  //        1. fetch it.
-  //        2. Follow steps in b
-  //        3. Update the current draft with this one.
-  //        4. Return this draft
-  //      Else if a published version of this template exists:
-  //        1. Create a draft from the published
-  //          a. For each of the published _id references, replace those _ids with uuids
-  //        2. follow steps in b
-  //        3. Insert the draft
-  //        4. Return the draft
-  //      Else, neither a draft nor a published template with this uuid exists:
-  //        1. Return a NotFound error
-  //   b. For each of the uuid references:
-  //        1. Recurse, and follow the above steps. 
-  //        2. If any of the references return nothing, remove the reference to them
-  //        3. Update the current draft with this draft
-
-  // See if a draft of this template exists. 
-  let template_draft = await fetchDraftOrCreateFromPublished(uuid, session);
-  if (!template_draft) {
-    return null;
-  }
-
-  // Make sure this user has a permission to be working with drafts
-  if (!(await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT))) {
-    throw new Util.PermissionDeniedError();
-  }
-
-  // Now recurse into each field, replacing each uuid with an imbedded object
+async function draftFetchFields(input_field_uuids, user, session) {
   let fields = [];
   let field_uuids = [];
-  for(let i = 0; i < template_draft.fields.length; i++) {
-    let field_uuid = template_draft.fields[i];
+  for(let field_uuid of input_field_uuids) {
     let field;
     try {
       // First try to get the draft of the field
@@ -850,12 +827,13 @@ async function draftFetchOrCreate(uuid, user, session) {
       console.log(`Failed to find a template field with uuid ${field_uuid}. Therefore, removing the reference to it from template with uuid ${template_draft.uuid}`);
     }
   }
+  return [fields, field_uuids];
+}
 
-  // Now recurse into each related_template, replacing each uuid with an imbedded object
+async function draftFetchRelatedTemplates(input_related_template_uuids, user, session) {
   let related_templates = [];
   let related_template_uuids = [];
-  for(let i = 0; i < template_draft.related_templates.length; i++) {
-    let related_template_uuid = template_draft.related_templates[i];
+  for(let related_template_uuid of input_related_template_uuids) {
     let related_template;
     try {
       // First try to get the draft of the related_template
@@ -885,9 +863,37 @@ async function draftFetchOrCreate(uuid, user, session) {
       related_templates.push(related_template);
       related_template_uuids.push(related_template.uuid);
     } else {
-      console.log(`Failed to find a template with uuid ${related_template_uuid}. Therefore, removing the reference to it from template with uuid ${template_draft.uuid}`);
+      console.log(`Failed to find a template with uuid ${related_template_uuid}. Therefore, removing the reference to it`);
     }
   }
+  return [related_templates, related_template_uuids];
+}
+
+// Fetches the template draft with the given uuid, recursively looking up fields and related_templates.
+// If a draft of a given template doesn't exist, a new one will be generated using the last published template.
+async function draftFetchOrCreate(uuid, user, session) {
+
+  if (!uuidValidate(uuid)) {
+    throw new Util.InputError('The uuid provided is not in proper uuid format.');
+  }
+
+  // See if a draft of this template exists. 
+  let template_draft = await fetchDraftOrCreateFromPublished(uuid, session);
+  if (!template_draft) {
+    return null;
+  }
+
+  // Make sure this user has a permission to be working with drafts
+  if (!(await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT))) {
+    throw new Util.PermissionDeniedError(`You don't have edit permissions required to view template ${uuid}`);
+  }
+
+  let fields, field_uuids;
+  [fields, field_uuids] = await draftFetchFields(template_draft.fields, user, session);
+
+  // Now recurse into each related_template, replacing each uuid with an imbedded object
+  let related_templates, related_template_uuids;
+  [related_templates, related_template_uuids] = await draftFetchRelatedTemplates(template_draft.related_templates, user, session);
 
   // Any existing references that are bad pointers need to be removed
   let update = {};
