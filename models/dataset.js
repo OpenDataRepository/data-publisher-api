@@ -90,6 +90,79 @@ async function draftDifferentFromLastPublished(draft) {
   return false;
 }
 
+async function extractRelatedDatasetsFromCreateOrUpdate(input_related_datasets, template, user, session, group_uuid, updated_at) {
+  let return_datasets = [];
+  let changes = false;
+  // Recurse into related_datasets
+  if(!input_related_datasets) {
+    input_related_datasets = [];
+  }
+  if (!Array.isArray(input_related_datasets)){
+    throw new Util.InputError('related_datasets property must be of type array');
+  }
+  // Requirements:
+  // - Each related template must have a related_dataset pointing to it
+  // - Same related_dataset can't be repeated twice
+  // - each related_dataset must point to a supported template
+  // Plan: Create a dcit of supported templates, and sets of unseen templates and seen datasets. 
+  // Go through list of related_datasets. If it's It must be in supported templates, and not in seen datasets.
+  // At the end, check if unseen datasets still has anything
+  let supported_templates = {};
+  let unseen_templates = new Set();
+  let seen_datasets = new Set();
+  for (let related_template of template.related_templates) {
+    supported_templates[related_template.uuid] = related_template;
+    unseen_templates.add(related_template.uuid);
+  }
+  for (let related_dataset of input_related_datasets) {
+    if(!Util.isObject(related_dataset)) {
+      throw new Util.InputError(`Each related_dataset in the dataset must be a json object`);
+    }
+    if(related_dataset.uuid) {
+      if(seen_datasets.has(related_dataset.uuid)) {
+        throw new Util.InputError(`related_datasets is a set, and as such, no dataset uuid may be duplicated`);
+      } else {
+        seen_datasets.add(related_dataset.uuid);
+      }
+    }
+    if(!related_dataset.template_uuid) {
+      // There is a chance the user will link a dataset they don't have view access to.
+      // In this case, there will be no template_uuid. Thus, try to fetch the template uuid. 
+      let existing_dataset = await SharedFunctions.latestDocument(Dataset, related_dataset.uuid);
+      if(!existing_dataset) {
+        throw new Util.InputError(`Each related_dataset in the dataset must supply a template_uuid`);
+      }
+      related_dataset.template_uuid = existing_dataset.template_uuid;
+    }
+    if(!(related_dataset.template_uuid in supported_templates)) {
+      throw new Util.InputError(`related_template uuid ${related_dataset.template_uuid} is not supported by template ${template.uuid}`);
+    }
+    let related_template = supported_templates[related_dataset.template_uuid];
+    unseen_templates.delete(related_dataset.template_uuid);
+
+    try {
+      let new_changes;
+      [new_changes, related_dataset] = await validateAndCreateOrUpdateRecurser(related_dataset, related_template, user, session, group_uuid, updated_at);
+      changes = changes || new_changes;
+    } catch(err) {
+      if (err instanceof Util.NotFoundError) {
+        throw new Util.InputError(err.message);
+      } else if (err instanceof Util.PermissionDeniedError) {
+        // If we don't have admin permissions to the related_dataset, don't try to update/create it. Just link it
+        related_dataset = related_dataset.uuid;
+      } else {
+        throw err;
+      }
+    }
+    // After validating and updating the related_dataset, replace the related_dataset with a uuid reference
+    return_datasets.push(related_dataset);
+  } 
+  if(unseen_templates.size > 0) {
+    throw new Util.InputError(`Dataset must provide at least one related_dataset corresponding to every related_template required by the template.`);
+  }
+  return [return_datasets, changes];
+}
+
 // A recursive helper for validateAndCreateOrUpdate.
 async function validateAndCreateOrUpdateRecurser(input_dataset, template, user, session, group_uuid, updated_at) {
 
@@ -152,73 +225,7 @@ async function validateAndCreateOrUpdateRecurser(input_dataset, template, user, 
   // Need to determine if this draft is any different from the published one.
   let changes = false;
 
-  // Recurse into related_datasets
-  if(!input_dataset.related_datasets) {
-    input_dataset.related_datasets = [];
-  }
-  if (!Array.isArray(input_dataset.related_datasets)){
-    throw new Util.InputError('related_datasets property must be of type array');
-  }
-  // Requirements:
-  // - Each related template must have a related_dataset pointing to it
-  // - Same related_dataset can't be repeated twice
-  // - each related_dataset must point to a supported template
-  // Plan: Create a dcit of supported templates, and sets of unseen templates and seen datasets. 
-  // Go through list of related_datasets. If it's It must be in supported templates, and not in seen datasets.
-  // At the end, check if unseen datasets still has anything
-  let supported_templates = {};
-  let unseen_templates = new Set();
-  let seen_datasets = new Set();
-  for (let related_template of template.related_templates) {
-    supported_templates[related_template.uuid] = related_template;
-    unseen_templates.add(related_template.uuid);
-  }
-  for (let related_dataset of input_dataset.related_datasets) {
-    if(!Util.isObject(related_dataset)) {
-      throw new Util.InputError(`Each related_dataset in the dataset must be a json object`);
-    }
-    if(related_dataset.uuid) {
-      if(seen_datasets.has(related_dataset.uuid)) {
-        throw new Util.InputError(`related_datasets is a set, and as such, no dataset uuid may be duplicated`);
-      } else {
-        seen_datasets.add(related_dataset.uuid);
-      }
-    }
-    if(!related_dataset.template_uuid) {
-      // There is a chance the user will link a dataset they don't have view access to.
-      // In this case, there will be no template_uuid. Thus, try to fetch the template uuid. 
-      let existing_dataset = await SharedFunctions.latestDocument(Dataset, related_dataset.uuid);
-      if(!existing_dataset) {
-        throw new Util.InputError(`Each related_dataset in the dataset must supply a template_uuid`);
-      }
-      related_dataset.template_uuid = existing_dataset.template_uuid;
-    }
-    if(!(related_dataset.template_uuid in supported_templates)) {
-      throw new Util.InputError(`related_template uuid ${related_dataset.template_uuid} is not supported by template ${template.uuid}`);
-    }
-    let related_template = supported_templates[related_dataset.template_uuid];
-    unseen_templates.delete(related_dataset.template_uuid);
-
-    try {
-      let new_changes;
-      [new_changes, related_dataset] = await validateAndCreateOrUpdateRecurser(related_dataset, related_template, user, session, group_uuid, updated_at);
-      changes = changes || new_changes;
-    } catch(err) {
-      if (err instanceof Util.NotFoundError) {
-        throw new Util.InputError(err.message);
-      } else if (err instanceof Util.PermissionDeniedError) {
-        // If we don't have admin permissions to the related_dataset, don't try to update/create it. Just link it
-        related_dataset = related_dataset.uuid;
-      } else {
-        throw err;
-      }
-    }
-    // After validating and updating the related_dataset, replace the related_dataset with a uuid reference
-    new_dataset.related_datasets.push(related_dataset);
-  } 
-  if(unseen_templates.size > 0) {
-    throw new Util.InputError(`Dataset must provide at least one related_dataset corresponding to every related_template required by the template.`);
-  }
+  [new_dataset.related_datasets, changes] = await extractRelatedDatasetsFromCreateOrUpdate(input_dataset.related_datasets, template, user, session, group_uuid, updated_at);
 
   // If this draft is identical to the latest published, delete it.
   // The reason to do so is so when an update to a dataset is submitted, we won't create drafts of sub-datasets that haven't changed.
@@ -429,6 +436,63 @@ async function lastUpdateFor(uuid, user, session) {
 
 }
 
+async function publishRelatedDatasets(input_related_datasets, related_templates, user, session, last_published_time) {
+  let result_datasets = [];
+  let changes = false;
+  // For each dataset's related_datasets, publish that related_dataset, then replace the uuid with the internal_id.
+  // It is possible there weren't any changes to publish, so keep track of whether we actually published anything.
+  // Requirements:
+  // - related_dataset can't point to a related_template not supported
+  // - Each related_template must have a related_dataset pointing to it
+  // - related_datasets is a set, so there can't be any duplicates
+  // Plan: Create a map of template_uuid to template, and a set of all template_uuids.
+  // Remove template_uuids from set as we see them. If there are any left at the end, that's an error
+  let related_template_map = {};
+  let templates_unseen = new Set();
+  for (let related_template of related_templates) {
+    let related_template_uuid = related_template.uuid;
+    related_template_map[related_template_uuid] = related_template;
+    templates_unseen.add(related_template_uuid);
+  }
+  for(let related_dataset of input_related_datasets) {
+    let related_dataset_document = await SharedFunctions.latestDocument(Dataset, related_dataset, session);
+    if(!related_dataset_document) {
+      throw new Util.InputError(`Cannot publish dataset. One of it's related_references does not exist and was probably deleted after creation.`);
+    }
+    let related_template_uuid = related_dataset_document.template_uuid;
+    if(!(related_template_uuid in related_template_map)) {
+      throw new Util.InputError(`One of the dataset's related_datsets points to a related_template not supported by it's template.`);
+    } 
+    let related_template = related_template_map[related_template_uuid];
+    templates_unseen.delete(related_template_uuid);
+    try {
+      [related_dataset, _] = await publishRecurser(related_dataset, user, session, related_template);
+      result_datasets.push(related_dataset);
+    } catch(err) {
+      if (err instanceof Util.NotFoundError) {
+        throw new Util.InputError(`Internal reference within this draft is invalid. Fetch/update draft to cleanse it.`);
+      } else if (err instanceof Util.PermissionDeniedError) {
+        // If the user doesn't have permissions, assume they want to link the published version of the dataset
+        // But before we can link the published version of the dataset, we must make sure it exists
+        let related_dataset_published = await SharedFunctions.latestPublished(Dataset, related_dataset);
+        if(!related_dataset_published) {
+          throw new Util.InputError(`Invalid link to dataset ${related_dataset}, which has no published version to link.`);
+        }
+        result_datasets.push(related_dataset_published._id);
+      } else {
+        throw err;
+      }
+    }
+    if (await SharedFunctions.publishDateFor_id(Dataset, related_dataset) > last_published_time) {
+      changes = true;
+    }
+  }  
+  if(templates_unseen.size > 0) {
+    throw new Util.InputError(`Dataset does not support all related_templates required by the template`);
+  }
+  return [result_datasets, changes];
+}
+
 // A recursive helper for publish. 
 // Publishes the dataset with the provided uuid
 //   If a draft exists of the dataset, then:
@@ -488,60 +552,8 @@ async function publishRecurser(uuid, user, session, template) {
     last_published_time = published_dataset.publish_date;
   }
 
-  let changes = false;
-  let related_datasets = [];
-
-  // For each dataset's related_datasets, publish that related_dataset, then replace the uuid with the internal_id.
-  // It is possible there weren't any changes to publish, so keep track of whether we actually published anything.
-  // Requirements:
-  // - related_dataset can't point to a related_template not supported
-  // - Each related_template must have a related_dataset pointing to it
-  // - related_datasets is a set, so there can't be any duplicates
-  // Plan: Create a map of template_uuid to template, and a set of all template_uuids.
-  // Remove template_uuids from set as we see them. If there are any left at the end, that's an error
-  let related_template_map = {};
-  let templates_unseen = new Set();
-  for (let related_template of template.related_templates) {
-    let related_template_uuid = related_template.uuid;
-    related_template_map[related_template_uuid] = related_template;
-    templates_unseen.add(related_template_uuid);
-  }
-  for(let related_dataset of dataset_draft.related_datasets) {
-    let related_dataset_document = await SharedFunctions.latestDocument(Dataset, related_dataset, session);
-    if(!related_dataset_document) {
-      throw new Util.InputError(`Cannot publish dataset. One of it's related_references does not exist and was probably deleted after creation.`);
-    }
-    let related_template_uuid = related_dataset_document.template_uuid;
-    if(!(related_template_uuid in related_template_map)) {
-      throw new Util.InputError(`One of the dataset's related_datsets points to a related_template not supported by it's template.`);
-    } 
-    let related_template = related_template_map[related_template_uuid];
-    templates_unseen.delete(related_template_uuid);
-    try {
-      [related_dataset, _] = await publishRecurser(related_dataset, user, session, related_template);
-      related_datasets.push(related_dataset);
-    } catch(err) {
-      if (err instanceof Util.NotFoundError) {
-        throw new Util.InputError(`Internal reference within this draft is invalid. Fetch/update draft to cleanse it.`);
-      } else if (err instanceof Util.PermissionDeniedError) {
-        // If the user doesn't have permissions, assume they want to link the published version of the dataset
-        // But before we can link the published version of the dataset, we must make sure it exists
-        let related_dataset_published = await SharedFunctions.latestPublished(Dataset, related_dataset);
-        if(!related_dataset_published) {
-          throw new Util.InputError(`Invalid link to dataset ${related_dataset}, which has no published version to link.`);
-        }
-        related_datasets.push(related_dataset_published._id);
-      } else {
-        throw err;
-      }
-    }
-    if (await SharedFunctions.publishDateFor_id(Dataset, related_dataset) > last_published_time) {
-      changes = true;
-    }
-  }  
-  if(templates_unseen.size > 0) {
-    throw new Util.InputError(`Dataset does not support all related_templates required by the template`);
-  }
+  let related_datasets, changes;
+  [related_datasets, changes] = await publishRelatedDatasets(dataset_draft.related_datasets, template.related_templates, user, session, last_published_time);
 
   // We're trying to figure out if there is anything worth publishing. If none of the sub-properties were published, 
   // see if there are any changes to the top-level dataset from the previous published version

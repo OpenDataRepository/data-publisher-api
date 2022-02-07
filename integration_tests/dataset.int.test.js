@@ -62,7 +62,7 @@ describe("create (and get draft)", () => {
 
     });
 
-    test("one related dataset", async () => {
+    test("only one related dataset", async () => {
 
       let template = {
         name:"t1",
