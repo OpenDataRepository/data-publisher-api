@@ -91,6 +91,14 @@ async function fetchDraftOrCreateFromPublished(uuid, session) {
   return template_draft;
 }
 
+function convertObjectIdArrayToStringArray(object_ids) {
+  let string_array = [];
+  for(let object_id of object_ids) {
+    string_array.push(object_id.toString())
+  }
+  return string_array;
+}
+
 // Returns true if the provided templates are equal
 function equals(template_1, template_2) {
   return template_1.uuid == template_2.uuid && 
@@ -98,7 +106,10 @@ function equals(template_1, template_2) {
          template_1.description == template_2.description &&
          Util.datesEqual(template_1.public_date, template_2.public_date) &&
          Util.arrayEqual(template_1.fields, template_2.fields) &&
-         Util.arrayEqual(template_1.related_templates, template_2.related_templates);
+         Util.arrayEqual(template_1.related_templates, template_2.related_templates) &&
+         Util.arrayEqual(
+           convertObjectIdArrayToStringArray(template_1.subscribed_templates), 
+           convertObjectIdArrayToStringArray(template_2.subscribed_templates));
 }
 
 // Returns true if the draft has any changes from it's previous published version
@@ -236,7 +247,8 @@ function initializeNewDraftWithPropertiesSharedWithImport(input_template, uuid, 
     description: "",
     updated_at,
     fields: [],
-    related_templates: []
+    related_templates: [],
+    subscribed_templates: []
   };
   if (input_template.name !== undefined) {
     if (typeof(input_template.name) !== 'string'){
@@ -373,6 +385,77 @@ async function extractRelatedTemplatesFromCreateOrUpdate(input_related_templates
   return [return_related_templates, changes];
 }
 
+async function extractSubscribedTemplateFromCreateOrUpdate(input_subscribed_template, previous_subscribed_template_ids, seen_uuids) {
+  if(!Util.isObject(input_subscribed_template)) {
+    throw new Util.InputError("Each entry in subscribed_templates must be an object");
+  }
+  let subscribed_id;
+  try {
+    subscribed_id = SharedFunctions.convertToMongoId(input_subscribed_template._id);
+  } catch (err) {
+    throw new Util.InputError(`Each entry in subscribed_templates must have a valid _id property.`)
+  }
+
+  let subscribed_uuid = await SharedFunctions.uuidFor_id(Template, subscribed_id);
+  if(!subscribed_uuid) {
+    throw new Util.InputError(`subscribed template provided with _id ${subscribed_id} does not exist`);
+  }
+
+  // Either subscribed_id had to have been on the list before before, or it has to be the latest published version of subscribed_uuid
+  if(!previous_subscribed_template_ids.has(input_subscribed_template._id)) {
+    let latest_published_id = await SharedFunctions.latest_published_id_for_uuid(Template, subscribed_uuid);
+    if(!subscribed_id.equals(latest_published_id)) {
+      throw new Util.InputError(`subscribed_template ${subscribed_id} is required to be the same _id as previously or the latest published version`);
+    }
+  }
+
+  // Check that there is only one of each uuid subscribed
+  if(seen_uuids.has(subscribed_uuid)) {
+    throw new Util.InputError(`each template can only be subscribed to once by any template. 
+    template with uuid ${subscribed_uuid} is subscribed twice`);
+  }
+  seen_uuids.add(subscribed_uuid);
+  return subscribed_id;
+
+}
+
+// Rules: can only subscribe to the latest version or maintain the version we were subscribing to. 
+// The output will of course just be that version of the published template fetched.
+// How will the input indicate if it wants to update? It will submit the latest published version of that template
+async function extractSubscribedTemplatesFromCreateOrUpdate(input_subscribed_templates, parent_uuid) {
+  let return_subscribed_templates = [];
+  if (input_subscribed_templates === undefined) {
+    return return_subscribed_templates;
+  }
+  if (!Array.isArray(input_subscribed_templates)){
+    throw new Util.InputError('subscribed_templates property must be of type array');
+  }
+
+  // build previous_subscribed_ids from last published / last draft
+  let previous_subscribed_ids = new Set();
+  let previous_parent_published = await SharedFunctions.latestPublished(Template, parent_uuid);
+  if(previous_parent_published) {
+    for(let _id of previous_parent_published.subscribed_templates) {
+      previous_subscribed_ids.add(_id.toString());
+    }
+  }
+  let previous_parent_draft = await SharedFunctions.draft(Template, parent_uuid);
+  if(previous_parent_draft) {
+    for(let _id of previous_parent_draft.subscribed_templates) {
+      previous_subscribed_ids.add(_id.toString());
+    }
+  }
+
+  let seen_subscribed_uuids = new Set();
+
+  for (let subscribed_template of input_subscribed_templates) {
+    let subscribed_template_id =  await extractSubscribedTemplateFromCreateOrUpdate(subscribed_template, previous_subscribed_ids, seen_subscribed_uuids);
+    // After validating and updating the related_template, replace the imbedded related_template with a uuid reference
+    return_subscribed_templates.push(subscribed_template_id);
+  }
+  return return_subscribed_templates;
+}
+
 // If a uuid is provided, update the template with the provided uuid.
 // Otherwise, create a new template.
 // If the updated template is the same as the last published, delete the draft instead of updating. 
@@ -399,6 +482,9 @@ async function validateAndCreateOrUpdate(input_template, user, session, updated_
 
   let more_changes = false;
   [new_template.related_templates, more_changes] = await extractRelatedTemplatesFromCreateOrUpdate(input_template.related_templates, user, session, updated_at);
+  changes = changes || more_changes;
+
+  new_template.subscribed_templates = await extractSubscribedTemplatesFromCreateOrUpdate(input_template.subscribed_templates, uuid);
   changes = changes || more_changes;
   
 
@@ -469,7 +555,7 @@ async function publishFields(input_fields, user, session, last_published_time) {
   return [return_fields, changes];
 }
 
-async function publishRelatedTemplatess(input_related_templates, user, session, last_published_time) {
+async function publishRelatedTemplates(input_related_templates, user, session, last_published_time) {
   let result_related_templates = [];
   let changes = false;
   // For each template's related_templates, publish that related_template, then replace the uuid with the internal_id.
@@ -556,7 +642,7 @@ async function publishRecursor(uuid, user, session) {
   [fields, changes] = await publishFields(template_draft.fields, user, session, last_published_time)
 
   let more_changes = false;
-  [related_templates, more_changes] = await publishRelatedTemplatess(template_draft.related_templates, user, session, last_published_time)
+  [related_templates, more_changes] = await publishRelatedTemplates(template_draft.related_templates, user, session, last_published_time)
   changes = changes || more_changes;
 
   // We're trying to figure out if there is anything worth publishing. If none of the sub-properties were published, 
@@ -567,7 +653,8 @@ async function publishRecursor(uuid, user, session) {
       if (template_draft.name != published_template.name || 
           template_draft.description != published_template.description ||
           !Util.arrayEqual(fields, published_template.fields) || 
-          !Util.arrayEqual(related_templates, published_template.related_templates)) {
+          !Util.arrayEqual(related_templates, published_template.related_templates) || 
+          !Util.arrayEqual(template_draft.subscribed_templates, published_template.subscribed_templates)) {
         changes = true;
       }
     } else {
@@ -580,7 +667,8 @@ async function publishRecursor(uuid, user, session) {
     let publish_time = new Date();
     let response = await Template.updateOne(
       {"_id": template_draft._id},
-      {'$set': {'updated_at': publish_time, 'publish_date': publish_time, fields, related_templates}},
+      {'$set': {'updated_at': publish_time, 'publish_date': publish_time, 
+        fields, related_templates, subscribed_templates: template_draft.subscribed_templates}},
       {session}
     )
     if (response.modifiedCount != 1) {
@@ -633,6 +721,74 @@ async function publish(uuid, user, session, last_update) {
   }
 }
 
+function recursiveBuildPublishedQuery(current_pipeline, count) {
+  if(count >= 5) {
+    return;
+  }
+  count += 1;
+
+  let pipeline_related_templates_addon = {
+    '$lookup': {
+      'from': "templates",
+      'let': { 'ids': "$related_templates"},
+      'pipeline': [
+        { 
+          '$match': { 
+            '$expr': { 
+              '$and': [
+                { '$in': [ "$_id",  "$$ids" ] },
+              ]
+            }
+          }
+        },
+        {
+          '$lookup': {
+            'from': "template_fields",
+            'foreignField': "_id",
+            'localField': "fields",
+            'as': "fields"
+          },
+        }
+      ],
+      'as': "related_templates"
+    }
+  };
+
+  let pipeline_subscribed_templates_addon = {
+    '$lookup': {
+      'from': "templates",
+      'let': { 'ids': "$subscribed_templates"},
+      'pipeline': [
+        { 
+          '$match': { 
+            '$expr': { 
+              '$and': [
+                { '$in': [ "$_id",  "$$ids" ] },
+              ]
+            }
+          }
+        },
+        {
+          '$lookup': {
+            'from': "template_fields",
+            'foreignField': "_id",
+            'localField': "fields",
+            'as': "fields"
+          },
+        }
+      ],
+      'as': "subscribed_templates"
+    }
+  };
+
+  current_pipeline.push(pipeline_related_templates_addon);
+  recursiveBuildPublishedQuery(pipeline_related_templates_addon['$lookup']['pipeline'], count);
+
+  current_pipeline.push(pipeline_subscribed_templates_addon);
+  recursiveBuildPublishedQuery(pipeline_subscribed_templates_addon['$lookup']['pipeline'], count);
+
+}
+
 // Fetches the template with the specified match conditions, including fetching fields and related_records
 async function publishedWithJoins(pipelineMatchConditions) {
   // Construct a mongodb aggregation pipeline that will recurse into related templates up to 5 levels deep.
@@ -657,68 +813,8 @@ async function publishedWithJoins(pipelineMatchConditions) {
     }
   ]
 
-  let current_pipeline = pipeline;
+  recursiveBuildPublishedQuery(pipeline, 0);
 
-  let pipeline_addons = [
-    {
-      '$lookup': {
-        'from': "templates",
-        'let': { 'ids': "$related_templates"},
-        'pipeline': [
-          { 
-            '$match': { 
-              '$expr': { 
-                '$and': [
-                  { '$in': [ "$_id",  "$$ids" ] },
-                ]
-              }
-            }
-          },
-          {
-            '$lookup': {
-              'from': "template_fields",
-              'foreignField': "_id",
-              'localField': "fields",
-              'as': "fields"
-            },
-          }
-        ],
-        'as': "related_templates_objects"
-      }
-    },
-    {
-      "$addFields": {
-        "related_templates_objects_ids": { 
-          "$map": {
-            "input": "$related_templates_objects",
-            "in": "$$this._id"
-          }
-        }
-      }
-    },
-    {
-      "$addFields": {
-        "related_templates": { 
-          "$map": {
-            "input": "$related_templates",
-            "in": {"$arrayElemAt":[
-              "$related_templates_objects",
-              {"$indexOfArray":["$related_templates_objects_ids","$$this"]}
-            ]}
-          }
-        }
-      }
-    },
-    {"$project":{"related_templates_objects":0,"related_templates_objects_ids":0}}
-  ];
-
-  for(let i = 0; i < 5; i++) {
-    // go one level deeper into related_templates
-    current_pipeline.push(...pipeline_addons);
-    current_pipeline = pipeline_addons[0]['$lookup']['pipeline'];
-    // create a copy
-    pipeline_addons = JSON.parse(JSON.stringify(pipeline_addons));
-  }
   let response = await Template.aggregate(pipeline);
   if (await response.hasNext()){
     return await response.next();
@@ -749,7 +845,7 @@ async function latestPublishedBeforeDateWithJoins(uuid, date) {
   }
 
   let pipelineMatchConditions = { 
-    'uuid': uuid,
+    uuid,
     'publish_date': {'$lte': date}
   };
 
@@ -777,6 +873,15 @@ async function filterPublishedTemplateForPermissions(template, user) {
   }
   await filterPublishedTemplateForPermissionsRecursor(template, user);
 }
+
+async function publishedByIdWithJoinsAndPermissions(_id, user) {
+  let template = await publishedByIdWithJoins(_id);
+  if(!template) {
+    return null;
+  }
+  await filterPublishedTemplateForPermissions(template, user);
+  return template;
+} 
 
 async function latestPublishedBeforeDateWithJoinsAndPermissions(uuid, date, user) {
   let template = await latestPublishedBeforeDateWithJoins(uuid, date);
@@ -895,6 +1000,12 @@ async function draftFetchOrCreate(uuid, user, session) {
   let related_templates, related_template_uuids;
   [related_templates, related_template_uuids] = await draftFetchRelatedTemplates(template_draft.related_templates, user, session);
 
+  let subscribed_templates = [];
+  for(let subscribed_id of template_draft.subscribed_templates) {
+    let subscribed_template = await publishedByIdWithJoinsAndPermissions(subscribed_id, user);
+    subscribed_templates.push(subscribed_template);
+  }
+
   // Any existing references that are bad pointers need to be removed
   let update = {};
   if(template_draft.fields.length != field_uuids.length) {
@@ -920,6 +1031,7 @@ async function draftFetchOrCreate(uuid, user, session) {
 
   template_draft.fields = fields;
   template_draft.related_templates = related_templates;
+  template_draft.subscribed_templates = subscribed_templates;
   delete template_draft._id;
 
   return template_draft;

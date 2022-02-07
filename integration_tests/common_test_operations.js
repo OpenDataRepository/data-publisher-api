@@ -38,6 +38,18 @@ module.exports = class Helper {
       .set('Accept', 'application/json');
   };
 
+  // testTemplateFieldDraftsEqual = (original, created) => {
+  //   if(original.uuid) {
+  //     expect(created.uuid).toBe(original.uuid);
+  //   }
+  //   if(original.name) {
+  //     expect(created.name).toEqual(original.name);
+  //   }
+  //   if(original.description) {
+  //     expect(created.description).toEqual(original.description);
+  //   }
+  // }
+
   templateFieldCreateAndTest = async (field, current_user) => {
     let response = await this.templateFieldCreate(field, current_user)
     expect(response.statusCode).toBe(200);
@@ -111,17 +123,44 @@ module.exports = class Helper {
       .set('Accept', 'application/json');
   };
 
+  testTemplateDraftsEqual = (original, created) => {
+    if(original.uuid) {
+      expect(created.uuid).toBe(original.uuid);
+    }
+    if(original.name) {
+      expect(created.name).toEqual(original.name);
+    }
+    if(original.description) {
+      expect(created.description).toEqual(original.description);
+    }
+    if(original.public_date) {
+      expect(created.public_date).toEqual(original.public_date);
+    }
+    if(original.fields) {
+      expect(created.fields.length).toBe(original.fields.length);
+      for(let i = 0; i < original.fields.length; i++) {
+        expect(created.fields[i]).toMatchObject(original.fields[i]);
+        // TODO: at some point, use this instead
+        // testTemplateFieldDraftsEqual(original.fields[i], created.fields[i]);
+      }
+    }
+    if(original.related_templates) {
+      expect(created.related_templates.length).toBe(original.related_templates.length);
+      for(let i = 0; i < original.related_templates.length; i++) {
+        this.testTemplateDraftsEqual(original.related_templates[i], created.related_templates[i]);
+      }
+    }
+    if(original.subscribed_templates) {
+      expect(created.subscribed_templates.length).toBe(original.subscribed_templates.length);
+      for(let i = 0; i < original.subscribed_templates.length; i++) {
+        expect(created.subscribed_templates[i]._id).toEqual(original.subscribed_templates[i]._id);
+      }
+    }
+  }
+
   // TODO: rename v2 to the original and fix everything
   templateCreateAndTest = async (template, current_user) => {
-    let response = await this.templateCreate(template, current_user);
-    expect(response.statusCode).toBe(200);
-    let uuid = response.body.inserted_uuid;
-    expect(uuid).toBeTruthy();
-  
-    response = await this.templateDraftGet(uuid, current_user)
-    expect(response.statusCode).toBe(200);
-    expect(response.body).toMatchObject(template);
-    return uuid;
+    return (await this.templateCreateAndTestV2(template, current_user)).uuid;
   };
   templateCreateAndTestV2 = async (template, current_user) => {
     let response = await this.templateCreate(template, current_user);
@@ -131,7 +170,7 @@ module.exports = class Helper {
   
     response = await this.templateDraftGet(uuid, current_user)
     expect(response.statusCode).toBe(200);
-    expect(response.body).toMatchObject(template);
+    this.testTemplateDraftsEqual(template, response.body);
     return response.body;
   };
 

@@ -1,5 +1,6 @@
 const { validate: uuidValidate } = require('uuid');
 const Util = require('../lib/util');
+const ObjectId = require('mongodb').ObjectId;
 
 // Fetches the draft with the given uuid. 
 // Does not look up fields or related_templates
@@ -19,6 +20,15 @@ const draft = async (collection, uuid, session) => {
   return draft;
 }
 exports.draft = draft;
+
+function convertToMongoId(_id) {
+  if(typeof(_id) === 'string') {
+    return new ObjectId(_id);
+  } else {
+    return _id
+  }
+}
+exports.convertToMongoId = convertToMongoId;
 
 // Fetches the latest published document with the given uuid. 
 // Does not look up related documents
@@ -55,8 +65,9 @@ exports.exists = async (collection, uuid, session) => {
 
 // Finds the uuid of the document with the given _id
 exports.uuidFor_id = async (collection, _id, session) => {
+  _id = convertToMongoId(_id);
   let cursor = await collection.find(
-    {"_id": _id}, 
+    {_id}, 
     {session}
   );
   if (!(await cursor.hasNext())) {

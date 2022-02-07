@@ -467,9 +467,9 @@ describe("template", () => {
       // cleanseInputTemplate(old_template);
       // expect(new_template).toMatchObject(old_template);
     
-      Helper.templateCleanseMetadata(new_template);
-      let published_template = await Helper.templatePublishAndFetch(new_template.uuid, Helper.DEF_CURR_USER);
-      expect(published_template).toMatchObject(new_template);
+      // Helper.templateCleanseMetadata(new_template);
+      // let published_template = await Helper.templatePublishAndFetch(new_template.uuid, Helper.DEF_CURR_USER);
+      // expect(published_template).toMatchObject(new_template);
     });
 
   });

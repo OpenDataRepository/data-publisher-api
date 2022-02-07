@@ -38,6 +38,159 @@ const templateDuplicate = async (uuid, curr_user) => {
 
 describe("create (and get draft after a create)", () => {
 
+  describe("subscribed templates", () => {
+
+    describe("success", () => {
+
+      test("One subscribed template of depth one", async () => {
+  
+        let subscribed_template = { 
+          name: "t1.1"
+        };
+        subscribed_template = await Helper.templateCreatePublishTest(subscribed_template, Helper.DEF_CURR_USER);
+  
+  
+        let template = { 
+          name: "t1",
+          subscribed_templates: [subscribed_template]
+        };
+        await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
+  
+      });
+  
+      test("Two subscribed templates, of depth two", async () => {
+    
+        let t_1_1 = { 
+          name: "t1.1",
+          related_templates: [{name: "t1.1.1"}]
+        };
+        t_1_1 = await Helper.templateCreatePublishTest(t_1_1, Helper.DEF_CURR_USER);
+  
+        let t_1_2 = { 
+          name: "t1.2",
+          related_templates: [{name: "t1.2.1"}]
+        };
+        t_1_2 = await Helper.templateCreatePublishTest(t_1_2, Helper.DEF_CURR_USER);
+  
+  
+        let template = { 
+          name: "t1",
+          subscribed_templates: [t_1_1, t_1_2]
+        };
+        await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
+  
+      });
+
+      test("Subscribe to latest version, then keep that version after a update, then subscribe to latest again", async () => {
+  
+        let subscribed_template = { 
+          name: "t1.1"
+        };
+        subscribed_template = await Helper.templateCreatePublishTest(subscribed_template, Helper.DEF_CURR_USER);
+        let first_version_id = subscribed_template._id;
+  
+        // Subscribe to only version existing
+        let template = { 
+          name: "t1",
+          subscribed_templates: [subscribed_template]
+        };
+        template = await Helper.templateCreateAndTestV2(template, Helper.DEF_CURR_USER);
+
+        subscribed_template.description = "naruto";
+        let new_subscribed_template = await Helper.templateUpdatePublishTest(subscribed_template, Helper.DEF_CURR_USER);
+        // Replace the _id that gets deleted during update
+        subscribed_template._id = first_version_id
+
+        // Subscribe to same template version as current draft, not forced to update
+        template.description = "hokage";
+        await Helper.templateUpdateAndTest(template, Helper.DEF_CURR_USER);
+
+        template = await Helper.templatePublishAndFetch(template.uuid, Helper.DEF_CURR_USER);
+
+        // Subscribe to same template version as last published, not forced to update        
+        template.description = "sanin";
+        await Helper.templateUpdateAndTest(template, Helper.DEF_CURR_USER);
+
+        // Subscribe to new version. Should also work
+        template.subscribed_templates = [new_subscribed_template];
+        await Helper.templateUpdateAndTest(template, Helper.DEF_CURR_USER);
+
+      });
+  
+      // TODO: eventually add functionality and a test that subscribed and related_templates can't have the same uuid
+
+    });
+
+    describe("failure", () => {
+
+      test("Input format must be valid", async () => {
+
+        let template = { 
+          name: "t1",
+          subscribed_templates: ""
+        };
+        let response = await Helper.templateCreate(template, Helper.DEF_CURR_USER);
+        expect(response.statusCode).toBe(400);
+
+        template.subscribed_templates = [6];
+        response = await Helper.templateCreate(template, Helper.DEF_CURR_USER);
+        expect(response.statusCode).toBe(400);
+
+      })
+
+      test("Input format provide a valid _id for each subscribed template", async () => {
+
+        let template = { 
+          name: "t1",
+          subscribed_templates: [{_id: 5}]
+        };
+        let response = await Helper.templateCreate(template, Helper.DEF_CURR_USER);
+        expect(response.statusCode).toBe(400);
+
+        template.subscribed_templates = [{_id: "5"}];
+        response = await Helper.templateCreate(template, Helper.DEF_CURR_USER);
+        expect(response.statusCode).toBe(400);
+
+      })
+
+      test("Can only subscribe to any give uuid once per template", async () => {
+  
+        let subscribed_template = { 
+          name: "t1.1"
+        };
+        subscribed_template = await Helper.templateCreatePublishTest(subscribed_template, Helper.DEF_CURR_USER);
+        let first_version_id = subscribed_template._id;
+
+        // Subscribe to the same version twice
+        let template = { 
+          name: "t1",
+          subscribed_templates: [subscribed_template, subscribed_template]
+        };
+        let response = await Helper.templateCreate(template, Helper.DEF_CURR_USER);
+        expect(response.statusCode).toBe(400);
+
+        template = { 
+          name: "t1",
+          subscribed_templates: [subscribed_template]
+        };
+        template = await Helper.templateCreateAndTestV2(template, Helper.DEF_CURR_USER);        
+
+        subscribed_template.description = "naruto";
+        let new_subscribed_template = await Helper.templateUpdatePublishTest(subscribed_template, Helper.DEF_CURR_USER);
+        // Replace the _id that gets deleted during update
+        subscribed_template._id = first_version_id
+  
+        // Subscribe to the same version twice
+        template.subscribed_templates = [subscribed_template, new_subscribed_template];
+        response = await Helper.templateCreate(template, Helper.DEF_CURR_USER);
+        expect(response.statusCode).toBe(400);
+
+      });
+
+    });
+
+  });
+
   describe("Success cases", () => {
     test("Simple create - no fields and no related templates", async () => {
 
@@ -217,7 +370,7 @@ describe("create (and get draft after a create)", () => {
 
     });
 
-    test("User can link link a template they don't have any permissions to as long as it exists", async () => {
+    test("User can link a template they don't have any permissions to as long as it exists", async () => {
       let field = {
         "name": "t1f1",
         public_date: (new Date()).toISOString()
@@ -336,6 +489,7 @@ describe("create (and get draft after a create)", () => {
 
 describe("update (and get draft after an update)", () => {
 
+  let og_template;
   let uuid;
 
   beforeEach(async() => {
@@ -360,7 +514,8 @@ describe("update (and get draft after an update)", () => {
         }
       ]
     };
-    uuid = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
+    og_template = await Helper.templateCreateAndTestV2(template, Helper.DEF_CURR_USER);
+    uuid = og_template.uuid;
   });
 
   describe("Success cases", () => {
@@ -372,12 +527,7 @@ describe("update (and get draft after an update)", () => {
         "name": "create template"
       };
 
-      let response = await Helper.templateUpdate(uuid, template, Helper.DEF_CURR_USER);
-      expect(response.statusCode).toBe(200);
-    
-      response = await Helper.templateDraftGet(uuid, Helper.DEF_CURR_USER);
-      expect(response.statusCode).toBe(200);
-      expect(response.body).toMatchObject(template);
+      await Helper.templateUpdateAndTest(template, Helper.DEF_CURR_USER);
 
     });
 
@@ -393,12 +543,7 @@ describe("update (and get draft after an update)", () => {
         }]
       };
 
-      let response = await Helper.templateUpdate(uuid, template, Helper.DEF_CURR_USER);
-      expect(response.statusCode).toBe(200);
-    
-      response = await Helper.templateDraftGet(uuid, Helper.DEF_CURR_USER);
-      expect(response.statusCode).toBe(200);
-      expect(response.body).toMatchObject(template);
+      await Helper.templateUpdateAndTest(template, Helper.DEF_CURR_USER);
 
     });
 
@@ -424,13 +569,15 @@ describe("update (and get draft after an update)", () => {
         "fields": [field]
       };
 
-      response = await Helper.templateUpdate(uuid, template, Helper.DEF_CURR_USER);
-      expect(response.statusCode).toBe(200);
-    
-      response = await Helper.templateDraftGet(uuid, Helper.DEF_CURR_USER);
-      expect(response.statusCode).toBe(200);
-      expect(response.body).toMatchObject(template);
+      await Helper.templateUpdateAndTest(template, Helper.DEF_CURR_USER);
 
+    });
+
+    test("No changes since last published - pass quietly", async () => {
+
+      await Helper.templatePublishAndFetch(uuid, Helper.DEF_CURR_USER);
+
+      await Helper.templateUpdateAndTest(og_template, Helper.DEF_CURR_USER);
     });
   
   })
@@ -570,6 +717,76 @@ describe("get draft", () => {
 });
 
 describe("publish (and get published and draft after a publish)", () => {
+
+  describe("With subscribed templates", () => {
+
+    test("One subscribed template of depth one", async () => {
+  
+      let subscribed_template = { 
+        name: "t1.1"
+      };
+      subscribed_template = await Helper.templateCreatePublishTest(subscribed_template, Helper.DEF_CURR_USER);
+
+
+      let template = { 
+        name: "t1",
+        subscribed_templates: [subscribed_template]
+      };
+      await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+
+    });
+
+    test("Mixed related and subscribed templates, of depth three", async () => {
+
+      // Top template subscribes to one and relates to one.
+      // Each of the child templates also subscribe to one and relate to one
+
+      // 4 grandchildren
+      // 2 children
+      // 1 parent
+
+    
+      let t_1_1_1 = { 
+        name: "t1.1.1",
+      };
+      t_1_1_1 = await Helper.templateCreatePublishTest(t_1_1_1, Helper.DEF_CURR_USER);
+      let t_1_1_2 = { 
+        name: "t1.1.2",
+      };
+      t_1_1_2 = await Helper.templateCreatePublishTest(t_1_1_2, Helper.DEF_CURR_USER);
+      let t_1_2_1 = { 
+        name: "t1.2.1",
+      };
+      t_1_2_1 = await Helper.templateCreatePublishTest(t_1_2_1, Helper.DEF_CURR_USER);
+      let t_1_2_2 = { 
+        name: "t1.2.2",
+      };
+      t_1_2_2 = await Helper.templateCreatePublishTest(t_1_2_2, Helper.DEF_CURR_USER);
+
+      let t_1_1 = { 
+        name: "t1.1",
+        related_templates: [t_1_1_1],
+        subscribed_templates: [t_1_1_2]
+      };
+      t_1_1 = await Helper.templateCreatePublishTest(t_1_1, Helper.DEF_CURR_USER);
+      let t_1_2 = { 
+        name: "t1.2",
+        related_templates: [t_1_2_1],
+        subscribed_templates: [t_1_2_2]
+      };
+      t_1_2 = await Helper.templateCreatePublishTest(t_1_2, Helper.DEF_CURR_USER);
+
+
+      let template = { 
+        name: "t1",
+        related_templates: [t_1_1],
+        subscribed_templates: [t_1_2]
+      };
+      await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+
+    });
+
+  })
 
   describe("Success cases", () => {
 
