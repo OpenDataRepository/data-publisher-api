@@ -59,8 +59,9 @@ function draftsEqual(draft1, draft2) {
          Util.arrayEqual(draft1.related_datasets, draft2.related_datasets);
 }
 
+// TODO: update this
 // Returns true if the draft has any changes from it's previous published version
-async function draftDifferentFromLastPublished(draft) {
+async function draftDifferentFromLastPublished(draft, template_id) {
   // If there is no published version, obviously there are changes
   let latest_published = await SharedFunctions.latestPublished(Dataset, draft.uuid);
   if(!latest_published) {
@@ -73,9 +74,8 @@ async function draftDifferentFromLastPublished(draft) {
     return true;
   }
 
-  // if the template version has changed since this record was last published
-  let latest_template_id = await TemplateModel.latest_published_id_for_uuid(latest_published_as_draft.template_uuid);
-  if(!latest_published.template_id.equals(latest_template_id)) {
+  // If this draft's template_id is different from the latest_published drafts template_id, then the template has changed
+  if (!template_id.equals(latest_published.template_id)) {
     return true;
   }
 
@@ -101,11 +101,11 @@ async function extractRelatedDatasetsFromCreateOrUpdate(input_related_datasets, 
     throw new Util.InputError('related_datasets property must be of type array');
   }
   // Requirements:
-  // - Each related template must have a related_dataset pointing to it
+  // - Each related/subscribed template must have a related_dataset pointing to it
   // - Same related_dataset can't be repeated twice
   // - each related_dataset must point to a supported template
-  // Plan: Create a dcit of supported templates, and sets of unseen templates and seen datasets. 
-  // Go through list of related_datasets. If it's It must be in supported templates, and not in seen datasets.
+  // Plan: Create a dict of supported templates, and sets of unseen templates and seen datasets. 
+  // Go through list of related_datasets. It must be in supported templates, and not in seen datasets.
   // At the end, check if unseen datasets still has anything
   let supported_templates = {};
   let unseen_templates = new Set();
@@ -113,6 +113,10 @@ async function extractRelatedDatasetsFromCreateOrUpdate(input_related_datasets, 
   for (let related_template of template.related_templates) {
     supported_templates[related_template.uuid] = related_template;
     unseen_templates.add(related_template.uuid);
+  }
+  for(let subscribed_template of template.subscribed_templates) {
+    supported_templates[subscribed_template.uuid] = subscribed_template;
+    unseen_templates.add(subscribed_template.uuid);
   }
   for (let related_dataset of input_related_datasets) {
     if(!Util.isObject(related_dataset)) {
@@ -230,7 +234,7 @@ async function validateAndCreateOrUpdateRecurser(input_dataset, template, user, 
   // If this draft is identical to the latest published, delete it.
   // The reason to do so is so when an update to a dataset is submitted, we won't create drafts of sub-datasets that haven't changed.
   if (!changes) {
-    changes = await draftDifferentFromLastPublished(new_dataset);
+    changes = await draftDifferentFromLastPublished(new_dataset, template._id);
     if (!changes) {
       // Delete the current draft
       try {
@@ -436,7 +440,7 @@ async function lastUpdateFor(uuid, user, session) {
 
 }
 
-async function publishRelatedDatasets(input_related_datasets, related_templates, user, session, last_published_time) {
+async function publishRelatedDatasets(input_related_datasets, template, user, session, last_published_time) {
   let result_datasets = [];
   let changes = false;
   // For each dataset's related_datasets, publish that related_dataset, then replace the uuid with the internal_id.
@@ -449,10 +453,13 @@ async function publishRelatedDatasets(input_related_datasets, related_templates,
   // Remove template_uuids from set as we see them. If there are any left at the end, that's an error
   let related_template_map = {};
   let templates_unseen = new Set();
-  for (let related_template of related_templates) {
-    let related_template_uuid = related_template.uuid;
-    related_template_map[related_template_uuid] = related_template;
-    templates_unseen.add(related_template_uuid);
+  for (let related_template of template.related_templates) {
+    related_template_map[related_template.uuid] = related_template;
+    templates_unseen.add(related_template.uuid);
+  }
+  for (let subscribed_template of template.subscribed_templates) {
+    related_template_map[subscribed_template.uuid] = subscribed_template;
+    templates_unseen.add(subscribed_template.uuid);
   }
   for(let related_dataset of input_related_datasets) {
     let related_dataset_document = await SharedFunctions.latestDocument(Dataset, related_dataset, session);
@@ -553,7 +560,7 @@ async function publishRecurser(uuid, user, session, template) {
   }
 
   let related_datasets, changes;
-  [related_datasets, changes] = await publishRelatedDatasets(dataset_draft.related_datasets, template.related_templates, user, session, last_published_time);
+  [related_datasets, changes] = await publishRelatedDatasets(dataset_draft.related_datasets, template, user, session, last_published_time);
 
   // We're trying to figure out if there is anything worth publishing. If none of the sub-properties were published, 
   // see if there are any changes to the top-level dataset from the previous published version
@@ -956,7 +963,7 @@ async function importDatasetFromCombinedRecursor(record, template, user, updated
   // If this draft is identical to the latest published, delete it.
   // The reason to do so is so when an update to a dataset is submitted, we won't create drafts of sub-datasets that haven't changed.
   if (!changes) {
-    changes = await draftDifferentFromLastPublished(new_dataset);
+    changes = await draftDifferentFromLastPublished(new_dataset, template._id);
     if (!changes) {
       // Delete the current draft
       try {

@@ -770,6 +770,37 @@ describe("update (and get draft)", () => {
       expect(await draftExisting(dataset.related_datasets[0].uuid)).toBeFalsy();
     });
 
+    test("if a subscribed template is updated and published but the dataset's subscribed reference doesn't change, dataset doesn't update", async () => {
+
+      let subscribed_template = {name: "sub"};
+      subscribed_template = await Helper.templateCreatePublishTest(subscribed_template, Helper.DEF_CURR_USER);
+
+      let template = {
+        name: "t", 
+        subscribed_templates: [subscribed_template]
+      };
+      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+
+      let dataset = {
+        template_uuid: template.uuid,
+        related_datasets: [
+          {
+            template_uuid: subscribed_template.uuid
+          }
+        ]
+      };
+      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+
+      // Modify the subscribed template and publish it 
+      subscribed_template.description = "changed";
+      subscribed_template = await Helper.templateUpdatePublishTest(subscribed_template, Helper.DEF_CURR_USER);
+
+      // Now there shouldn't be any update to the dataset if we try to update
+      await Helper.datasetUpdateAndTest(dataset, Helper.DEF_CURR_USER);
+      expect(await draftExisting(dataset.uuid)).toBeFalsy();
+      expect(await draftExisting(dataset.related_datasets[0].uuid)).toBeFalsy();
+    });
+
     test("if update includes no changes except that a new version of a related_dataset has been published, a new draft is created", async () => {
 
       dataset = await Helper.datasetPublishAndFetch(dataset.uuid, Helper.DEF_CURR_USER);
@@ -1117,6 +1148,31 @@ describe("publish (and get published)", () => {
       dataset.uuid = dataset_published.uuid;
       await Helper.datasetUpdatePublishTest(dataset, Helper.DEF_CURR_USER);
       
+    });
+
+    test("one related dataset, pointing to template with one subscribed template", async () => {
+
+      let subscribed_template = {
+        name: "t2"
+      };
+      subscribed_template = await Helper.templateCreatePublishTest(subscribed_template, Helper.DEF_CURR_USER);
+
+      let template = {
+        name:"t1",
+        subscribed_templates:[subscribed_template]
+      };
+      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+
+
+      let dataset = {
+        template_uuid: template.uuid,
+        related_datasets: [{
+          template_uuid: template.subscribed_templates[0].uuid
+        }]
+      };
+
+      await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+
     });
 
   });
