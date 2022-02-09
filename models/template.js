@@ -836,10 +836,8 @@ async function publishedByIdWithJoins(_id) {
 // Fetches the last template with the given uuid published before the given date. 
 // Also recursively looks up fields and related_templates.
 async function latestPublishedBeforeDateWithJoins(uuid, date) {
-  // Validate uuid and date are valid
-  if (!uuidValidate(uuid)) {
-    throw new Util.InputError('The uuid provided is not in proper uuid format.');
-  }
+  // TODO: move this validation to the middleware
+  // Validate date is valid
   if (!Util.isValidDate(date)) {
     throw new Util.InputError('The date provided is not a valid date.');
   }
@@ -978,10 +976,6 @@ async function draftFetchRelatedTemplates(input_related_template_uuids, user, se
 // If a draft of a given template doesn't exist, a new one will be generated using the last published template.
 async function draftFetchOrCreate(uuid, user, session) {
 
-  if (!uuidValidate(uuid)) {
-    throw new Util.InputError('The uuid provided is not in proper uuid format.');
-  }
-
   // See if a draft of this template exists. 
   let template_draft = await fetchDraftOrCreateFromPublished(uuid, session);
   if (!template_draft) {
@@ -1040,10 +1034,6 @@ async function draftFetchOrCreate(uuid, user, session) {
 
 // This function will provide the timestamp of the last update made to this template and all of it's sub-properties
 async function lastUpdateFor(uuid, user, session) {
-
-  if (!uuidValidate(uuid)) {
-    throw new Util.InputError('The uuid provided is not in proper uuid format.');
-  }
 
   let template_draft = await fetchDraftOrCreateFromPublished(uuid, session);
   let template_published = await SharedFunctions.latestPublished(Template, uuid, session);
@@ -1151,11 +1141,6 @@ async function duplicateRecursor(template, user, session) {
 }
 
 async function duplicate(uuid, user, session) {
-  // TODO: all input checks from the user should happen before reaching the model, I think?
-  // I don't think the model is the proper place to do input cleansing.
-  if (!uuidValidate(uuid)) {
-    throw new Util.InputError('The uuid provided is not in proper uuid format.');
-  }
   let template = await latestPublishedBeforeDateWithJoins(uuid, new Date());
   if(!template) {
     throw new Util.NotFoundError(`Published template ${uuid} does not exist`);
@@ -1404,10 +1389,6 @@ exports.latestPublishedWithoutPermissions = async function(uuid) {
 exports.publishedByIdWithoutPermissions = publishedByIdWithJoins;
 
 exports.draftDelete = async function(uuid, user) {
-
-  if (!uuidValidate(uuid)) {
-    throw new Util.InputError('The uuid provided is not in proper uuid format.');
-  }
 
   if(!(await SharedFunctions.draft(Template, uuid))) {
     throw new Util.NotFoundError(`No draft exists with uuid ${uuid}`);

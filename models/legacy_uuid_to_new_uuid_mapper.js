@@ -1,5 +1,5 @@
 const MongoDB = require('../lib/mongoDB');
-const { v4: uuidv4, validate: uuidValidate } = require('uuid');
+const { v4: uuidv4} = require('uuid');
 
 var LegacyUuidToNewUuidMapper;
 

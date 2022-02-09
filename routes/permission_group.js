@@ -1,12 +1,13 @@
 const express = require('express');
 const router = express.Router();
 
+const {validateUuid} = require('../lib/middleware');
 const controller = require('../controllers/permissionGroupController');
 
-router.get('/:uuid/:category', controller.get);
-router.put('/:uuid/:category', controller.update);
+router.get('/:uuid/:category', validateUuid, controller.get);
+router.put('/:uuid/:category', validateUuid, controller.update);
 // This route exists only for the purpose of testing
-router.post('/:uuid/testing_initialize', controller.testing_initialize);
-router.post('/:uuid/:category/testing_has_permission', controller.testing_has_permission);
+router.post('/:uuid/testing_initialize', validateUuid, controller.testing_initialize);
+router.post('/:uuid/:category/testing_has_permission', validateUuid, controller.testing_has_permission);
 
 module.exports = router;

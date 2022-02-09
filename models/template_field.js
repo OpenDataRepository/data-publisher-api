@@ -371,10 +371,6 @@ async function validateAndCreateOrUpdate(input_field, user, session, updated_at)
 }
 
 async function draftFetchOrCreate(uuid, user, session) {
-
-  if (!uuidValidate(uuid)) {
-    throw new Util.InputError('The uuid provided is not in proper uuid format.');
-  }
   
   // See if a draft of this template field exists. 
   let template_field_draft = await SharedFunctions.draft(TemplateField, uuid, session);
@@ -608,9 +604,6 @@ exports.latestPublished = async function(uuid, user) {
 exports.latestPublishedBeforeDate = latestPublishedBeforeDateWithPermissions;
 
 exports.draftDelete = async function(uuid, user) {
-  if (!uuidValidate(uuid)) {
-    throw new Util.InputError('The uuid provided is not in proper uuid format.');
-  }
 
   let field = await SharedFunctions.draft(TemplateField, uuid);
   if(!field) {
@@ -629,9 +622,6 @@ exports.draftDelete = async function(uuid, user) {
 }
 
 exports.lastUpdate = async function(uuid, user) {
-  if (!uuidValidate(uuid)) {
-    throw new Util.InputError('The uuid provided is not in proper uuid format.');
-  }
 
   let field_draft = await SharedFunctions.draft(TemplateField, uuid);
   let field_published = await latestPublished(uuid);

@@ -64,7 +64,8 @@ describe("initialize_permissions (and get)",  () => {
   })
   test("invalid uuid", async () => {
     let response = await permissionGroupTestingInitialize("abc", Helper.DEF_CURR_USER);
-    expect(response.statusCode).toBe(404);
+    expect(response.statusCode).toBe(400);
+
   });
   // TODO: when users are implemented, test that create can only happen with a valid user in the current session
 

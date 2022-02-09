@@ -421,10 +421,6 @@ async function validateAndCreateOrUpdate(record, user, session) {
 // If a draft of a given template doesn't exist, a new one will be generated using the last published record.
 async function draftFetchOrCreate(uuid, user, session) {
 
-  if (!uuidValidate(uuid)) {
-    throw new Util.InputError('The uuid provided is not in proper uuid format.');
-  }
-
   // See if a draft of this template exists. 
   let record_draft = await fetchDraftOrCreateFromPublished(uuid, session);
   if (!record_draft) {
@@ -647,10 +643,7 @@ async function publish(record_uuid, user, session, last_update) {
 }
 
 async function latestPublishedBeforeDateWithJoins(uuid, date, session) {
-  // Validate uuid and date are valid
-  if (!uuidValidate(uuid)) {
-    throw new Util.InputError('The uuid provided is not in proper uuid format.');
-  }
+  // TODO: validate date in the middleware
   if (!Util.isValidDate(date)) {
     throw new Util.InputError('The date provided is not a valid date.');
   }
@@ -736,10 +729,6 @@ async function latestPublishedBeforeDateWithJoins(uuid, date, session) {
 
 // This function will provide the timestamp of the last update made to this record and all of it's related_records
 async function lastUpdate(uuid, user) {
-
-  if (!uuidValidate(uuid)) {
-    throw new Util.InputError('The uuid provided is not in proper uuid format.');
-  }
 
   let draft = await fetchDraftOrCreateFromPublished(uuid);
   if(!draft) {
@@ -1071,10 +1060,6 @@ exports.publishedBeforeDate = latestPublishedBeforeDateWithJoinsAndPermissions;
 exports.lastUpdate = lastUpdate;
 
 exports.draftDelete = async function(uuid, user) {
-  // valid uuid
-  if (!uuidValidate(uuid)) {
-    throw new Util.InputError('The uuid provided is not in proper uuid format.');
-  }
   // if draft doesn't exist, return not found
   let draft = await SharedFunctions.draft(Record, uuid);
   if(!draft) {

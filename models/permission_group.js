@@ -1,6 +1,5 @@
 const MongoDB = require('../lib/mongoDB');
 const Util = require('../lib/util');
-const { validate: uuidValidate } = require('uuid');
 
 const PERMISSION_ADMIN = 'admin';
 const PERMISSION_EDIT = 'edit';
@@ -42,11 +41,6 @@ async function has_permission(user, uuid, category, session) {
 }
 
 async function create_permission(uuid, category, users, session) {
-  // uuid must be valid
-  if (!uuidValidate(uuid)) {
-    throw new Util.NotFoundError();
-  }
-
   let response = await PermissionGroup.insertOne(
     {
       uuid,
@@ -61,11 +55,6 @@ async function create_permission(uuid, category, users, session) {
 }
 
 async function read_permissions(uuid, category) {
-  // uuid must be valid
-  if (!uuidValidate(uuid)) {
-    throw new Util.NotFoundError();
-  }
-
   let cursor = await PermissionGroup.find({
     uuid,
     category
@@ -78,11 +67,6 @@ async function read_permissions(uuid, category) {
 }
 
 async function replace_permissions(current_user, uuid, category, users) {
-  // uuid must be valid
-  if (!uuidValidate(uuid)) {
-    throw new Util.NotFoundError();
-  }
-
   // TODO: when users are implemented, validate that each user in the list is a real user
 
   // The current user must be in the admin permissions group for this uuid to change it's permissions

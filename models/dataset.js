@@ -59,7 +59,6 @@ function draftsEqual(draft1, draft2) {
          Util.arrayEqual(draft1.related_datasets, draft2.related_datasets);
 }
 
-// TODO: update this
 // Returns true if the draft has any changes from it's previous published version
 async function draftDifferentFromLastPublished(draft, template_id) {
   // If there is no published version, obviously there are changes
@@ -335,10 +334,6 @@ async function fetchDraftOrCreateFromPublished(uuid, session) {
 // If a draft of a given dataset doesn't exist, a new one will be generated using the last published dataset.
 async function draftFetchOrCreate(uuid, user, session) {
 
-  if (!uuidValidate(uuid)) {
-    throw new Util.InputError('The uuid provided is not in proper uuid format.');
-  }
-
   // See if a draft of this dataset exists. 
   let dataset_draft = await fetchDraftOrCreateFromPublished(uuid, session);
   if (!dataset_draft) {
@@ -349,8 +344,6 @@ async function draftFetchOrCreate(uuid, user, session) {
   if (!(await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_ADMIN, session))) {
     throw new Util.PermissionDeniedError(`You do not have the edit permissions required to view draft ${uuid}`);
   }
-
-  // TODO: fetch fields from template if we have view permissions to that template
 
   // Now recurse into each related_dataset, replacing each uuid with an imbedded object
   let related_datasets = [];
@@ -395,11 +388,6 @@ async function draftFetchOrCreate(uuid, user, session) {
 
 // This function will provide the timestamp of the last update made to this dataset and all of it's related_datasets
 async function lastUpdateFor(uuid, user, session) {
-
-  // TODO: this validation needs to be moved to the controller.
-  if (!uuidValidate(uuid)) {
-    throw new Util.InputError('The uuid provided is not in proper uuid format.');
-  }
 
   let draft = await fetchDraftOrCreateFromPublished(uuid, session);
   if(!draft) {
@@ -632,10 +620,7 @@ async function publish(dataset_uuid, user, session, last_update) {
 // Fetches the last dataset with the given uuid published before the given date. 
 // Also recursively looks up fields and related_templates.
 async function latestPublishedBeforeDateWithJoins(uuid, date, session) {
-  // Validate uuid and date are valid
-  if (!uuidValidate(uuid)) {
-    throw new Util.InputError('The uuid provided is not in proper uuid format.');
-  }
+  // TODO: move date validation to the middleware
   if (!Util.isValidDate(date)) {
     throw new Util.InputError('The date provided is not a valid date.');
   }
@@ -1108,10 +1093,6 @@ exports.latestPublished = latestPublishedWithJoinsAndPermissions;
 exports.publishedBeforeDate = latestPublishedBeforeDateWithJoinsAndPermissions;
 
 exports.draftDelete = async function(uuid, user) {
-  // valid uuid
-  if (!uuidValidate(uuid)) {
-    throw new Util.InputError('The uuid provided is not in proper uuid format.');
-  }
   // if draft doesn't exist, return not found
   if(!(await SharedFunctions.draft(Dataset, uuid))) {
     throw new Util.NotFoundError(`No draft exists with uuid ${uuid}`);
