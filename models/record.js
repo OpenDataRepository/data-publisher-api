@@ -222,7 +222,7 @@ async function createRecordFieldsFromImportRecordAndTemplate(record_fields, temp
   return await createRecordFieldsFromTemplateFieldsAndMap(template_fields, record_field_map);
 }
 
-async function extractRelatedRecordsFromCreateOrUpdate(input_related_records, related_datasets, related_templates, user, session, updated_at) {
+async function extractRelatedRecordsFromCreateOrUpdate(input_related_records, related_datasets, template, user, session, updated_at) {
   let return_records = [];
   let changes = false;
   // Recurse into related_records
@@ -241,8 +241,11 @@ async function extractRelatedRecordsFromCreateOrUpdate(input_related_records, re
     related_dataset_map[related_dataset.uuid] = related_dataset;
   }
   let related_template_map = {};
-  for (let related_template of related_templates) {
+  for (let related_template of template.related_templates) {
     related_template_map[related_template.uuid] = related_template;
+  }
+  for(let subscribed_template of template.subscribed_templates) {
+    related_template_map[subscribed_template.uuid] = subscribed_template;
   }
   for (let related_record of input_related_records) {
     if(!Util.isObject(related_record)) {
@@ -280,7 +283,6 @@ async function extractRelatedRecordsFromCreateOrUpdate(input_related_records, re
   return [return_records, changes];
 }
 
-// TODO: make this function and all long functions shorter before updating records to handle subscribed_templates
 // A recursive helper for validateAndCreateOrUpdate.
 async function validateAndCreateOrUpdateRecurser(input_record, dataset, template, user, session, updated_at) {
 
@@ -347,7 +349,7 @@ async function validateAndCreateOrUpdateRecurser(input_record, dataset, template
   // Need to determine if this draft is any different from the published one.
   let changes;
 
-  [new_record.related_records, changes] = await extractRelatedRecordsFromCreateOrUpdate(input_record.related_records, dataset.related_datasets, template.related_templates, user, session, updated_at);
+  [new_record.related_records, changes] = await extractRelatedRecordsFromCreateOrUpdate(input_record.related_records, dataset.related_datasets, template, user, session, updated_at);
 
   // If this draft is identical to the latest published, delete it.
   // The reason to do so is so when a change is submitted, we won't create drafts of sub-records.
@@ -473,7 +475,7 @@ async function draftFetchOrCreate(uuid, user, session) {
 
 }
 
-async function publishRelatedRecords(related_records, related_datasets, related_templates, user, session, last_published_time) {
+async function publishRelatedRecords(related_records, related_datasets, template, user, session, last_published_time) {
   let return_records = [];
   let changes = false;
   // For each records's related_records, publish that related_record, then replace the uuid with the internal_id.
@@ -485,8 +487,11 @@ async function publishRelatedRecords(related_records, related_datasets, related_
     related_dataset_map[related_dataset.uuid] = related_dataset;
   }
   let related_template_map = {};
-  for (let related_template of related_templates) {
+  for (let related_template of template.related_templates) {
     related_template_map[related_template.uuid] = related_template;
+  }
+  for(let subscribed_template of template.subscribed_templates) {
+    related_template_map[subscribed_template.uuid] = subscribed_template;
   }
   for(let related_record of related_records) {
     let related_record_document = await SharedFunctions.latestDocument(Record, related_record);
@@ -561,7 +566,7 @@ async function publishRecurser(uuid, dataset, template, user, session) {
   }  
 
   let changes, related_records;
-  [related_records, changes] = await publishRelatedRecords(record_draft.related_records, dataset.related_datasets, template.related_templates, user, session, last_published_time);
+  [related_records, changes] = await publishRelatedRecords(record_draft.related_records, dataset.related_datasets, template, user, session, last_published_time);
 
   var return_id;
 

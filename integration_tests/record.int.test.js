@@ -1387,6 +1387,39 @@ describe("publish (and get published)", () => {
       expect(new Date(published.related_records[0].related_records[0].related_records[0].publish_date).getTime()).toBeLessThan(intermediate_publish_date);
     });
 
+    test("can create and publish records for subscribed templates", async () => {
+
+      let subscribed_template = {
+        name:"t2",
+      };
+      subscribed_template = await Helper.templateCreatePublishTest(subscribed_template, Helper.DEF_CURR_USER);
+
+      let template = {
+        name:"t1",
+        subscribed_templates:[subscribed_template]
+      };
+      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+
+
+      let dataset = {
+        template_uuid: template.uuid,
+        related_datasets: [{
+          template_uuid: template.subscribed_templates[0].uuid
+        }]
+      };
+
+      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+
+      let record = {
+        dataset_uuid: dataset.uuid,
+        related_records: [{
+          dataset_uuid: dataset.related_datasets[0].uuid,
+        }]
+      };
+      await recordCreatePublishTest(record, Helper.DEF_CURR_USER);
+
+    });
+
   });
 
   describe("Failure cases", () => {
