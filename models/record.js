@@ -111,7 +111,7 @@ async function draftDifferentFromLastPublished(draft) {
     return true;
   }
 
-  // if the template version has changed since this record was last published
+  // if the dataset version has changed since this record was last published
   let latest_dataset_id = await SharedFunctions.latest_published_id_for_uuid(DatasetModel.collection(), latest_published_as_draft.dataset_uuid);
   if(!latest_published.dataset_id.equals(latest_dataset_id)) {
     return true;
@@ -222,6 +222,65 @@ async function createRecordFieldsFromImportRecordAndTemplate(record_fields, temp
   return await createRecordFieldsFromTemplateFieldsAndMap(template_fields, record_field_map);
 }
 
+async function extractRelatedRecordsFromCreateOrUpdate(input_related_records, related_datasets, related_templates, user, session, updated_at) {
+  let return_records = [];
+  let changes = false;
+  // Recurse into related_records
+  if(!input_related_records) {
+    input_related_records = [];
+  }
+  if (!Array.isArray(input_related_records)){
+    throw new Util.InputError('related_records property must be of type array');
+  }
+  // Requirements:
+  // - related_records is a set, so there can't be any duplicates
+  // - Every related_record must point to a related_dataset supported by the dataset
+  // Plan: Create a dataset_uuid to dataset map. At the end, check related_records for duplicates
+  let related_dataset_map = {};
+  for (let related_dataset of related_datasets) {
+    related_dataset_map[related_dataset.uuid] = related_dataset;
+  }
+  let related_template_map = {};
+  for (let related_template of related_templates) {
+    related_template_map[related_template.uuid] = related_template;
+  }
+  for (let related_record of input_related_records) {
+    if(!Util.isObject(related_record)) {
+      throw new Util.InputError(`Each related_record in the record must be a json object`);
+    }
+    if(!related_record.dataset_uuid) {
+      throw new Util.InputError(`Each related_record in the record must supply a dataset_uuid`);
+    }
+    if(!(related_record.dataset_uuid in related_dataset_map)) {
+      throw new Util.InputError(`Each related_record in the record must link to a related_dataset supported by the dataset`);
+    } 
+    let related_dataset = related_dataset_map[related_record.dataset_uuid];
+    let related_template = related_template_map[related_dataset.template_uuid];
+    try {
+      let new_changes;
+      [new_changes, related_record] = await validateAndCreateOrUpdateRecurser(related_record, related_dataset, related_template, user, session, updated_at);
+      changes = changes || new_changes;
+    } catch(err) {
+      if (err instanceof Util.NotFoundError) {
+        throw new Util.InputError(err.message);
+      } else if (err instanceof Util.PermissionDeniedError) {
+        // If we don't have admin permissions to the related_record, don't try to update/create it. Just link it
+        related_record = related_record.uuid;
+      } else {
+        throw err;
+      }
+    }
+    // After validating and updating the related_record, replace the related_record with a uuid reference
+    return_records.push(related_record);
+  }
+  // Related_records is really a set, not a list. But Mongo doesn't store sets well, so have to manage it ourselves.
+  if(Util.anyDuplicateInArray(return_records)) {
+    throw new Util.InputError(`Each record may only have one instance of every related_record.`);
+  }
+  return [return_records, changes];
+}
+
+// TODO: make this function and all long functions shorter before updating records to handle subscribed_templates
 // A recursive helper for validateAndCreateOrUpdate.
 async function validateAndCreateOrUpdateRecurser(input_record, dataset, template, user, session, updated_at) {
 
@@ -286,60 +345,9 @@ async function validateAndCreateOrUpdateRecurser(input_record, dataset, template
   new_record.fields = createRecordFieldsFromInputRecordAndTemplate(input_record.fields, template.fields);
 
   // Need to determine if this draft is any different from the published one.
-  let changes = false;
+  let changes;
 
-  // Recurse into related_records
-  if(!input_record.related_records) {
-    input_record.related_records = [];
-  }
-  if (!Array.isArray(input_record.related_records)){
-    throw new Util.InputError('related_records property must be of type array');
-  }
-  // Requirements:
-  // - related_records is a set, so there can't be any duplicates
-  // - Every related_record must point to a related_dataset supported by the dataset
-  // Plan: Create a dataset_uuid to dataset map. At the end, check related_records for duplicates
-  let related_dataset_map = {};
-  for (let related_dataset of dataset.related_datasets) {
-    related_dataset_map[related_dataset.uuid] = related_dataset;
-  }
-  let related_template_map = {};
-  for (let related_template of template.related_templates) {
-    related_template_map[related_template.uuid] = related_template;
-  }
-  for (let related_record of input_record.related_records) {
-    if(!Util.isObject(related_record)) {
-      throw new Util.InputError(`Each related_record in the record must be a json object`);
-    }
-    if(!related_record.dataset_uuid) {
-      throw new Util.InputError(`Each related_record in the record must supply a dataset_uuid`);
-    }
-    if(!(related_record.dataset_uuid in related_dataset_map)) {
-      throw new Util.InputError(`Each related_record in the record must link to a related_dataset supported by the dataset`);
-    } 
-    let related_dataset = related_dataset_map[related_record.dataset_uuid];
-    let related_template = related_template_map[related_dataset.template_uuid];
-    try {
-      let new_changes;
-      [new_changes, related_record] = await validateAndCreateOrUpdateRecurser(related_record, related_dataset, related_template, user, session, updated_at);
-      changes = changes || new_changes;
-    } catch(err) {
-      if (err instanceof Util.NotFoundError) {
-        throw new Util.InputError(err.message);
-      } else if (err instanceof Util.PermissionDeniedError) {
-        // If we don't have admin permissions to the related_record, don't try to update/create it. Just link it
-        related_record = related_record.uuid;
-      } else {
-        throw err;
-      }
-    }
-    // After validating and updating the related_record, replace the related_record with a uuid reference
-    new_record.related_records.push(related_record);
-  }
-  // Related_records is really a set, not a list. But Mongo doesn't store sets well, so have to manage it ourselves.
-  if(Util.anyDuplicateInArray(new_record.related_records)) {
-    throw new Util.InputError(`Each record may only have one instance of every related_record.`);
-  }
+  [new_record.related_records, changes] = await extractRelatedRecordsFromCreateOrUpdate(input_record.related_records, dataset.related_datasets, template.related_templates, user, session, updated_at);
 
   // If this draft is identical to the latest published, delete it.
   // The reason to do so is so when a change is submitted, we won't create drafts of sub-records.
@@ -465,6 +473,57 @@ async function draftFetchOrCreate(uuid, user, session) {
 
 }
 
+async function publishRelatedRecords(related_records, related_datasets, related_templates, user, session, last_published_time) {
+  let return_records = [];
+  let changes = false;
+  // For each records's related_records, publish that related_record, then replace the uuid with the internal_id.
+  // It is possible there weren't any changes to publish, so keep track of whether we actually published anything.
+  // Requirements: 
+  // - Each related_record must point to a related_dataset supported by the dataset
+  let related_dataset_map = {};
+  for (let related_dataset of related_datasets) {
+    related_dataset_map[related_dataset.uuid] = related_dataset;
+  }
+  let related_template_map = {};
+  for (let related_template of related_templates) {
+    related_template_map[related_template.uuid] = related_template;
+  }
+  for(let related_record of related_records) {
+    let related_record_document = await SharedFunctions.latestDocument(Record, related_record);
+    if(!related_record_document) {
+      throw new Util.InputError(`Cannut publish record. One of it's related_references does not exist and was probably deleted after creation.`);
+    }
+    let related_dataset = related_dataset_map[related_record_document.dataset_uuid];
+    if(!related_dataset) {
+      throw new Util.InputError(`Cannot publish related_record pointing to related_dataset not supported by the dataset. 
+      Dataset may have been published since last record update.`);
+    }
+    let related_template = related_template_map[related_dataset.template_uuid];
+    try {
+      [related_record, _] = await publishRecurser(related_record, related_dataset, related_template, user, session);
+      return_records.push(related_record);
+    } catch(err) {
+      if (err instanceof Util.NotFoundError) {
+        throw new Util.InputError(`Internal reference within this draft is invalid. Fetch/update draft to cleanse it.`);
+      } else if (err instanceof Util.PermissionDeniedError) {
+        // If the user doesn't have permissions, assume they want to link the published version of the record
+        // But before we can link the published version of the record, we must make sure it exists
+        let related_record_published = await SharedFunctions.latestPublished(Record, related_record);
+        if(!related_record_published) {
+          throw new Util.InputError(`invalid link to record ${related_record}, which has no published version to link`);
+        }
+        return_records.push(related_record_published._id);
+      } else {
+        throw err;
+      }
+    }
+    if (SharedFunctions.publishDateFor_id(Record, related_record) > last_published_time) {
+      changes = true;
+    }
+  } 
+  return [return_records, changes];
+}
+
 async function publishRecurser(uuid, dataset, template, user, session) {
 
   let published_record = await SharedFunctions.latestPublished(Record, uuid, session);
@@ -496,58 +555,13 @@ async function publishRecurser(uuid, dataset, template, user, session) {
     throw new Error(`The record draft ${record_draft} does not reference the dataset required ${dataset.uuid}. Cannot publish.`);
   }
 
-  let changes = false;
-  let related_records = [];
   var last_published_time = 0;
   if(published_record) {
     last_published_time = published_record.publish_date;
   }  
 
-  // For each records's related_records, publish that related_record, then replace the uuid with the internal_id.
-  // It is possible there weren't any changes to publish, so keep track of whether we actually published anything.
-  // Requirements: 
-  // - Each related_record must point to a related_dataset supported by the dataset
-  let related_dataset_map = {};
-  for (let related_dataset of dataset.related_datasets) {
-    related_dataset_map[related_dataset.uuid] = related_dataset;
-  }
-  let related_template_map = {};
-  for (let related_template of template.related_templates) {
-    related_template_map[related_template.uuid] = related_template;
-  }
-  for(let related_record of record_draft.related_records) {
-    let related_record_document = await SharedFunctions.latestDocument(Record, related_record);
-    if(!related_record_document) {
-      throw new Util.InputError(`Cannut publish record. One of it's related_references does not exist and was probably deleted after creation.`);
-    }
-    let related_dataset = related_dataset_map[related_record_document.dataset_uuid];
-    if(!related_dataset) {
-      throw new Util.InputError(`Cannot publish related_record pointing to related_dataset not supported by the dataset. 
-      Dataset may have been published since last record update.`);
-    }
-    let related_template = related_template_map[related_dataset.template_uuid];
-    try {
-      [related_record, _] = await publishRecurser(related_record, related_dataset, related_template, user, session);
-      related_records.push(related_record);
-    } catch(err) {
-      if (err instanceof Util.NotFoundError) {
-        throw new Util.InputError(`Internal reference within this draft is invalid. Fetch/update draft to cleanse it.`);
-      } else if (err instanceof Util.PermissionDeniedError) {
-        // If the user doesn't have permissions, assume they want to link the published version of the record
-        // But before we can link the published version of the record, we must make sure it exists
-        let related_record_published = await SharedFunctions.latestPublished(Record, related_record);
-        if(!related_record_published) {
-          throw new Util.InputError(`invalid link to record ${related_record}, which has no published version to link`);
-        }
-        related_records.push(related_record_published._id);
-      } else {
-        throw err;
-      }
-    }
-    if (SharedFunctions.publishDateFor_id(Record, related_record) > last_published_time) {
-      changes = true;
-    }
-  }  
+  let changes, related_records;
+  [related_records, changes] = await publishRelatedRecords(record_draft.related_records, dataset.related_datasets, template.related_templates, user, session, last_published_time);
 
   var return_id;
 
