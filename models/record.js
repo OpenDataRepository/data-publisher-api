@@ -643,11 +643,6 @@ async function publish(record_uuid, user, session, last_update) {
 }
 
 async function latestPublishedBeforeDateWithJoins(uuid, date, session) {
-  // TODO: validate date in the middleware
-  if (!Util.isValidDate(date)) {
-    throw new Util.InputError('The date provided is not a valid date.');
-  }
-
   // Construct a mongodb aggregation pipeline that will recurse into related records up to 5 levels deep.
   // Thus, the tree will have a depth of 6 nodes
   let pipeline = [

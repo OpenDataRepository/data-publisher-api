@@ -21,6 +21,7 @@ const draft = async (collection, uuid, session) => {
 }
 exports.draft = draft;
 
+// TODO: Move this to the middleware. Use example here: https://express-validator.github.io/docs/custom-validators-sanitizers.html
 function convertToMongoId(_id) {
   if(typeof(_id) === 'string') {
     return new ObjectId(_id);

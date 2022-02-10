@@ -620,11 +620,6 @@ async function publish(dataset_uuid, user, session, last_update) {
 // Fetches the last dataset with the given uuid published before the given date. 
 // Also recursively looks up fields and related_templates.
 async function latestPublishedBeforeDateWithJoins(uuid, date, session) {
-  // TODO: move date validation to the middleware
-  if (!Util.isValidDate(date)) {
-    throw new Util.InputError('The date provided is not a valid date.');
-  }
-
   // Construct a mongodb aggregation pipeline that will recurse into related templates up to 5 levels deep.
   // Thus, the tree will have a depth of 6 nodes
   let pipeline = [

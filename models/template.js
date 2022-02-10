@@ -836,12 +836,6 @@ async function publishedByIdWithJoins(_id) {
 // Fetches the last template with the given uuid published before the given date. 
 // Also recursively looks up fields and related_templates.
 async function latestPublishedBeforeDateWithJoins(uuid, date) {
-  // TODO: move this validation to the middleware
-  // Validate date is valid
-  if (!Util.isValidDate(date)) {
-    throw new Util.InputError('The date provided is not a valid date.');
-  }
-
   let pipelineMatchConditions = { 
     uuid,
     'publish_date': {'$lte': date}
