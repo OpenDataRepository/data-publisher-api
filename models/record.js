@@ -92,7 +92,7 @@ async function fetchDraftOrCreateFromPublished(uuid, session) {
 function draftsEqual(draft1, draft2) {
   return draft1.uuid == draft2.uuid &&
          draft1.dataset_uuid == draft2.dataset_uuid &&
-         // TODO: should also include public_date check
+         Util.datesEqual(draft1.public_date, draft2.public_date) &&
          fieldsEqual(draft1.fields, draft2.fields) &&
          Util.arrayEqual(draft1.related_records, draft2.related_records);
 }

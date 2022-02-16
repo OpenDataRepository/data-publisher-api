@@ -21,6 +21,41 @@ module.exports = class Helper {
     await db.collection('legacy_uuid_to_new_uuid_mapper').deleteMany();
   };
 
+  sortArrayByNameProperty = (o1, o2) => {
+    let n1 = o1.name;
+    let n2 = o2.name;
+    if(n1 < n2) {
+      return -1;
+    }
+    if(n1 > n2) {
+      return 1;
+    }
+    return 0;
+  }
+  sortArrayBy_idProperty = (o1, o2) => {
+    let n1 = o1._id;
+    let n2 = o2._id;
+    if(n1 < n2) {
+      return -1;
+    }
+    if(n1 > n2) {
+      return 1;
+    }
+    return 0;
+  }
+  sortArrayByUuidProperty = (o1, o2) => {
+    let n1 = o1.uuid;
+    let n2 = o2.uuid;
+    if(n1 < n2) {
+      return -1;
+    }
+    if(n1 > n2) {
+      return 1;
+    }
+    return 0;
+  }
+
+
   // template field
 
   templateFieldCreate = async (field, current_user) => {
@@ -37,18 +72,46 @@ module.exports = class Helper {
       .set('Cookie', [`user=${current_user}`])
       .set('Accept', 'application/json');
   };
+  templateFieldDraftGetAndTest = async (uuid, current_user) => {
+    let response = await this.templateFieldDraftGet(uuid, current_user);
+    expect(response.statusCode).toBe(200);
+    return response.body;
+  };
 
-  // testTemplateFieldDraftsEqual = (original, created) => {
-  //   if(original.uuid) {
-  //     expect(created.uuid).toBe(original.uuid);
-  //   }
-  //   if(original.name) {
-  //     expect(created.name).toEqual(original.name);
-  //   }
-  //   if(original.description) {
-  //     expect(created.description).toEqual(original.description);
-  //   }
-  // }
+  testTemplateFieldOptionsEqual = (before, after) => {
+    if(!before) {
+      return;
+    }
+    expect(after).toBeTruthy();
+    expect(before.length).toBe(after.length);
+    before.sort(this.sortArrayByNameProperty);
+    after.sort(this.sortArrayByNameProperty);
+    for(let i = 0; i < before.length; i++) {
+      expect(after[i].name).toEqual(before[i].name);
+      // So import can also use this function
+      if(!before[i].options) {
+        before[i].options = before[i].radio_options;
+      }
+      this.testTemplateFieldOptionsEqual(before[i].options, after[i].options)
+    }
+  }
+
+  testTemplateFieldsEqual = (before, after) => {
+    if(before.name) {
+      expect(after.name).toEqual(before.name);
+    }
+    if(before.description) {
+      expect(after.description).toEqual(before.description);
+    }
+    if(before.public_date) {
+      expect(after.public_date).toEqual(before.public_date);
+    }
+    // So import can also use this function
+    if(!before.options) {
+      before.options = before.radio_options;
+    }
+    this.testTemplateFieldOptionsEqual(before.options, after.options);
+  }
 
   templateFieldCreateAndTest = async (field, current_user) => {
     let response = await this.templateFieldCreate(field, current_user)
@@ -67,12 +130,23 @@ module.exports = class Helper {
       .set('Cookie', [`user=${current_user}`]);
   };
 
+  templateFieldLastUpdateAndTest = async (uuid, current_user) => {
+    let response = await this.templateFieldLastUpdate(uuid, current_user);
+    expect(response.statusCode).toBe(200);
+    return response.body;
+  };
+
   templateFieldPublish = async (uuid, last_update, current_user) => {
     return await request(this.app)
     .post(`/template_field/${uuid}/publish`)
     .set('Cookie', [`user=${current_user}`])
     .send({last_update})
     .set('Accept', 'application/json');
+  };
+  
+  templateFieldPublishAndTest = async (uuid, last_update, current_user) => {
+    let response = await this.templateFieldPublish(uuid, last_update, current_user);
+    expect(response.statusCode).toBe(200);
   };
 
   templateFieldLatestPublished = async (uuid, current_user) => {
@@ -81,29 +155,42 @@ module.exports = class Helper {
     .set('Cookie', [`user=${current_user}`]);
   };
 
-  templateFieldCreatePublishTest = async (field, current_user) => {
-    let uuid = await this.templateFieldCreateAndTest(field, current_user);
-
-    let response = await this.templateFieldLastUpdate(uuid, current_user);
+  templateFieldDraftExisting = async (uuid) => {
+    return await request(this.app)
+      .get(`/template_field/${uuid}/draft_existing`);
+  };
+  
+  templateFieldDraftExistingAndTest = async (uuid) => {
+    let response = await this.templateFieldDraftExisting(uuid);
     expect(response.statusCode).toBe(200);
-    let last_update = response.body;
+    return response.body;
+  };
 
-    response = await this.templateFieldPublish(uuid, last_update, current_user);
-    expect(response.statusCode).toBe(200);
+  templateFieldPublishAfterCreateOrUpdateThenTest = async (field, current_user) => {
+    let uuid = field.uuid;
+    let last_update = await this.templateFieldLastUpdateAndTest(uuid, current_user);
+
+    await this.templateFieldPublishAndTest(uuid, last_update, current_user);
   
     // Check that a published version now exists
-    response = await this.templateFieldLatestPublished(uuid, current_user);
+    let response = await this.templateFieldLatestPublished(uuid, current_user);
     expect(response.statusCode).toBe(200);
     let published = response.body;
-    expect(published).toMatchObject(field);
+    this.testTemplateFieldsEqual(field, published);
     expect(published).toHaveProperty("publish_date");
 
-    // Check that we can still get a draft version
-    response = await this.templateFieldDraftGet(uuid, current_user);
-    expect(response.statusCode).toBe(200);
-    expect(response.body).toMatchObject(field);
+    // Check that we can still get a new draft if requested
+    let new_draft = await this.templateFieldDraftGetAndTest(uuid, current_user);
+    this.testTemplateFieldsEqual(field, new_draft);
 
     return published;
+  };
+
+  templateFieldCreatePublishTest = async (field, current_user) => {
+    let uuid = await this.templateFieldCreateAndTest(field, current_user);
+    field.uuid = uuid;
+
+    return await this.templateFieldPublishAfterCreateOrUpdateThenTest(field, current_user);
   };
 
   // template
@@ -122,6 +209,11 @@ module.exports = class Helper {
       .set('Cookie', [`user=${current_user}`])
       .set('Accept', 'application/json');
   };
+  templateDraftGetAndTest = async (uuid, current_user) => {
+    let response = await this.templateDraftGet(uuid, current_user);
+    expect(response.statusCode).toBe(200);
+    return response.body;
+  };
 
   testTemplateDraftsEqual = (original, created) => {
     if(original.uuid) {
@@ -138,20 +230,24 @@ module.exports = class Helper {
     }
     if(original.fields) {
       expect(created.fields.length).toBe(original.fields.length);
+      original.fields.sort(this.sortArrayByNameProperty);
+      created.fields.sort(this.sortArrayByNameProperty);
       for(let i = 0; i < original.fields.length; i++) {
-        expect(created.fields[i]).toMatchObject(original.fields[i]);
-        // TODO: at some point, use this instead
-        // testTemplateFieldDraftsEqual(original.fields[i], created.fields[i]);
+        this.testTemplateFieldsEqual(original.fields[i], created.fields[i]);
       }
     }
     if(original.related_templates) {
       expect(created.related_templates.length).toBe(original.related_templates.length);
+      original.related_templates.sort(this.sortArrayByNameProperty);
+      created.related_templates.sort(this.sortArrayByNameProperty);
       for(let i = 0; i < original.related_templates.length; i++) {
         this.testTemplateDraftsEqual(original.related_templates[i], created.related_templates[i]);
       }
     }
     if(original.subscribed_templates) {
       expect(created.subscribed_templates.length).toBe(original.subscribed_templates.length);
+      original.subscribed_templates.sort(this.sortArrayBy_idProperty);
+      created.subscribed_templates.sort(this.sortArrayBy_idProperty);
       for(let i = 0; i < original.subscribed_templates.length; i++) {
         expect(created.subscribed_templates[i]._id).toEqual(original.subscribed_templates[i]._id);
       }
@@ -195,6 +291,17 @@ module.exports = class Helper {
       .set('Accept', 'application/json');
   }
 
+  templateDraftExisting = async (uuid) => {
+    return await request(this.app)
+      .get(`/template/${uuid}/draft_existing`);
+  };
+  
+  templateDraftExistingAndTest = async (uuid) => {
+    let response = await this.templateDraftExisting(uuid);
+    expect(response.statusCode).toBe(200);
+    return response.body;
+  };
+
   templatePublishAndFetch = async (uuid, curr_user) => {
     let response = await this.templateLastUpdate(uuid, curr_user);
     expect(response.statusCode).toBe(200);
@@ -215,7 +322,7 @@ module.exports = class Helper {
     let published_template = await this.templatePublishAndFetch(created_template.uuid, curr_user)
     this.templateSortFieldsAndRelatedTemplates(template);
     this.templateSortFieldsAndRelatedTemplates(published_template);
-    expect(published_template).toMatchObject(template);
+    this.testTemplateDraftsEqual(template, published_template);
     return published_template;
   };
 
@@ -251,10 +358,10 @@ module.exports = class Helper {
       return;
     } 
     if(template.fields) {
-      template.fields.sort((f1, f2) => {f1.name > f2.name});
+      template.fields.sort(this.sortArrayByNameProperty);
     } 
     if(template.related_templates) {
-      template.related_templates.sort((t1, t2) => {t1.name > t2.name});
+      template.related_templates.sort(this.sortArrayByNameProperty);
       for(let related_template of template.related_templates) {
         this.templateSortFieldsAndRelatedTemplates(related_template);
       }
@@ -262,19 +369,17 @@ module.exports = class Helper {
   }
 
   templateUpdateAndTest = async (template, curr_user) => {
-    this.templateCleanseMetadata(template);
     let response = await this.templateUpdate(template.uuid, template, curr_user);
     expect(response.statusCode).toBe(200);
   
-    response = await this.templateDraftGet(template.uuid, curr_user);
-    expect(response.statusCode).toBe(200);
-    expect(response.body).toMatchObject(template);
+    let new_draft = await this.templateDraftGetAndTest(template.uuid, curr_user);
+    this.testTemplateDraftsEqual(template, new_draft);
   }
 
   templateUpdatePublishTest = async (template, curr_user) => {
     await this.templateUpdateAndTest(template, curr_user);
     let published_template = await this.templatePublishAndFetch(template.uuid, curr_user);
-    expect(published_template).toMatchObject(template);
+    this.testTemplateDraftsEqual(template, published_template);
     return published_template;
   };
 

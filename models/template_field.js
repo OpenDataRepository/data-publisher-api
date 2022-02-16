@@ -111,8 +111,10 @@ function optionsEqual(options1, options2) {
 }
 
 function fieldEquals(field1, field2) {
-  return field1.name == field2.name && field1.description == field2.description && 
-    field1.public_date == field2.public_date && optionsEqual(field1.options, field2.options);
+  return field1.name == field2.name && 
+          field1.description == field2.description && 
+          Util.datesEqual(field1.public_date, field2.public_date) &&
+          optionsEqual(field1.options, field2.options);
 }
 
 function parseOptions(options, previous_options_uuids, current_options_uuids) {
@@ -397,19 +399,11 @@ async function draftFetchOrCreate(uuid, user, session) {
     }
   }
 
-  // Remove the internal_id and publish_date from this template, as we plan to insert this as a draft now. 
+  // Remove the internal_id and publish_date
   delete template_field_draft._id;
   template_field_draft.updated_at = template_field_draft.publish_date;
   delete template_field_draft.publish_date;
 
-  let response = await TemplateField.insertOne(
-    template_field_draft,
-    {session}
-  )
-  if (response.insertedCount != 1) {
-    throw `TemplateField.draftFetchOrCreate: should be 1 inserted document. Instead: ${response.insertedCount}`;
-  }
-  
   return template_field_draft;
 
 }
@@ -474,8 +468,8 @@ async function publishField(uuid, session, last_update, user) {
   // If there was a previously published field, see if anything was changed between this one and that one. 
   if (published_field) {
     return_id = published_field._id;
-    if (field_draft.name != published_field.name || 
-      field_draft.description != published_field.description) {
+
+    if (!fieldEquals(field_draft, published_field)) {
       changes = true;
     } 
   } else {
@@ -650,6 +644,10 @@ exports.lastUpdate = async function(uuid, user) {
   }
 
   return field_draft.updated_at;
+}
+
+exports.draftExisting = async function(uuid) {
+  return (await SharedFunctions.draft(TemplateField, uuid)) ? true : false;
 }
 
 exports.duplicate = async function(field, user, session) {

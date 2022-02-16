@@ -23,6 +23,10 @@ const templateDelete = async (uuid, curr_user) => {
     .delete(`/template/${uuid}/draft`)
     .set('Cookie', [`user=${curr_user}`]);
 }
+const templateDeleteAndTest = async (uuid, current_user) => {
+  let response = await templateDelete(uuid, current_user);
+  expect(response.statusCode).toBe(200);
+};
 
 const templateLatestPublishedBeforeDate = async (uuid, timestamp, curr_user) => {
   return await request(app)
@@ -208,38 +212,34 @@ describe("create (and get draft after a create)", () => {
   
     test("Create template with related template and field", async () => {
   
-      let related_template_data = { 
-        "name": "create template child",
-        "description": "the child of create template"
+      let related_template = { 
+        name: "create template child",
+        description: "the child of create template"
       };
-      let field_data = {
-        "name": "create template field"
+      let field = {
+        name: "create template field"
       }
       let template = { 
-        "name": "create template",
-        "description": "a template to test a create",
-        "fields": [field_data],
-        "related_templates": [related_template_data]
+        name: "create template",
+        description: "a template to test a create",
+        fields: [field],
+        related_templates: [related_template]
       };
-      let uuid = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
-
-      let response = await Helper.templateDraftGet(uuid, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreateAndTestV2(template, Helper.DEF_CURR_USER);
          
-      let related_template_uuid = response.body.related_templates[0].uuid;
-      let field_uuid = response.body.fields[0].uuid;
+      let related_template_uuid = template.related_templates[0].uuid;
+      let field_uuid = template.fields[0].uuid;
 
       // Now test that the related template was also created separately 
-      response = await Helper.templateDraftGet(related_template_uuid, Helper.DEF_CURR_USER);
-      expect(response.statusCode).toBe(200);
-      expect(response.body).toMatchObject(related_template_data);
+      let template_draft = await Helper.templateDraftGetAndTest(related_template_uuid, Helper.DEF_CURR_USER);
+      Helper.testTemplateDraftsEqual(template.related_templates[0], template_draft);
 
       // Now test that the field was also created separately  
-      response = await Helper.templateFieldDraftGet(field_uuid, Helper.DEF_CURR_USER);
-      expect(response.statusCode).toBe(200);
-      expect(response.body).toMatchObject(field_data);
+      let field_draft = await Helper.templateFieldDraftGetAndTest(field_uuid, Helper.DEF_CURR_USER);
+      Helper.testTemplateFieldsEqual(field, field_draft);
 
       // Now test that all permission groups were created successfully
-      await Helper.testPermissionGroupsInitializedFor(uuid, Helper.DEF_CURR_USER);
+      await Helper.testPermissionGroupsInitializedFor(template.uuid, Helper.DEF_CURR_USER);
       await Helper.testPermissionGroupsInitializedFor(related_template_uuid, Helper.DEF_CURR_USER);
       await Helper.testPermissionGroupsInitializedFor(field_uuid, Helper.DEF_CURR_USER);
     });
@@ -633,6 +633,134 @@ describe("update (and get draft after an update)", () => {
     });
 
   })
+
+  describe("update after a publish: is draft different and thus created or not?", () => {
+    test("name, description, dates", async () => {
+      let template = {
+        name: "naruto",
+        description: "ninja",
+        public_date: (new Date()).toISOString()
+      };
+      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+  
+      expect(await Helper.templateDraftExistingAndTest(template.uuid)).toBe(false);
+  
+      // Test name
+      template.name = "caleb";
+      await Helper.templateUpdateAndTest(template, Helper.DEF_CURR_USER);
+      expect(await Helper.templateDraftExistingAndTest(template.uuid)).toBe(true);
+  
+      template.name = "naruto";
+      await templateDeleteAndTest(template.uuid, Helper.DEF_CURR_USER);
+      expect(await Helper.templateDraftExistingAndTest(template.uuid)).toBe(false);
+  
+      // Test description
+      template.description = "toad";
+      await Helper.templateUpdateAndTest(template, Helper.DEF_CURR_USER);
+      expect(await Helper.templateDraftExistingAndTest(template.uuid)).toBe(true);
+  
+      template.description = "ninja";
+      await templateDeleteAndTest(template.uuid, Helper.DEF_CURR_USER);
+      expect(await Helper.templateDraftExistingAndTest(template.uuid)).toBe(false);
+  
+      // Test public_date
+      template.public_date = (new Date()).toISOString();
+      await Helper.templateUpdateAndTest(template, Helper.DEF_CURR_USER);
+      expect(await Helper.templateDraftExistingAndTest(template.uuid)).toBe(true);
+  
+      await templateDeleteAndTest(template.uuid, Helper.DEF_CURR_USER);
+      expect(await Helper.templateDraftExistingAndTest(template.uuid)).toBe(false);
+    });
+  
+    test("fields", async () => {
+      let template = {
+        fields: [{name: "f"}]
+      };
+      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+  
+      await Helper.templateUpdateAndTest(template, Helper.DEF_CURR_USER);
+      expect(await Helper.templateDraftExistingAndTest(template.uuid)).toBe(false);
+  
+      template.fields[0].description = "caleb";
+      await Helper.templateUpdateAndTest(template, Helper.DEF_CURR_USER);
+      expect(await Helper.templateDraftExistingAndTest(template.uuid)).toBe(true);
+  
+      template.fields = [];
+      await Helper.templateUpdateAndTest(template, Helper.DEF_CURR_USER);
+      expect(await Helper.templateDraftExistingAndTest(template.uuid)).toBe(true);
+  
+      template.fields = [{name: "one"}, {name: "two"}];
+      template = await Helper.templateUpdatePublishTest(template, Helper.DEF_CURR_USER);
+  
+      let temp = template.fields[0];
+      template.fields[0] = template.fields[1];
+      template.fields[1] = temp;
+      await Helper.templateUpdateAndTest(template, Helper.DEF_CURR_USER);
+      expect(await Helper.templateDraftExistingAndTest(template.uuid)).toBe(false);
+  
+    });
+  
+    test("related_templates", async () => {
+      let template = {
+        related_templates: [{name: "related"}]
+      };
+      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      let related_template = template.related_templates[0];
+  
+      //  Case 1, a related template has changed
+      template.related_templates[0].description = "caleb";
+      await Helper.templateUpdateAndTest(template, Helper.DEF_CURR_USER);
+      expect(await Helper.templateDraftExistingAndTest(template.uuid)).toBe(true);
+  
+      //  Case 2, the list of related templates has changed
+      template.related_templates = [];
+      await Helper.templateUpdateAndTest(template, Helper.DEF_CURR_USER);
+      expect(await Helper.templateDraftExistingAndTest(template.uuid)).toBe(true);
+  
+      //  Case 3, a related template has been published
+  
+      await templateDeleteAndTest(template.uuid, Helper.DEF_CURR_USER);
+      expect(await Helper.templateDraftExistingAndTest(template.uuid)).toBe(false);
+  
+      related_template.description = "description";
+      await Helper.templateUpdatePublishTest(related_template, Helper.DEF_CURR_USER);
+      delete related_template.description;
+      template.related_templates[0] = await Helper.templateUpdatePublishTest(related_template, Helper.DEF_CURR_USER);
+  
+      await Helper.templateUpdateAndTest(template, Helper.DEF_CURR_USER);
+      expect(await Helper.templateDraftExistingAndTest(template.uuid)).toBe(true);
+  
+    });
+  
+    test("subscribed_templaes", async () => {
+      // If any of the _ids in the array have changed
+  
+      let subscribed_template = {
+        name: "subscribee"
+      };
+      subscribed_template = await Helper.templateCreatePublishTest(subscribed_template, Helper.DEF_CURR_USER);
+  
+      let template = {
+        subscribed_templates: [subscribed_template]
+      };
+      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+  
+      //  Delete subscribed template
+      template.subscribed_templates = [];
+      await Helper.templateUpdateAndTest(template, Helper.DEF_CURR_USER);
+      expect(await Helper.templateDraftExistingAndTest(template.uuid)).toBe(true);
+  
+      //  Subscribed template updates
+      subscribed_template.description = "changed";
+      subscribed_template = await Helper.templateUpdatePublishTest(subscribed_template, Helper.DEF_CURR_USER);
+  
+      template.subscribed_templates = [subscribed_template];
+      await Helper.templateUpdateAndTest(template, Helper.DEF_CURR_USER);
+      expect(await Helper.templateDraftExistingAndTest(template.uuid)).toBe(true);
+  
+    });
+  
+  });
   
 });
 
@@ -675,10 +803,8 @@ describe("get draft", () => {
     let template_published = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);  
 
     // Fetch parent template, check that the two linked properties are fetched as the published versions
-    response = await Helper.templateDraftGet(template_published.uuid, Helper.DEF_CURR_USER);
-    expect(response.statusCode).toBe(200);
-    let template_draft = response.body;
-    expect(template_draft).toMatchObject(template);    
+    let template_draft = await Helper.templateDraftGetAndTest(template_published.uuid, Helper.DEF_CURR_USER);
+    Helper.testTemplateDraftsEqual(template, template_draft);
 
   });
 
@@ -830,14 +956,14 @@ describe("publish (and get published and draft after a publish)", () => {
       let field_uuid = published.fields[0].uuid;
 
       // Check that the related template was also published
-      response = await Helper.templateLatestPublished(related_template_uuid, Helper.DEF_CURR_USER);
+      let response = await Helper.templateLatestPublished(related_template_uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
-      expect(response.body).toMatchObject(related_template);
+      Helper.testTemplateDraftsEqual(related_template, response.body);
 
       // Check that the field was also published
       response = await Helper.templateFieldLatestPublished(field_uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
-      expect(response.body).toMatchObject(field);
+      Helper.testTemplateFieldsEqual(field, response.body);
     });
 
     test("Complex publish - changes in a nested property result in publishing for all parent properties", async () => {
@@ -1650,10 +1776,8 @@ describe("duplicate", () => {
       let response = await templateDuplicate(template_published.uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toEqual(200);
       let new_uuid = response.body.new_uuid;
-      response = await Helper.templateDraftGet(new_uuid, Helper.DEF_CURR_USER);
-      expect(response.statusCode).toEqual(200);
-      let draft = response.body;
-      expect(draft).toMatchObject(template);
+      let draft = await Helper.templateDraftGetAndTest(new_uuid, Helper.DEF_CURR_USER);
+      Helper.testTemplateDraftsEqual(template, draft);
       expect(draft.duplicated_from).toEqual(template_published.uuid);
       expect(draft.fields[0].duplicated_from).toEqual(template_published.fields[0].uuid);
       expect(draft.related_templates[0].duplicated_from).toEqual(template_published.related_templates[0].uuid);

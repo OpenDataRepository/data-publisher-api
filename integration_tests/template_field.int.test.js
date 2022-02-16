@@ -18,6 +18,7 @@ afterAll(async () => {
   await MongoDB.close();
 });
 
+// TODO: I think all endpoint calls should be moved to common_test_operations
 const templateFieldUpdate = async (uuid, data, current_user) => {
   return await request(app)
     .put(`/template_field/${uuid}`)
@@ -31,9 +32,8 @@ const templateFieldUpdateAndTest = async (template_field, curr_user) => {
   let response = await templateFieldUpdate(template_field.uuid, template_field, curr_user);
   expect(response.statusCode).toBe(200);
 
-  response = await Helper.templateFieldDraftGet(template_field.uuid, curr_user);
-  expect(response.statusCode).toBe(200);
-  expect(response.body).toMatchObject(template_field);
+  let new_draft = await Helper.templateFieldDraftGetAndTest(template_field.uuid, curr_user);
+  Helper.testTemplateFieldsEqual(template_field, new_draft);
 }
 
 const templateFieldLatestPublishedBeforeDate = async (uuid, timestamp, current_user) => {
@@ -46,6 +46,19 @@ const templateFieldDraftDelete = async (uuid, current_user) => {
   return await request(app)
     .delete(`/template_field/${uuid}/draft`)
     .set('Cookie', [`user=${current_user}`]);
+};
+
+const templateFieldDraftDeleteAndTest = async (uuid, current_user) => {
+  let response = await templateFieldDraftDelete(uuid, current_user);
+  expect(response.statusCode).toBe(200);
+};
+
+const templateFieldUpdatePublishTest = async (field, current_user) => {
+  await templateFieldUpdateAndTest(field, current_user);
+
+  expect(await Helper.templateFieldDraftExistingAndTest(field.uuid)).toBe(true);
+
+  return await Helper.templateFieldPublishAfterCreateOrUpdateThenTest(field, current_user);
 };
 
 describe("create (and get draft after a create)", () => {
@@ -364,6 +377,82 @@ describe("update (and get draft after an update)", () => {
 
     });
   })
+
+  describe("update after a publish: is draft different and thus created or not?", () => {
+    test("name, description, dates", async () => {
+      let field = {
+        name: "naruto",
+        description: "ninja",
+        public_date: (new Date()).toISOString()
+      };
+      field = await Helper.templateFieldCreatePublishTest(field, Helper.DEF_CURR_USER);
+  
+      // Check that a draft no longer exists after the publish
+      expect(await Helper.templateFieldDraftExistingAndTest(field.uuid)).toBe(false);
+  
+      // Test name
+      field.name = "caleb";
+      await templateFieldUpdateAndTest(field, Helper.DEF_CURR_USER);
+      expect(await Helper.templateFieldDraftExistingAndTest(field.uuid)).toBe(true);
+  
+      field.name = "naruto";
+      await templateFieldDraftDeleteAndTest(field.uuid, Helper.DEF_CURR_USER);
+      expect(await Helper.templateFieldDraftExistingAndTest(field.uuid)).toBe(false);
+  
+      // Test description
+      field.description = "toad";
+      await templateFieldUpdateAndTest(field, Helper.DEF_CURR_USER);
+      expect(await Helper.templateFieldDraftExistingAndTest(field.uuid)).toBe(true);
+  
+      field.description = "ninja";
+      await templateFieldDraftDeleteAndTest(field.uuid, Helper.DEF_CURR_USER);
+      expect(await Helper.templateFieldDraftExistingAndTest(field.uuid)).toBe(false);
+  
+      // Test public_date
+      field.public_date = (new Date()).toISOString();
+      await templateFieldUpdateAndTest(field, Helper.DEF_CURR_USER);
+      expect(await Helper.templateFieldDraftExistingAndTest(field.uuid)).toBe(true);
+  
+      await templateFieldDraftDeleteAndTest(field.uuid, Helper.DEF_CURR_USER);
+      expect(await Helper.templateFieldDraftExistingAndTest(field.uuid)).toBe(false);
+    });
+  
+    test("radio options", async () => {
+      let field = {
+        name: "naruto",
+        options: [{name: "genin"}]
+      };
+      field = await Helper.templateFieldCreatePublishTest(field, Helper.DEF_CURR_USER);
+  
+      field.options = [];
+      await templateFieldUpdateAndTest(field, Helper.DEF_CURR_USER);
+      expect(await Helper.templateFieldDraftExistingAndTest(field.uuid)).toBe(true);
+  
+      field.options = [{name: "shonin"}];
+      await templateFieldUpdateAndTest(field, Helper.DEF_CURR_USER);
+      expect(await Helper.templateFieldDraftExistingAndTest(field.uuid)).toBe(true);
+  
+      field.options = [
+        {
+          name: "genin",
+          options: [
+            {
+              name: "etwas"
+            },
+            {
+              name: "anders"
+            }
+          ]
+        }
+      ];
+      field = await templateFieldUpdatePublishTest(field, Helper.DEF_CURR_USER);
+  
+      // No changes from last one, a draft shouldn't be created
+      await templateFieldUpdateAndTest(field, Helper.DEF_CURR_USER);
+      expect(await Helper.templateFieldDraftExistingAndTest(field.uuid)).toBe(false);
+  
+    });
+  });
   
 });
 

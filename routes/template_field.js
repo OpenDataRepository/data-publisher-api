@@ -7,7 +7,7 @@ const templateFieldController = require('../controllers/templateFieldController'
 
 router.get('/:uuid/draft', validateUuid, templateFieldController.draft_get);
 
-// router.get('/:uuid/draft_existing', templateFieldController.draft_existing);
+router.get('/:uuid/draft_existing', validateUuid, templateFieldController.draft_existing);
 
 router.get('/:uuid/latest_published', validateUuid, templateFieldController.get_latest_published);
 

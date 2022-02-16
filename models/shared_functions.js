@@ -6,7 +6,7 @@ const ObjectId = require('mongodb').ObjectId;
 // Does not look up fields or related_templates
 const draft = async (collection, uuid, session) => {
   let cursor = await collection.find(
-    {"uuid": uuid, 'publish_date': {'$exists': false}}, 
+    {uuid, 'publish_date': {'$exists': false}}, 
     {session}
   );
 
@@ -21,7 +21,6 @@ const draft = async (collection, uuid, session) => {
 }
 exports.draft = draft;
 
-// TODO: Move this to the middleware. Use example here: https://express-validator.github.io/docs/custom-validators-sanitizers.html
 function convertToMongoId(_id) {
   if(typeof(_id) === 'string') {
     return new ObjectId(_id);

@@ -91,3 +91,13 @@ exports.get_last_update = async function(req, res, next) {
   }
   res.send(last_update);
 }
+
+exports.draft_existing = async function(req, res, next) {
+  var exists;
+  try {
+    exists = await TemplateFieldModel.draftExisting(req.params.uuid);
+  } catch(err) {
+    return next(err);
+  }
+  res.send(exists);
+}
