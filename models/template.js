@@ -216,18 +216,17 @@ async function templateUUIDsThatReference(uuid, templateOrField) {
   return uuids;
 }
 
-async function createDraftFromLastPublished(uuid, session) {
-  let draft = await draftFetchOrCreate(uuid, session);
-  // TODO: this is a bug. should be draft, user, session. Fix and add test case
-  await validateAndCreateOrUpdate(draft, session);
+async function createDraftFromLastPublished(uuid, user, session) {
+  let draft = await draftFetchOrCreate(uuid, user, session);
+  await validateAndCreateOrUpdate(draft, user, session, new Date());
 }
 
-async function createDraftFromLastPublishedWithSession(uuid) {
+async function createDraftFromLastPublishedWithSession(uuid, user) {
   const session = MongoDB.newSession();
   try {
     await session.withTransaction(async () => {
       try {
-        await createDraftFromLastPublished(uuid, session);
+        await createDraftFromLastPublished(uuid, user, session);
       } catch(err) {
         await session.abortTransaction();
         throw err;
@@ -1354,14 +1353,14 @@ exports.lastUpdate = async function(uuid, user) {
 }
 
 // Parents 2+ levels up are not updated
-exports.updateTemplatesThatReference = async function(uuid, templateOrField) {
+exports.updateTemplatesThatReference = async function(uuid, user, templateOrField) {
   // Get a list of templates that reference them.
   let uuids = await templateUUIDsThatReference(uuid, templateOrField);
   // For each template, create a draft if it doesn't exist
   for(uuid of uuids) {
     // TODO: when time starts being a problem, move this into a queue OR just remove the await statement.
     try {
-      await createDraftFromLastPublishedWithSession(uuid);
+      await createDraftFromLastPublishedWithSession(uuid, user);
     } catch(err) {
       console.error(err);
     }
