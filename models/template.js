@@ -300,9 +300,6 @@ async function getUuidFromCreateOrUpdate(input_template, user, session) {
     
     // verify that this user is in the 'edit' permission group
     if (!(await PermissionGroupModel.has_permission(user, input_template.uuid, PermissionGroupModel.PERMISSION_EDIT))) {
-      // TODO: probably at some point there should be 2 error codes here. 
-      // 1: the user linked a public template. In this case assume they just want to link it without making changes
-      // 2. the user linked a draft. In this case they're trying to make a change without permission.
       throw new Util.PermissionDeniedError(`Do not have edit permissions for template uuid: ${input_template.uuid}`);
     }
 
@@ -313,7 +310,6 @@ async function getUuidFromCreateOrUpdate(input_template, user, session) {
     // Generate a uuid for the new template
     uuid = uuidv4();
     // create a permissions group for the new template
-    // TODO: can I think of a way to test that this was done with the session?
     await PermissionGroupModel.initialize_permissions_for(user, uuid, session);
   }
   return uuid;
@@ -522,41 +518,43 @@ async function validateAndCreateOrUpdate(input_template, user, session, updated_
 
 }
 
-async function publishFields(input_fields, user, session, last_published_time) {
-  let return_fields = [];
-  let changes = false;
+async function publishFields(input_field_uuids, user, session) {
+  let return_field_ids = [];
   // For each template field, publish that field, then replace the uuid with the internal_id.
   // It is possible there weren't any changes to publish, so keep track of whether we actually published anything.
-  for (let field of input_fields) {
+  for (let field_uuid of input_field_uuids) {
+    if(!await SharedFunctions.draft(TemplateField, field_uuid, session)) {
+      let latest_published_field = await SharedFunctions.latestPublished(TemplateField, field_uuid, session);
+      if(!latest_published_field) {
+        throw new Util.InputError(`Field with uuid ${field_uuid} does not exist`);
+      } 
+      return_field_ids.push(latest_published_field._id);
+      continue;
+    }
     try {
-      [field, _] = await TemplateFieldModel.publishField(field, session, null, user);
-      return_fields.push(field);
+      let field_id = await TemplateFieldModel.publishField(field_uuid, session, null, user);
+      return_field_ids.push(field_id);
     } catch(err) {
       if (err instanceof Util.NotFoundError) {
         throw new Util.InputError("Internal reference within this draft is invalid. Fetch/update draft to cleanse it.");
       } else if (err instanceof Util.PermissionDeniedError) {
         // If the user doesn't have permissions, assume they want to link the published version of the field
         // But before we can link the published version of the field, we must make sure it exists and we have view access
-        let published_field = await TemplateFieldModel.latestPublishedWithoutPermissions(field, session);
+        let published_field = await TemplateFieldModel.latestPublishedWithoutPermissions(field_uuid, session);
         if(!published_field) {
-          throw new Util.InputError(`you do not have edit permissions to the draft of template_field ${uuid}, and a published version does not exist.`);
+          throw new Util.InputError(`you do not have edit permissions to the draft of template_field ${field_uuid}, and a published version does not exist.`);
         }
-        return_fields.push(published_field._id);
+        return_field_ids.push(published_field._id);
       } else {
         throw err;
       }
     }
-    // TODO: this should be an async call. Add a test case for it and make it await
-    if (SharedFunctions.publishDateFor_id(TemplateField, field) > last_published_time) {
-      changes = true;
-    }
   } 
-  return [return_fields, changes];
+  return return_field_ids;
 }
 
-async function publishRelatedTemplates(input_related_templates, user, session, last_published_time) {
+async function publishRelatedTemplates(input_related_templates, user, session) {
   let result_related_templates = [];
-  let changes = false;
   // For each template's related_templates, publish that related_template, then replace the uuid with the internal_id.
   // It is possible there weren't any changes to publish, so keep track of whether we actually published anything.
   for(let related_template of input_related_templates) {
@@ -567,7 +565,6 @@ async function publishRelatedTemplates(input_related_templates, user, session, l
       if (err instanceof Util.NotFoundError) {
         throw new Util.InputError("Internal reference within this draft is invalid. Fetch/update draft to cleanse it.");
       } else if (err instanceof Util.PermissionDeniedError) {
-
         // If the user doesn't have permissions, assume they want to link the published version of the template
         // But before we can link the published version of the template, we must make sure it exists
         let related_template_published = await SharedFunctions.latestPublished(Template, related_template);
@@ -579,12 +576,8 @@ async function publishRelatedTemplates(input_related_templates, user, session, l
         throw err;
       }
     }
-    // TODO: this should be an async call. Add a test case for it and make it await
-    if (SharedFunctions.publishDateFor_id(Template, related_template) > last_published_time) {
-      changes = true;
-    }
   }
-  return [result_related_templates, changes];
+  return result_related_templates;
 }
 
 // Publishes the template with the provided uuid
@@ -599,8 +592,6 @@ async function publishRelatedTemplates(input_related_templates, user, session, l
 async function publishRecursor(uuid, user, session) {
 
   var return_id;
-
-  var last_published_time = 0;
 
   let published_template = await SharedFunctions.latestPublished(Template, uuid, session);
 
@@ -630,51 +621,25 @@ async function publishRecursor(uuid, user, session) {
     return published_template._id;
   }
 
-  if(published_template) {
-    last_published_time = published_template.publish_date;
-  }
-
-  let changes = false;
   let fields = [];
   let related_templates = [];
 
-  [fields, changes] = await publishFields(template_draft.fields, user, session, last_published_time)
+  fields = await publishFields(template_draft.fields, user, session);
 
-  let more_changes = false;
-  [related_templates, more_changes] = await publishRelatedTemplates(template_draft.related_templates, user, session, last_published_time)
-  changes = changes || more_changes;
-
-  // We're trying to figure out if there is anything worth publishing. If none of the sub-properties were published, 
-  // see if there are any changes to the top-level template from the previous published version
-  if(!changes) {
-    if (published_template) {
-      return_id = published_template._id;
-      if (template_draft.name != published_template.name || 
-          template_draft.description != published_template.description ||
-          !Util.arrayEqual(fields, published_template.fields) || 
-          !Util.arrayEqual(related_templates, published_template.related_templates) || 
-          !Util.arrayEqual(template_draft.subscribed_templates, published_template.subscribed_templates)) {
-        changes = true;
-      }
-    } else {
-      changes = true;
-    }
-  }
+  related_templates = await publishRelatedTemplates(template_draft.related_templates, user, session);
 
   // If there are changes, publish the current draft
-  if(changes) {
-    let publish_time = new Date();
-    let response = await Template.updateOne(
-      {"_id": template_draft._id},
-      {'$set': {'updated_at': publish_time, 'publish_date': publish_time, 
-        fields, related_templates, subscribed_templates: template_draft.subscribed_templates}},
-      {session}
-    )
-    if (response.modifiedCount != 1) {
-      throw `Template.publish: should be 1 modified document. Instead: ${response.modifiedCount}`;
-    }
-    return_id = template_draft._id;
+  let publish_time = new Date();
+  let response = await Template.updateOne(
+    {"_id": template_draft._id},
+    {'$set': {'updated_at': publish_time, 'publish_date': publish_time, 
+      fields, related_templates, subscribed_templates: template_draft.subscribed_templates}},
+    {session}
+  )
+  if (response.modifiedCount != 1) {
+    throw `Template.publish: should be 1 modified document. Instead: ${response.modifiedCount}`;
   }
+  return_id = template_draft._id;
 
   return return_id;
 
@@ -710,14 +675,7 @@ async function publish(uuid, user, session, last_update) {
   }
 
   // Recursively publish template, it's fields and related templates
-  let published_id = await publishRecursor(uuid, user, session);
-
-  let new_published_time = new Date(await SharedFunctions.publishDateFor_id(Template, published_id, session));
-  let last_published_time = last_published ? last_published.publish_date : null;
-  let previous_published_time = new Date(last_published_time);
-  if (new_published_time <= previous_published_time) {
-    throw new Util.InputError('No changes to publish');
-  }
+  await publishRecursor(uuid, user, session);
 }
 
 function recursiveBuildPublishedQuery(current_pipeline, count) {

@@ -471,9 +471,8 @@ async function draftFetchOrCreate(uuid, user, session) {
 
 }
 
-async function publishRelatedRecords(related_records, related_datasets, template, user, session, last_published_time) {
-  let return_records = [];
-  let changes = false;
+async function publishRelatedRecords(related_record_uuids, related_datasets, template, user, session, last_published_time) {
+  let return_record_ids = [];
   // For each records's related_records, publish that related_record, then replace the uuid with the internal_id.
   // It is possible there weren't any changes to publish, so keep track of whether we actually published anything.
   // Requirements: 
@@ -489,8 +488,8 @@ async function publishRelatedRecords(related_records, related_datasets, template
   for(let subscribed_template of template.subscribed_templates) {
     related_template_map[subscribed_template.uuid] = subscribed_template;
   }
-  for(let related_record of related_records) {
-    let related_record_document = await SharedFunctions.latestDocument(Record, related_record);
+  for(let related_record_uuid of related_record_uuids) {
+    let related_record_document = await SharedFunctions.latestDocument(Record, related_record_uuid);
     if(!related_record_document) {
       throw new Util.InputError(`Cannut publish record. One of it's related_references does not exist and was probably deleted after creation.`);
     }
@@ -501,28 +500,25 @@ async function publishRelatedRecords(related_records, related_datasets, template
     }
     let related_template = related_template_map[related_dataset.template_uuid];
     try {
-      [related_record, _] = await publishRecurser(related_record, related_dataset, related_template, user, session);
-      return_records.push(related_record);
+      let related_record_id = await publishRecurser(related_record_uuid, related_dataset, related_template, user, session);
+      return_record_ids.push(related_record_id);
     } catch(err) {
       if (err instanceof Util.NotFoundError) {
         throw new Util.InputError(`Internal reference within this draft is invalid. Fetch/update draft to cleanse it.`);
       } else if (err instanceof Util.PermissionDeniedError) {
         // If the user doesn't have permissions, assume they want to link the published version of the record
         // But before we can link the published version of the record, we must make sure it exists
-        let related_record_published = await SharedFunctions.latestPublished(Record, related_record);
+        let related_record_published = await SharedFunctions.latestPublished(Record, related_record_uuid);
         if(!related_record_published) {
-          throw new Util.InputError(`invalid link to record ${related_record}, which has no published version to link`);
+          throw new Util.InputError(`invalid link to record ${related_record_uuid}, which has no published version to link`);
         }
-        return_records.push(related_record_published._id);
+        return_record_ids.push(related_record_published._id);
       } else {
         throw err;
       }
     }
-    if (SharedFunctions.publishDateFor_id(Record, related_record) > last_published_time) {
-      changes = true;
-    }
   } 
-  return [return_records, changes];
+  return return_record_ids;
 }
 
 async function publishRecurser(uuid, dataset, template, user, session) {
@@ -536,7 +532,7 @@ async function publishRecurser(uuid, dataset, template, user, session) {
     if (!published_record) {
       throw new Util.NotFoundError(`Record ${uuid} does not exist`);
     }
-    return [published_record._id, false];
+    return published_record._id;
   }
 
   // verify that this user is in the 'edit' permission group
@@ -561,44 +557,19 @@ async function publishRecurser(uuid, dataset, template, user, session) {
     last_published_time = published_record.publish_date;
   }  
 
-  let changes, related_records;
-  [related_records, changes] = await publishRelatedRecords(record_draft.related_records, dataset.related_datasets, template, user, session, last_published_time);
+  let related_records = await publishRelatedRecords(record_draft.related_records, dataset.related_datasets, template, user, session, last_published_time);
 
-  var return_id;
 
-  // We're trying to figure out if there is anything worth publishing. If none of the sub-properties were published, 
-  // see if there are any changes to the top-level record from the previous published version
-  if(!changes) {
-    if (published_record) {
-      return_id = published_record._id;
-      // Add the check if the current dataset being used is different from the dataset being used by the last published
-      if (dataset._id != published_record.dataset_id) {
-        changes = true;
-      } else if (!fieldsEqual(record_draft.fields, published_record.fields) || 
-                !Util.arrayEqual(related_records, published_record.related_records)) {
-        changes = true;
-      }
-    } else {
-      changes = true;
-    }
+  let publish_time = new Date();
+  let response = await Record.updateOne(
+    {"_id": record_draft._id},
+    {'$set': {'updated_at': publish_time, 'publish_date': publish_time, related_records, 'dataset_id': dataset._id}},
+    {session}
+  )
+  if (response.modifiedCount != 1) {
+    throw new Error(`Record.publish: should be 1 modified document. Instead: ${response.modifiedCount}`);
   }
-
-  // If there are changes, publish the current draft
-  if(changes) {
-    let publish_time = new Date();
-    let response = await Record.updateOne(
-      {"_id": record_draft._id},
-      {'$set': {'updated_at': publish_time, 'publish_date': publish_time, related_records, 'dataset_id': dataset._id}},
-      {session}
-    )
-    if (response.modifiedCount != 1) {
-      throw new Error(`Record.publish: should be 1 modified document. Instead: ${response.modifiedCount}`);
-    }
-    return_id = record_draft._id;
-  }
-
-  return [return_id, changes];
-
+  return record_draft._id;
 }
 
 // Publishes the record with the provided uuid
@@ -606,8 +577,6 @@ async function publishRecurser(uuid, dataset, template, user, session) {
 //   uuid: the uuid of a record to be published
 //   session: the mongo session that must be used to make transactions atomic
 //   last_update: the timestamp of the last known update by the user. Cannot publish if the actual last update and that expected by the user differ.
-// Returns:
-//   published: true if a new published version is created. false otherwise
 async function publish(record_uuid, user, session, last_update) {
 
   let record = await SharedFunctions.draft(Record, record_uuid, session);
@@ -616,7 +585,7 @@ async function publish(record_uuid, user, session, last_update) {
     if (!record) {
       throw new Util.NotFoundError(`Record ${record_uuid} does not exist`);
     } 
-    return false;
+    throw new Util.InputError('No changes to publish');
   }
 
   // If the last update provided doesn't match to the last update found in the db, fail.
@@ -638,7 +607,7 @@ async function publish(record_uuid, user, session, last_update) {
   }
   let template = await TemplateModel.publishedByIdWithoutPermissions(dataset.template_id);
 
-  return (await publishRecurser(record_uuid, dataset, template, user, session))[1];
+  await publishRecurser(record_uuid, dataset, template, user, session);
 
 }
 
@@ -1021,22 +990,20 @@ exports.update = async function(record, user) {
   }
 }
 
+// TODO: this pattern of creating transactions is copied and pasted everywhere. See about making it generic
+
 // Wraps the actual request to publish with a transaction
 exports.publish = async function(uuid, last_update, user) {
   const session = MongoDB.newSession();
   try {
-    var published;
     await session.withTransaction(async () => {
       try {
-        published = await publish(uuid, user, session, last_update);
+        await publish(uuid, user, session, last_update);
       } catch(err) {
         await session.abortTransaction();
         throw err;
       }
     });
-    if (!published) {
-      throw new Util.InputError('No changes to publish');
-    }
     session.endSession();
   } catch(err) {
     session.endSession();

@@ -424,31 +424,23 @@ async function draftFetchOrCreate(uuid, user, session) {
 //   user: username of the user performing this operation
 // Returns:
 //   internal_id: the internal id of the published field
-//   published: true if a new published version is created. false otherwise
 async function publishField(uuid, session, last_update, user) {
   var return_id;
 
-  let published_field = await latestPublished(uuid, session);
-
-  // Check user credentials
-  let has_permission = await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT);
+  let field_draft = await SharedFunctions.draft(TemplateField, uuid, session);
+  let last_published = await latestPublished(uuid, session);
 
   // Check if a draft with this uuid exists
-  let field_draft = await SharedFunctions.draft(TemplateField, uuid, session);
   if(!field_draft) {
-    // There is no draft of this uuid. Get the latest published field instead.
-    if (!published_field) {
+    if(last_published) {
+      throw new Util.InputError('No changes to publish');
+    } else {
       throw new Util.NotFoundError(`Field with uuid ${uuid} does not exist`);
     }
-    // if the user doesn't have edit permissions, throw a permission denied error
-    if(!has_permission) {
-      throw new Util.PermissionDeniedError();
-    }
-    
-    // There is no draft of this uuid. Return the internal id of the last published version instead
-    return [published_field._id, false];
   }
+
   // if the user doesn't have edit permissions, throw a permission denied error
+  let has_permission = await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT);
   if(!has_permission) {
     throw new Util.PermissionDeniedError();
   }
@@ -462,34 +454,18 @@ async function publishField(uuid, session, last_update, user) {
     }
   }
 
-  let changes = false;
-
-  // We're trying to figure out if there is anything worth publishing. See if there are any changes to the field draft from the previous published version
-  // If there was a previously published field, see if anything was changed between this one and that one. 
-  if (published_field) {
-    return_id = published_field._id;
-
-    if (!fieldEquals(field_draft, published_field)) {
-      changes = true;
-    } 
-  } else {
-    changes = true;
-  }
-
   // If there are changes, publish the current draft
-  if(changes) {
-    let publish_time = new Date();
-    let response = await TemplateField.updateOne(
-      {"_id": field_draft._id},
-      {'$set': {'updated_at': publish_time, 'publish_date': publish_time}},
-      {session}
-    )
-    if (response.modifiedCount != 1) {
-      throw new Error(`TemplateField.publishField: should be 1 updated document. Instead: ${response.modifiedCount}`);
-    }
-    return_id = field_draft._id;
+  let publish_time = new Date();
+  let response = await TemplateField.updateOne(
+    {"_id": field_draft._id},
+    {'$set': {'updated_at': publish_time, 'publish_date': publish_time}},
+    {session}
+  )
+  if (response.modifiedCount != 1) {
+    throw new Error(`TemplateField.publishField: should be 1 updated document. Instead: ${response.modifiedCount}`);
   }
-  return [return_id, changes];
+  return_id = field_draft._id;
+  return return_id;
 }
 
 async function lastupdateFor(uuid, session) {
@@ -572,18 +548,14 @@ exports.update = async function(field, user) {
 exports.publish = async function(uuid, last_update, user) {
   const session = MongoDB.newSession();
   try {
-    var published;
     await session.withTransaction(async () => {
       try {
-        [_, published] = await publishField(uuid, session, last_update, user);
+        await publishField(uuid, session, last_update, user);
       } catch(err) {
         await session.abortTransaction();
         throw err;
       }
     });
-    if (!published) {
-      throw new Util.InputError('No changes to publish');
-    }
     session.endSession();
   } catch(err) {
     session.endSession();

@@ -966,7 +966,7 @@ describe("publish (and get published and draft after a publish)", () => {
       Helper.testTemplateFieldsEqual(field, response.body);
     });
 
-    test("Complex publish - changes in a nested property result in publishing for all parent properties", async () => {
+    test("Complex publish - changes in related_template result in publishing for all parent properties", async () => {
 
       let template = {
         "name":"1",
@@ -1215,17 +1215,13 @@ describe("publish (and get published and draft after a publish)", () => {
       let template = {
         "name":"basic template"
       };
-      let uuid = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
-      let response = await Helper.templateLastUpdate(uuid, Helper.DEF_CURR_USER);
-      expect(response.statusCode).toBe(200);
-      let last_update = response.body;
+      let last_update = await Helper.templateLastUpdateAndTest(template.uuid, Helper.DEF_CURR_USER);
 
-      response = await Helper.templatePublish(uuid, last_update, Helper.DEF_CURR_USER);
-      expect(response.statusCode).toBe(200);
-
-      response = await Helper.templatePublish(uuid, last_update, Helper.DEF_CURR_USER);
+      let response = await Helper.templatePublish(template.uuid, last_update, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
+  
     });
 
     test("Internal refrences must be valid", async () => {

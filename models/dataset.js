@@ -428,9 +428,8 @@ async function lastUpdateFor(uuid, user, session) {
 
 }
 
-async function publishRelatedDatasets(input_related_datasets, template, user, session, last_published_time) {
-  let result_datasets = [];
-  let changes = false;
+async function publishRelatedDatasets(input_related_dataset_uuids, template, user, session) {
+  let result_dataset_ids = [];
   // For each dataset's related_datasets, publish that related_dataset, then replace the uuid with the internal_id.
   // It is possible there weren't any changes to publish, so keep track of whether we actually published anything.
   // Requirements:
@@ -449,8 +448,8 @@ async function publishRelatedDatasets(input_related_datasets, template, user, se
     related_template_map[subscribed_template.uuid] = subscribed_template;
     templates_unseen.add(subscribed_template.uuid);
   }
-  for(let related_dataset of input_related_datasets) {
-    let related_dataset_document = await SharedFunctions.latestDocument(Dataset, related_dataset, session);
+  for(let related_dataset_uuid of input_related_dataset_uuids) {
+    let related_dataset_document = await SharedFunctions.latestDocument(Dataset, related_dataset_uuid, session);
     if(!related_dataset_document) {
       throw new Util.InputError(`Cannot publish dataset. One of it's related_references does not exist and was probably deleted after creation.`);
     }
@@ -461,31 +460,28 @@ async function publishRelatedDatasets(input_related_datasets, template, user, se
     let related_template = related_template_map[related_template_uuid];
     templates_unseen.delete(related_template_uuid);
     try {
-      [related_dataset, _] = await publishRecurser(related_dataset, user, session, related_template);
-      result_datasets.push(related_dataset);
+      let related_dataset_id = await publishRecurser(related_dataset_uuid, user, session, related_template);
+      result_dataset_ids.push(related_dataset_id);
     } catch(err) {
       if (err instanceof Util.NotFoundError) {
         throw new Util.InputError(`Internal reference within this draft is invalid. Fetch/update draft to cleanse it.`);
       } else if (err instanceof Util.PermissionDeniedError) {
         // If the user doesn't have permissions, assume they want to link the published version of the dataset
         // But before we can link the published version of the dataset, we must make sure it exists
-        let related_dataset_published = await SharedFunctions.latestPublished(Dataset, related_dataset);
+        let related_dataset_published = await SharedFunctions.latestPublished(Dataset, related_dataset_uuid);
         if(!related_dataset_published) {
-          throw new Util.InputError(`Invalid link to dataset ${related_dataset}, which has no published version to link.`);
+          throw new Util.InputError(`Invalid link to dataset ${related_dataset_uuid}, which has no published version to link.`);
         }
-        result_datasets.push(related_dataset_published._id);
+        result_dataset_ids.push(related_dataset_published._id);
       } else {
         throw err;
       }
-    }
-    if (await SharedFunctions.publishDateFor_id(Dataset, related_dataset) > last_published_time) {
-      changes = true;
     }
   }  
   if(templates_unseen.size > 0) {
     throw new Util.InputError(`Dataset does not support all related_templates required by the template`);
   }
-  return [result_datasets, changes];
+  return result_dataset_ids;
 }
 
 // A recursive helper for publish. 
@@ -507,10 +503,7 @@ async function publishRelatedDatasets(input_related_datasets, template, user, se
 //   template: the template this dataset must conform to
 // Returns:
 //   internal_id: the internal id of the published dataset
-//   published: true if a new published version is created. false otherwise
 async function publishRecurser(uuid, user, session, template) {
-
-  var return_id;
 
   let published_dataset = await SharedFunctions.latestPublished(Dataset, uuid, session);
 
@@ -521,7 +514,7 @@ async function publishRecurser(uuid, user, session, template) {
     if (!published_dataset) {
       throw new Util.NotFoundError(`Dataset with uuid ${uuid} does not exist`);
     }
-    return [published_dataset._id, false];
+    return published_dataset._id;
   }
 
   // verify that this user is in the 'admin' permission group
@@ -541,48 +534,19 @@ async function publishRecurser(uuid, user, session, template) {
     Update the dataset again before publishing.`);
   }
 
-  // One way to determine if there were changes is to check if any sub-datasets have been published more recently than this one
-  var last_published_time = 0;
-  if(published_dataset) {
-    last_published_time = published_dataset.publish_date;
-  }
-
   let related_datasets, changes;
-  [related_datasets, changes] = await publishRelatedDatasets(dataset_draft.related_datasets, template, user, session, last_published_time);
+  related_datasets = await publishRelatedDatasets(dataset_draft.related_datasets, template, user, session);
 
-  // We're trying to figure out if there is anything worth publishing. If none of the sub-properties were published, 
-  // see if there are any changes to the top-level dataset from the previous published version
-  if(!changes) {
-    if (published_dataset) {
-      return_id = published_dataset._id;
-      // Add the check if the current template being used is different from the template being used by the last published
-      if (template._id != published_dataset.template_id) {
-        changes = true;
-      } else if (!fieldsEqual(fields, published_dataset.fields) || 
-                !Util.arrayEqual(related_datasets, published_dataset.related_datasets)) {
-        changes = true;
-      }
-    } else {
-      changes = true;
-    }
+  let publish_time = new Date();
+  let response = await Dataset.updateOne(
+    {"_id": dataset_draft._id},
+    {'$set': {'updated_at': publish_time, 'publish_date': publish_time, related_datasets, 'template_id': template._id}},
+    {session}
+  )
+  if (response.modifiedCount != 1) {
+    throw `Dataset.publish: should be 1 modified document. Instead: ${response.modifiedCount}`;
   }
-
-  // If there are changes, publish the current draft
-  if(changes) {
-    let publish_time = new Date();
-    let response = await Dataset.updateOne(
-      {"_id": dataset_draft._id},
-      {'$set': {'updated_at': publish_time, 'publish_date': publish_time, related_datasets, 'template_id': template._id}},
-      {session}
-    )
-    if (response.modifiedCount != 1) {
-      throw `Dataset.publish: should be 1 modified document. Instead: ${response.modifiedCount}`;
-    }
-    return_id = dataset_draft._id;
-  }
-
-  return [return_id, changes];
-
+  return dataset_draft._id;
 }
 
 // Publishes the dataset with the provided uuid
@@ -591,8 +555,6 @@ async function publishRecurser(uuid, user, session, template) {
 //   user: the user publishing this uuid
 //   session: the mongo session that must be used to make transactions atomic
 //   last_update: the timestamp of the last known update by the user. Cannot publish if the actual last update and that expected by the user differ.
-// Returns:
-//   published: true if a new published version is created. false otherwise
 async function publish(dataset_uuid, user, session, last_update) {
 
   let dataset = await SharedFunctions.draft(Dataset, dataset_uuid);
@@ -601,7 +563,7 @@ async function publish(dataset_uuid, user, session, last_update) {
     if (!dataset) {
       throw new Util.NotFoundError(`Dataset with uuid ${dataset_uuid} does not exist`);
     } 
-    return false;
+    throw new Util.InputError('No changes to publish');
   }
 
   // If the last update provided doesn't match to the last update found in the db, fail.
@@ -613,8 +575,7 @@ async function publish(dataset_uuid, user, session, last_update) {
 
   let template = await TemplateModel.latestPublishedWithoutPermissions(dataset.template_uuid);
 
-  return (await publishRecurser(dataset_uuid, user, session, template))[1];
-
+  await publishRecurser(dataset_uuid, user, session, template);
 }
 
 // Fetches the last dataset with the given uuid published before the given date. 
@@ -1044,18 +1005,14 @@ exports.update = async function(dataset, user) {
 exports.publish = async function(uuid, user, last_update) {
   const session = MongoDB.newSession();
   try {
-    var published;
     await session.withTransaction(async () => {
       try {
-        published = await publish(uuid, user, session, last_update);
+        await publish(uuid, user, session, last_update);
       } catch(err) {
         await session.abortTransaction();
         throw err;
       }
     });
-    if (!published) {
-      throw new Util.InputError('No changes to publish');
-    }
     session.endSession();
   } catch(err) {
     session.endSession();

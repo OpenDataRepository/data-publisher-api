@@ -275,6 +275,10 @@ module.exports = class Helper {
       .get(`/template/${uuid}/last_update`)
       .set('Cookie', [`user=${curr_user}`]);
   }
+  templateLastUpdateAndTest = async(uuid, curr_user) => {
+    let response = await this.templateLastUpdate(uuid, curr_user);
+    return response.body;
+  }
 
   templatePublish = async (uuid, last_update, curr_user) => {
     return await request(this.app)
