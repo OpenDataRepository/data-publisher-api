@@ -392,7 +392,7 @@ async function validateAndCreateOrUpdateRecurser(input_record, dataset, template
 // Return:
 // 1. A boolean indicating true if there were changes from the last published.
 // 2. The uuid of the record created / updated
-async function validateAndCreateOrUpdate(record, user, session) {
+async function validateAndCreateOrUpdate(session, record, user) {
 
   // Record must be an object
   if (!Util.isObject(record)) {
@@ -577,7 +577,7 @@ async function publishRecurser(uuid, dataset, template, user, session) {
 //   uuid: the uuid of a record to be published
 //   session: the mongo session that must be used to make transactions atomic
 //   last_update: the timestamp of the last known update by the user. Cannot publish if the actual last update and that expected by the user differ.
-async function publish(record_uuid, user, session, last_update) {
+async function publish(session, record_uuid, user, last_update) {
 
   let record = await SharedFunctions.draft(Record, record_uuid, session);
   if (!record) {
@@ -736,8 +736,9 @@ async function lastUpdate(uuid, user) {
 async function userHasAccessToPublishedRecord(record, user, session) {
   let dataset = await SharedFunctions.latestPublished(DatasetModel.collection(), record.dataset_uuid);
   // If both the dataset and the record are public, then everyone has view access
-  if (dataset.public_date && Util.compareTimeStamp((new Date).getTime(), dataset.public_date) &&
-      record.public_date && Util.compareTimeStamp((new Date).getTime(), record.public_date)){
+  if (dataset.public_date && Util.compareTimeStamp((new Date).getTime(), dataset.public_date) 
+      //&& record.public_date && Util.compareTimeStamp((new Date).getTime(), record.public_date)
+  ){
     return true;
   }
 
@@ -755,7 +756,7 @@ async function filterPublishedForPermissionsRecursor(record, user, session) {
   }
 }
 
-// TODO: use the dataset instead of the record. Also, ignore record specific permissions until I remember how they work
+// Ignore record specific permissions until I remember how they work
 async function filterPublishedForPermissions(record, user, session) {
   if(!(await userHasAccessToPublishedRecord(record, user, session))) {
     throw new Util.PermissionDeniedError(`Do not have view access to records in dataset ${record.dataset_uuid}`);
@@ -936,7 +937,7 @@ async function importDatasetAndRecord(record, user, session) {
   return new_record_uuid;
 }
 
-async function importDatasetsAndRecords(records, user, session) {
+async function importDatasetsAndRecords(session, records, user) {
   if(!Array.isArray(records)) {
     throw new Util.InputError(`'records' must be a valid array`);
   }
@@ -950,65 +951,21 @@ async function importDatasetsAndRecords(records, user, session) {
 
 // Wraps the actual request to create with a transaction
 exports.create = async function(record, user) {
-  const session = MongoDB.newSession();
   let inserted_uuid;
-  try {
-    await session.withTransaction(async () => {
-      try {
-        [_, inserted_uuid] = await validateAndCreateOrUpdate(record, user, session);
-      } catch(err) {
-        await session.abortTransaction();
-        throw err;
-      }
-    });
-    session.endSession();
-    return inserted_uuid;
-  } catch(err) {
-    session.endSession();
-    throw err;
-  }
+  [_, inserted_uuid] = await SharedFunctions.executeWithTransaction(validateAndCreateOrUpdate, record, user);
+  return inserted_uuid;
 }
 
 exports.draftGet = draftFetchOrCreate;
 
 // Wraps the actual request to update with a transaction
 exports.update = async function(record, user) {
-  const session = MongoDB.newSession();
-  try {
-    await session.withTransaction(async () => {
-      try {
-        await validateAndCreateOrUpdate(record, user, session);
-      } catch(err) {
-        await session.abortTransaction();
-        throw err;
-      }
-    });
-    session.endSession();
-  } catch(err) {
-    session.endSession();
-    throw err;
-  }
+  await SharedFunctions.executeWithTransaction(validateAndCreateOrUpdate, record, user);
 }
-
-// TODO: this pattern of creating transactions is copied and pasted everywhere. See about making it generic
 
 // Wraps the actual request to publish with a transaction
 exports.publish = async function(uuid, last_update, user) {
-  const session = MongoDB.newSession();
-  try {
-    await session.withTransaction(async () => {
-      try {
-        await publish(uuid, user, session, last_update);
-      } catch(err) {
-        await session.abortTransaction();
-        throw err;
-      }
-    });
-    session.endSession();
-  } catch(err) {
-    session.endSession();
-    throw err;
-  }
+  await SharedFunctions.executeWithTransaction(publish, uuid, user, last_update);
 }
 
 // Fetches the last published record with the given uuid. 
@@ -1041,21 +998,6 @@ exports.draftExisting = async function(uuid) {
 
 // Wraps the actual request to importDatasetsAndRecords with a transaction
 exports.importDatasetsAndRecords = async function(records, user) {
-  const session = MongoDB.newSession();
-  try {
-    var new_uuids;
-    await session.withTransaction(async () => {
-      try {
-        new_uuids = await importDatasetsAndRecords(records, user, session);
-      } catch(err) {
-        await session.abortTransaction();
-        throw err;
-      }
-    });
-    session.endSession();
-    return new_uuids;
-  } catch(err) {
-    session.endSession();
-    throw err;
-  }
+  let new_uuids = await SharedFunctions.executeWithTransaction(importDatasetsAndRecords, records, user);
+  return new_uuids;
 }

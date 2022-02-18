@@ -271,7 +271,7 @@ async function validateAndCreateOrUpdateRecurser(input_dataset, template, user, 
 // Return:
 // 1. A boolean indicating true if there were changes from the last published.
 // 2. The uuid of the dataset created / updated
-async function validateAndCreateOrUpdate(dataset, user, session) {
+async function validateAndCreateOrUpdate(session, dataset, user) {
 
   // Dataset must be an object
   if (!Util.isObject(dataset)) {
@@ -332,7 +332,7 @@ async function fetchDraftOrCreateFromPublished(uuid, session) {
 
 // Fetches the dataset draft with the given uuid, recursively looking up related_datasets.
 // If a draft of a given dataset doesn't exist, a new one will be generated using the last published dataset.
-async function draftFetchOrCreate(uuid, user, session) {
+async function draftFetchOrCreate(session, uuid, user) {
 
   // See if a draft of this dataset exists. 
   let dataset_draft = await fetchDraftOrCreateFromPublished(uuid, session);
@@ -352,7 +352,7 @@ async function draftFetchOrCreate(uuid, user, session) {
     let related_dataset_uuid = dataset_draft.related_datasets[i];
     let related_dataset;
     try {
-      related_dataset = await draftFetchOrCreate(related_dataset_uuid, user, session);
+      related_dataset = await draftFetchOrCreate(session, related_dataset_uuid, user);
     } catch (err) {
       if (err instanceof Util.PermissionDeniedError) {
         // If we don't have permission for the draft, get the latest published instead
@@ -387,7 +387,7 @@ async function draftFetchOrCreate(uuid, user, session) {
 }
 
 // This function will provide the timestamp of the last update made to this dataset and all of it's related_datasets
-async function lastUpdateFor(uuid, user, session) {
+async function lastUpdateFor(session, uuid, user) {
 
   let draft = await fetchDraftOrCreateFromPublished(uuid, session);
   if(!draft) {
@@ -411,7 +411,7 @@ async function lastUpdateFor(uuid, user, session) {
   let last_update = draft.updated_at;
   for(uuid of draft.related_datasets) {
     try {
-      let update = await lastUpdateFor(uuid, user, session);
+      let update = await lastUpdateFor(session, uuid, user);
       if (update > last_update){
         last_update = update;
       }
@@ -555,7 +555,7 @@ async function publishRecurser(uuid, user, session, template) {
 //   user: the user publishing this uuid
 //   session: the mongo session that must be used to make transactions atomic
 //   last_update: the timestamp of the last known update by the user. Cannot publish if the actual last update and that expected by the user differ.
-async function publish(dataset_uuid, user, session, last_update) {
+async function publish(session, dataset_uuid, user, last_update) {
 
   let dataset = await SharedFunctions.draft(Dataset, dataset_uuid);
   if (!dataset) {
@@ -567,7 +567,7 @@ async function publish(dataset_uuid, user, session, last_update) {
   }
 
   // If the last update provided doesn't match to the last update found in the db, fail.
-  let db_last_update = new Date(await lastUpdateFor(dataset_uuid, user, session));
+  let db_last_update = new Date(await lastUpdateFor(session, dataset_uuid, user));
   if(last_update.getTime() != db_last_update.getTime()) {
     throw new Util.InputError(`The last update submitted ${last_update.toISOString()} does not match that found in the db ${db_last_update.toISOString()}. 
     Fetch the draft again to get the latest update before attempting to publish again.`);
@@ -741,12 +741,12 @@ async function duplicateRecursor(original_dataset, original_group_uuid, new_grou
   return new_dataset.uuid;
 }
 
-async function duplicate(uuid, user, session) {
+async function duplicate(session, uuid, user) {
   let original_dataset = await latestPublishedWithJoinsAndPermissions(uuid, user);
   let original_group_uuid = original_dataset.group_uuid;
   let uuid_dictionary = {};
   let new_uuid = await duplicateRecursor(original_dataset, original_group_uuid, uuidv4(), uuid_dictionary, user, session);
-  return await draftFetchOrCreate(new_uuid, user, session);
+  return await draftFetchOrCreate(session, new_uuid, user);
 }
 
 async function createMissingDatasetForImport(template, user, updated_at, session) {
@@ -937,108 +937,35 @@ async function importDatasetFromCombinedRecursor(record, template, user, updated
 
 // Wraps the actual request to create with a transaction
 exports.create = async function(dataset, user) {
-  const session = MongoDB.newSession();
   let inserted_uuid;
-  try {
-    await session.withTransaction(async () => {
-      try {
-        [_, inserted_uuid] = await validateAndCreateOrUpdate(dataset, user, session);
-      } catch(err) {
-        await session.abortTransaction();
-        throw err;
-      }
-    });
-    session.endSession();
-    return inserted_uuid;
-  } catch(err) {
-    session.endSession();
-    throw err;
-  }
+  [_, inserted_uuid] = await SharedFunctions.executeWithTransaction(validateAndCreateOrUpdate, dataset, user);
+  return inserted_uuid;
 }
 
 // Wraps the actual request to get with a transaction
 exports.draftGet = async function(uuid, user, session) {
   if(!session) {
-    session = MongoDB.newSession();
-    try {
-      var draft;
-      await session.withTransaction(async () => {
-        try {
-          draft = await draftFetchOrCreate(uuid, user, session);
-        } catch(err) {
-          await session.abortTransaction();
-          throw err;
-        }
-      });
-      session.endSession();
-      return draft;
-    } catch(err) {
-      session.endSession();
-      throw err;
-    }
+    let dataset = await SharedFunctions.executeWithTransaction(draftFetchOrCreate, uuid, user);
+    return dataset;
   } else {
-    return await draftFetchOrCreate(uuid, user, session);
+    return await draftFetchOrCreate(session, uuid, user);
   }
-
 }
 
 // Wraps the actual request to update with a transaction
 exports.update = async function(dataset, user) {
-  const session = MongoDB.newSession();
-  try {
-    await session.withTransaction(async () => {
-      try {
-        await validateAndCreateOrUpdate(dataset, user, session);
-      } catch(err) {
-        await session.abortTransaction();
-        throw err;
-      }
-    });
-    session.endSession();
-  } catch(err) {
-    session.endSession();
-    throw err;
-  }
+  await SharedFunctions.executeWithTransaction(validateAndCreateOrUpdate, dataset, user);
 }
 
 // Wraps the actual request to publish with a transaction
 exports.publish = async function(uuid, user, last_update) {
-  const session = MongoDB.newSession();
-  try {
-    await session.withTransaction(async () => {
-      try {
-        await publish(uuid, user, session, last_update);
-      } catch(err) {
-        await session.abortTransaction();
-        throw err;
-      }
-    });
-    session.endSession();
-  } catch(err) {
-    session.endSession();
-    throw err;
-  }
+  await SharedFunctions.executeWithTransaction(publish, uuid, user, last_update);
 }
 
 // Wraps the actual request to getUpdate with a transaction
 exports.lastUpdate = async function(uuid, user) {
-  const session = MongoDB.newSession();
-  try {
-    var update;
-    await session.withTransaction(async () => {
-      try {
-        update = await lastUpdateFor(uuid, user, session);
-      } catch(err) {
-        await session.abortTransaction();
-        throw err;
-      }
-    });
-    session.endSession();
-    return update;
-  } catch(err) {
-    session.endSession();
-    throw err;
-  }
+  let update = await SharedFunctions.executeWithTransaction(lastUpdateFor, uuid, user);
+  return update;
 }
 
 exports.latestPublished = latestPublishedWithJoinsAndPermissions;
@@ -1082,23 +1009,8 @@ exports.template_uuid = async function(uuid) {
 
 // Wraps the actual request to duplicate with a transaction
 exports.duplicate = async function(uuid, user) {
-  const session = MongoDB.newSession();
-  let new_dataset;
-  try {
-    await session.withTransaction(async () => {
-      try {
-        new_dataset = await duplicate(uuid, user, session);
-      } catch(err) {
-        await session.abortTransaction();
-        throw err;
-      }
-    });
-    session.endSession();
-    return new_dataset;
-  } catch(err) {
-    session.endSession();
-    throw err;
-  }
+  let new_dataset = await SharedFunctions.executeWithTransaction(duplicate, uuid, user);
+  return new_dataset;
 }
 
 exports.importDatasetFromCombinedRecursor = importDatasetFromCombinedRecursor;

@@ -303,7 +303,7 @@ async function initializeNewImportedDraftWithProperties(input_field, uuid, updat
 // Return:
 // 1. A boolean: true if there were changes from the last published.
 // 2. The uuid of the template field created / updated
-async function validateAndCreateOrUpdate(input_field, user, session, updated_at) {
+async function validateAndCreateOrUpdate(session, input_field, user, updated_at) {
 
   // Field must be an object
   if (!Util.isObject(input_field)) {
@@ -372,7 +372,7 @@ async function validateAndCreateOrUpdate(input_field, user, session, updated_at)
   return [true, uuid];
 }
 
-async function draftFetchOrCreate(uuid, user, session) {
+async function draftFetchOrCreate(session, uuid, user) {
   
   // See if a draft of this template field exists. 
   let template_field_draft = await SharedFunctions.draft(TemplateField, uuid, session);
@@ -424,7 +424,7 @@ async function draftFetchOrCreate(uuid, user, session) {
 //   user: username of the user performing this operation
 // Returns:
 //   internal_id: the internal id of the published field
-async function publishField(uuid, session, last_update, user) {
+async function publishField(session, uuid, last_update, user) {
   var return_id;
 
   let field_draft = await SharedFunctions.draft(TemplateField, uuid, session);
@@ -469,7 +469,7 @@ async function publishField(uuid, session, last_update, user) {
 }
 
 async function lastupdateFor(uuid, session) {
-  let draft = await draftFetchOrCreate(uuid, session);
+  let draft = await draftFetchOrCreate(session, uuid);
   if(!draft) {
     throw new Util.NotFoundError();
   }
@@ -485,82 +485,25 @@ exports.latestPublishedWithoutPermissions = latestPublished;
 
 // Wraps the request to create with a transaction
 exports.create = async function(field, user) {
-  const session = MongoDB.newSession();
   let inserted_uuid;
-  try {
-    await session.withTransaction(async () => {
-      try {
-        [_, inserted_uuid] = await validateAndCreateOrUpdate(field, user, session, new Date());
-      } catch(err) {
-        await session.abortTransaction();
-        throw err;
-      }
-    });
-    session.endSession();
-    return inserted_uuid;
-  } catch(err) {
-    session.endSession();
-    throw err;
-  }
+  [_, inserted_uuid] = await SharedFunctions.executeWithTransaction(validateAndCreateOrUpdate, field, user, new Date());
+  return inserted_uuid;
 }
 
 // Wraps the request to get with a transaction. Since fetching a draft creates one if it doesn't already exist
 exports.draftGet = async function(uuid, user) {
-  const session = MongoDB.newSession();
-  try {
-    var field;
-    await session.withTransaction(async () => {
-      try {
-        field = await draftFetchOrCreate(uuid, user, session);
-      } catch(err) {
-        await session.abortTransaction();
-        throw err;
-      }
-    });
-    session.endSession();
-    return field;
-  } catch(err) {
-    session.endSession();
-    throw err;
-  }
+  let field = await SharedFunctions.executeWithTransaction(draftFetchOrCreate, uuid, user);
+  return field;
 }
 
 // Wraps the request to update with a transaction
 exports.update = async function(field, user) {
-  const session = MongoDB.newSession();
-  try {
-    await session.withTransaction(async () => {
-      try {
-        await validateAndCreateOrUpdate(field, user, session, new Date());
-      } catch(err) {
-        await session.abortTransaction();
-        throw err;
-      }
-    });
-    session.endSession();
-  } catch(err) {
-    session.endSession();
-    throw err;
-  }
+  await SharedFunctions.executeWithTransaction(validateAndCreateOrUpdate, field, user, new Date());
 }
 
 // Wraps the request to publish with a transaction
 exports.publish = async function(uuid, last_update, user) {
-  const session = MongoDB.newSession();
-  try {
-    await session.withTransaction(async () => {
-      try {
-        await publishField(uuid, session, last_update, user);
-      } catch(err) {
-        await session.abortTransaction();
-        throw err;
-      }
-    });
-    session.endSession();
-  } catch(err) {
-    session.endSession();
-    throw err;
-  }
+  await SharedFunctions.executeWithTransaction(publishField, uuid, last_update, user);
 }
 
 exports.latestPublished = async function(uuid, user) {

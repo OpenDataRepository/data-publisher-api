@@ -217,8 +217,8 @@ async function templateUUIDsThatReference(uuid, templateOrField) {
 }
 
 async function createDraftFromLastPublished(uuid, user, session) {
-  let draft = await draftFetchOrCreate(uuid, user, session);
-  await validateAndCreateOrUpdate(draft, user, session, new Date());
+  let draft = await draftFetchOrCreate(session, uuid, user);
+  await validateAndCreateOrUpdate(session, draft, user, new Date());
 }
 
 async function createDraftFromLastPublishedWithSession(uuid, user) {
@@ -327,7 +327,7 @@ async function extractFieldsFromCreateOrUpdate(input_fields, user, session, upda
   for (let field of input_fields) {
     let field_uuid;
     try {
-      [changes, field_uuid] = await TemplateFieldModel.validateAndCreateOrUpdate(field, user, session, updated_at);
+      [changes, field_uuid] = await TemplateFieldModel.validateAndCreateOrUpdate(session, field, user, updated_at);
     } catch(err) {
       if (err instanceof Util.NotFoundError) {
         throw new Util.InputError(err.message);
@@ -359,7 +359,7 @@ async function extractRelatedTemplatesFromCreateOrUpdate(input_related_templates
   for (let related_template of input_related_templates) {
     let related_template_uuid;
     try {
-      [changes, related_template_uuid] = await validateAndCreateOrUpdate(related_template, user, session, updated_at);
+      [changes, related_template_uuid] = await validateAndCreateOrUpdate(session, related_template, user, updated_at);
     } catch(err) {
       if (err instanceof Util.NotFoundError) {
         throw new Util.InputError(err.message);
@@ -458,7 +458,7 @@ async function extractSubscribedTemplatesFromCreateOrUpdate(input_subscribed_tem
 // Return:
 // 1. A boolean indicating true if there were changes from the last published.
 // 2. The uuid of the template created / updated
-async function validateAndCreateOrUpdate(input_template, user, session, updated_at) {
+async function validateAndCreateOrUpdate(session, input_template, user, updated_at) {
 
   // Template must be an object
   if (!Util.isObject(input_template)) {
@@ -532,7 +532,7 @@ async function publishFields(input_field_uuids, user, session) {
       continue;
     }
     try {
-      let field_id = await TemplateFieldModel.publishField(field_uuid, session, null, user);
+      let field_id = await TemplateFieldModel.publishField(session, field_uuid, null, user);
       return_field_ids.push(field_id);
     } catch(err) {
       if (err instanceof Util.NotFoundError) {
@@ -650,7 +650,7 @@ async function publishRecursor(uuid, user, session) {
 //   uuid: the uuid of a template to be published
 //   session: the mongo session that must be used to make transactions atomic
 //   last_update: the timestamp of the last known update by the user. Cannot publish if the actual last update and that expected by the user differ.
-async function publish(uuid, user, session, last_update) {
+async function publish(session, uuid, user, last_update) {
 
   // Check if a draft with this uuid exists
   let template_draft = await SharedFunctions.draft(Template, uuid, session);
@@ -668,7 +668,7 @@ async function publish(uuid, user, session, last_update) {
   }
 
   // If the last update provided doesn't match to the last update found in the db, fail.
-  let db_last_update = new Date(await lastUpdateFor(uuid, user, session));
+  let db_last_update = new Date(await lastUpdateFor(session, uuid, user));
   if(last_update.getTime() != db_last_update.getTime()) {
     throw new Util.InputError(`The last update submitted ${last_update.toISOString()} does not match that found in the db ${db_last_update.toISOString()}. 
     Fetch the draft again to get the latest update before attempting to publish again.`);
@@ -854,7 +854,7 @@ async function draftFetchFields(input_field_uuids, user, session) {
     let field;
     try {
       // First try to get the draft of the field
-      field = await TemplateFieldModel.draft(field_uuid, user, session);
+      field = await TemplateFieldModel.draft(session, field_uuid, user);
     } catch (err) {
       if (err instanceof Util.PermissionDeniedError) {
         // If we don't have permission for the draft, get the latest published instead
@@ -891,7 +891,7 @@ async function draftFetchRelatedTemplates(input_related_template_uuids, user, se
     let related_template;
     try {
       // First try to get the draft of the related_template
-      related_template = await draftFetchOrCreate(related_template_uuid, user, session);
+      related_template = await draftFetchOrCreate(session, related_template_uuid, user);
     } catch (err) {
       if (err instanceof Util.PermissionDeniedError) {
         // If we don't have permission for the draft, get the latest published instead
@@ -925,7 +925,7 @@ async function draftFetchRelatedTemplates(input_related_template_uuids, user, se
 
 // Fetches the template draft with the given uuid, recursively looking up fields and related_templates.
 // If a draft of a given template doesn't exist, a new one will be generated using the last published template.
-async function draftFetchOrCreate(uuid, user, session) {
+async function draftFetchOrCreate(session, uuid, user) {
 
   // See if a draft of this template exists. 
   let template_draft = await fetchDraftOrCreateFromPublished(uuid, session);
@@ -984,7 +984,7 @@ async function draftFetchOrCreate(uuid, user, session) {
 }
 
 // This function will provide the timestamp of the last update made to this template and all of it's sub-properties
-async function lastUpdateFor(uuid, user, session) {
+async function lastUpdateFor(session, uuid, user) {
 
   let template_draft = await fetchDraftOrCreateFromPublished(uuid, session);
   let template_published = await SharedFunctions.latestPublished(Template, uuid, session);
@@ -1020,7 +1020,7 @@ async function lastUpdateFor(uuid, user, session) {
   }
   for(uuid of template_draft.related_templates) {
     try {
-      let update = await lastUpdateFor(uuid, user, session);
+      let update = await lastUpdateFor(session, uuid, user);
       if (update > last_update){
         last_update = update;
       }
@@ -1091,7 +1091,7 @@ async function duplicateRecursor(template, user, session) {
   return template.uuid
 }
 
-async function duplicate(uuid, user, session) {
+async function duplicate(session, uuid, user) {
   let template = await latestPublishedBeforeDateWithJoins(uuid, new Date());
   if(!template) {
     throw new Util.NotFoundError(`Published template ${uuid} does not exist`);
@@ -1103,7 +1103,7 @@ async function duplicate(uuid, user, session) {
 }
 
 // TODO: as of now, import doesn't include group_uuids at all
-async function importTemplate(template, user, updated_at, session) {
+async function importTemplate(session, template, user, updated_at) {
   if(!Util.isObject(template)) {
     throw new Util.InputError('Template to import must be a json object.');
   }
@@ -1164,7 +1164,7 @@ async function importTemplate(template, user, updated_at, session) {
       let related_template_uuid;
       try {
         let more_changes;
-        [more_changes, related_template_uuid] = await importTemplate(related_template, user, updated_at, session);
+        [more_changes, related_template_uuid] = await importTemplate(session, related_template, user, updated_at);
         changes |= more_changes;
       } catch(err) {
         if (err instanceof Util.PermissionDeniedError) {
@@ -1211,103 +1211,31 @@ async function importTemplate(template, user, updated_at, session) {
 
 // Wraps the actual request to create with a transaction
 exports.create = async function(template, user) {
-  const session = MongoDB.newSession();
   let inserted_uuid;
-  try {
-    await session.withTransaction(async () => {
-      try {
-        [_, inserted_uuid] = await validateAndCreateOrUpdate(template, user, session, new Date());
-      } catch(err) {
-        await session.abortTransaction();
-        throw err;
-      }
-    });
-    session.endSession();
-    return inserted_uuid;
-  } catch(err) {
-    session.endSession();
-    throw err;
-  }
+  [_, inserted_uuid] = await SharedFunctions.executeWithTransaction(validateAndCreateOrUpdate, template, user, new Date());
+  return inserted_uuid;
 }
 
 // Wraps the actual request to update with a transaction
 exports.update = async function(template, user) {
-  const session = MongoDB.newSession();
-  try {
-    await session.withTransaction(async () => {
-      try {
-        await validateAndCreateOrUpdate(template, user, session, new Date());
-      } catch(err) {
-        await session.abortTransaction();
-        throw err;
-      }
-    });
-    session.endSession();
-  } catch(err) {
-    session.endSession();
-    throw err;
-  }
+  await SharedFunctions.executeWithTransaction(validateAndCreateOrUpdate, template, user, new Date());
 }
 
 // Wraps the actual request to get with a transaction
 exports.draftGet = async function(uuid, user) {
-  const session = MongoDB.newSession();
-  try {
-    var template
-    await session.withTransaction(async () => {
-      try {
-        template = await draftFetchOrCreate(uuid, user, session);
-      } catch(err) {
-        await session.abortTransaction();
-        throw err;
-      }
-    });
-    session.endSession();
-    return template;
-  } catch(err) {
-    session.endSession();
-    throw err;
-  }
+  let template = await SharedFunctions.executeWithTransaction(draftFetchOrCreate, uuid, user);
+  return template;
 }
 
 // Wraps the actual request to publish with a transaction
 exports.publish = async function(uuid, user, last_update) {
-  const session = MongoDB.newSession();
-  try {
-    await session.withTransaction(async () => {
-      try {
-        await publish(uuid, user, session, last_update);
-      } catch(err) {
-        await session.abortTransaction();
-        throw err;
-      }
-    });
-    session.endSession();
-  } catch(err) {
-    session.endSession();
-    throw err;
-  }
+  await SharedFunctions.executeWithTransaction(publish, uuid, user, last_update);
 }
 
 // Wraps the actual request to getUpdate with a transaction
 exports.lastUpdate = async function(uuid, user) {
-  const session = MongoDB.newSession();
-  try {
-    var update;
-    await session.withTransaction(async () => {
-      try {
-        update = await lastUpdateFor(uuid, user, session);
-      } catch(err) {
-        await session.abortTransaction();
-        throw err;
-      }
-    });
-    session.endSession();
-    return update;
-  } catch(err) {
-    session.endSession();
-    throw err;
-  }
+  let update = await SharedFunctions.executeWithTransaction(lastUpdateFor, uuid, user);
+  return update;
 }
 
 // Parents 2+ levels up are not updated
@@ -1363,44 +1291,14 @@ exports.latest_published_time_for_uuid = async function(uuid) {
 
 // Wraps the actual request to duplicate with a transaction
 exports.duplicate = async function(uuid, user) {
-  const session = MongoDB.newSession();
-  try {
-    var new_uuid;
-    await session.withTransaction(async () => {
-      try {
-        new_uuid = await duplicate(uuid, user, session);
-      } catch(err) {
-        await session.abortTransaction();
-        throw err;
-      }
-    });
-    session.endSession();
-    return new_uuid;
-  } catch(err) {
-    session.endSession();
-    throw err;
-  }
+  let new_uuid = await SharedFunctions.executeWithTransaction(duplicate, uuid, user);
+  return new_uuid;
 }
 
 // Wraps the actual request to import with a transaction
 exports.importTemplate = async function(template, user) {
-  const session = MongoDB.newSession();
-  try {
-    var new_template_uuid;
-    await session.withTransaction(async () => {
-      try {
-        new_template_uuid = (await importTemplate(template, user, new Date(), session))[1];
-      } catch(err) {
-        await session.abortTransaction();
-        throw err;
-      }
-    });
-    session.endSession();
-    return new_template_uuid;
-  } catch(err) {
-    session.endSession();
-    throw err;
-  }
+  let new_template_uuid = (await SharedFunctions.executeWithTransaction(importTemplate, template, user, new Date()))[1];
+  return new_template_uuid;
 }
 
 exports.collection = function() {

@@ -1,4 +1,4 @@
-const { validate: uuidValidate } = require('uuid');
+const MongoDB = require('../lib/mongoDB');
 const Util = require('../lib/util');
 const ObjectId = require('mongodb').ObjectId;
 
@@ -116,4 +116,24 @@ exports.publishDateFor_id = async (collection, _id, session) => {
 exports.latest_published_time_for_uuid = async (collection, uuid) => {
   let document = await latestPublished(collection, uuid);
   return document ? document.publish_date : null;
+}
+
+exports.executeWithTransaction = async (callback, ...args) => {
+  const session = MongoDB.newSession();
+  let result;
+  try {
+    await session.withTransaction(async () => {
+      try {
+        result = await callback(session, ...args);
+      } catch(err) {
+        await session.abortTransaction();
+        throw err;
+      }
+    });
+    session.endSession();
+    return result;
+  } catch(err) {
+    session.endSession();
+    throw err;
+  }
 }
