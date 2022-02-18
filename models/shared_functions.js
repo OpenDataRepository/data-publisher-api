@@ -89,16 +89,16 @@ exports.draftDelete = async (collection, uuid) => {
   }
 }
 
-// TODO: this should use the public date of only the latest public version of the recource. Therefore, 
-// Re-write this function to fetch the latest published, and also add test cases for this
-exports.userHasAccessToPublishedResource = async (resource, user, PermissionGroupModel, session) => {
+exports.userHasAccessToPublishedResource = async (collection, uuid, user, PermissionGroupModel, session) => {
+  let latest_published = await latestPublished(collection, uuid, session);
+
   // If public, then automatic yes
-  if (resource.public_date && Util.compareTimeStamp((new Date).getTime(), resource.public_date)){
+  if (latest_published.public_date && Util.compareTimeStamp((new Date).getTime(), latest_published.public_date)){
     return true;
   }
 
   // Otherwise, check, if we have view permissions
-  return await PermissionGroupModel.has_permission(user, resource.uuid, PermissionGroupModel.PERMISSION_VIEW, session);
+  return await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_VIEW, session);
 }
 
 exports.publishDateFor_id = async (collection, _id, session) => {

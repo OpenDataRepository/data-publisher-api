@@ -662,7 +662,7 @@ async function latestPublishedBeforeDateWithJoins(uuid, date, session) {
 
 async function filterPublishedForPermissionsRecursor(dataset, user, session) {
   for(let i = 0; i < dataset.related_datasets.length; i++) {
-    if(!(await SharedFunctions.userHasAccessToPublishedResource(dataset.related_datasets[i], user, PermissionGroupModel, session))) {
+    if(!(await SharedFunctions.userHasAccessToPublishedResource(Dataset, dataset.related_datasets[i].uuid, user, PermissionGroupModel, session))) {
       dataset.related_datasets[i] = {uuid: dataset.related_datasets[i].uuid};
     } else {
       await filterPublishedForPermissionsRecursor(dataset.related_datasets[i], user, session);
@@ -671,7 +671,7 @@ async function filterPublishedForPermissionsRecursor(dataset, user, session) {
 }
 
 async function filterPublishedForPermissions(dataset, user, session) {
-  if(!(await SharedFunctions.userHasAccessToPublishedResource(dataset, user, PermissionGroupModel, session))) {
+  if(!(await SharedFunctions.userHasAccessToPublishedResource(Dataset, dataset.uuid, user, PermissionGroupModel, session))) {
     throw new Util.PermissionDeniedError(`Do not have view access to dataset ${dataset.uuid}`);
   }
   await filterPublishedForPermissionsRecursor(dataset, user, session);
@@ -691,7 +691,7 @@ async function latestPublishedWithJoinsAndPermissions(uuid, user, session) {
 
 async function duplicateRecursor(original_dataset, original_group_uuid, new_group_uuid, uuid_dictionary, user, session) {
   // verify that this user is in the 'view' permission group
-  if (!(await SharedFunctions.userHasAccessToPublishedResource(original_dataset, user, PermissionGroupModel))) {
+  if (!(await SharedFunctions.userHasAccessToPublishedResource(Dataset, original_dataset.uuid, user, PermissionGroupModel))) {
     throw new Util.PermissionDeniedError(`Do not have view permissions required to duplicate dataset: ${original_dataset.uuid}`);
   }
 

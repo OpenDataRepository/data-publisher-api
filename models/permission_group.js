@@ -23,6 +23,9 @@ exports.init = async function() {
   PermissionGroup = await collection();
 }
 
+// TODO: once users are created, consider each user/recource combination as it's own document. Then I don't have to 
+// maintain crossover lists
+
 // If a user has permission to this category or a superior one, return true
 async function has_permission(user, uuid, category, session) {
   let categories = [category];

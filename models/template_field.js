@@ -54,7 +54,7 @@ async function latestPublishedBeforeDateWithPermissions(uuid, date, user) {
   }
 
   // Ensure user has permission to view
-  if (!(await SharedFunctions.userHasAccessToPublishedResource(field, user, PermissionGroupModel))) {
+  if (!(await SharedFunctions.userHasAccessToPublishedResource(TemplateField, uuid, user, PermissionGroupModel))) {
     throw new Util.PermissionDeniedError(`Do not have permission to view template field with uuid ${uuid}`);
   }
 
@@ -627,7 +627,7 @@ exports.duplicate = async function(field, user, session) {
   if(!field) {
     throw new Util.NotFoundError();
   }
-  if(!(await SharedFunctions.userHasAccessToPublishedResource(field, user, PermissionGroupModel))) {
+  if(!(await SharedFunctions.userHasAccessToPublishedResource(TemplateField, field.uuid, user, PermissionGroupModel))) {
     throw new Util.PermissionDeniedError();
   }
 

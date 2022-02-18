@@ -553,31 +553,31 @@ async function publishFields(input_field_uuids, user, session) {
   return return_field_ids;
 }
 
-async function publishRelatedTemplates(input_related_templates, user, session) {
-  let result_related_templates = [];
+async function publishRelatedTemplates(input_related_templates_uuids, user, session) {
+  let result_related_templates_ids = [];
   // For each template's related_templates, publish that related_template, then replace the uuid with the internal_id.
   // It is possible there weren't any changes to publish, so keep track of whether we actually published anything.
-  for(let related_template of input_related_templates) {
+  for(let related_template_uuid of input_related_templates_uuids) {
     try {
-      related_template = await publishRecursor(related_template, user, session);
-      result_related_templates.push(related_template);
+      let related_template_id = await publishRecursor(related_template_uuid, user, session);
+      result_related_templates_ids.push(related_template_id);
     } catch(err) {
       if (err instanceof Util.NotFoundError) {
         throw new Util.InputError("Internal reference within this draft is invalid. Fetch/update draft to cleanse it.");
       } else if (err instanceof Util.PermissionDeniedError) {
         // If the user doesn't have permissions, assume they want to link the published version of the template
         // But before we can link the published version of the template, we must make sure it exists
-        let related_template_published = await SharedFunctions.latestPublished(Template, related_template);
+        let related_template_published = await SharedFunctions.latestPublished(Template, related_template_uuid);
         if(!related_template_published) {
-          throw new Util.InputError(`published template does not exist with uuid ${related_template}`);
+          throw new Util.InputError(`published template does not exist with uuid ${related_template_uuid}`);
         }
-        result_related_templates.push(related_template_published._id);
+        result_related_templates_ids.push(related_template_published._id);
       } else {
         throw err;
       }
     }
   }
-  return result_related_templates;
+  return result_related_templates_ids;
 }
 
 // Publishes the template with the provided uuid
@@ -603,19 +603,19 @@ async function publishRecursor(uuid, user, session) {
     if (!published_template) {
       throw new Util.NotFoundError(`Template with uuid ${uuid} does not exist`);
     }
-    if(!(await SharedFunctions.userHasAccessToPublishedResource(published_template, user, PermissionGroupModel))) {
+    if(!(await SharedFunctions.userHasAccessToPublishedResource(Template, uuid, user, PermissionGroupModel, session))) {
       throw new Util.PermissionDeniedError(`cannot link template with uuid ${uuid}. Requires at least view permissions.`);
     }
     return published_template._id;
   }
 
   // If a user doesn't have edit access to this template, we'll use the published template instead
-  if(!(await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT))) {
+  if(!(await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT, session))) {
     // There is no draft of this uuid. Return the latest published template instead.
     if (!published_template) {
       throw new Util.InputError(`Do not have access to template draft with uuid ${uuid}, and no published version exists`);
     }
-    if(!(await SharedFunctions.userHasAccessToPublishedResource(published_template, user, PermissionGroupModel))) {
+    if(!(await SharedFunctions.userHasAccessToPublishedResource(Template, uuid, user, PermissionGroupModel, session))) {
       throw new Util.PermissionDeniedError(`cannot link template with uuid ${uuid}. Requires at least view permissions.`);
     }
     return published_template._id;
@@ -803,12 +803,12 @@ async function latestPublishedBeforeDateWithJoins(uuid, date) {
 
 async function filterPublishedTemplateForPermissionsRecursor(template, user) {
   for(let i = 0; i < template.fields.length; i++) {
-    if(!(await SharedFunctions.userHasAccessToPublishedResource(template.fields[i], user, PermissionGroupModel))) {
+    if(!(await SharedFunctions.userHasAccessToPublishedResource(TemplateField, template.fields[i].uuid, user, PermissionGroupModel))) {
       template.fields[i] = {uuid: template.fields[i].uuid};
     }
   }
   for(let i = 0; i < template.related_templates.length; i++) {
-    if(!(await SharedFunctions.userHasAccessToPublishedResource(template.related_templates[i], user, PermissionGroupModel))) {
+    if(!(await SharedFunctions.userHasAccessToPublishedResource(Template, template.related_templates[i].uuid, user, PermissionGroupModel))) {
       template.related_templates[i] = {uuid: template.related_templates[i].uuid};
     } else {
       await filterPublishedTemplateForPermissionsRecursor(template.related_templates[i], user);
@@ -817,7 +817,7 @@ async function filterPublishedTemplateForPermissionsRecursor(template, user) {
 }
 
 async function filterPublishedTemplateForPermissions(template, user) {
-  if(!(await SharedFunctions.userHasAccessToPublishedResource(template, user, PermissionGroupModel))) {
+  if(!(await SharedFunctions.userHasAccessToPublishedResource(Template, template.uuid, user, PermissionGroupModel))) {
     throw new Util.PermissionDeniedError(`Do not have view access to template ${template.uuid}`);
   }
   await filterPublishedTemplateForPermissionsRecursor(template, user);
@@ -1040,7 +1040,7 @@ async function duplicateRecursor(template, user, session) {
   if(!template) {
     throw new Util.NotFoundError();
   }
-  if(!(await SharedFunctions.userHasAccessToPublishedResource(template, user, PermissionGroupModel))) {
+  if(!(await SharedFunctions.userHasAccessToPublishedResource(Template, template.uuid, user, PermissionGroupModel))) {
     throw new Util.PermissionDeniedError();
   }
 
@@ -1096,7 +1096,7 @@ async function duplicate(uuid, user, session) {
   if(!template) {
     throw new Util.NotFoundError(`Published template ${uuid} does not exist`);
   }
-  if(!(await SharedFunctions.userHasAccessToPublishedResource(template, user, PermissionGroupModel))) {
+  if(!(await SharedFunctions.userHasAccessToPublishedResource(Template, template.uuid, user, PermissionGroupModel))) {
     throw new Util.PermissionDeniedError(`You do not have view permissions required to duplicate template ${uuid}.`);
   }
   return await duplicateRecursor(template, user, session)
@@ -1316,7 +1316,7 @@ exports.updateTemplatesThatReference = async function(uuid, user, templateOrFiel
   let uuids = await templateUUIDsThatReference(uuid, templateOrField);
   // For each template, create a draft if it doesn't exist
   for(uuid of uuids) {
-    // TODO: when time starts being a problem, move this into a queue OR just remove the await statement.
+    // when time starts being a problem, move this into a queue OR just remove the await statement.
     try {
       await createDraftFromLastPublishedWithSession(uuid, user);
     } catch(err) {
