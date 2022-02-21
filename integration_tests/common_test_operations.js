@@ -293,11 +293,7 @@ module.exports = class Helper {
     }
   }
 
-  // TODO: rename v2 to the original and fix everything
   templateCreateAndTest = async (template, current_user) => {
-    return (await this.templateCreateAndTestV2(template, current_user)).uuid;
-  };
-  templateCreateAndTestV2 = async (template, current_user) => {
     let response = await this.templateCreate(template, current_user);
     expect(response.statusCode).toBe(200);
     let uuid = response.body.inserted_uuid;
@@ -366,7 +362,7 @@ module.exports = class Helper {
   };
 
   templateCreatePublishTest = async (template, curr_user) => {
-    let created_template = await this.templateCreateAndTestV2(template, curr_user);
+    let created_template = await this.templateCreateAndTest(template, curr_user);
     let published_template = await this.templatePublishAndFetch(created_template.uuid, curr_user)
     this.templateSortFieldsAndRelatedTemplates(template);
     this.templateSortFieldsAndRelatedTemplates(published_template);
@@ -476,20 +472,6 @@ module.exports = class Helper {
     let created_dataset = response.body;
     this.datasetCleanseMetadata(dataset);
     expect(created_dataset).toMatchObject(dataset);
-    return created_dataset.uuid;
-  };
-  datasetCreateAndTestV2 = async (dataset, curr_user) => {
-    let response = await this.datasetCreate(dataset, curr_user);
-    expect(response.statusCode).toBe(200);
-    expect(response.body.inserted_uuid).toBeTruthy();
-  
-    let uuid = response.body.inserted_uuid;
-    
-    response = await this.datasetDraftGet(uuid, curr_user);
-    expect(response.statusCode).toBe(200);
-    let created_dataset = response.body;
-    this.datasetCleanseMetadata(dataset);
-    expect(created_dataset).toMatchObject(dataset);
     return created_dataset;
   };
 
@@ -545,8 +527,8 @@ module.exports = class Helper {
   };
 
   datasetCreatePublishTest = async (dataset, curr_user) => {
-    let uuid = await this.datasetCreateAndTest(dataset, curr_user);
-    let dataset_published = await this.datasetPublishAndFetch(uuid, curr_user)
+    let created_dataset = await this.datasetCreateAndTest(dataset, curr_user);
+    let dataset_published = await this.datasetPublishAndFetch(created_dataset.uuid, curr_user)
     expect(dataset_published).toMatchObject(dataset);
     return dataset_published;
   };
@@ -692,11 +674,7 @@ module.exports = class Helper {
     }
   }
   
-  recordCreateAndTest = async (record, curr_user) => {
-    let created_record = await this.recordCreateAndTestV2(record, curr_user);
-    return created_record.uuid;
-  };
-  recordCreateAndTestV2 = async (input_record, curr_user) => {
+  recordCreateAndTest = async (input_record, curr_user) => {
     let response = await this.recordCreate(input_record, curr_user);
     expect(response.statusCode).toBe(200);
     let uuid = response.body.inserted_uuid;
@@ -765,9 +743,8 @@ module.exports = class Helper {
   }
   
   recordCreatePublishTest = async (record, curr_user) => {
-    let uuid = await this.recordCreateAndTest(record, curr_user);
-    record.uuid = uuid;
-    let published = await this.recordPublishAndTest(uuid, record, curr_user)
+    let created_record = await this.recordCreateAndTest(record, curr_user);
+    let published = await this.recordPublishAndTest(created_record.uuid, created_record, curr_user)
     expect(published).toMatchObject(record);
     return published;
   };

@@ -203,13 +203,13 @@ describe("update (and get)",  () => {
 
 describe("get",  () => {
   test("must be a supported category", async () => {
-    let uuid = await Helper.templateCreateAndTest({
+    let template = await Helper.templateCreateAndTest({
       name: 'template'
     });
-    let response = await Helper.permissionGroupTestingInitialize(uuid, Helper.DEF_CURR_USER);
+    let response = await Helper.permissionGroupTestingInitialize(template.uuid, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(200);
 
-    response = await Helper.getPermissionGroup(uuid, 'invalid');
+    response = await Helper.getPermissionGroup(template.uuid, 'invalid');
     expect(response.statusCode).toBe(404);
 
   });

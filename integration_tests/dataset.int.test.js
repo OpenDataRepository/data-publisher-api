@@ -137,9 +137,7 @@ describe("create (and get draft)", () => {
         template_uuid: template.related_templates[0].uuid
       };
 
-      let related_dataset_uuid = await Helper.datasetCreateAndTest(related_dataset, Helper.DEF_CURR_USER);
-
-      related_dataset.uuid = related_dataset_uuid;
+      related_dataset = await Helper.datasetCreateAndTest(related_dataset, Helper.DEF_CURR_USER);
 
       let dataset = {
         template_uuid: template.uuid,
@@ -221,10 +219,7 @@ describe("create (and get draft)", () => {
           template_uuid: template.related_templates[1].related_templates[0].uuid
         }]
       }
-      let uuid12 = await Helper.datasetCreateAndTest(dataset12, Helper.DEF_CURR_USER);
-      let response = await Helper.datasetDraftGet(uuid12, Helper.DEF_CURR_USER);
-      expect(response.statusCode).toBe(200);
-      dataset12 = response.body;
+      dataset12 = await Helper.datasetCreateAndTest(dataset12, Helper.DEF_CURR_USER);
       Helper.datasetCleanseMetadata(dataset12);
 
       let dataset1 = {
@@ -239,10 +234,7 @@ describe("create (and get draft)", () => {
           dataset12
         ]
       };
-      let uuid1 = await Helper.datasetCreateAndTest(dataset1, Helper.DEF_CURR_USER);
-      response = await Helper.datasetDraftGet(uuid1, Helper.DEF_CURR_USER);
-      expect(response.statusCode).toBe(200);
-      dataset1 = response.body;
+      dataset1 = await Helper.datasetCreateAndTest(dataset1, Helper.DEF_CURR_USER);
 
       // check that dataset 1, 1.1, and 1.1.1 all have the same group_uuid, and that 1.2 and 1.2.1 have the same group_uuid (but different than 1)
       expect(dataset1.group_uuid).toEqual(dataset1.related_datasets[0].group_uuid);
@@ -337,7 +329,8 @@ describe("create (and get draft)", () => {
       let template = {
         name: "t1"
       };
-      let template_uuid = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
+      let template_uuid = template.uuid;
       dataset = {
         template_uuid
       };
@@ -583,7 +576,7 @@ describe("create (and get draft)", () => {
       let related_dataset = {
         template_uuid: template.related_templates[0].uuid
       };
-      related_dataset = await Helper.datasetCreateAndTestV2(related_dataset, Helper.DEF_CURR_USER);
+      related_dataset = await Helper.datasetCreateAndTest(related_dataset, Helper.DEF_CURR_USER);
 
       let dataset = { 
         template_uuid: template.uuid,
@@ -643,7 +636,7 @@ const populateWithDummyTemplateAndDataset = async () => {
     }]
   };
 
-  dataset = await Helper.datasetCreateAndTestV2(dataset, Helper.DEF_CURR_USER);
+  dataset = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
 
   return [template, dataset];
 };
@@ -865,9 +858,9 @@ describe("get draft", () => {
     let dataset = {
       template_uuid: template.uuid
     };
-    let uuid = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
+    dataset = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
     
-    let response = await Helper.datasetDraftGet(uuid, Helper.USER_2);
+    let response = await Helper.datasetDraftGet(dataset.uuid, Helper.USER_2);
     expect(response.statusCode).toBe(401);
   });
 
@@ -1208,9 +1201,9 @@ describe("publish (and get published)", () => {
       let dataset = {
         template_uuid: template.uuid
       }
-      let uuid = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
 
-      let response = await Helper.datasetLastUpdate(uuid, Helper.DEF_CURR_USER);
+      let response = await Helper.datasetLastUpdate(dataset.uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
       let last_update = response.body;
 
@@ -1228,16 +1221,16 @@ describe("publish (and get published)", () => {
       let dataset = {
         template_uuid: template.uuid
       }
-      let uuid = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
 
-      let response = await Helper.datasetLastUpdate(uuid, Helper.DEF_CURR_USER);
+      let response = await Helper.datasetLastUpdate(dataset.uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
       let last_update = response.body;
 
-      response = await Helper.datasetPublish(uuid, last_update, Helper.DEF_CURR_USER);
+      response = await Helper.datasetPublish(dataset.uuid, last_update, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
 
-      response = await Helper.datasetPublish(uuid, last_update, Helper.DEF_CURR_USER);
+      response = await Helper.datasetPublish(dataset.uuid, last_update, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
     });
 
@@ -1257,22 +1250,18 @@ describe("publish (and get published)", () => {
         }]
       }
 
-      let uuid = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
-
-      let response = await Helper.datasetDraftGet(uuid, Helper.DEF_CURR_USER)
-      expect(response.statusCode).toBe(200);
-      expect(response.body).toMatchObject(dataset);
+      dataset = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
 
       // Delete the internal draft
-      response = await Helper.datasetDelete(response.body.related_datasets[0].uuid, Helper.DEF_CURR_USER);
+      let response = await Helper.datasetDelete(dataset.related_datasets[0].uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
 
-      response = await Helper.datasetLastUpdate(uuid, Helper.DEF_CURR_USER);
+      response = await Helper.datasetLastUpdate(dataset.uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
       let last_update = response.body;
 
       // Expect publish of parent draft to fail because of invalid reference 
-      response = await Helper.datasetPublish(uuid, last_update, Helper.DEF_CURR_USER);
+      response = await Helper.datasetPublish(dataset.uuid, last_update, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
 
       // Try updating. This should also fail.
@@ -1290,9 +1279,9 @@ describe("publish (and get published)", () => {
       let dataset = {
         template_uuid: template.uuid
       };
-      let uuid = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
 
-      let response =  await Helper.datasetPublish(uuid, (new Date()).toISOString(), Helper.DEF_CURR_USER);
+      let response =  await Helper.datasetPublish(dataset.uuid, (new Date()).toISOString(), Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
     });
 
@@ -1314,20 +1303,17 @@ describe("publish (and get published)", () => {
           template_uuid: template.related_templates[0].uuid
         }]
       };
-      let uuid = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
+      let old_update = dataset.updated_at;
 
-      let response = await Helper.datasetDraftGet(uuid, Helper.DEF_CURR_USER);
-      expect(response.statusCode).toBe(200);
-      let old_update = response.body.updated_at;
-
-      let related_dataset = response.body.related_datasets[0];
+      let related_dataset = dataset.related_datasets[0];
       related_dataset.public_date = (new Date()).toISOString();
 
-      response = await Helper.datasetUpdate(related_dataset.uuid, related_dataset, Helper.DEF_CURR_USER);
+      let response = await Helper.datasetUpdate(related_dataset.uuid, related_dataset, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
 
       // Should fail to update since we don't have the most recent update
-      response = await Helper.datasetPublish(uuid, old_update, Helper.DEF_CURR_USER);
+      response = await Helper.datasetPublish(dataset.uuid, old_update, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
 
       // Should succeed in publishing if we do use the most recent update
@@ -1335,7 +1321,7 @@ describe("publish (and get published)", () => {
       expect(response.statusCode).toBe(200);
       let new_update = response.body.updated_at;
 
-      response = await Helper.datasetPublish(uuid, new_update, Helper.DEF_CURR_USER);
+      response = await Helper.datasetPublish(dataset.uuid, new_update, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
 
     });
@@ -1350,21 +1336,21 @@ describe("publish (and get published)", () => {
       let dataset = {
         template_uuid: template.uuid
       };
-      let uuid = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
 
       // A different user shouldn't be able to publish
-      let response = await Helper.datasetLastUpdate(uuid, Helper.DEF_CURR_USER);
+      let response = await Helper.datasetLastUpdate(dataset.uuid, Helper.DEF_CURR_USER);
       let last_update = response.body;
-      response = await Helper.datasetPublish(uuid, last_update, Helper.USER_2);
+      response = await Helper.datasetPublish(dataset.uuid, last_update, Helper.USER_2);
       expect(response.statusCode).toBe(401);
 
       // Even if that user has view permissions, they still shouldn't be able to publish
       response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, template.uuid, PERMISSION_VIEW, [Helper.DEF_CURR_USER, Helper.USER_2]);
       expect(response.statusCode).toBe(200);
-      response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, uuid, PERMISSION_VIEW, [Helper.DEF_CURR_USER, Helper.USER_2]);
+      response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, dataset.uuid, PERMISSION_VIEW, [Helper.DEF_CURR_USER, Helper.USER_2]);
       expect(response.statusCode).toBe(200);
 
-      response = await Helper.datasetPublish(uuid, last_update, Helper.USER_2);
+      response = await Helper.datasetPublish(dataset.uuid, last_update, Helper.USER_2);
       expect(response.statusCode).toBe(401);
     });
 
@@ -1387,18 +1373,18 @@ describe("publish (and get published)", () => {
           }
         ]
       };
-      let uuid = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
 
       // in the meantime, the template format changes
       template.related_templates = [];
       template = await Helper.templateUpdatePublishTest(template, Helper.DEF_CURR_USER);
 
-      let response = await Helper.datasetLastUpdate(uuid, Helper.DEF_CURR_USER);
+      let response = await Helper.datasetLastUpdate(dataset.uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
       let last_update = response.body;
 
       // Now publishing the dataset should fail since it no longer matches the template format
-      await Helper.datasetPublish(uuid, last_update, Helper.DEF_CURR_USER);
+      await Helper.datasetPublish(dataset.uuid, last_update, Helper.DEF_CURR_USER);
     });
 
     test("If user doesn't have admin access to linked dataset and that dataset doesn't have a published version, then we can't publish", async () => {
@@ -1417,13 +1403,13 @@ describe("publish (and get published)", () => {
       let related_dataset = {
         template_uuid: template.related_templates[0].uuid
       };
-      related_dataset = await Helper.datasetCreateAndTestV2(related_dataset, Helper.USER_2);
+      related_dataset = await Helper.datasetCreateAndTest(related_dataset, Helper.USER_2);
 
       let dataset = {
         template_uuid: template.uuid,
         related_datasets:[{uuid: related_dataset.uuid}]
       };
-      dataset = await Helper.datasetCreateAndTestV2(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
 
       let last_update = await Helper.datasetLastUpdateAndTest(dataset.uuid, Helper.DEF_CURR_USER);
       let response = await Helper.datasetPublish(dataset.uuid, last_update, Helper.DEF_CURR_USER);
@@ -1489,7 +1475,8 @@ test("get published for a certain date", async () => {
   let dataset = {
     template_uuid: template.uuid
   };
-  let uuid = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
+  dataset = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
+  let uuid = dataset.uuid;
 
   let beforeFirstPublish = new Date();
 
@@ -1554,9 +1541,9 @@ describe("lastUpdate", () => {
       let dataset = {
         template_uuid: template.uuid
       };
-      let uuid = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
 
-      let response = await Helper.datasetLastUpdate(uuid, Helper.DEF_CURR_USER);
+      let response = await Helper.datasetLastUpdate(dataset.uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
       expect((new Date(response.body)).getTime()).toBeGreaterThan(timestamp.getTime());
     });
@@ -1609,11 +1596,8 @@ describe("lastUpdate", () => {
           }]
         }]
       };
-      let uuid = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
-
-      let response = await Helper.datasetDraftGet(uuid, Helper.DEF_CURR_USER);
-      expect(response.statusCode).toBe(200);
-      dataset = response.body;
+      dataset = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
+      let uuid = dataset.uuid;
 
       let timestamp_between_create_and_update = new Date();
 
@@ -1696,18 +1680,13 @@ describe("lastUpdate", () => {
           }]
         }]
       };
-      let uuid = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
-
-      // create
-      let response = await Helper.datasetDraftGet(uuid, Helper.DEF_CURR_USER);
-      expect(response.statusCode).toBe(200);
-      dataset = response.body;
+      dataset = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
 
       let dataset2 = dataset.related_datasets[0];
       let dataset3 = dataset2.related_datasets[0];
 
       // publish
-      await Helper.datasetPublishAndFetch(uuid, Helper.DEF_CURR_USER);
+      await Helper.datasetPublishAndFetch(dataset.uuid, Helper.DEF_CURR_USER);
 
       // Update grandchild
       dataset3.public_date = (new Date()).toISOString();
@@ -1720,7 +1699,7 @@ describe("lastUpdate", () => {
       let update_3_timestamp = response.body.updated_at;
 
       // Now get the update timestamp for the grandparent. It should be that of the grandchild.
-      response = await Helper.datasetLastUpdate(uuid, Helper.DEF_CURR_USER);
+      response = await Helper.datasetLastUpdate(dataset.uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
       expect(response.body).toEqual(update_3_timestamp);
       
@@ -1746,9 +1725,9 @@ describe("lastUpdate", () => {
       let dataset = {
         template_uuid: template.uuid
       };
-      let uuid = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
 
-      let response = await Helper.datasetLastUpdate(uuid, Helper.USER_2);
+      let response = await Helper.datasetLastUpdate(dataset.uuid, Helper.USER_2);
       expect(response.statusCode).toBe(401);
     });
 
@@ -1817,9 +1796,9 @@ describe("delete", () => {
     let dataset = {
       template_uuid: template.uuid
     };
-    uuid = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
+    dataset = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
 
-    let response = await Helper.datasetDelete(uuid, Helper.USER_2);
+    let response = await Helper.datasetDelete(dataset.uuid, Helper.USER_2);
     expect(response.statusCode).toBe(401);
   });
 });
@@ -1852,10 +1831,7 @@ describe("duplicate", () => {
           template_uuid: template.related_templates[1].related_templates[0].uuid
         }]
       };
-      let uuid12 = await Helper.datasetCreateAndTest(dataset12, Helper.DEF_CURR_USER);
-      let response = await Helper.datasetDraftGet(uuid12, Helper.DEF_CURR_USER);
-      expect(response.statusCode).toBe(200);
-      dataset12 = response.body;
+      dataset12 = await Helper.datasetCreateAndTest(dataset12, Helper.DEF_CURR_USER);
       Helper.datasetCleanseMetadata(dataset12);
 
       let dataset1 = {
@@ -1870,8 +1846,7 @@ describe("duplicate", () => {
           dataset12
         ]
       };
-      let uuid1 = await Helper.datasetCreateAndTest(dataset1, Helper.DEF_CURR_USER);
-      dataset1 = await Helper.datasetPublishAndFetch(uuid1, Helper.DEF_CURR_USER)
+      dataset1 = await Helper.datasetCreatePublishTest(dataset1, Helper.DEF_CURR_USER);
 
       // Necessary because fetching the published doesn't guarentee the order of the related_datasets
       let dataset11;
@@ -1888,7 +1863,7 @@ describe("duplicate", () => {
       expect(dataset1.group_uuid).not.toEqual(dataset12.group_uuid);
       expect(dataset12.group_uuid).toEqual(dataset12.related_datasets[0].group_uuid);
 
-      response = await Helper.datasetDuplicate(uuid1, Helper.DEF_CURR_USER);
+      let response = await Helper.datasetDuplicate(dataset1.uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
       let new_dataset = response.body;
 
@@ -1962,7 +1937,7 @@ describe("duplicate", () => {
           }
         ]
       };
-      template = await Helper.templateCreateAndTestV2(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
       template.related_templates[1].related_templates.push(template.related_templates[0]);
       await Helper.templateUpdatePublishTest(template, Helper.DEF_CURR_USER)
 
@@ -1979,14 +1954,11 @@ describe("duplicate", () => {
         ]
       };
       dataset.related_datasets[1].related_datasets.push(dataset.related_datasets[0]);
-      let uuid = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
-      let response = await Helper.datasetDraftGet(uuid, Helper.DEF_CURR_USER);
-      expect(response.statusCode).toBe(200);
-      dataset = response.body;
+      dataset = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
       dataset.related_datasets[1].related_datasets[0].uuid = dataset.related_datasets[0].uuid;
       dataset = await Helper.datasetUpdatePublishTest(dataset, Helper.DEF_CURR_USER);
 
-      response = await Helper.datasetDuplicate(uuid, Helper.DEF_CURR_USER);
+      response = await Helper.datasetDuplicate(dataset.uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
       let new_dataset = response.body;
 

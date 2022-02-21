@@ -76,7 +76,7 @@ describe("create (and get draft after a create)", () => {
           name: "t1",
           subscribed_templates: [subscribed_template]
         };
-        template = await Helper.templateCreateAndTestV2(template, Helper.DEF_CURR_USER);
+        template = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
 
         subscribed_template.description = "naruto";
         let new_subscribed_template = await Helper.templateUpdatePublishTest(subscribed_template, Helper.DEF_CURR_USER);
@@ -155,7 +155,7 @@ describe("create (and get draft after a create)", () => {
           name: "t1",
           subscribed_templates: [subscribed_template]
         };
-        template = await Helper.templateCreateAndTestV2(template, Helper.DEF_CURR_USER);        
+        template = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);        
 
         subscribed_template.description = "naruto";
         let new_subscribed_template = await Helper.templateUpdatePublishTest(subscribed_template, Helper.DEF_CURR_USER);
@@ -182,9 +182,9 @@ describe("create (and get draft after a create)", () => {
         "fields":[],
         "related_templates":[]
       };
-      let uuid = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
 
-      await Helper.testPermissionGroupsInitializedFor(uuid, Helper.DEF_CURR_USER);
+      await Helper.testPermissionGroupsInitializedFor(template.uuid, Helper.DEF_CURR_USER);
 
     });
   
@@ -203,7 +203,7 @@ describe("create (and get draft after a create)", () => {
         fields: [field],
         related_templates: [related_template]
       };
-      template = await Helper.templateCreateAndTestV2(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
          
       let related_template_uuid = template.related_templates[0].uuid;
       let field_uuid = template.fields[0].uuid;
@@ -359,7 +359,7 @@ describe("create (and get draft after a create)", () => {
       };
       
       let field_uuid = await Helper.templateFieldCreateAndTest(field, Helper.USER_2);
-      let related_template_uuid = await Helper.templateCreateAndTest(related_template, Helper.USER_2);
+      related_template = await Helper.templateCreateAndTest(related_template, Helper.USER_2);
 
       let template1 = { 
         "name": "t1",
@@ -369,7 +369,7 @@ describe("create (and get draft after a create)", () => {
 
       let template2 = { 
         "name": "t2",
-        "related_templates": [{uuid: related_template_uuid}]
+        "related_templates": [{uuid: related_template.uuid}]
       };
       await Helper.templateCreateAndTest(template2, Helper.DEF_CURR_USER);     
     
@@ -451,7 +451,7 @@ describe("create (and get draft after a create)", () => {
       let related_template = {
         name: "naruto"
       };
-      related_template = await Helper.templateCreateAndTestV2(related_template, Helper.DEF_CURR_USER);
+      related_template = await Helper.templateCreateAndTest(related_template, Helper.DEF_CURR_USER);
 
       let template = { 
         name: "kakashi",
@@ -492,7 +492,7 @@ describe("update (and get draft after an update)", () => {
         }
       ]
     };
-    og_template = await Helper.templateCreateAndTestV2(template, Helper.DEF_CURR_USER);
+    og_template = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
     uuid = og_template.uuid;
   });
 
@@ -530,8 +530,7 @@ describe("update (and get draft after an update)", () => {
       let related_template = {
         "name": "related_template name"
       };
-      let related_template_uuid = await Helper.templateCreateAndTest(related_template, Helper.DEF_CURR_USER);
-      related_template.uuid = related_template_uuid;
+      related_template = await Helper.templateCreateAndTest(related_template, Helper.DEF_CURR_USER);
       related_template.description = "a description";
 
       // Get the existing field so we can include that in our update
@@ -747,8 +746,8 @@ describe("get draft", () => {
     let template = {
       name: "t"
     }
-    let uuid = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
-    let response = await Helper.templateDraftGet(uuid, Helper.USER_2);
+    template = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
+    let response = await Helper.templateDraftGet(template.uuid, Helper.USER_2);
     expect(response.statusCode).toBe(401);
   });
 
@@ -1178,9 +1177,9 @@ describe("publish (and get published and draft after a publish)", () => {
       let template = {
         "name":"basic template"
       };
-      let uuid = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
 
-      let response = await Helper.templateLastUpdate(uuid, Helper.DEF_CURR_USER);
+      let response = await Helper.templateLastUpdate(template.uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
       let last_update = response.body;
 
@@ -1210,7 +1209,8 @@ describe("publish (and get published and draft after a publish)", () => {
         }]
       };
 
-      let uuid = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
+      let uuid = template.uuid;
 
       let response = await Helper.templateDraftGet(uuid, Helper.DEF_CURR_USER)
       expect(response.statusCode).toBe(200);
@@ -1246,9 +1246,9 @@ describe("publish (and get published and draft after a publish)", () => {
         "name":"basic template",
         "description":"a template to test a publish"
       };
-      let uuid = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
 
-      let response =  await Helper.templatePublish(uuid, (new Date()).toISOString(), Helper.DEF_CURR_USER);
+      let response =  await Helper.templatePublish(template.uuid, (new Date()).toISOString(), Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
     });
 
@@ -1260,7 +1260,8 @@ describe("publish (and get published and draft after a publish)", () => {
         "name":"1",
         "related_templates": [related_template]
       };
-      let uuid = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
+      let uuid = template.uuid
 
       let response = await Helper.templateDraftGet(uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
@@ -1281,7 +1282,8 @@ describe("publish (and get published and draft after a publish)", () => {
       let template = {
         "name":"basic template"
       };
-      let uuid = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
+      let uuid = template.uuid;
 
       // A different user shouldn't be able to publish
       let response = await Helper.templateLastUpdate(uuid, Helper.DEF_CURR_USER);
@@ -1421,7 +1423,8 @@ test("get published for a certain date", async () => {
     "name":"basic template",
     "description": "1"
   };
-  let uuid = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
+  template = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
+  let uuid = template.uuid
 
   let beforeFirstPublish = new Date();
 
@@ -1507,10 +1510,10 @@ describe("delete", () => {
     let template = {
       "name":"basic template"
     };
-    let uuid = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
+    template = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
 
     let other_user = 'other';
-    let response = await Helper.templateDelete(uuid, other_user);
+    let response = await Helper.templateDelete(template.uuid, other_user);
     expect(response.statusCode).toBe(401);
   })
 });
@@ -1523,9 +1526,9 @@ describe("templateLastUpdate", () => {
       let template = {
         "name":"1"
       };
-      let uuid = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
 
-      let response = await Helper.templateLastUpdate(uuid, Helper.DEF_CURR_USER);
+      let response = await Helper.templateLastUpdate(template.uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
       expect((new Date(response.body)).getTime()).toBeGreaterThan(timestamp.getTime());
     });
@@ -1565,7 +1568,8 @@ describe("templateLastUpdate", () => {
           }]
         }]
       };
-      let uuid = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
+      let uuid = template.uuid;
 
       let response = await Helper.templateDraftGet(uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
@@ -1639,7 +1643,8 @@ describe("templateLastUpdate", () => {
           }]
         }]
       };
-      let uuid = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
+      let uuid = template.uuid;
 
       // create
       let response = await Helper.templateDraftGet(uuid, Helper.DEF_CURR_USER);
@@ -1687,10 +1692,10 @@ describe("templateLastUpdate", () => {
       let template = {
         "name":"1"
       };
-      let uuid = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
 
       let other_user = 'other';
-      let response = await Helper.templateLastUpdate(uuid, other_user);
+      let response = await Helper.templateLastUpdate(template.uuid, other_user);
       expect(response.statusCode).toBe(401);
     });
 
