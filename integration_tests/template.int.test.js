@@ -99,8 +99,6 @@ describe("create (and get draft after a create)", () => {
 
       });
   
-      // TODO: eventually add functionality and a test that subscribed and related_templates can't have the same uuid
-
     });
 
     describe("failure", () => {
@@ -1813,43 +1811,43 @@ test("full range of operations with big data", async () => {
     ],
     related_templates: [
       {
-        name: "2.1",
+        name: "1.1",
         related_templates: [
           {
-            name: "3.1",
+            name: "1.1.1",
             fields: [
-              {name: "t3.1f1"},
-              {name: "t3.1f2"}
+              {name: "t1.1.1f1"},
+              {name: "t1.1.1f2"}
             ],
             related_templates: [
               {
-                name: "4.1",
+                name: "1.1.1.1",
                 fields: [
-                  {name: "t4.1f1"},
-                  {name: "t4.1f2"}
+                  {name: "t1.1.1.1f1"},
+                  {name: "t1.1.1.1f2"}
                 ]
               },
               {
-                name: "4.2"
+                name: "1.1.1.2"
               }
             ]
           },
           {
-            name: "3.2",
+            name: "1.1.2",
             fields: [
-              {name: "t3.2f1"},
-              {name: "t3.2f2"}
+              {name: "t1.1.2f1"},
+              {name: "t1.1.2f2"}
             ],
             related_templates: [
               {
-                name: "4.3",
+                name: "1.1.2.1",
                 fields: [
-                  {name: "t4.3f1"},
-                  {name: "t4.3f2"}
+                  {name: "t1.1.2.1f1"},
+                  {name: "t1.1.2.1f2"}
                 ]
               },
               {
-                name: "4.4"
+                name: "1.1.2.2"
               }
             ]
           }
@@ -1860,6 +1858,25 @@ test("full range of operations with big data", async () => {
 
   template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
-  // TODO: add more complexity here, like another template which interacts with this one, and both getting updated
+  let institution_template = {
+    name: "institution",
+    fields: [
+      {name: "name"},
+      {name: "location"}
+    ]
+  };
+  institution_template = await Helper.templateCreatePublishTest(institution_template, Helper.DEF_CURR_USER);
+
+  template.related_templates.push(institution_template);
+  template.related_templates[0].related_templates.push(institution_template);
+  template.related_templates[0].related_templates[0].related_templates.push(institution_template);
+
+  template = await Helper.templateUpdatePublishTest(template, Helper.DEF_CURR_USER);
+
+  institution_template.fields.push({name: "ninja"});
+  institution_template = await Helper.templateUpdatePublishTest(institution_template, Helper.DEF_CURR_USER);
+
+  template = await Helper.templateDraftGetAndTest(template.uuid, Helper.DEF_CURR_USER);
+  template = await Helper.templateUpdatePublishTest(template, Helper.DEF_CURR_USER);
 
 });
