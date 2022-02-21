@@ -18,28 +18,6 @@ afterAll(async () => {
   await MongoDB.close();
 });
 
-const templateDelete = async (uuid, curr_user) => {
-  return await request(app)
-    .delete(`/template/${uuid}/draft`)
-    .set('Cookie', [`user=${curr_user}`]);
-}
-const templateDeleteAndTest = async (uuid, current_user) => {
-  let response = await templateDelete(uuid, current_user);
-  expect(response.statusCode).toBe(200);
-};
-
-const templateLatestPublishedBeforeDate = async (uuid, timestamp, curr_user) => {
-  return await request(app)
-    .get(`/template/${uuid}/${timestamp}`)
-    .set('Cookie', [`user=${curr_user}`]);
-}
-
-const templateDuplicate = async (uuid, curr_user) => {
-  return await request(app)
-    .post(`/template/${uuid}/duplicate`)
-    .set('Cookie', [`user=${curr_user}`]);
-}
-
 describe("create (and get draft after a create)", () => {
 
   describe("subscribed templates", () => {
@@ -651,7 +629,7 @@ describe("update (and get draft after an update)", () => {
       expect(await Helper.templateDraftExistingAndTest(template.uuid)).toBe(true);
   
       template.name = "naruto";
-      await templateDeleteAndTest(template.uuid, Helper.DEF_CURR_USER);
+      await Helper.templateDeleteAndTest(template.uuid, Helper.DEF_CURR_USER);
       expect(await Helper.templateDraftExistingAndTest(template.uuid)).toBe(false);
   
       // Test description
@@ -660,7 +638,7 @@ describe("update (and get draft after an update)", () => {
       expect(await Helper.templateDraftExistingAndTest(template.uuid)).toBe(true);
   
       template.description = "ninja";
-      await templateDeleteAndTest(template.uuid, Helper.DEF_CURR_USER);
+      await Helper.templateDeleteAndTest(template.uuid, Helper.DEF_CURR_USER);
       expect(await Helper.templateDraftExistingAndTest(template.uuid)).toBe(false);
   
       // Test public_date
@@ -668,7 +646,7 @@ describe("update (and get draft after an update)", () => {
       await Helper.templateUpdateAndTest(template, Helper.DEF_CURR_USER);
       expect(await Helper.templateDraftExistingAndTest(template.uuid)).toBe(true);
   
-      await templateDeleteAndTest(template.uuid, Helper.DEF_CURR_USER);
+      await Helper.templateDeleteAndTest(template.uuid, Helper.DEF_CURR_USER);
       expect(await Helper.templateDraftExistingAndTest(template.uuid)).toBe(false);
     });
   
@@ -719,7 +697,7 @@ describe("update (and get draft after an update)", () => {
   
       //  Case 3, a related template has been published
   
-      await templateDeleteAndTest(template.uuid, Helper.DEF_CURR_USER);
+      await Helper.templateDeleteAndTest(template.uuid, Helper.DEF_CURR_USER);
       expect(await Helper.templateDraftExistingAndTest(template.uuid)).toBe(false);
   
       related_template.description = "description";
@@ -1239,7 +1217,7 @@ describe("publish (and get published and draft after a publish)", () => {
       expect(response.body).toMatchObject(template);
 
       // Delete the internal draft
-      response = await templateDelete(response.body.related_templates[0].uuid, Helper.DEF_CURR_USER);
+      response = await Helper.templateDelete(response.body.related_templates[0].uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
 
       response = await Helper.templateLastUpdate(uuid, Helper.DEF_CURR_USER);
@@ -1448,7 +1426,7 @@ test("get published for a certain date", async () => {
   let beforeFirstPublish = new Date();
 
   // Test that if only a draft exists, it is not fetched
-  let response = await templateLatestPublishedBeforeDate(uuid, beforeFirstPublish.toISOString(), Helper.DEF_CURR_USER);
+  let response = await Helper.templateLatestPublishedBeforeDate(uuid, beforeFirstPublish.toISOString(), Helper.DEF_CURR_USER);
   expect(response.statusCode).toBe(404);
 
   await Helper.templatePublishAndFetch(uuid, Helper.DEF_CURR_USER);
@@ -1476,19 +1454,19 @@ test("get published for a certain date", async () => {
   expect(response.statusCode).toBe(200);
   expect(response.body.description).toEqual(expect.stringMatching("3"));
 
-  response = await templateLatestPublishedBeforeDate(uuid, (new Date()).toISOString(), Helper.DEF_CURR_USER);
+  response = await Helper.templateLatestPublishedBeforeDate(uuid, (new Date()).toISOString(), Helper.DEF_CURR_USER);
   expect(response.statusCode).toBe(200);
   expect(response.body.description).toEqual(expect.stringMatching("3"));
 
-  response = await templateLatestPublishedBeforeDate(uuid, afterSecondPublish.toISOString(), Helper.DEF_CURR_USER);
+  response = await Helper.templateLatestPublishedBeforeDate(uuid, afterSecondPublish.toISOString(), Helper.DEF_CURR_USER);
   expect(response.statusCode).toBe(200);
   expect(response.body.description).toEqual(expect.stringMatching("2"));
 
-  response = await templateLatestPublishedBeforeDate(uuid, afterFirstPublish.toISOString(), Helper.DEF_CURR_USER);
+  response = await Helper.templateLatestPublishedBeforeDate(uuid, afterFirstPublish.toISOString(), Helper.DEF_CURR_USER);
   expect(response.statusCode).toBe(200);
   expect(response.body.description).toEqual(expect.stringMatching("1"));
 
-  response = await templateLatestPublishedBeforeDate(uuid, beforeFirstPublish.toISOString(), Helper.DEF_CURR_USER);
+  response = await Helper.templateLatestPublishedBeforeDate(uuid, beforeFirstPublish.toISOString(), Helper.DEF_CURR_USER);
   expect(response.statusCode).toBe(404);
 });
 
@@ -1511,7 +1489,7 @@ describe("delete", () => {
     expect(response.statusCode).toBe(200);
   
     // Delete the draft
-    response = await templateDelete(template.uuid, Helper.DEF_CURR_USER);
+    response = await Helper.templateDelete(template.uuid, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(200);
   
     // Get the draft again. Make sure it matches the latest published version
@@ -1532,7 +1510,7 @@ describe("delete", () => {
     let uuid = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
 
     let other_user = 'other';
-    let response = await templateDelete(uuid, other_user);
+    let response = await Helper.templateDelete(uuid, other_user);
     expect(response.statusCode).toBe(401);
   })
 });
@@ -1736,7 +1714,7 @@ describe("duplicate", () => {
         name: "t1"
       };
       let template_published = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
-      let response = await templateDuplicate(template_published.uuid, Helper.DEF_CURR_USER);
+      let response = await Helper.templateDuplicate(template_published.uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toEqual(200);
       let new_uuid = response.body.new_uuid;
       response = await Helper.templateDraftGet(new_uuid, Helper.DEF_CURR_USER);
@@ -1752,7 +1730,7 @@ describe("duplicate", () => {
       };
       let template_published = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
       let other_user = 'other';
-      let response = await templateDuplicate(template_published.uuid, other_user);
+      let response = await Helper.templateDuplicate(template_published.uuid, other_user);
       expect(response.statusCode).toEqual(200);
       let new_uuid = response.body.new_uuid;
       response = await Helper.templateDraftGet(new_uuid, other_user);
@@ -1769,7 +1747,7 @@ describe("duplicate", () => {
         related_templates: [{name: "t1.1"}]
       };
       let template_published = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
-      let response = await templateDuplicate(template_published.uuid, Helper.DEF_CURR_USER);
+      let response = await Helper.templateDuplicate(template_published.uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toEqual(200);
       let new_uuid = response.body.new_uuid;
       let draft = await Helper.templateDraftGetAndTest(new_uuid, Helper.DEF_CURR_USER);
@@ -1787,7 +1765,7 @@ describe("duplicate", () => {
       };
       let template_published = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
       let other_user = 'other';
-      let response = await templateDuplicate(template_published.uuid, other_user);
+      let response = await Helper.templateDuplicate(template_published.uuid, other_user);
       expect(response.statusCode).toEqual(200);
       let new_uuid = response.body.new_uuid;
       response = await Helper.templateDraftGet(new_uuid, other_user);
@@ -1801,11 +1779,11 @@ describe("duplicate", () => {
   describe("failure", () => {
     test("uuid must be of valid format", async () => {
       let invalid_uuid = "5;"
-      let response = await templateDuplicate(invalid_uuid, Helper.DEF_CURR_USER);
+      let response = await Helper.templateDuplicate(invalid_uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toEqual(400);
     });
     test("published template must exist", async () => {
-      let response = await templateDuplicate(Helper.VALID_UUID, Helper.DEF_CURR_USER);
+      let response = await Helper.templateDuplicate(Helper.VALID_UUID, Helper.DEF_CURR_USER);
       expect(response.statusCode).toEqual(404);
     });
     test("user must have view access to template", async () => {
@@ -1814,7 +1792,7 @@ describe("duplicate", () => {
       };
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
       let other_user = 'other';
-      let response = await templateDuplicate(template.uuid, other_user);
+      let response = await Helper.templateDuplicate(template.uuid, other_user);
       expect(response.statusCode).toEqual(401);
     });
   });
@@ -1880,5 +1858,3 @@ test("full range of operations with big data", async () => {
   // TODO: add more complexity here, like another template which interacts with this one, and both getting updated
 
 });
-
-

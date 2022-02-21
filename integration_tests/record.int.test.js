@@ -12,232 +12,14 @@ beforeAll(async () => {
   await appInit();
 });
 
-async function clearDatabase() {
-  let db = MongoDB.db();
-  await db.collection('templates').deleteMany();
-  await db.collection('template_fields').deleteMany();
-  await db.collection('records').deleteMany();
-}
-
 beforeEach(async() => {
-  await clearDatabase();
+  await Helper.clearDatabase();
 });
 
 afterAll(async () => {
-  await clearDatabase();
+  await Helper.clearDatabase();
   await MongoDB.close();
 });
-
-// TODO: I think all of these functions should probably just be moved to the helper class
-const recordCleanseMetadata = async (record) => {
-  if(!record) {
-    return;
-  }  
-  delete record.updated_at;
-  delete record._id;
-  delete record.publish_date;
-  delete record.dataset_id;
-  if(record.related_records) {
-    for(record of record.related_records) {
-      recordCleanseMetadata(record);
-    }
-  }
-}
-
-const recordCreate = async (data, curr_user) => {
-  return await request(app)
-    .post('/record')
-    .send(data)
-    .set('Cookie', [`user=${curr_user}`]);
-};
-
-const recordDraftGet = async (uuid, curr_user) => {
-  return await request(app)
-    .get(`/record/${uuid}/draft`)
-    .set('Cookie', [`user=${curr_user}`])
-    .set('Accept', 'application/json');
-};
-const recordDraftGetAndTest = async (uuid, curr_user) => {
-  let response = await recordDraftGet(uuid, curr_user);
-  expect(response.statusCode).toBe(200);
-  return response.body;
-};
-
-const testRecordFieldsEqual = (before, after) => {
-  if(before.uuid) {
-    expect(after.uuid).toEqual(before.uuid);
-  }
-  if(before.name) {
-    expect(after.name).toEqual(before.name);
-  }
-  if(before.public_date) {
-    expect(after.public_date).toEqual(before.public_date);
-  }
-  if(before.values) {
-    expect(after.values.length).toBe(before.values.length);
-    before.values.sort(Helper.sortArrayByUuidProperty);
-    after.values.sort(Helper.sortArrayByUuidProperty);
-    for(let i = 0; i < before.values.length; i++) {
-      expect(before.values[i].uuid).toEqual(after.values[i].uuid);
-    }
-  }
-}
-
-const testRecordsEqual = (before, after) => {
-  if(before.uuid) {
-    expect(after.uuid).toEqual(before.uuid);
-  }
-  expect(after.dataset_uuid).toEqual(before.dataset_uuid);
-  if(before.public_date) {
-    expect(after.public_date).toEqual(before.public_date);
-  }
-  if(before.fields) {
-    expect(after.fields.length).toBe(before.fields.length);
-    before.fields.sort(Helper.sortArrayByNameProperty);
-    after.fields.sort(Helper.sortArrayByNameProperty);
-    for(let i = 0; i < before.fields.length; i++) {
-      testRecordFieldsEqual(before.fields[i], after.fields[i]);
-    }
-  }
-  if(before.related_records) {
-    expect(after.related_records.length).toBe(before.related_records.length);
-    before.related_records.sort(Helper.sortArrayByNameProperty);
-    after.related_records.sort(Helper.sortArrayByNameProperty);
-    for(let i = 0; i < before.related_records.length; i++) {
-      testRecordsEqual(before.related_records[i], after.related_records[i]);
-    }
-  }
-}
-
-const recordCreateAndTest = async (data, curr_user) => {
-  let record = await recordCreateAndTestV2(data, curr_user);
-  return record.uuid;
-};
-const recordCreateAndTestV2 = async (data, curr_user) => {
-  let response = await recordCreate(data, curr_user);
-  expect(response.statusCode).toBe(200);
-  let uuid = response.body.inserted_uuid;
-
-  data.uuid = uuid;
-  
-  let record = await recordDraftGetAndTest(uuid, curr_user);
-  testRecordsEqual(data, record);
-  return record;
-};
-
-const recordUpdate = async (record, uuid, curr_user) => {
-  return await request(app)
-    .put(`/record/${uuid}`)
-    .send(record)
-    .set('Cookie', [`user=${curr_user}`]);
-};
-
-const recordUpdateAndTest = async (record, curr_user) => {
-  let response = await recordUpdate(record, record.uuid, curr_user);
-  expect(response.statusCode).toBe(200);
-  delete record.updated_at;
-  
-  response = await recordDraftGet(record.uuid, curr_user);
-  expect(response.statusCode).toBe(200);
-  let updated_record = response.body;
-  recordCleanseMetadata(record);
-  expect(updated_record).toMatchObject(record);
-};
-
-const recordDelete = async (uuid, curr_user) => {
-  return await request(app)
-    .delete(`/record/${uuid}/draft`)
-    .set('Cookie', [`user=${curr_user}`]);
-};
-const recordDeleteAndTest = async (uuid, curr_user) => {
-  let response = await recordDelete(uuid, curr_user);
-  expect(response.statusCode).toBe(200);
-};
-
-const recordPublish = async (uuid, last_update, curr_user) => {
-  return await request(app)
-    .post(`/record/${uuid}/publish`)
-    .send({last_update})
-    .set('Cookie', [`user=${curr_user}`]);
-}
-
-const recordLatestPublishedGet = async (uuid, curr_user) => {
-  return await request(app)
-    .get(`/record/${uuid}/latest_published`)
-    .set('Cookie', [`user=${curr_user}`])
-    .set('Accept', 'application/json');
-};
-
-const recordPublishAndTest = async (uuid, record, curr_user) => {
-  let last_update = await recordLastUpdateAndTest(uuid, curr_user);
-  let response = await recordPublish(uuid, last_update, curr_user);
-  expect(response.statusCode).toBe(200);
-  response = await recordLatestPublishedGet(uuid, curr_user);
-  expect(response.statusCode).toBe(200);
-  let published = response.body;
-  expect(published).toHaveProperty("publish_date");
-  recordCleanseMetadata(record);
-  expect(published).toMatchObject(record);
-  return published;
-}
-
-const recordCreatePublishTest = async (record, curr_user) => {
-  let uuid = await recordCreateAndTest(record, curr_user);
-  record.uuid = uuid;
-  let published = await recordPublishAndTest(uuid, record, curr_user)
-  expect(published).toMatchObject(record);
-  return published;
-};
-
-const draftExisting = async (uuid) => {
-  let response = await request(app)
-    .get(`/record/${uuid}/draft_existing`)
-    .set('Accept', 'application/json');
-  expect(response.statusCode).toBe(200);
-  return response.body;
-}
-
-const recordGetPublishedBeforeTimestamp = async(uuid, time, curr_user) => {
-  let response = await request(app)
-    .get(`/record/${uuid}/${time.toISOString()}`)
-    .set('Cookie', [`user=${curr_user}`])
-    .set('Accept', 'application/json');
-  return response;
-}
-
-const recordLastUpdate = async(uuid, curr_user) => {
-  return await request(app)
-    .get(`/record/${uuid}/last_update`)
-    .set('Cookie', [`user=${curr_user}`]);
-}
-
-const recordLastUpdateAndTest = async(uuid, curr_user) => {
-  let response = await recordLastUpdate(uuid, curr_user);
-  expect(response.statusCode).toBe(200);
-  return new Date(response.body);
-}
-
-const recordPublishAndFetch = async (uuid, curr_user) => {
-  let response = await recordLastUpdate(uuid, curr_user);
-  expect(response.statusCode).toBe(200);
-  let last_update = response.body;
-
-  response = await recordPublish(uuid, last_update, curr_user);
-  expect(response.statusCode).toBe(200);
-
-  response = await recordLatestPublishedGet(uuid, curr_user);
-  expect(response.statusCode).toBe(200);
-  let published_record = response.body;
-  expect(published_record).toHaveProperty("publish_date");
-  return published_record;
-};
-
-const recordUpdatePublishTest = async (record, curr_user) => {
-  await recordUpdateAndTest(record, curr_user);
-  let published_record = await recordPublishAndFetch(record.uuid, curr_user)
-  expect(published_record).toMatchObject(record);
-  return published_record;
-};
 
 describe("create (and get draft)", () => {
   describe("Success cases", () => {
@@ -257,7 +39,7 @@ describe("create (and get draft)", () => {
       let record = {
         dataset_uuid: dataset.uuid
       };
-      await recordCreateAndTest(record, Helper.DEF_CURR_USER);
+      await Helper.recordCreateAndTest(record, Helper.DEF_CURR_USER);
 
     });
     test("Fields but no related records", async () => {
@@ -295,7 +77,7 @@ describe("create (and get draft)", () => {
         dataset_uuid: dataset.uuid,
         fields: [name_field, color_field]
       };
-      await recordCreateAndTest(record, Helper.DEF_CURR_USER);
+      await Helper.recordCreateAndTest(record, Helper.DEF_CURR_USER);
 
     });
 
@@ -345,7 +127,7 @@ describe("create (and get draft)", () => {
         }]
       };
 
-      await recordCreateAndTest(record, Helper.DEF_CURR_USER);
+      await Helper.recordCreateAndTest(record, Helper.DEF_CURR_USER);
 
     });
 
@@ -440,7 +222,7 @@ describe("create (and get draft)", () => {
         ]
       };
 
-      await recordCreateAndTest(record, Helper.DEF_CURR_USER);
+      await Helper.recordCreateAndTest(record, Helper.DEF_CURR_USER);
 
     });
 
@@ -466,7 +248,7 @@ describe("create (and get draft)", () => {
         dataset_uuid: dataset.related_datasets[0].uuid
       };
 
-      let related_record_uuid = await recordCreateAndTest(related_record, Helper.DEF_CURR_USER);
+      let related_record_uuid = await Helper.recordCreateAndTest(related_record, Helper.DEF_CURR_USER);
 
       related_record.uuid = related_record_uuid;
 
@@ -475,7 +257,7 @@ describe("create (and get draft)", () => {
         related_records: [related_record]
       };
 
-      await recordCreateAndTest(record, Helper.DEF_CURR_USER);
+      await Helper.recordCreateAndTest(record, Helper.DEF_CURR_USER);
 
     });
 
@@ -514,8 +296,8 @@ describe("create (and get draft)", () => {
         dataset_uuid: dataset.related_datasets[1].uuid
       };
 
-      let related_record_1_published = await recordCreatePublishTest(related_record_1, Helper.DEF_CURR_USER);
-      let related_record_2_published = await recordCreatePublishTest(related_record_2, Helper.DEF_CURR_USER);
+      let related_record_1_published = await Helper.recordCreatePublishTest(related_record_1, Helper.DEF_CURR_USER);
+      let related_record_2_published = await Helper.recordCreatePublishTest(related_record_2, Helper.DEF_CURR_USER);
 
       related_record_1.uuid = related_record_1_published.uuid;
       related_record_2.uuid = related_record_2_published.uuid;
@@ -538,7 +320,7 @@ describe("create (and get draft)", () => {
         related_records: [related_record_1, {uuid: related_record_2_published.uuid, dataset_uuid: related_record_2_published.dataset_uuid}]
       };
 
-      await recordCreateAndTest(record, Helper.USER_2);
+      await Helper.recordCreateAndTest(record, Helper.USER_2);
 
     });
 
@@ -571,7 +353,7 @@ describe("create (and get draft)", () => {
         }]
       };
 
-      await recordCreateAndTest(record, Helper.DEF_CURR_USER);
+      await Helper.recordCreateAndTest(record, Helper.DEF_CURR_USER);
 
     });
 
@@ -626,14 +408,14 @@ describe("create (and get draft)", () => {
         dataset_uuid: dataset.uuid,
         fields: [field]
       };
-      let uuid = await recordCreateAndTest(record, Helper.DEF_CURR_USER);
-      let response = await recordDraftGet(uuid, Helper.DEF_CURR_USER);
+      let uuid = await Helper.recordCreateAndTest(record, Helper.DEF_CURR_USER);
+      let response = await Helper.recordDraftGet(uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
       expect(response.body.fields[0].values).toEqual([{uuid: option_uuid_1, name: "naruto"}]);
 
       record.fields[0].values = [{uuid: option_uuid_1}, {uuid: option_uuid_2}];
-      uuid = await recordCreateAndTest(record, Helper.DEF_CURR_USER);
-      response = await recordDraftGet(uuid, Helper.DEF_CURR_USER);
+      uuid = await Helper.recordCreateAndTest(record, Helper.DEF_CURR_USER);
+      response = await Helper.recordDraftGet(uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
       expect(response.body.fields[0].values).toEqual([
         {uuid: option_uuid_1, name: "naruto"},
@@ -641,8 +423,8 @@ describe("create (and get draft)", () => {
       ]);
 
       delete record.fields[0].values;
-      uuid = await recordCreateAndTest(record, Helper.DEF_CURR_USER);
-      response = await recordDraftGet(uuid, Helper.DEF_CURR_USER);
+      uuid = await Helper.recordCreateAndTest(record, Helper.DEF_CURR_USER);
+      response = await Helper.recordDraftGet(uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
       expect(response.body.fields[0].values).toEqual([]);
 
@@ -688,7 +470,7 @@ describe("create (and get draft)", () => {
         related_records: []
       };
 
-      await recordCreateAndTest(record, Helper.DEF_CURR_USER);
+      await Helper.recordCreateAndTest(record, Helper.DEF_CURR_USER);
 
     });
 
@@ -698,7 +480,7 @@ describe("create (and get draft)", () => {
 
     test("Input must be an object", async () => {
       let record = [];
-      let response = await recordCreate(record, Helper.DEF_CURR_USER);
+      let response = await Helper.recordCreate(record, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
     })
 
@@ -708,14 +490,14 @@ describe("create (and get draft)", () => {
         dataset_uuid: 6
       };
 
-      let response = await recordCreate(record, Helper.DEF_CURR_USER);
+      let response = await Helper.recordCreate(record, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
 
       record = {
         dataset_uuid: Helper.VALID_UUID
       };
 
-      response = await recordCreate(record, Helper.DEF_CURR_USER);
+      response = await Helper.recordCreate(record, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
 
     });
@@ -736,14 +518,14 @@ describe("create (and get draft)", () => {
         dataset_uuid: dataset.uuid,
         fields: 7
       };
-      let response = await recordCreate(record, Helper.DEF_CURR_USER);
+      let response = await Helper.recordCreate(record, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
 
       record = {
         dataset_uuid: dataset.uuid,
         related_records: 9
       };
-      response = await recordCreate(record, Helper.DEF_CURR_USER);
+      response = await Helper.recordCreate(record, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
     })
 
@@ -781,7 +563,7 @@ describe("create (and get draft)", () => {
           dataset_uuid: other_dataset.uuid
         }]
       };
-      response = await recordCreate(record, Helper.DEF_CURR_USER);
+      response = await Helper.recordCreate(record, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
 
     });
@@ -877,7 +659,7 @@ describe("create (and get draft)", () => {
         ]
       };
 
-      response = await recordCreate(record, Helper.DEF_CURR_USER);
+      response = await Helper.recordCreate(record, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
 
     });
@@ -902,7 +684,7 @@ describe("create (and get draft)", () => {
       let record = {
         dataset_uuid: dataset.uuid
       };
-      response = await recordCreate(record, Helper.USER_2);
+      response = await Helper.recordCreate(record, Helper.USER_2);
       expect(response.statusCode).toBe(401);
     })
 
@@ -931,7 +713,7 @@ describe("create (and get draft)", () => {
         dataset_uuid: dataset.uuid,
         fields: [name_field]
       };
-      let response = await recordCreate(record, Helper.DEF_CURR_USER);
+      let response = await Helper.recordCreate(record, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
 
     });
@@ -960,7 +742,7 @@ describe("create (and get draft)", () => {
         dataset_uuid: dataset.uuid,
         fields: [name_field, name_field]
       };
-      let response = await recordCreate(record, Helper.DEF_CURR_USER);
+      let response = await Helper.recordCreate(record, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
 
     });
@@ -997,7 +779,7 @@ describe("create (and get draft)", () => {
           }
         ]
       };
-      let response = await recordCreate(record, Helper.DEF_CURR_USER);
+      let response = await Helper.recordCreate(record, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
 
     });
@@ -1039,7 +821,7 @@ describe("create (and get draft)", () => {
         dataset_uuid: dataset.uuid,
         fields: [field]
       };
-      let response = await recordCreate(record, Helper.DEF_CURR_USER);
+      let response = await Helper.recordCreate(record, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
 
     });
@@ -1066,7 +848,7 @@ describe("create (and get draft)", () => {
         dataset_uuid: dataset.related_datasets[0].uuid
       };
 
-      let related_record_uuid = await recordCreateAndTest(related_record, Helper.DEF_CURR_USER);
+      let related_record_uuid = await Helper.recordCreateAndTest(related_record, Helper.DEF_CURR_USER);
 
       related_record.uuid = related_record_uuid;
 
@@ -1075,7 +857,7 @@ describe("create (and get draft)", () => {
         related_records: [related_record, related_record]
       };
 
-      let response = await recordCreate(record, Helper.DEF_CURR_USER);
+      let response = await Helper.recordCreate(record, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
 
     });
@@ -1083,6 +865,8 @@ describe("create (and get draft)", () => {
   });
 });
 
+// TODO: change this method to only be called for the functions that actually use it. 
+// And do the same for all similar methods in other files
 const populateWithDummyTemplateAndRecord = async () => {
   let f1 = {
     "name": "t1f1"
@@ -1128,8 +912,8 @@ const populateWithDummyTemplateAndRecord = async () => {
     }]
   };
 
-  let record_uuid = await recordCreateAndTest(record, Helper.DEF_CURR_USER);
-  let response = await recordDraftGet(record_uuid, Helper.DEF_CURR_USER);
+  let record_uuid = await Helper.recordCreateAndTest(record, Helper.DEF_CURR_USER);
+  let response = await Helper.recordDraftGet(record_uuid, Helper.DEF_CURR_USER);
   expect(response.statusCode).toBe(200);
   record = response.body
   return [template, dataset, record];
@@ -1147,7 +931,7 @@ describe("update", () => {
 
     test("Basic update - change a field", async () => {
       record.fields[0].value = "sad";
-      await recordUpdateAndTest(record, Helper.DEF_CURR_USER);
+      await Helper.recordUpdateAndTest(record, Helper.DEF_CURR_USER);
     });
 
   });
@@ -1156,7 +940,7 @@ describe("update", () => {
 
     test("uuid in request and in object must match", async () => {
 
-      let response = await recordUpdate(record, Helper.VALID_UUID, Helper.DEF_CURR_USER);
+      let response = await Helper.recordUpdate(record, Helper.VALID_UUID, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
 
     });
@@ -1165,19 +949,19 @@ describe("update", () => {
 
       record.uuid = Helper.VALID_UUID;
 
-      let response = await recordUpdate(record, Helper.VALID_UUID, Helper.DEF_CURR_USER);
+      let response = await Helper.recordUpdate(record, Helper.VALID_UUID, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(404);
 
     });
 
     test("must have edit permissions on the dataset", async () => {
       record.fields[0].value = "sad";
-      let response = await recordUpdate(record, record.uuid, Helper.USER_2);
+      let response = await Helper.recordUpdate(record, record.uuid, Helper.USER_2);
       expect(response.statusCode).toBe(401);
     });
 
     test("once a record is published, its dataset may never be changed", async () => {
-      record = await recordPublishAndTest(record.uuid, record, Helper.DEF_CURR_USER);
+      record = await Helper.recordPublishAndTest(record.uuid, record, Helper.DEF_CURR_USER);
       let dataset_alternative = {
         template_uuid: template.uuid,
         related_datasets: [{
@@ -1188,7 +972,7 @@ describe("update", () => {
       };
       dataset_alternative = await Helper.datasetCreatePublishTest(dataset_alternative, Helper.DEF_CURR_USER);
       record.dataset_uuid = dataset_alternative.uuid;
-      let response = await recordUpdate(record, record.uuid, Helper.DEF_CURR_USER);
+      let response = await Helper.recordUpdate(record, record.uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
     });
   });
@@ -1214,20 +998,20 @@ describe("update", () => {
         dataset_uuid: dataset.uuid,
         fields: [{uuid: template.fields[0].uuid, value: "something"}]
       };
-      record = await recordCreatePublishTest(record, Helper.DEF_CURR_USER);
+      record = await Helper.recordCreatePublishTest(record, Helper.DEF_CURR_USER);
 
       // Test that draft exists if field changes
       record.fields[0].value = "else";
-      await recordUpdateAndTest(record, Helper.DEF_CURR_USER);
+      await Helper.recordUpdateAndTest(record, Helper.DEF_CURR_USER);
 
-      expect(await draftExisting(record.uuid)).toBe(true);
+      expect(await Helper.recordDraftExisting(record.uuid)).toBe(true);
 
       record.fields[0].value = 'something';
 
       // Test that draft exists if public_date changes
       record.public_date = (new Date()).toISOString();
-      await recordUpdateAndTest(record, Helper.DEF_CURR_USER);
-      expect(await draftExisting(record.uuid)).toBe(true);
+      await Helper.recordUpdateAndTest(record, Helper.DEF_CURR_USER);
+      expect(await Helper.recordDraftExisting(record.uuid)).toBe(true);
 
     });
 
@@ -1283,57 +1067,57 @@ describe("update", () => {
         }]
       };
 
-      let record_uuid = await recordCreateAndTest(record, Helper.DEF_CURR_USER);
-      let response = await recordDraftGet(record_uuid, Helper.DEF_CURR_USER);
+      let record_uuid = await Helper.recordCreateAndTest(record, Helper.DEF_CURR_USER);
+      let response = await Helper.recordDraftGet(record_uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
       record = response.body;
 
       // Publish the first time
-      await recordPublishAndTest(record_uuid, record, Helper.DEF_CURR_USER);
+      await Helper.recordPublishAndTest(record_uuid, record, Helper.DEF_CURR_USER);
 
       //  Submit an update on the 3rd layer
-      response = await recordDraftGet(record_uuid, Helper.DEF_CURR_USER);
+      response = await Helper.recordDraftGet(record_uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
       record = response.body;
       record.related_records[0].related_records[0].fields[0].value = "banana";
-      await recordUpdateAndTest(record, Helper.DEF_CURR_USER);
+      await Helper.recordUpdateAndTest(record, Helper.DEF_CURR_USER);
 
       // The first 3 layers, but not the fourth layer, should have drafts
-      expect(await draftExisting(record.uuid)).toBeTruthy();
-      expect(await draftExisting(record.related_records[0].uuid)).toBeTruthy();
-      expect(await draftExisting(record.related_records[0].related_records[0].uuid)).toBeTruthy();
-      expect(await draftExisting(record.related_records[0].related_records[0].related_records[0].uuid)).toBeFalsy();
+      expect(await Helper.recordDraftExisting(record.uuid)).toBeTruthy();
+      expect(await Helper.recordDraftExisting(record.related_records[0].uuid)).toBeTruthy();
+      expect(await Helper.recordDraftExisting(record.related_records[0].related_records[0].uuid)).toBeTruthy();
+      expect(await Helper.recordDraftExisting(record.related_records[0].related_records[0].related_records[0].uuid)).toBeFalsy();
 
     });
 
     test("update includes no change since last published: no draft created", async () => {
-      await recordPublishAndTest(record.uuid, record, Helper.DEF_CURR_USER);
-      await recordUpdateAndTest(record, Helper.DEF_CURR_USER);
-      expect(await draftExisting(record.uuid)).toBeFalsy();
-      expect(await draftExisting(record.related_records[0].uuid)).toBeFalsy();
+      await Helper.recordPublishAndTest(record.uuid, record, Helper.DEF_CURR_USER);
+      await Helper.recordUpdateAndTest(record, Helper.DEF_CURR_USER);
+      expect(await Helper.recordDraftExisting(record.uuid)).toBeFalsy();
+      expect(await Helper.recordDraftExisting(record.related_records[0].uuid)).toBeFalsy();
     });
 
     test("update includes no changes since last published but a new dataset has been published: a new draft is created", async () => {
-      await recordPublishAndTest(record.uuid, record, Helper.DEF_CURR_USER);
+      await Helper.recordPublishAndTest(record.uuid, record, Helper.DEF_CURR_USER);
       dataset.public_date = (new Date()).toISOString();
       await Helper.datasetUpdatePublishTest(dataset, Helper.DEF_CURR_USER);
-      await recordUpdateAndTest(record, Helper.DEF_CURR_USER);
-      expect(await draftExisting(record.uuid)).toBeTruthy();
-      expect(await draftExisting(record.related_records[0].uuid)).toBeFalsy();
+      await Helper.recordUpdateAndTest(record, Helper.DEF_CURR_USER);
+      expect(await Helper.recordDraftExisting(record.uuid)).toBeTruthy();
+      expect(await Helper.recordDraftExisting(record.related_records[0].uuid)).toBeFalsy();
     });
 
     test("update includes no changes except that a new version of a related_record has been published: a new draft is created", async () => {
 
-      await recordPublishAndTest(record.uuid, record, Helper.DEF_CURR_USER);
+      await Helper.recordPublishAndTest(record.uuid, record, Helper.DEF_CURR_USER);
 
       let related_record = record.related_records[0];
       related_record.fields[0].value = "new value";
-      await recordUpdateAndTest(related_record, Helper.DEF_CURR_USER);
-      await recordPublishAndTest(related_record.uuid, related_record, Helper.DEF_CURR_USER);
+      await Helper.recordUpdateAndTest(related_record, Helper.DEF_CURR_USER);
+      await Helper.recordPublishAndTest(related_record.uuid, related_record, Helper.DEF_CURR_USER);
 
-      await recordUpdateAndTest(record, Helper.DEF_CURR_USER);
-      expect(await draftExisting(record.uuid)).toBeTruthy();
-      expect(await draftExisting(record.related_records[0].uuid)).toBeFalsy();
+      await Helper.recordUpdateAndTest(record, Helper.DEF_CURR_USER);
+      expect(await Helper.recordDraftExisting(record.uuid)).toBeTruthy();
+      expect(await Helper.recordDraftExisting(record.related_records[0].uuid)).toBeFalsy();
     });
 
   });
@@ -1350,25 +1134,25 @@ describe("delete", () => {
 
   test("basic delete", async () => {
     // Delete the parent record
-    let response = await recordDelete(record.uuid, Helper.DEF_CURR_USER);
+    let response = await Helper.recordDelete(record.uuid, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(200);
 
     // The parent record should no longer exist
-    response = await recordDraftGet(record.uuid, Helper.DEF_CURR_USER);
+    response = await Helper.recordDraftGet(record.uuid, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(404);
 
     // But the child still should
-    response = await recordDraftGet(record.related_records[0].uuid, Helper.DEF_CURR_USER);
+    response = await Helper.recordDraftGet(record.related_records[0].uuid, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(200);
   });
 
   test("uuid must exist", async () => {
-    let response = await recordDelete(Helper.VALID_UUID, Helper.DEF_CURR_USER);
+    let response = await Helper.recordDelete(Helper.VALID_UUID, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(404);
   });
 
   test("must have edit permissions", async () => {
-    let response = await recordDelete(record.uuid, Helper.USER_2);
+    let response = await Helper.recordDelete(record.uuid, Helper.USER_2);
     expect(response.statusCode).toBe(401);
   });
 });
@@ -1390,16 +1174,16 @@ describe("publish (and get published)", () => {
         dataset_uuid: dataset.uuid
       }
 
-      let record_uuid = await recordCreateAndTest(record, Helper.DEF_CURR_USER);
+      let record_uuid = await Helper.recordCreateAndTest(record, Helper.DEF_CURR_USER);
 
-      await recordPublishAndTest(record_uuid, record, Helper.DEF_CURR_USER);
+      await Helper.recordPublishAndTest(record_uuid, record, Helper.DEF_CURR_USER);
       
     });
 
     test("Complex publish - with nested fields and related templates to publish", async () => {
       let record;
       [_, _, record] = await populateWithDummyTemplateAndRecord();
-      await recordPublishAndTest(record.uuid, record, Helper.DEF_CURR_USER);
+      await Helper.recordPublishAndTest(record.uuid, record, Helper.DEF_CURR_USER);
     });
 
     test("Complex publish - changes in a nested property result in publishing for all parent properties", async () => {
@@ -1451,26 +1235,26 @@ describe("publish (and get published)", () => {
         }]
       };
 
-      let record_uuid = await recordCreateAndTest(record, Helper.DEF_CURR_USER);
-      let response = await recordDraftGet(record_uuid, Helper.DEF_CURR_USER);
+      let record_uuid = await Helper.recordCreateAndTest(record, Helper.DEF_CURR_USER);
+      let response = await Helper.recordDraftGet(record_uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
       record = response.body;
 
       // Publish the first time
-      await recordPublishAndTest(record_uuid, record, Helper.DEF_CURR_USER);
+      await Helper.recordPublishAndTest(record_uuid, record, Helper.DEF_CURR_USER);
 
       // Edit the third record
-      response = await recordDraftGet(record_uuid, Helper.DEF_CURR_USER);
+      response = await Helper.recordDraftGet(record_uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
       record = response.body;
       record.related_records[0].related_records[0].fields[0].value = "banana";
-      await recordUpdateAndTest(record, Helper.DEF_CURR_USER);
+      await Helper.recordUpdateAndTest(record, Helper.DEF_CURR_USER);
 
       // Record the date before we publish a second time
       let intermediate_publish_date = (new Date()).getTime();
 
       // Now publish the record again
-      let published = await recordPublishAndTest(record_uuid, record, Helper.DEF_CURR_USER);
+      let published = await Helper.recordPublishAndTest(record_uuid, record, Helper.DEF_CURR_USER);
 
       // On the third node and above, the publish date should be newer than the intermediate_publish_date. 
       // The fourth should be older
@@ -1510,7 +1294,7 @@ describe("publish (and get published)", () => {
           dataset_uuid: dataset.related_datasets[0].uuid,
         }]
       };
-      await recordCreatePublishTest(record, Helper.DEF_CURR_USER);
+      await Helper.recordCreatePublishTest(record, Helper.DEF_CURR_USER);
 
     });
 
@@ -1520,9 +1304,9 @@ describe("publish (and get published)", () => {
 
     const publishFailureTest = async (uuid, curr_user, responseCode, last_update) => {
       if(!last_update) {
-        last_update = await recordLastUpdateAndTest(uuid, curr_user);
+        last_update = await Helper.recordLastUpdateAndTest(uuid, curr_user);
       }
-      let response = await recordPublish(uuid, last_update, curr_user);
+      let response = await Helper.recordPublish(uuid, last_update, curr_user);
       expect(response.statusCode).toBe(responseCode);
     };
 
@@ -1538,24 +1322,24 @@ describe("publish (and get published)", () => {
     });
 
     test("No changes to publish", async () => {
-      await recordPublishAndTest(record.uuid, record, Helper.DEF_CURR_USER);
+      await Helper.recordPublishAndTest(record.uuid, record, Helper.DEF_CURR_USER);
       await publishFailureTest(record.uuid, Helper.DEF_CURR_USER, 400);
     });
 
     test("A new dataset has been published since this record was last updated", async () => {
       // publish original data
-      await recordPublishAndTest(record.uuid, record, Helper.DEF_CURR_USER);
+      await Helper.recordPublishAndTest(record.uuid, record, Helper.DEF_CURR_USER);
       // update record
       record.fields[0].value = "waffle";
-      await recordUpdateAndTest(record, Helper.DEF_CURR_USER);
+      await Helper.recordUpdateAndTest(record, Helper.DEF_CURR_USER);
       // update dataset and publish
       dataset.public_date = (new Date()).toISOString();
       await Helper.datasetUpdatePublishTest(dataset, Helper.DEF_CURR_USER);
       // fail to publish record because it's dataset was just published
       await publishFailureTest(record.uuid, Helper.DEF_CURR_USER, 400);
       // update record again and this time succeed in publishing 
-      await recordUpdateAndTest(record, Helper.DEF_CURR_USER);
-      await recordPublishAndTest(record.uuid, record, Helper.DEF_CURR_USER);
+      await Helper.recordUpdateAndTest(record, Helper.DEF_CURR_USER);
+      await Helper.recordPublishAndTest(record.uuid, record, Helper.DEF_CURR_USER);
     });
 
     test("Last update provided must match to actual last update in the database", async () => {
@@ -1563,14 +1347,14 @@ describe("publish (and get published)", () => {
     });
 
     test("Last update provided must match to actual last update in the database, also if sub-property is updated later", async () => {
-      let parent_update = await recordLastUpdateAndTest(record.uuid, Helper.DEF_CURR_USER);
+      let parent_update = await Helper.recordLastUpdateAndTest(record.uuid, Helper.DEF_CURR_USER);
       let related_record = record.related_records[0];
       related_record.fields[0].value = "this programmer just ate a pear";
-      await recordUpdateAndTest(related_record, Helper.DEF_CURR_USER);
+      await Helper.recordUpdateAndTest(related_record, Helper.DEF_CURR_USER);
 
       await publishFailureTest(record.uuid, Helper.DEF_CURR_USER, 400, parent_update);
 
-      await recordPublishAndTest(record.uuid, record, Helper.DEF_CURR_USER);
+      await Helper.recordPublishAndTest(record.uuid, record, Helper.DEF_CURR_USER);
     });
 
     test("Must have edit permissions to publish", async () => {
@@ -1587,10 +1371,10 @@ describe("publish (and get published)", () => {
         dataset_uuid: dataset.uuid
       }
 
-      let record_uuid = await recordCreateAndTest(record, Helper.DEF_CURR_USER);
+      let record_uuid = await Helper.recordCreateAndTest(record, Helper.DEF_CURR_USER);
 
-      let last_update = await recordLastUpdateAndTest(record_uuid, Helper.DEF_CURR_USER);
-      let response = await recordPublish(record_uuid, last_update, Helper.USER_2);
+      let last_update = await Helper.recordLastUpdateAndTest(record_uuid, Helper.DEF_CURR_USER);
+      let response = await Helper.recordPublish(record_uuid, last_update, Helper.USER_2);
       expect(response.statusCode).toBe(401);
       
     });
@@ -1621,7 +1405,7 @@ describe("get published", () => {
         dataset_uuid: dataset.related_datasets[0].uuid
       }]
     };
-    record = await recordCreatePublishTest(record, Helper.DEF_CURR_USER);  
+    record = await Helper.recordCreatePublishTest(record, Helper.DEF_CURR_USER);  
     
     let view_users = [Helper.USER_2, Helper.DEF_CURR_USER];
     let response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, template.uuid, PERMISSION_VIEW, view_users);
@@ -1632,7 +1416,7 @@ describe("get published", () => {
     record.related_records[0] = {uuid: record.related_records[0].uuid};
     // Fetch parent dataset, check that the related_dataset is fetched as blank 
     // since the second user
-    response = await recordLatestPublishedGet(record.uuid, Helper.USER_2);
+    response = await Helper.recordLatestPublishedGet(record.uuid, Helper.USER_2);
     expect(response.statusCode).toBe(200);
     expect(response.body).toMatchObject(record);   
   });
@@ -1651,9 +1435,9 @@ describe("get published", () => {
     let record = { 
       dataset_uuid: dataset.uuid
     };
-    record = await recordCreatePublishTest(record, Helper.DEF_CURR_USER);  
+    record = await Helper.recordCreatePublishTest(record, Helper.DEF_CURR_USER);  
 
-    let response = await recordLatestPublishedGet(record.uuid, Helper.USER_2);
+    let response = await Helper.recordLatestPublishedGet(record.uuid, Helper.USER_2);
     expect(response.statusCode).toBe(401);
   });
 });
@@ -1664,41 +1448,41 @@ test("get published for a certain date", async () => {
 
   let publish0 = new Date();
 
-  await recordPublishAndTest(record.uuid, record, Helper.DEF_CURR_USER);
+  await Helper.recordPublishAndTest(record.uuid, record, Helper.DEF_CURR_USER);
 
   let publish1 = new Date();
 
   record.fields[0].value = '2';
-  await recordUpdateAndTest(record, Helper.DEF_CURR_USER);
-  await recordPublishAndTest(record.uuid, record, Helper.DEF_CURR_USER);
+  await Helper.recordUpdateAndTest(record, Helper.DEF_CURR_USER);
+  await Helper.recordPublishAndTest(record.uuid, record, Helper.DEF_CURR_USER);
 
   let publish2 = new Date();
 
   record.fields[0].value = '3';
-  await recordUpdateAndTest(record, Helper.DEF_CURR_USER);
-  await recordPublishAndTest(record.uuid, record, Helper.DEF_CURR_USER);
+  await Helper.recordUpdateAndTest(record, Helper.DEF_CURR_USER);
+  await Helper.recordPublishAndTest(record.uuid, record, Helper.DEF_CURR_USER);
 
   let publish3 = new Date();
 
   // Now we have published 3 times. Search for versions based on timestamps.
 
-  let response = await recordGetPublishedBeforeTimestamp(record.uuid, publish0, Helper.DEF_CURR_USER);
+  let response = await Helper.recordGetPublishedBeforeTimestamp(record.uuid, publish0, Helper.DEF_CURR_USER);
   expect(response.statusCode).toEqual(404);
 
-  response = await recordGetPublishedBeforeTimestamp(record.uuid, publish1, Helper.DEF_CURR_USER);
+  response = await Helper.recordGetPublishedBeforeTimestamp(record.uuid, publish1, Helper.DEF_CURR_USER);
   expect(response.statusCode).toEqual(200);
   expect(response.body.fields[0].value).toEqual(expect.stringMatching("happy"));
 
-  response = await recordGetPublishedBeforeTimestamp(record.uuid, publish2, Helper.DEF_CURR_USER);
+  response = await Helper.recordGetPublishedBeforeTimestamp(record.uuid, publish2, Helper.DEF_CURR_USER);
   expect(response.statusCode).toEqual(200);
   expect(response.body.fields[0].value).toEqual(expect.stringMatching("2"));
 
-  response = await recordGetPublishedBeforeTimestamp(record.uuid, publish3, Helper.DEF_CURR_USER);
+  response = await Helper.recordGetPublishedBeforeTimestamp(record.uuid, publish3, Helper.DEF_CURR_USER);
   expect(response.statusCode).toEqual(200);
   expect(response.body.fields[0].value).toEqual(expect.stringMatching("3"));
 });
 
-describe("recordLastUpdate", () => {
+describe("Helper.recordLastUpdate", () => {
 
   describe("success", () => {
     test("basic draft, no fields or related templates", async () => {
@@ -1718,9 +1502,9 @@ describe("recordLastUpdate", () => {
 
       let before_update = new Date();
 
-      let record_uuid = await recordCreateAndTest(record, Helper.DEF_CURR_USER);
+      let record_uuid = await Helper.recordCreateAndTest(record, Helper.DEF_CURR_USER);
 
-      let last_update = await recordLastUpdateAndTest(record_uuid, Helper.DEF_CURR_USER);
+      let last_update = await Helper.recordLastUpdateAndTest(record_uuid, Helper.DEF_CURR_USER);
       expect(last_update.getTime()).toBeGreaterThan(before_update.getTime());
     });
 
@@ -1732,9 +1516,9 @@ describe("recordLastUpdate", () => {
 
       let between_updates = new Date();
 
-      await recordUpdateAndTest(related_record, Helper.DEF_CURR_USER);
+      await Helper.recordUpdateAndTest(related_record, Helper.DEF_CURR_USER);
 
-      let last_update = await recordLastUpdateAndTest(record.uuid, Helper.DEF_CURR_USER);
+      let last_update = await Helper.recordLastUpdateAndTest(record.uuid, Helper.DEF_CURR_USER);
       expect(last_update.getTime()).toBeGreaterThan(between_updates.getTime());
     });
 
@@ -1768,19 +1552,19 @@ describe("recordLastUpdate", () => {
           fields: [field]
         }]
       };
-      record = await recordCreatePublishTest(record, Helper.DEF_CURR_USER);
+      record = await Helper.recordCreatePublishTest(record, Helper.DEF_CURR_USER);
 
       let related_record = record.related_records[0];
       related_record.fields[0].value = "pokemon";
 
-      let response = await recordUpdate(related_record, related_record.uuid, Helper.DEF_CURR_USER);
+      let response = await Helper.recordUpdate(related_record, related_record.uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toEqual(200);
 
       let time1 = new Date();
-      await recordPublishAndTest(related_record.uuid, related_record, Helper.DEF_CURR_USER);
+      await Helper.recordPublishAndTest(related_record.uuid, related_record, Helper.DEF_CURR_USER);
       let time2 = new Date();
 
-      response = await recordLastUpdate(record.uuid, Helper.DEF_CURR_USER);
+      response = await Helper.recordLastUpdate(record.uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
       expect((new Date(response.body)).getTime()).toBeGreaterThan(time1.getTime());
       expect((new Date(response.body)).getTime()).toBeLessThan(time2.getTime());
@@ -1824,10 +1608,10 @@ describe("recordLastUpdate", () => {
           }]
         }]
       };
-      let uuid = await recordCreateAndTest(record, Helper.DEF_CURR_USER);
+      let uuid = await Helper.recordCreateAndTest(record, Helper.DEF_CURR_USER);
 
       // create
-      let response = await recordDraftGet(uuid, Helper.DEF_CURR_USER);
+      let response = await Helper.recordDraftGet(uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
       record = response.body;
 
@@ -1835,20 +1619,20 @@ describe("recordLastUpdate", () => {
       let record3 = record2.related_records[0];
 
       // publish
-      await recordPublishAndTest(uuid, record, Helper.DEF_CURR_USER);
+      await Helper.recordPublishAndTest(uuid, record, Helper.DEF_CURR_USER);
 
       // Update grandchild
       record3.fields[0].value = "jutsu";
 
-      response = await recordUpdate(record3, record3.uuid, Helper.DEF_CURR_USER);
+      response = await Helper.recordUpdate(record3, record3.uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
 
-      response = await recordDraftGet(record3.uuid, Helper.DEF_CURR_USER);
+      response = await Helper.recordDraftGet(record3.uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
       let update_3_timestamp = response.body.updated_at;
 
       // Now get the update timestamp for the grandparent. It should be that of the grandchild.
-      response = await recordLastUpdate(uuid, Helper.DEF_CURR_USER);
+      response = await Helper.recordLastUpdate(uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
       expect(response.body).toEqual(update_3_timestamp);
       
@@ -1858,10 +1642,10 @@ describe("recordLastUpdate", () => {
 
   describe("failure", () => {
     test("invalid uuid", async () => {
-      let response = await recordLastUpdate("18", Helper.DEF_CURR_USER);
+      let response = await Helper.recordLastUpdate("18", Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
 
-      response = await recordLastUpdate(Helper.VALID_UUID, Helper.DEF_CURR_USER);
+      response = await Helper.recordLastUpdate(Helper.VALID_UUID, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(404);
     })
 
@@ -1879,9 +1663,9 @@ describe("recordLastUpdate", () => {
       let record = {
         dataset_uuid: dataset.uuid
       };
-      let uuid = await recordCreateAndTest(record, Helper.DEF_CURR_USER);
+      let uuid = await Helper.recordCreateAndTest(record, Helper.DEF_CURR_USER);
 
-      let response = await recordLastUpdate(uuid, Helper.USER_2);
+      let response = await Helper.recordLastUpdate(uuid, Helper.USER_2);
       expect(response.statusCode).toBe(401);
     });
 
@@ -1899,9 +1683,9 @@ describe("recordLastUpdate", () => {
       let record = {
         dataset_uuid: dataset.uuid
       };
-      record = await recordCreatePublishTest(record, Helper.DEF_CURR_USER);
+      record = await Helper.recordCreatePublishTest(record, Helper.DEF_CURR_USER);
 
-      let response = await recordLastUpdate(record.uuid, Helper.USER_2);
+      let response = await Helper.recordLastUpdate(record.uuid, Helper.USER_2);
       expect(response.statusCode).toBe(401);
     });
   });
@@ -2048,11 +1832,11 @@ test("full range of operations with big data", async () => {
     ]
   };
 
-  let record_uuid = await recordCreateAndTest(record, Helper.DEF_CURR_USER);
+  let record_uuid = await Helper.recordCreateAndTest(record, Helper.DEF_CURR_USER);
 
-  let response = await recordDraftGet(record_uuid, Helper.DEF_CURR_USER);
+  let response = await Helper.recordDraftGet(record_uuid, Helper.DEF_CURR_USER);
   expect(response.statusCode).toBe(200);
   record = response.body;
-  await recordPublishAndTest(record_uuid, record, Helper.DEF_CURR_USER);
+  await Helper.recordPublishAndTest(record_uuid, record, Helper.DEF_CURR_USER);
 
 });

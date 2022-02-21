@@ -78,6 +78,22 @@ module.exports = class Helper {
     return response.body;
   };
 
+  templateFieldUpdate = async (uuid, field, current_user) => {
+    return await request(this.app)
+      .put(`/template_field/${uuid}`)
+      .set('Cookie', [`user=${current_user}`])
+      .send(field)
+      .set('Accept', 'application/json');
+  };
+  templateFieldUpdateAndTest = async (template_field, curr_user) => {
+    delete template_field.updated_at
+    let response = await this.templateFieldUpdate(template_field.uuid, template_field, curr_user);
+    expect(response.statusCode).toBe(200);
+  
+    let new_draft = await this.templateFieldDraftGetAndTest(template_field.uuid, curr_user);
+    this.testTemplateFieldsEqual(template_field, new_draft);
+  }
+
   testTemplateFieldOptionsEqual = (before, after) => {
     if(!before) {
       return;
@@ -95,7 +111,6 @@ module.exports = class Helper {
       this.testTemplateFieldOptionsEqual(before[i].options, after[i].options)
     }
   }
-
   testTemplateFieldsEqual = (before, after) => {
     if(before.name) {
       expect(after.name).toEqual(before.name);
@@ -155,6 +170,12 @@ module.exports = class Helper {
     .set('Cookie', [`user=${current_user}`]);
   };
 
+  templateFieldLatestPublishedBeforeDate = async (uuid, timestamp, current_user) => {
+    return await request(this.app)
+      .get(`/template_field/${uuid}/${timestamp}`)
+      .set('Cookie', [`user=${current_user}`]);
+  };
+
   templateFieldDraftExisting = async (uuid) => {
     return await request(this.app)
       .get(`/template_field/${uuid}/draft_existing`);
@@ -191,6 +212,24 @@ module.exports = class Helper {
     field.uuid = uuid;
 
     return await this.templateFieldPublishAfterCreateOrUpdateThenTest(field, current_user);
+  };
+
+  templateFieldUpdatePublishTest = async (field, current_user) => {
+    await this.templateFieldUpdateAndTest(field, current_user);
+  
+    expect(await this.templateFieldDraftExistingAndTest(field.uuid)).toBe(true);
+  
+    return await this.templateFieldPublishAfterCreateOrUpdateThenTest(field, current_user);
+  };
+
+  templateFieldDraftDelete = async (uuid, current_user) => {
+    return await request(this.app)
+      .delete(`/template_field/${uuid}/draft`)
+      .set('Cookie', [`user=${current_user}`]);
+  };
+  templateFieldDraftDeleteAndTest = async (uuid, current_user) => {
+    let response = await this.templateFieldDraftDelete(uuid, current_user);
+    expect(response.statusCode).toBe(200);
   };
 
   // template
@@ -294,6 +333,11 @@ module.exports = class Helper {
       .set('Cookie', [`user=${curr_user}`])
       .set('Accept', 'application/json');
   }
+  templateLatestPublishedBeforeDate = async (uuid, timestamp, curr_user) => {
+    return await request(this.app)
+      .get(`/template/${uuid}/${timestamp}`)
+      .set('Cookie', [`user=${curr_user}`]);
+  }
 
   templateDraftExisting = async (uuid) => {
     return await request(this.app)
@@ -387,6 +431,22 @@ module.exports = class Helper {
     return published_template;
   };
 
+  templateDelete = async (uuid, curr_user) => {
+    return await request(this.app)
+      .delete(`/template/${uuid}/draft`)
+      .set('Cookie', [`user=${curr_user}`]);
+  }
+  templateDeleteAndTest = async (uuid, current_user) => {
+    let response = await this.templateDelete(uuid, current_user);
+    expect(response.statusCode).toBe(200);
+  };
+
+  templateDuplicate = async (uuid, curr_user) => {
+    return await request(this.app)
+      .post(`/template/${uuid}/duplicate`)
+      .set('Cookie', [`user=${curr_user}`]);
+  }
+
   // dataset
 
   datasetCreate = async (dataset, curr_user) => {
@@ -466,6 +526,11 @@ module.exports = class Helper {
       .set('Cookie', [`user=${curr_user}`])
       .set('Accept', 'application/json');
   }
+  datasetLatestPublishedBeforeDate = async (uuid, timestamp, curr_user) => {
+    return await request(this.app)
+      .get(`/dataset/${uuid}/${timestamp}`)
+      .set('Cookie', [`user=${curr_user}`]);
+  }
 
   datasetPublishAndFetch = async (uuid, curr_user) => {
     let last_update = await this.datasetLastUpdateAndTest(uuid, curr_user);
@@ -519,13 +584,242 @@ module.exports = class Helper {
     return published_dataset;
   };
 
+  datasetDelete = async (uuid, curr_user) => {
+    return await request(this.app)
+      .delete(`/dataset/${uuid}/draft`)
+      .set('Cookie', [`user=${curr_user}`]);
+  }
+  datasetDeleteAndTest = async (uuid, curr_user) => {
+    let response = await this.datasetDelete(uuid, curr_user);
+    expect(response.statusCode).toBe(200);
+  }
+
+  datasetDraftExisting = async (uuid) => {
+    return await request(this.app)
+      .get(`/dataset/${uuid}/draft_existing`)
+      .set('Accept', 'application/json');
+  };
+  datasetDraftExistingAndTest = async (uuid) => {
+    let response = await this.datasetDraftExisting(uuid);
+    expect(response.statusCode).toBe(200);
+    return response.body;
+  }
+
+  datasetDuplicate = async (uuid, curr_user) => {
+    return await request(this.app)
+      .post(`/dataset/${uuid}/duplicate`)
+      .set('Cookie', [`user=${curr_user}`]);
+  }
+
   // record
 
+  recordCleanseMetadata = (record) => {
+    if(!record) {
+      return;
+    }  
+    delete record.updated_at;
+    delete record._id;
+    delete record.publish_date;
+    delete record.dataset_id;
+    if(record.related_records) {
+      for(record of record.related_records) {
+        this.recordCleanseMetadata(record);
+      }
+    }
+  }
+  
+  recordCreate = async (record, curr_user) => {
+    return await request(this.app)
+      .post('/record')
+      .send(record)
+      .set('Cookie', [`user=${curr_user}`]);
+  };
+  
   recordDraftGet = async (uuid, curr_user) => {
     return await request(this.app)
       .get(`/record/${uuid}/draft`)
       .set('Cookie', [`user=${curr_user}`])
       .set('Accept', 'application/json');
+  };
+  recordDraftGetAndTest = async (uuid, curr_user) => {
+    let response = await this.recordDraftGet(uuid, curr_user);
+    expect(response.statusCode).toBe(200);
+    return response.body;
+  };
+  
+  testRecordFieldsEqual = (before, after) => {
+    if(before.uuid) {
+      expect(after.uuid).toEqual(before.uuid);
+    }
+    if(before.name) {
+      expect(after.name).toEqual(before.name);
+    }
+    if(before.public_date) {
+      expect(after.public_date).toEqual(before.public_date);
+    }
+    if(before.values) {
+      expect(after.values.length).toBe(before.values.length);
+      before.values.sort(Helper.sortArrayByUuidProperty);
+      after.values.sort(Helper.sortArrayByUuidProperty);
+      for(let i = 0; i < before.values.length; i++) {
+        expect(before.values[i].uuid).toEqual(after.values[i].uuid);
+      }
+    }
+  }
+  testRecordsEqual = (before, after) => {
+    if(before.uuid) {
+      expect(after.uuid).toEqual(before.uuid);
+    }
+    expect(after.dataset_uuid).toEqual(before.dataset_uuid);
+    if(before.public_date) {
+      expect(after.public_date).toEqual(before.public_date);
+    }
+    if(before.fields) {
+      expect(after.fields.length).toBe(before.fields.length);
+      before.fields.sort(Helper.sortArrayByNameProperty);
+      after.fields.sort(Helper.sortArrayByNameProperty);
+      for(let i = 0; i < before.fields.length; i++) {
+        this.testRecordFieldsEqual(before.fields[i], after.fields[i]);
+      }
+    }
+    if(before.related_records) {
+      expect(after.related_records.length).toBe(before.related_records.length);
+      before.related_records.sort(Helper.sortArrayByNameProperty);
+      after.related_records.sort(Helper.sortArrayByNameProperty);
+      for(let i = 0; i < before.related_records.length; i++) {
+        this.testRecordsEqual(before.related_records[i], after.related_records[i]);
+      }
+    }
+  }
+  
+  recordCreateAndTest = async (record, curr_user) => {
+    let created_record = await this.recordCreateAndTestV2(record, curr_user);
+    return created_record.uuid;
+  };
+  recordCreateAndTestV2 = async (input_record, curr_user) => {
+    let response = await this.recordCreate(input_record, curr_user);
+    expect(response.statusCode).toBe(200);
+    let uuid = response.body.inserted_uuid;
+  
+    input_record.uuid = uuid;
+    
+    let created_record = await this.recordDraftGetAndTest(uuid, curr_user);
+    this.testRecordsEqual(input_record, created_record);
+    return created_record;
+  };
+  
+  recordUpdate = async (record, uuid, curr_user) => {
+    return await request(this.app)
+      .put(`/record/${uuid}`)
+      .send(record)
+      .set('Cookie', [`user=${curr_user}`]);
+  };
+  
+  recordUpdateAndTest = async (record, curr_user) => {
+    let response = await this.recordUpdate(record, record.uuid, curr_user);
+    expect(response.statusCode).toBe(200);
+    delete record.updated_at;
+    
+    response = await this.recordDraftGet(record.uuid, curr_user);
+    expect(response.statusCode).toBe(200);
+    let updated_record = response.body;
+    this.recordCleanseMetadata(record);
+    expect(updated_record).toMatchObject(record);
+  };
+  
+  recordDelete = async (uuid, curr_user) => {
+    return await request(this.app)
+      .delete(`/record/${uuid}/draft`)
+      .set('Cookie', [`user=${curr_user}`]);
+  };
+  recordDeleteAndTest = async (uuid, curr_user) => {
+    let response = await this.recordDelete(uuid, curr_user);
+    expect(response.statusCode).toBe(200);
+  };
+  
+  recordPublish = async (uuid, last_update, curr_user) => {
+    return await request(this.app)
+      .post(`/record/${uuid}/publish`)
+      .send({last_update})
+      .set('Cookie', [`user=${curr_user}`]);
+  }
+  
+  recordLatestPublishedGet = async (uuid, curr_user) => {
+    return await request(this.app)
+      .get(`/record/${uuid}/latest_published`)
+      .set('Cookie', [`user=${curr_user}`])
+      .set('Accept', 'application/json');
+  };
+  
+  recordPublishAndTest = async (uuid, record, curr_user) => {
+    let last_update = await this.recordLastUpdateAndTest(uuid, curr_user);
+    let response = await this.recordPublish(uuid, last_update, curr_user);
+    expect(response.statusCode).toBe(200);
+    response = await this.recordLatestPublishedGet(uuid, curr_user);
+    expect(response.statusCode).toBe(200);
+    let published = response.body;
+    expect(published).toHaveProperty("publish_date");
+    this.recordCleanseMetadata(record);
+    expect(published).toMatchObject(record);
+    return published;
+  }
+  
+  recordCreatePublishTest = async (record, curr_user) => {
+    let uuid = await this.recordCreateAndTest(record, curr_user);
+    record.uuid = uuid;
+    let published = await this.recordPublishAndTest(uuid, record, curr_user)
+    expect(published).toMatchObject(record);
+    return published;
+  };
+  
+  recordDraftExisting = async (uuid) => {
+    let response = await request(this.app)
+      .get(`/record/${uuid}/draft_existing`)
+      .set('Accept', 'application/json');
+    expect(response.statusCode).toBe(200);
+    return response.body;
+  }
+  
+  recordGetPublishedBeforeTimestamp = async(uuid, time, curr_user) => {
+    let response = await request(this.app)
+      .get(`/record/${uuid}/${time.toISOString()}`)
+      .set('Cookie', [`user=${curr_user}`])
+      .set('Accept', 'application/json');
+    return response;
+  }
+  
+  recordLastUpdate = async(uuid, curr_user) => {
+    return await request(this.app)
+      .get(`/record/${uuid}/last_update`)
+      .set('Cookie', [`user=${curr_user}`]);
+  }
+  
+  recordLastUpdateAndTest = async(uuid, curr_user) => {
+    let response = await this.recordLastUpdate(uuid, curr_user);
+    expect(response.statusCode).toBe(200);
+    return new Date(response.body);
+  }
+  
+  recordPublishAndFetch = async (uuid, curr_user) => {
+    let response = await this.recordLastUpdate(uuid, curr_user);
+    expect(response.statusCode).toBe(200);
+    let last_update = response.body;
+  
+    response = await this.recordPublish(uuid, last_update, curr_user);
+    expect(response.statusCode).toBe(200);
+  
+    response = await this.recordLatestPublishedGet(uuid, curr_user);
+    expect(response.statusCode).toBe(200);
+    let published_record = response.body;
+    expect(published_record).toHaveProperty("publish_date");
+    return published_record;
+  };
+  
+  recordUpdatePublishTest = async (record, curr_user) => {
+    await this.recordUpdateAndTest(record, curr_user);
+    let published_record = await this.recordPublishAndFetch(record.uuid, curr_user)
+    expect(published_record).toMatchObject(record);
+    return published_record;
   };
 
   // permission group
@@ -562,6 +856,20 @@ module.exports = class Helper {
     await this.testPermissionGroup(uuid, PERMISSION_ADMIN, 200, [user]);
     await this.testPermissionGroup(uuid, PERMISSION_EDIT, 200, []);
     await this.testPermissionGroup(uuid, PERMISSION_VIEW, 200, []);
+  }
+
+  permissionGroupTestingInitialize = async (uuid, current_user) => {
+    return await request(this.app)
+      .post(`/permission_group/${uuid}/testing_initialize`)
+      .set('Cookie', [`user=${current_user}`])
+      .set('Accept', 'application/json');
+  }
+  
+  permissionGroupTestingHasPermission = async (uuid, category, current_user) => {
+    return await request(this.app)
+      .post(`/permission_group/${uuid}/${category}/testing_has_permission`)
+      .set('Cookie', [`user=${current_user}`])
+      .set('Accept', 'application/json');
   }
 }
 

@@ -29,12 +29,6 @@ const importTemplate = async (template, curr_user) => {
     .set('Accept', 'application/json');
 }
 
-const templateDraftGetAndTest = async (uuid, curr_user) => {
-  let response = await Helper.templateDraftGet(uuid, curr_user);
-  expect(response.statusCode).toBe(200);
-  return response.body;
-};
-
 const cleanseInputTemplateField = (field) => {
   delete field.internal_id;
   delete field.fieldtype;
@@ -117,7 +111,7 @@ const importTemplatePublishAndTest = async (template, curr_user) => {
   expect(response.statusCode).toBe(200);
   let uuid = response.body.new_uuid;
 
-  let new_template = await templateDraftGetAndTest(uuid, curr_user);
+  let new_template = await Helper.templateDraftGetAndTest(uuid, curr_user);
   testTemplatesEqual(template, new_template, {});
 
   return await Helper.templatePublishAndFetch(uuid, curr_user);
@@ -272,7 +266,7 @@ describe("template", () => {
       expect(response.statusCode).toBe(200);
       let uuid = response.body.new_uuid;
   
-      let new_template = await templateDraftGetAndTest(uuid, Helper.DEF_CURR_USER);
+      let new_template = await Helper.templateDraftGetAndTest(uuid, Helper.DEF_CURR_USER);
       testTemplatesEqual(template, new_template, {});
     });
   
@@ -296,7 +290,7 @@ describe("template", () => {
       expect(response.statusCode).toBe(200);
       let uuid = response.body.new_uuid;
   
-      let new_template = await templateDraftGetAndTest(uuid, Helper.DEF_CURR_USER);
+      let new_template = await Helper.templateDraftGetAndTest(uuid, Helper.DEF_CURR_USER);
       testTemplatesEqual(template, new_template, {});
     });
 
@@ -349,7 +343,7 @@ describe("template", () => {
       expect(response.statusCode).toBe(200);
       let uuid = response.body.new_uuid;
   
-      let new_template = await templateDraftGetAndTest(uuid, Helper.DEF_CURR_USER);
+      let new_template = await Helper.templateDraftGetAndTest(uuid, Helper.DEF_CURR_USER);
       testTemplatesEqual(template, new_template, {});
     });
   
@@ -373,7 +367,7 @@ describe("template", () => {
       expect(response.statusCode).toBe(200);
       let uuid = response.body.new_uuid;
   
-      let new_template = await templateDraftGetAndTest(uuid, Helper.DEF_CURR_USER);
+      let new_template = await Helper.templateDraftGetAndTest(uuid, Helper.DEF_CURR_USER);
       testTemplatesEqual(template, new_template, {});
   
       // Import second time
@@ -384,7 +378,7 @@ describe("template", () => {
 
       expect(uuid).toEqual(uuid2);
 
-      let new_template_2 = await templateDraftGetAndTest(uuid, Helper.DEF_CURR_USER);
+      let new_template_2 = await Helper.templateDraftGetAndTest(uuid, Helper.DEF_CURR_USER);
       testTemplatesEqual(template, new_template_2, {});
     })
 
@@ -438,7 +432,7 @@ describe("template", () => {
       expect(response.statusCode).toBe(200);
       let uuid = response.body.new_uuid;
     
-      let new_template = await templateDraftGetAndTest(uuid, Helper.DEF_CURR_USER);
+      let new_template = await Helper.templateDraftGetAndTest(uuid, Helper.DEF_CURR_USER);
     
       testTemplatesEqual(old_template, new_template, {});
     
@@ -488,7 +482,7 @@ describe("template", () => {
       expect(response.statusCode).toBe(200);
       let uuid = response.body.new_uuid;
   
-      let new_template = await templateDraftGetAndTest(uuid, Helper.DEF_CURR_USER);
+      let new_template = await Helper.templateDraftGetAndTest(uuid, Helper.DEF_CURR_USER);
       testTemplatesEqual(template, new_template, {});
   
       // Import second time

@@ -18,39 +18,6 @@ afterAll(async () => {
   await MongoDB.close();
 });
 
-const draftExisting = async (uuid) => {
-  return await request(app)
-    .get(`/dataset/${uuid}/draft_existing`)
-    .set('Accept', 'application/json');
-};
-const draftExistingAndTest = async (uuid) => {
-  let response = await draftExisting(uuid);
-  expect(response.statusCode).toBe(200);
-  return response.body;
-}
-
-const datasetDelete = async (uuid, curr_user) => {
-  return await request(app)
-    .delete(`/dataset/${uuid}/draft`)
-    .set('Cookie', [`user=${curr_user}`]);
-}
-const datasetDeleteAndTest = async (uuid, curr_user) => {
-  let response = await datasetDelete(uuid, curr_user);
-  expect(response.statusCode).toBe(200);
-}
-
-const datasetLatestPublishedBeforeDate = async (uuid, timestamp, curr_user) => {
-  return await request(app)
-    .get(`/dataset/${uuid}/${timestamp}`)
-    .set('Cookie', [`user=${curr_user}`]);
-}
-
-const datasetDuplicate = async (uuid, curr_user) => {
-  return await request(app)
-    .post(`/dataset/${uuid}/duplicate`)
-    .set('Cookie', [`user=${curr_user}`]);
-}
-
 describe("create (and get draft)", () => {
   describe("Success cases", () => {
 
@@ -732,8 +699,8 @@ describe("update (and get draft)", () => {
       dataset = await Helper.datasetPublishAndFetch(dataset.uuid, Helper.DEF_CURR_USER);
       let response = await Helper.datasetUpdate(dataset.uuid, dataset, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
-      expect(await draftExistingAndTest(dataset.uuid)).toBeFalsy();
-      expect(await draftExistingAndTest(dataset.related_datasets[0].uuid)).toBeFalsy();
+      expect(await Helper.datasetDraftExistingAndTest(dataset.uuid)).toBeFalsy();
+      expect(await Helper.datasetDraftExistingAndTest(dataset.related_datasets[0].uuid)).toBeFalsy();
     });
 
     test("template_uuid and public date", async () => {
@@ -747,7 +714,7 @@ describe("update (and get draft)", () => {
         template_uuid: template.uuid
       };
       dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
-      expect(await draftExistingAndTest(dataset.uuid)).toBe(false);
+      expect(await Helper.datasetDraftExistingAndTest(dataset.uuid)).toBe(false);
   
       let template_2 = {
         name: "sasuke",
@@ -756,12 +723,12 @@ describe("update (and get draft)", () => {
       template_2 = await Helper.templateCreatePublishTest(template_2, Helper.DEF_CURR_USER);
       dataset.template_uuid = template_2.uuid;
       await Helper.datasetUpdateAndTest(dataset, Helper.DEF_CURR_USER);
-      expect(await draftExistingAndTest(dataset.uuid)).toBe(true);
+      expect(await Helper.datasetDraftExistingAndTest(dataset.uuid)).toBe(true);
   
       dataset.template_uuid = template.uuid;
       dataset.public_date = (new Date()).toISOString();
       await Helper.datasetUpdateAndTest(dataset, Helper.DEF_CURR_USER);
-      expect(await draftExistingAndTest(dataset.uuid)).toBe(true);
+      expect(await Helper.datasetDraftExistingAndTest(dataset.uuid)).toBe(true);
   
     });
 
@@ -777,7 +744,7 @@ describe("update (and get draft)", () => {
       dataset.related_datasets = [new_related_dataset];
 
       await Helper.datasetUpdateAndTest(dataset, Helper.DEF_CURR_USER);
-      expect(await draftExistingAndTest(dataset.uuid)).toBeTruthy();
+      expect(await Helper.datasetDraftExistingAndTest(dataset.uuid)).toBeTruthy();
     });
 
     test("a new version of the linked template has been published", async () => {
@@ -789,8 +756,8 @@ describe("update (and get draft)", () => {
       template.description = "des";
       template = await Helper.templateUpdatePublishTest(template, Helper.DEF_CURR_USER);
       await Helper.datasetUpdateAndTest(dataset, Helper.DEF_CURR_USER);
-      expect(await draftExistingAndTest(dataset.uuid)).toBeTruthy();
-      expect(await draftExistingAndTest(dataset.related_datasets[0].uuid)).toBeFalsy();
+      expect(await Helper.datasetDraftExistingAndTest(dataset.uuid)).toBeTruthy();
+      expect(await Helper.datasetDraftExistingAndTest(dataset.related_datasets[0].uuid)).toBeFalsy();
     });
 
     test("a new version of a related_dataset has been published", async () => {
@@ -803,8 +770,8 @@ describe("update (and get draft)", () => {
       await Helper.datasetPublishAndFetch(related_dataset.uuid, Helper.DEF_CURR_USER);
 
       await Helper.datasetUpdateAndTest(dataset, Helper.DEF_CURR_USER);
-      expect(await draftExistingAndTest(dataset.uuid)).toBeTruthy();
-      expect(await draftExistingAndTest(related_dataset.uuid)).toBeFalsy();
+      expect(await Helper.datasetDraftExistingAndTest(dataset.uuid)).toBeTruthy();
+      expect(await Helper.datasetDraftExistingAndTest(related_dataset.uuid)).toBeFalsy();
     });
 
     test("updating a related_dataset creates drafts of parents but not children", async () => {
@@ -848,10 +815,10 @@ describe("update (and get draft)", () => {
       await Helper.datasetUpdateAndTest(dataset, Helper.DEF_CURR_USER);
 
       // The first 3 layers, but not the fourth layer, should have drafts
-      expect(await draftExistingAndTest(dataset.uuid)).toBeTruthy();
-      expect(await draftExistingAndTest(dataset.related_datasets[0].uuid)).toBeTruthy();
-      expect(await draftExistingAndTest(dataset.related_datasets[0].related_datasets[0].uuid)).toBeTruthy();
-      expect(await draftExistingAndTest(dataset.related_datasets[0].related_datasets[0].related_datasets[0].uuid)).toBeFalsy();
+      expect(await Helper.datasetDraftExistingAndTest(dataset.uuid)).toBeTruthy();
+      expect(await Helper.datasetDraftExistingAndTest(dataset.related_datasets[0].uuid)).toBeTruthy();
+      expect(await Helper.datasetDraftExistingAndTest(dataset.related_datasets[0].related_datasets[0].uuid)).toBeTruthy();
+      expect(await Helper.datasetDraftExistingAndTest(dataset.related_datasets[0].related_datasets[0].related_datasets[0].uuid)).toBeFalsy();
 
     });
 
@@ -882,8 +849,8 @@ describe("update (and get draft)", () => {
 
       // Now there shouldn't be any update to the dataset if we try to update
       await Helper.datasetUpdateAndTest(dataset, Helper.DEF_CURR_USER);
-      expect(await draftExistingAndTest(dataset.uuid)).toBeFalsy();
-      expect(await draftExistingAndTest(dataset.related_datasets[0].uuid)).toBeFalsy();
+      expect(await Helper.datasetDraftExistingAndTest(dataset.uuid)).toBeFalsy();
+      expect(await Helper.datasetDraftExistingAndTest(dataset.related_datasets[0].uuid)).toBeFalsy();
     });
   
   });
@@ -1297,7 +1264,7 @@ describe("publish (and get published)", () => {
       expect(response.body).toMatchObject(dataset);
 
       // Delete the internal draft
-      response = await datasetDelete(response.body.related_datasets[0].uuid, Helper.DEF_CURR_USER);
+      response = await Helper.datasetDelete(response.body.related_datasets[0].uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
 
       response = await Helper.datasetLastUpdate(uuid, Helper.DEF_CURR_USER);
@@ -1527,7 +1494,7 @@ test("get published for a certain date", async () => {
   let beforeFirstPublish = new Date();
 
   // Test that if only a draft exists, it is not fetched
-  let response = await datasetLatestPublishedBeforeDate(uuid, beforeFirstPublish.toISOString(), Helper.DEF_CURR_USER);
+  let response = await Helper.datasetLatestPublishedBeforeDate(uuid, beforeFirstPublish.toISOString(), Helper.DEF_CURR_USER);
   expect(response.statusCode).toBe(404);
 
   await Helper.datasetPublishAndFetch(uuid, Helper.DEF_CURR_USER);
@@ -1558,19 +1525,19 @@ test("get published for a certain date", async () => {
   expect(response.statusCode).toBe(200);
   expect(response.body.public_date).toEqual(public_date_2);
 
-  response = await datasetLatestPublishedBeforeDate(uuid, (new Date()).toISOString(), Helper.DEF_CURR_USER);
+  response = await Helper.datasetLatestPublishedBeforeDate(uuid, (new Date()).toISOString(), Helper.DEF_CURR_USER);
   expect(response.statusCode).toBe(200);
   expect(response.body.public_date).toEqual(public_date_2);
 
-  response = await datasetLatestPublishedBeforeDate(uuid, afterSecondPublish.toISOString(), Helper.DEF_CURR_USER);
+  response = await Helper.datasetLatestPublishedBeforeDate(uuid, afterSecondPublish.toISOString(), Helper.DEF_CURR_USER);
   expect(response.statusCode).toBe(200);
   expect(response.body.public_date).toEqual(public_date_1);
 
-  response = await datasetLatestPublishedBeforeDate(uuid, afterFirstPublish.toISOString(), Helper.DEF_CURR_USER);
+  response = await Helper.datasetLatestPublishedBeforeDate(uuid, afterFirstPublish.toISOString(), Helper.DEF_CURR_USER);
   expect(response.statusCode).toBe(200);
   expect(response.body.public_date).toBe(undefined);
 
-  response = await datasetLatestPublishedBeforeDate(uuid, beforeFirstPublish.toISOString(), Helper.DEF_CURR_USER);
+  response = await Helper.datasetLatestPublishedBeforeDate(uuid, beforeFirstPublish.toISOString(), Helper.DEF_CURR_USER);
   expect(response.statusCode).toBe(404);
 });
 
@@ -1826,7 +1793,7 @@ describe("delete", () => {
     expect(response.statusCode).toBe(200);
   
     // Delete the draft
-    response = await datasetDelete(dataset.uuid, Helper.DEF_CURR_USER);
+    response = await Helper.datasetDelete(dataset.uuid, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(200);
   
     // Get the draft again. Make sure it matches the latest published version
@@ -1852,7 +1819,7 @@ describe("delete", () => {
     };
     uuid = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
 
-    let response = await datasetDelete(uuid, Helper.USER_2);
+    let response = await Helper.datasetDelete(uuid, Helper.USER_2);
     expect(response.statusCode).toBe(401);
   });
 });
@@ -1921,7 +1888,7 @@ describe("duplicate", () => {
       expect(dataset1.group_uuid).not.toEqual(dataset12.group_uuid);
       expect(dataset12.group_uuid).toEqual(dataset12.related_datasets[0].group_uuid);
 
-      response = await datasetDuplicate(uuid1, Helper.DEF_CURR_USER);
+      response = await Helper.datasetDuplicate(uuid1, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
       let new_dataset = response.body;
 
@@ -1975,7 +1942,7 @@ describe("duplicate", () => {
       };
       dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
 
-      response = await datasetDuplicate(dataset.uuid, Helper.USER_2);
+      response = await Helper.datasetDuplicate(dataset.uuid, Helper.USER_2);
       expect(response.statusCode).toBe(200);
       let new_dataset = response.body;
 
@@ -2019,7 +1986,7 @@ describe("duplicate", () => {
       dataset.related_datasets[1].related_datasets[0].uuid = dataset.related_datasets[0].uuid;
       dataset = await Helper.datasetUpdatePublishTest(dataset, Helper.DEF_CURR_USER);
 
-      response = await datasetDuplicate(uuid, Helper.DEF_CURR_USER);
+      response = await Helper.datasetDuplicate(uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
       let new_dataset = response.body;
 
@@ -2045,7 +2012,7 @@ describe("duplicate", () => {
       };
       dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
 
-      response = await datasetDuplicate(dataset.uuid, Helper.USER_2);
+      response = await Helper.datasetDuplicate(dataset.uuid, Helper.USER_2);
       expect(response.statusCode).toBe(401);
     });
   });

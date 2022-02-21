@@ -18,49 +18,6 @@ afterAll(async () => {
   await MongoDB.close();
 });
 
-// TODO: I think all endpoint calls should be moved to common_test_operations
-const templateFieldUpdate = async (uuid, data, current_user) => {
-  return await request(app)
-    .put(`/template_field/${uuid}`)
-    .set('Cookie', [`user=${current_user}`])
-    .send(data)
-    .set('Accept', 'application/json');
-};
-
-const templateFieldUpdateAndTest = async (template_field, curr_user) => {
-  delete template_field.updated_at
-  let response = await templateFieldUpdate(template_field.uuid, template_field, curr_user);
-  expect(response.statusCode).toBe(200);
-
-  let new_draft = await Helper.templateFieldDraftGetAndTest(template_field.uuid, curr_user);
-  Helper.testTemplateFieldsEqual(template_field, new_draft);
-}
-
-const templateFieldLatestPublishedBeforeDate = async (uuid, timestamp, current_user) => {
-  return await request(app)
-    .get(`/template_field/${uuid}/${timestamp}`)
-    .set('Cookie', [`user=${current_user}`]);
-};
-
-const templateFieldDraftDelete = async (uuid, current_user) => {
-  return await request(app)
-    .delete(`/template_field/${uuid}/draft`)
-    .set('Cookie', [`user=${current_user}`]);
-};
-
-const templateFieldDraftDeleteAndTest = async (uuid, current_user) => {
-  let response = await templateFieldDraftDelete(uuid, current_user);
-  expect(response.statusCode).toBe(200);
-};
-
-const templateFieldUpdatePublishTest = async (field, current_user) => {
-  await templateFieldUpdateAndTest(field, current_user);
-
-  expect(await Helper.templateFieldDraftExistingAndTest(field.uuid)).toBe(true);
-
-  return await Helper.templateFieldPublishAfterCreateOrUpdateThenTest(field, current_user);
-};
-
 describe("create (and get draft after a create)", () => {
   describe("success cases", () => {
     test("Basic, no radio options", async () => {
@@ -227,7 +184,7 @@ describe("update (and get draft after an update)", () => {
         public_date: (new Date()).toISOString()
       };
 
-      let response = await templateFieldUpdate(template_field.uuid, data, Helper.DEF_CURR_USER);
+      let response = await Helper.templateFieldUpdate(template_field.uuid, data, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
     
       response = await Helper.templateFieldDraftGet(template_field.uuid, Helper.DEF_CURR_USER);
@@ -248,7 +205,7 @@ describe("update (and get draft after an update)", () => {
           name: "sakura"
         }
       ];
-      await templateFieldUpdateAndTest(template_field, Helper.DEF_CURR_USER);
+      await Helper.templateFieldUpdateAndTest(template_field, Helper.DEF_CURR_USER);
 
       let response = await Helper.templateFieldDraftGet(template_field.uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
@@ -257,7 +214,7 @@ describe("update (and get draft after an update)", () => {
       template_field.options.push({
         name: "caleb"
       });
-      await templateFieldUpdateAndTest(template_field, Helper.DEF_CURR_USER);
+      await Helper.templateFieldUpdateAndTest(template_field, Helper.DEF_CURR_USER);
 
     });
 
@@ -314,7 +271,7 @@ describe("update (and get draft after an update)", () => {
       template_field.options.push({
         name: "caleb"
       });
-      await templateFieldUpdateAndTest(template_field, Helper.DEF_CURR_USER);
+      await Helper.templateFieldUpdateAndTest(template_field, Helper.DEF_CURR_USER);
 
     });
   });
@@ -327,7 +284,7 @@ describe("update (and get draft after an update)", () => {
         "name": "name"
       };
 
-      let response = await templateFieldUpdate(template_field.uuid, data, Helper.DEF_CURR_USER);
+      let response = await Helper.templateFieldUpdate(template_field.uuid, data, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
 
     })
@@ -339,7 +296,7 @@ describe("update (and get draft after an update)", () => {
         "name": "name"
       };
 
-      let response = await templateFieldUpdate(Helper.VALID_UUID, data, Helper.DEF_CURR_USER);
+      let response = await Helper.templateFieldUpdate(Helper.VALID_UUID, data, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(404);
 
     })
@@ -351,7 +308,7 @@ describe("update (and get draft after an update)", () => {
         "name": "different name"
       };
   
-      let response = await templateFieldUpdate(template_field.uuid, data);
+      let response = await Helper.templateFieldUpdate(template_field.uuid, data);
       expect(response.statusCode).toBe(401);
     })
 
@@ -360,19 +317,19 @@ describe("update (and get draft after an update)", () => {
         {name: "caleb"},
         {name: "naruto"}
       ];
-      await templateFieldUpdateAndTest(template_field, Helper.DEF_CURR_USER);
+      await Helper.templateFieldUpdateAndTest(template_field, Helper.DEF_CURR_USER);
       let response = await Helper.templateFieldDraftGet(template_field.uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
       template_field = response.body;
 
       // radio options uuids supplied must exist
       template_field.options[0].uuid = Helper.VALID_UUID;
-      response = await templateFieldUpdate(template_field, Helper.DEF_CURR_USER);
+      response = await Helper.templateFieldUpdate(template_field, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
 
       // radio options uuids supplied must exist
       template_field.options[0].uuid = template_field.options[1].uuid;
-      response = await templateFieldUpdate(template_field, Helper.DEF_CURR_USER);
+      response = await Helper.templateFieldUpdate(template_field, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
 
     });
@@ -392,28 +349,28 @@ describe("update (and get draft after an update)", () => {
   
       // Test name
       field.name = "caleb";
-      await templateFieldUpdateAndTest(field, Helper.DEF_CURR_USER);
+      await Helper.templateFieldUpdateAndTest(field, Helper.DEF_CURR_USER);
       expect(await Helper.templateFieldDraftExistingAndTest(field.uuid)).toBe(true);
   
       field.name = "naruto";
-      await templateFieldDraftDeleteAndTest(field.uuid, Helper.DEF_CURR_USER);
+      await Helper.templateFieldDraftDeleteAndTest(field.uuid, Helper.DEF_CURR_USER);
       expect(await Helper.templateFieldDraftExistingAndTest(field.uuid)).toBe(false);
   
       // Test description
       field.description = "toad";
-      await templateFieldUpdateAndTest(field, Helper.DEF_CURR_USER);
+      await Helper.templateFieldUpdateAndTest(field, Helper.DEF_CURR_USER);
       expect(await Helper.templateFieldDraftExistingAndTest(field.uuid)).toBe(true);
   
       field.description = "ninja";
-      await templateFieldDraftDeleteAndTest(field.uuid, Helper.DEF_CURR_USER);
+      await Helper.templateFieldDraftDeleteAndTest(field.uuid, Helper.DEF_CURR_USER);
       expect(await Helper.templateFieldDraftExistingAndTest(field.uuid)).toBe(false);
   
       // Test public_date
       field.public_date = (new Date()).toISOString();
-      await templateFieldUpdateAndTest(field, Helper.DEF_CURR_USER);
+      await Helper.templateFieldUpdateAndTest(field, Helper.DEF_CURR_USER);
       expect(await Helper.templateFieldDraftExistingAndTest(field.uuid)).toBe(true);
   
-      await templateFieldDraftDeleteAndTest(field.uuid, Helper.DEF_CURR_USER);
+      await Helper.templateFieldDraftDeleteAndTest(field.uuid, Helper.DEF_CURR_USER);
       expect(await Helper.templateFieldDraftExistingAndTest(field.uuid)).toBe(false);
     });
   
@@ -425,11 +382,11 @@ describe("update (and get draft after an update)", () => {
       field = await Helper.templateFieldCreatePublishTest(field, Helper.DEF_CURR_USER);
   
       field.options = [];
-      await templateFieldUpdateAndTest(field, Helper.DEF_CURR_USER);
+      await Helper.templateFieldUpdateAndTest(field, Helper.DEF_CURR_USER);
       expect(await Helper.templateFieldDraftExistingAndTest(field.uuid)).toBe(true);
   
       field.options = [{name: "shonin"}];
-      await templateFieldUpdateAndTest(field, Helper.DEF_CURR_USER);
+      await Helper.templateFieldUpdateAndTest(field, Helper.DEF_CURR_USER);
       expect(await Helper.templateFieldDraftExistingAndTest(field.uuid)).toBe(true);
   
       field.options = [
@@ -445,10 +402,10 @@ describe("update (and get draft after an update)", () => {
           ]
         }
       ];
-      field = await templateFieldUpdatePublishTest(field, Helper.DEF_CURR_USER);
+      field = await Helper.templateFieldUpdatePublishTest(field, Helper.DEF_CURR_USER);
   
       // No changes from last one, a draft shouldn't be created
-      await templateFieldUpdateAndTest(field, Helper.DEF_CURR_USER);
+      await Helper.templateFieldUpdateAndTest(field, Helper.DEF_CURR_USER);
       expect(await Helper.templateFieldDraftExistingAndTest(field.uuid)).toBe(false);
   
     });
@@ -667,7 +624,7 @@ test("get published for a certain date", async () => {
 
   // Test that if only a draft exists, it is not fetched
   
-  let response = await templateFieldLatestPublishedBeforeDate(uuid, beforeFirstPublish.toISOString(), Helper.DEF_CURR_USER);
+  let response = await Helper.templateFieldLatestPublishedBeforeDate(uuid, beforeFirstPublish.toISOString(), Helper.DEF_CURR_USER);
   expect(response.statusCode).toBe(404);
 
   response = await Helper.templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
@@ -683,7 +640,7 @@ test("get published for a certain date", async () => {
   data.uuid = uuid;
   data.description = "2";
 
-  response = await templateFieldUpdate(uuid, data, Helper.DEF_CURR_USER);
+  response = await Helper.templateFieldUpdate(uuid, data, Helper.DEF_CURR_USER);
   expect(response.statusCode).toBe(200);
 
   response = await Helper.templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
@@ -697,7 +654,7 @@ test("get published for a certain date", async () => {
 
   data.description = "3";
 
-  response = await templateFieldUpdate(uuid, data, Helper.DEF_CURR_USER);
+  response = await Helper.templateFieldUpdate(uuid, data, Helper.DEF_CURR_USER);
   expect(response.statusCode).toBe(200);
 
   response = await Helper.templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
@@ -713,19 +670,19 @@ test("get published for a certain date", async () => {
   expect(response.statusCode).toBe(200);
   expect(response.body.description).toEqual(expect.stringMatching("3"));
 
-  response = await templateFieldLatestPublishedBeforeDate(uuid, (new Date()).toISOString(), Helper.DEF_CURR_USER);
+  response = await Helper.templateFieldLatestPublishedBeforeDate(uuid, (new Date()).toISOString(), Helper.DEF_CURR_USER);
   expect(response.statusCode).toBe(200);
   expect(response.body.description).toEqual(expect.stringMatching("3"));
 
-  response = await templateFieldLatestPublishedBeforeDate(uuid, afterSecondPublish.toISOString(), Helper.DEF_CURR_USER);
+  response = await Helper.templateFieldLatestPublishedBeforeDate(uuid, afterSecondPublish.toISOString(), Helper.DEF_CURR_USER);
   expect(response.statusCode).toBe(200);
   expect(response.body.description).toEqual(expect.stringMatching("2"));
 
-  response = await templateFieldLatestPublishedBeforeDate(uuid, afterFirstPublish.toISOString(), Helper.DEF_CURR_USER);
+  response = await Helper.templateFieldLatestPublishedBeforeDate(uuid, afterFirstPublish.toISOString(), Helper.DEF_CURR_USER);
   expect(response.statusCode).toBe(200);
   expect(response.body.description).toEqual(expect.stringMatching("1"));
 
-  response = await templateFieldLatestPublishedBeforeDate(uuid, beforeFirstPublish.toISOString(), Helper.DEF_CURR_USER);
+  response = await Helper.templateFieldLatestPublishedBeforeDate(uuid, beforeFirstPublish.toISOString(), Helper.DEF_CURR_USER);
   expect(response.statusCode).toBe(404);
 });
 
@@ -748,7 +705,7 @@ describe("delete", () => {
     data.description = "different";
   
     // Change the draft, but don't publish the change
-    response = await templateFieldUpdate(uuid, data, Helper.DEF_CURR_USER);
+    response = await Helper.templateFieldUpdate(uuid, data, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(200);
   
     // Verify that the draft is what we changed it to
@@ -756,7 +713,7 @@ describe("delete", () => {
     expect(response.statusCode).toBe(200);
   
     // Delete the draft
-    response = await templateFieldDraftDelete(uuid, Helper.DEF_CURR_USER);
+    response = await Helper.templateFieldDraftDelete(uuid, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(200);
   
     // Get the draft again. Make sure it matches the latest published version
@@ -783,7 +740,7 @@ describe("delete", () => {
     expect(response.statusCode).toBe(200);
    
     // Delete the draft
-    response = await templateFieldDraftDelete(uuid, Helper.DEF_CURR_USER);
+    response = await Helper.templateFieldDraftDelete(uuid, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(404);
   });
 
@@ -805,7 +762,7 @@ describe("delete", () => {
     data.description = "different";
   
     // Change the draft, but don't publish the change
-    response = await templateFieldUpdate(uuid, data, Helper.DEF_CURR_USER);
+    response = await Helper.templateFieldUpdate(uuid, data, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(200);
   
     // Verify that the draft is what we changed it to
@@ -813,7 +770,7 @@ describe("delete", () => {
     expect(response.statusCode).toBe(200);
   
     // Delete the draft
-    response = await templateFieldDraftDelete(uuid);
+    response = await Helper.templateFieldDraftDelete(uuid);
     expect(response.statusCode).toBe(401);
   });
 });
@@ -854,7 +811,7 @@ describe("lastUpdate", () => {
 
       let time2 = new Date();
 
-      let response = await templateFieldUpdate(template.uuid, template, Helper.DEF_CURR_USER);
+      let response = await Helper.templateFieldUpdate(template.uuid, template, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
 
       let time3 = new Date();

@@ -18,24 +18,10 @@ afterAll(async () => {
   await MongoDB.close();
 });
 
-async function permissionGroupTestingInitialize(uuid, current_user) {
-  return await request(app)
-    .post(`/permission_group/${uuid}/testing_initialize`)
-    .set('Cookie', [`user=${current_user}`])
-    .set('Accept', 'application/json');
-}
-
-async function permissionGroupTestingHasPermission(uuid, category, current_user) {
-  return await request(app)
-    .post(`/permission_group/${uuid}/${category}/testing_has_permission`)
-    .set('Cookie', [`user=${current_user}`])
-    .set('Accept', 'application/json');
-}
-
 describe("initialize_permissions (and get)",  () => {
   test("success", async () => {
     let uuid = Helper.VALID_UUID;
-    let response = await permissionGroupTestingInitialize(uuid, Helper.DEF_CURR_USER);
+    let response = await Helper.permissionGroupTestingInitialize(uuid, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(200);
 
     response = await Helper.getPermissionGroup(uuid, PERMISSION_ADMIN);
@@ -50,20 +36,20 @@ describe("initialize_permissions (and get)",  () => {
     expect(response.statusCode).toBe(200);
     expect(response.body).toEqual([]);
 
-    response = await permissionGroupTestingHasPermission(uuid, PERMISSION_ADMIN, Helper.DEF_CURR_USER);
+    response = await Helper.permissionGroupTestingHasPermission(uuid, PERMISSION_ADMIN, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(200);
     expect(response.body).toBe(true);
 
-    response = await permissionGroupTestingHasPermission(uuid, PERMISSION_ADMIN, Helper.DEF_CURR_USER);
+    response = await Helper.permissionGroupTestingHasPermission(uuid, PERMISSION_ADMIN, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(200);
     expect(response.body).toBe(true);
 
-    response = await permissionGroupTestingHasPermission(uuid, PERMISSION_ADMIN, Helper.DEF_CURR_USER);
+    response = await Helper.permissionGroupTestingHasPermission(uuid, PERMISSION_ADMIN, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(200);
     expect(response.body).toBe(true);
   })
   test("invalid uuid", async () => {
-    let response = await permissionGroupTestingInitialize("abc", Helper.DEF_CURR_USER);
+    let response = await Helper.permissionGroupTestingInitialize("abc", Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(400);
 
   });
@@ -73,10 +59,10 @@ describe("initialize_permissions (and get)",  () => {
 
 describe("has_permission", () => {
   test("admin also has edit and view permissions", async () => {
-    let response = await permissionGroupTestingInitialize(Helper.VALID_UUID, Helper.DEF_CURR_USER);
+    let response = await Helper.permissionGroupTestingInitialize(Helper.VALID_UUID, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(200);
 
-    response = await permissionGroupTestingHasPermission(Helper.VALID_UUID, PERMISSION_ADMIN, Helper.DEF_CURR_USER);
+    response = await Helper.permissionGroupTestingHasPermission(Helper.VALID_UUID, PERMISSION_ADMIN, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(200);
     expect(response.body).toBe(true);
   });
@@ -85,7 +71,7 @@ describe("has_permission", () => {
 describe("update (and get)",  () => {
   test("success - can update in every category", async () => {
     let uuid = Helper.VALID_UUID;
-    let response = await permissionGroupTestingInitialize(uuid, Helper.DEF_CURR_USER);
+    let response = await Helper.permissionGroupTestingInitialize(uuid, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(200);
 
     // Test we can change view, edit, and admin if we are in the admin group
@@ -115,7 +101,7 @@ describe("update (and get)",  () => {
   });
 
   test("must be in the admin category to update permissions", async () => {
-    let response = await permissionGroupTestingInitialize(Helper.VALID_UUID, Helper.DEF_CURR_USER);
+    let response = await Helper.permissionGroupTestingInitialize(Helper.VALID_UUID, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(200);
 
     let view_users = ['a', 'b', Helper.DEF_CURR_USER];
@@ -124,7 +110,7 @@ describe("update (and get)",  () => {
   });
 
   test("if admin, current user must be in updated permissions list", async () => {
-    let response = await permissionGroupTestingInitialize(Helper.VALID_UUID, Helper.DEF_CURR_USER);
+    let response = await Helper.permissionGroupTestingInitialize(Helper.VALID_UUID, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(200);
 
     let view_users = ['a', 'b', 'c'];
@@ -134,7 +120,7 @@ describe("update (and get)",  () => {
   });
 
   test("must be a supported category", async () => {
-    let response = await permissionGroupTestingInitialize(Helper.VALID_UUID, Helper.DEF_CURR_USER);
+    let response = await Helper.permissionGroupTestingInitialize(Helper.VALID_UUID, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(200);
 
     let view_users = ['a', 'b', Helper.DEF_CURR_USER];
@@ -220,7 +206,7 @@ describe("get",  () => {
     let uuid = await Helper.templateCreateAndTest({
       name: 'template'
     });
-    let response = await permissionGroupTestingInitialize(uuid, Helper.DEF_CURR_USER);
+    let response = await Helper.permissionGroupTestingInitialize(uuid, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(200);
 
     response = await Helper.getPermissionGroup(uuid, 'invalid');
