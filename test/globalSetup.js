@@ -1,15 +1,11 @@
 var { MongoMemoryReplSet } = require('mongodb-memory-server');
-// var { init: appInit } = require('../app');
 
-module.exports = async function globalSetup() {
+module.exports = async () => {
+  // Create an in-memory db with a repl set, which is needed for tests with transactions
+  // wiredTiger is the default storage engine for MongoDB. It is needed for multi-document transaction
+  // https://github.com/nodkz/mongodb-memory-server/blob/master/docs/guides/quick-start-guide.md#replicaset
   let replset = await MongoMemoryReplSet.create({ replSet: { count: 1, storageEngine: 'wiredTiger'} });
   let uri = replset.getUri();
   process.env.DB = uri;
   global.replset = replset;
-
-  // TODO: the app should be initialized from here, the global setup.
-  // But for some reason I don't understand, if I initialize here, the mongoDB connection doesn't exist in the actual tests
-  // So eventually come back and figure this out.
-
-  // await appInit();
 }

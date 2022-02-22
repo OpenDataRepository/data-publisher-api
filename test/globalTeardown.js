@@ -1,8 +1,4 @@
-// const MongoDB = require('../lib/mongoDB');
-
-module.exports = async function globalSetup() {
-  // await MongoDB.close();
-
+module.exports = async () => {
   await global.replset.stop();
   delete global.replset;
 }
