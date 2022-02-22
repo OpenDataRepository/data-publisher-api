@@ -5,9 +5,7 @@ var HelperClass = require('./common_test_operations')
 var Helper = new HelperClass(app);
 var { PERMISSION_ADMIN, PERMISSION_EDIT, PERMISSION_VIEW } = require('../models/permission_group');
 
-// TODO: figure out and resolve the socket hang up problem I get at random points. 
-// Reference this: https://stackoverflow.com/questions/16995184/nodejs-what-does-socket-hang-up-actually-mean 
-// TODO: also figure out and resolve the error coce 403 error which seems to be random
+// TODO: look through the un-tested lines of code and add test cases for them
 
 beforeAll(async () => {
   await appInit();
