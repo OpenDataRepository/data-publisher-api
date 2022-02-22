@@ -7,6 +7,7 @@ var { PERMISSION_ADMIN, PERMISSION_EDIT, PERMISSION_VIEW } = require('../models/
 
 // TODO: figure out and resolve the socket hang up problem I get at random points. 
 // Reference this: https://stackoverflow.com/questions/16995184/nodejs-what-does-socket-hang-up-actually-mean 
+// TODO: also figure out and resolve the error coce 403 error which seems to be random
 
 beforeAll(async () => {
   await appInit();

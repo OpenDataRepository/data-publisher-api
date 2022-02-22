@@ -57,11 +57,11 @@ async function create_permission(uuid, category, users, session) {
   } 
 }
 
-async function read_permissions(uuid, category) {
-  let cursor = await PermissionGroup.find({
-    uuid,
-    category
-  });
+async function read_permissions(uuid, category, session) {
+  let cursor = await PermissionGroup.find(
+    {uuid, category},
+    {session}
+  );
   if (!(await cursor.hasNext())) {
     throw new Util.NotFoundError();
   } 
@@ -69,11 +69,11 @@ async function read_permissions(uuid, category) {
   return first_result.users;
 }
 
-async function replace_permissions(current_user, uuid, category, users) {
+async function replace_permissions(current_user, uuid, category, users, session) {
   // TODO: when users are implemented, validate that each user in the list is a real user
 
   // The current user must be in the admin permissions group for this uuid to change it's permissions
-  if (!(await has_permission(current_user, uuid, PERMISSION_ADMIN))) {
+  if (!(await has_permission(current_user, uuid, PERMISSION_ADMIN, session))) {
     throw new Util.PermissionDeniedError(`You do not have the permission level (admin) required to modify these permissions`);
   }
 
@@ -95,7 +95,8 @@ async function replace_permissions(current_user, uuid, category, users) {
 
   let response = await PermissionGroup.updateOne(
     {uuid, category},
-    {$set: {users}}
+    {$set: {users}}, 
+    {session}
   );
   if (!response.result.ok) {
     throw new Error(`PermissionGroup.replace_permission: Failed to update ${uuid}.`);
@@ -113,11 +114,11 @@ exports.replace_permissions = replace_permissions;
 
 exports.read_permissions = read_permissions;
 
-exports.add_permissions = async function(user, uuid, category, users) {
+exports.add_permissions = async function(user, uuid, category, users, session) {
   // Combine current users at this permission level with the new users at this permission level
   let current_users = await read_permissions(uuid, category);
   let combined_users = Array.from(new Set([...current_users, ...users]));
-  await replace_permissions(user, uuid, category, combined_users);
+  await replace_permissions(user, uuid, category, combined_users, session);
 }
 
 exports.has_permission = has_permission;

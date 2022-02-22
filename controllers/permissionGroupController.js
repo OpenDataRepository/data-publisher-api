@@ -45,10 +45,12 @@ exports.update = async function(req, res, next) {
         }
         await PermissionGroupModel.replace_permissions(user, uuid, category, users);
       } else {
-        // TODO: it'd probably be better to just add transactions here. add_permissions shouldn't throw an error, but I'm playing with fire
-        // If this is admin or edit, determine which users are being removed, and then add them to view
-        await PermissionGroupModel.replace_permissions(user, uuid, category, users);
-        await PermissionGroupModel.add_permissions(user, uuid, PermissionGroupModel.PERMISSION_VIEW, deleted_users);
+        let callback = async (session) => {
+          // If this is admin or edit, determine which users are being removed, and then add them to view
+          await PermissionGroupModel.replace_permissions(user, uuid, category, users, session);
+          await PermissionGroupModel.add_permissions(user, uuid, PermissionGroupModel.PERMISSION_VIEW, deleted_users, session);
+        };
+        await ModelsSharedFunctions.executeWithTransaction(callback);
       }
     } else {
       // TODO: Implement users and sessions, and then get the current_user from the session instead of a cookie
