@@ -644,10 +644,11 @@ const populateWithDummyTemplateAndDataset = async () => {
 describe("update (and get draft)", () => {
   let template;
   let dataset;
-  beforeEach(async() => {
-    [template, dataset] = await populateWithDummyTemplateAndDataset();
-  });
   describe("Success cases", () => {
+    beforeEach(async() => {
+      [template, dataset] = await populateWithDummyTemplateAndDataset();
+    });
+
     test("Basic update - change dataset public date", async () => {
       dataset.public_date = (new Date()).toISOString();
       await Helper.datasetUpdateAndTest(dataset, Helper.DEF_CURR_USER);
@@ -667,6 +668,9 @@ describe("update (and get draft)", () => {
 
   });
   describe("Failure cases", () => {
+    beforeEach(async() => {
+      [template, dataset] = await populateWithDummyTemplateAndDataset();
+    });
 
     test("uuid in request and in object must match", async () => {
       let response = await Helper.datasetUpdate(Helper.VALID_UUID, dataset, Helper.DEF_CURR_USER);
@@ -689,6 +693,8 @@ describe("update (and get draft)", () => {
   describe("update after a publish: is draft different and thus created or not?", () => {
 
     test("update includes no change since last published", async () => {
+      [template, dataset] = await populateWithDummyTemplateAndDataset();
+
       dataset = await Helper.datasetPublishAndFetch(dataset.uuid, Helper.DEF_CURR_USER);
       let response = await Helper.datasetUpdate(dataset.uuid, dataset, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
@@ -726,6 +732,7 @@ describe("update (and get draft)", () => {
     });
 
     test("a new version of a related_dataset has been published", async () => {
+      [template, dataset] = await populateWithDummyTemplateAndDataset();
 
       dataset = await Helper.datasetPublishAndFetch(dataset.uuid, Helper.DEF_CURR_USER);
 
@@ -741,6 +748,7 @@ describe("update (and get draft)", () => {
     });
 
     test("a new version of the linked template has been published", async () => {
+      [template, dataset] = await populateWithDummyTemplateAndDataset();
 
       // Modify the related template and publish it 
       // Then updating the dataset should create a draft just by the fact that there is a new template.
@@ -754,6 +762,7 @@ describe("update (and get draft)", () => {
     });
 
     test("a new version of a related_dataset has been published", async () => {
+      [template, dataset] = await populateWithDummyTemplateAndDataset();
 
       dataset = await Helper.datasetPublishAndFetch(dataset.uuid, Helper.DEF_CURR_USER);
 

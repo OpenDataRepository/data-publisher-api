@@ -468,7 +468,7 @@ describe("update (and get draft after an update)", () => {
   let og_template;
   let uuid;
 
-  beforeEach(async() => {
+  const populateWithDummyTemplate = async() => {
     let template = { 
       "name": "create template",
       "description": "a template to test a create",
@@ -492,9 +492,13 @@ describe("update (and get draft after an update)", () => {
     };
     og_template = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
     uuid = og_template.uuid;
-  });
+  }
 
   describe("Success cases", () => {
+
+    beforeEach(async() => {
+      await populateWithDummyTemplate();
+    });
 
     test("Basic update - change name and delete everything else", async () => {
 
@@ -559,6 +563,10 @@ describe("update (and get draft after an update)", () => {
 
   describe("Failure cases", () => {
 
+    beforeEach(async() => {
+      await populateWithDummyTemplate();
+    });
+
     test("uuid in request and in object must match", async () => {
 
       let template = { 
@@ -597,9 +605,7 @@ describe("update (and get draft after an update)", () => {
     });
 
     test("Parent template can only point to any given related template once", async () => {
-      let response = await Helper.templateDraftGet(uuid, Helper.DEF_CURR_USER);
-      expect(response.statusCode).toBe(200);
-      let template = response.body;
+      let template = await Helper.templateDraftGetAndTest(uuid, Helper.DEF_CURR_USER);
 
       template.related_templates.push(template.related_templates[0]);
       response = await Helper.templateUpdate(uuid, template, Helper.DEF_CURR_USER);

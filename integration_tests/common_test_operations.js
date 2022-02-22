@@ -729,7 +729,8 @@ module.exports = class Helper {
       .set('Accept', 'application/json');
   };
   
-  recordPublishAndTest = async (uuid, record, curr_user) => {
+  recordPublishAndTest = async (record, curr_user) => {
+    let uuid = record.uuid;
     let last_update = await this.recordLastUpdateAndTest(uuid, curr_user);
     let response = await this.recordPublish(uuid, last_update, curr_user);
     expect(response.statusCode).toBe(200);
@@ -744,7 +745,7 @@ module.exports = class Helper {
   
   recordCreatePublishTest = async (record, curr_user) => {
     let created_record = await this.recordCreateAndTest(record, curr_user);
-    let published = await this.recordPublishAndTest(created_record.uuid, created_record, curr_user)
+    let published = await this.recordPublishAndTest(created_record, curr_user)
     expect(published).toMatchObject(record);
     return published;
   };
