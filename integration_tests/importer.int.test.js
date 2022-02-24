@@ -444,6 +444,20 @@ describe("template", () => {
       // expect(published_template).toMatchObject(new_template);
     });
 
+    test("import chemin template", async () => {
+      let rawdata = fs.readFileSync(__dirname + '/test_data/chemin_template.json');
+      let old_template = JSON.parse(rawdata);
+    
+      let response = await importTemplate(old_template, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+      let uuid = response.body.new_uuid;
+    
+      let new_template = await Helper.templateDraftGetAndTest(uuid, Helper.DEF_CURR_USER);
+    
+      testTemplatesEqual(old_template, new_template, {});
+      console.log(JSON.stringify(new_template, null, 4));
+    });
+
   });
 
   describe("failure", () => {

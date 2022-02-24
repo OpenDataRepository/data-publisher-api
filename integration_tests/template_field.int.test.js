@@ -613,77 +613,92 @@ describe("get latest published", () => {
   });
 });
 
-test("get published for a certain date", async () => {
-  let data = {
-    "name":"name",
-    "description": "1"
-  };
-  let uuid = await Helper.templateFieldCreateAndTest(data, Helper.DEF_CURR_USER);
+describe("get published for a certain date", () => {
 
-  let beforeFirstPublish = new Date();
-
-  // Test that if only a draft exists, it is not fetched
+  test("primary functionality", async () => {
+    let data = {
+      "name":"name",
+      "description": "1"
+    };
+    let uuid = await Helper.templateFieldCreateAndTest(data, Helper.DEF_CURR_USER);
   
-  let response = await Helper.templateFieldLatestPublishedBeforeDate(uuid, beforeFirstPublish.toISOString(), Helper.DEF_CURR_USER);
-  expect(response.statusCode).toBe(404);
+    let beforeFirstPublish = new Date();
+  
+    // Test that if only a draft exists, it is not fetched
+    
+    let response = await Helper.templateFieldLatestPublishedBeforeDate(uuid, beforeFirstPublish.toISOString(), Helper.DEF_CURR_USER);
+    expect(response.statusCode).toBe(404);
+  
+    response = await Helper.templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
+    expect(response.statusCode).toBe(200);
+    let last_update = response.body;
+  
+    // Publish the first time
+    response = await Helper.templateFieldPublish(uuid, last_update, Helper.DEF_CURR_USER);
+    expect(response.statusCode).toBe(200);
+  
+    let afterFirstPublish = new Date();
+  
+    data.uuid = uuid;
+    data.description = "2";
+  
+    response = await Helper.templateFieldUpdate(uuid, data, Helper.DEF_CURR_USER);
+    expect(response.statusCode).toBe(200);
+  
+    response = await Helper.templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
+    expect(response.statusCode).toBe(200);
+    last_update = response.body;
+  
+    response = await Helper.templateFieldPublish(uuid, last_update, Helper.DEF_CURR_USER);
+    expect(response.statusCode).toBe(200);
+  
+    let afterSecondPublish = new Date();
+  
+    data.description = "3";
+  
+    response = await Helper.templateFieldUpdate(uuid, data, Helper.DEF_CURR_USER);
+    expect(response.statusCode).toBe(200);
+  
+    response = await Helper.templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
+    expect(response.statusCode).toBe(200);
+    last_update = response.body;
+  
+    response = await Helper.templateFieldPublish(uuid, last_update, Helper.DEF_CURR_USER);
+    expect(response.statusCode).toBe(200);
+  
+    // Now there should be three published versions. Search for each based on the date
+  
+    response = await Helper.templateFieldLatestPublished(uuid, Helper.DEF_CURR_USER);
+    expect(response.statusCode).toBe(200);
+    expect(response.body.description).toEqual(expect.stringMatching("3"));
+  
+    response = await Helper.templateFieldLatestPublishedBeforeDate(uuid, (new Date()).toISOString(), Helper.DEF_CURR_USER);
+    expect(response.statusCode).toBe(200);
+    expect(response.body.description).toEqual(expect.stringMatching("3"));
+  
+    response = await Helper.templateFieldLatestPublishedBeforeDate(uuid, afterSecondPublish.toISOString(), Helper.DEF_CURR_USER);
+    expect(response.statusCode).toBe(200);
+    expect(response.body.description).toEqual(expect.stringMatching("2"));
+  
+    response = await Helper.templateFieldLatestPublishedBeforeDate(uuid, afterFirstPublish.toISOString(), Helper.DEF_CURR_USER);
+    expect(response.statusCode).toBe(200);
+    expect(response.body.description).toEqual(expect.stringMatching("1"));
+  
+    response = await Helper.templateFieldLatestPublishedBeforeDate(uuid, beforeFirstPublish.toISOString(), Helper.DEF_CURR_USER);
+    expect(response.statusCode).toBe(404);
+  });
 
-  response = await Helper.templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
-  expect(response.statusCode).toBe(200);
-  let last_update = response.body;
+  test("timestamp must be in valid timestamp format", async () => {
+    let field = {name: "hi"};
+    field = await Helper.templateFieldCreatePublishTest(field, Helper.DEF_CURR_USER);
 
-  // Publish the first time
-  response = await Helper.templateFieldPublish(uuid, last_update, Helper.DEF_CURR_USER);
-  expect(response.statusCode).toBe(200);
+    let response = await Helper.templateFieldLatestPublishedBeforeDate(field.uuid, (new Date()).toISOString(), Helper.DEF_CURR_USER);
+    expect(response.statusCode).toBe(200);
 
-  let afterFirstPublish = new Date();
+    response = await Helper.templateFieldLatestPublishedBeforeDate(field.uuid, "invalid timestamp", Helper.DEF_CURR_USER);
+    expect(response.statusCode).toBe(400);
+  });
 
-  data.uuid = uuid;
-  data.description = "2";
-
-  response = await Helper.templateFieldUpdate(uuid, data, Helper.DEF_CURR_USER);
-  expect(response.statusCode).toBe(200);
-
-  response = await Helper.templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
-  expect(response.statusCode).toBe(200);
-  last_update = response.body;
-
-  response = await Helper.templateFieldPublish(uuid, last_update, Helper.DEF_CURR_USER);
-  expect(response.statusCode).toBe(200);
-
-  let afterSecondPublish = new Date();
-
-  data.description = "3";
-
-  response = await Helper.templateFieldUpdate(uuid, data, Helper.DEF_CURR_USER);
-  expect(response.statusCode).toBe(200);
-
-  response = await Helper.templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
-  expect(response.statusCode).toBe(200);
-  last_update = response.body;
-
-  response = await Helper.templateFieldPublish(uuid, last_update, Helper.DEF_CURR_USER);
-  expect(response.statusCode).toBe(200);
-
-  // Now there should be three published versions. Search for each based on the date
-
-  response = await Helper.templateFieldLatestPublished(uuid, Helper.DEF_CURR_USER);
-  expect(response.statusCode).toBe(200);
-  expect(response.body.description).toEqual(expect.stringMatching("3"));
-
-  response = await Helper.templateFieldLatestPublishedBeforeDate(uuid, (new Date()).toISOString(), Helper.DEF_CURR_USER);
-  expect(response.statusCode).toBe(200);
-  expect(response.body.description).toEqual(expect.stringMatching("3"));
-
-  response = await Helper.templateFieldLatestPublishedBeforeDate(uuid, afterSecondPublish.toISOString(), Helper.DEF_CURR_USER);
-  expect(response.statusCode).toBe(200);
-  expect(response.body.description).toEqual(expect.stringMatching("2"));
-
-  response = await Helper.templateFieldLatestPublishedBeforeDate(uuid, afterFirstPublish.toISOString(), Helper.DEF_CURR_USER);
-  expect(response.statusCode).toBe(200);
-  expect(response.body.description).toEqual(expect.stringMatching("1"));
-
-  response = await Helper.templateFieldLatestPublishedBeforeDate(uuid, beforeFirstPublish.toISOString(), Helper.DEF_CURR_USER);
-  expect(response.statusCode).toBe(404);
 });
 
 describe("delete", () => {

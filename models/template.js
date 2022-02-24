@@ -249,15 +249,15 @@ function initializeNewDraftWithPropertiesSharedWithImport(input_template, uuid, 
     related_templates: [],
     subscribed_templates: []
   };
-  if (input_template.name !== undefined) {
+  if (input_template.name) {
     if (typeof(input_template.name) !== 'string'){
       throw new Util.InputError('name property must be of type string');
     }
     output_template.name = input_template.name
   }
-  if (input_template.description !== undefined) {
+  if (input_template.description) {
     if (typeof(input_template.description) !== 'string'){
-      throw new Util.InputError('description property must be of type string');
+      throw new Util.InputError(`template description property (${input_template.description}) must be of type string.`);
     }
     output_template.description = input_template.description
   }

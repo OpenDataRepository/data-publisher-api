@@ -1796,6 +1796,11 @@ describe("delete", () => {
   
   });
 
+  test("dataset doesn't exist", async () => {
+    let response = await Helper.datasetDelete(Helper.VALID_UUID, Helper.DEF_CURR_USER);
+    expect(response.statusCode).toBe(404);
+  });
+
   test("need admin permissions", async () => {
     let template = {
       name: "t1"

@@ -250,15 +250,15 @@ function initializeNewDraftWithPropertiesSharedWithImport(input_field, uuid, upd
     description: "",
     updated_at
   };
-  if (input_field.name !== undefined) {
+  if (input_field.name) {
     if (typeof(input_field.name) !== 'string'){
       throw new Util.InputError('name property must be of type string');
     }
     output_field.name = input_field.name
   }
-  if (input_field.description !== undefined) {
+  if (input_field.description) {
     if (typeof(input_field.description) !== 'string'){
-      throw new Util.InputError('description property must be of type string');
+      throw new Util.InputError(`field description property (${input_field.description}) must be of type string.`);
     }
     output_field.description = input_field.description
   }

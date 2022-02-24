@@ -1,0 +1,1154 @@
+{
+    "internal_id": 43,
+    "name": "CheMin",
+    "description": "The CheMin database is a living repository of CheMin and related MSL data integrated with tools and procedures for visualization and analysis.",
+    "template_uuid": "110a55b",
+    "updated_at": "2018-09-25 17:22:56",
+    "metadata_for_uuid": "",
+    "_database_metadata": {
+        "_create_date": "2014-12-08 12:49:31",
+        "_create_auth": "Barbara Lafuente",
+        "_public_date": "2016-08-15 18:21:36",
+        "_master_published_version": "0",
+        "_master_revision": "0",
+        "_tracking_master_version": "0"
+    },
+    "fields": [
+        {
+            "internal_id": 410,
+            "name": "Images",
+            "description": "Images related to the analysis",
+            "fieldtype": "Image",
+            "template_field_uuid": "731609d",
+            "updated_at": "2017-07-02 07:44:59",
+            "_field_metadata": {
+                "_create_date": "2014-12-08 13:07:52",
+                "_create_auth": "Barbara Lafuente",
+                "_public_date": "2017-06-28 19:19:36",
+                "_master_published_version": "0",
+                "_master_revision": "0",
+                "_tracking_master_version": "0"
+            }
+        },
+        {
+            "internal_id": 406,
+            "name": "Analysis ID",
+            "description": "The unique identifier of the analysis",
+            "fieldtype": "Medium Text",
+            "template_field_uuid": "e895248",
+            "updated_at": "2017-07-02 07:45:27",
+            "is_unique": 1,
+            "_field_metadata": {
+                "_create_date": "2014-12-08 12:50:38",
+                "_create_auth": "Barbara Lafuente",
+                "_public_date": "2017-06-28 19:19:40",
+                "_master_published_version": "0",
+                "_master_revision": "0",
+                "_tracking_master_version": "0"
+            }
+        },
+        {
+            "internal_id": 414,
+            "name": "Type of analysis",
+            "description": "The type of analysis: Calibration, Drill, or Scoop",
+            "fieldtype": "Single Select",
+            "template_field_uuid": "02bbfce",
+            "updated_at": "2017-11-03 23:07:41",
+            "_field_metadata": {
+                "_create_date": "2014-12-08 13:19:35",
+                "_create_auth": "Barbara Lafuente",
+                "_public_date": "2017-11-03 23:07:46",
+                "_master_published_version": "0",
+                "_master_revision": "0",
+                "_tracking_master_version": "0"
+            },
+            "radio_options": [
+                {
+                    "name": "Drill",
+                    "template_radio_option_uuid": "51b184e",
+                    "updated_at": "2014-12-08 13:20:28"
+                },
+                {
+                    "name": "Scoop",
+                    "template_radio_option_uuid": "b3d7b22",
+                    "updated_at": "2014-12-08 13:19:58"
+                },
+                {
+                    "name": "Calibration",
+                    "template_radio_option_uuid": "6b0b509",
+                    "updated_at": "2015-01-27 22:16:34"
+                }
+            ]
+        },
+        {
+            "internal_id": 643,
+            "name": "Sol(s) of Analysis",
+            "description": "The sol, or range of sols, during which the sample was analyzed",
+            "fieldtype": "Short Text",
+            "template_field_uuid": "6db3823",
+            "updated_at": "2017-07-02 07:46:10",
+            "_field_metadata": {
+                "_create_date": "2015-01-26 15:01:38",
+                "_create_auth": "Barbara Lafuente",
+                "_public_date": "2017-06-28 19:20:01",
+                "_master_published_version": "0",
+                "_master_revision": "0",
+                "_tracking_master_version": "0"
+            }
+        },
+        {
+            "internal_id": 415,
+            "name": "CheMin cell",
+            "description": "The cell used to analyze the sample",
+            "fieldtype": "Single Select",
+            "template_field_uuid": "ff56f73",
+            "updated_at": "2017-07-02 07:46:47",
+            "_field_metadata": {
+                "_create_date": "2014-12-08 13:27:30",
+                "_create_auth": "Barbara Lafuente",
+                "_public_date": "2017-06-28 19:20:02",
+                "_master_published_version": "0",
+                "_master_revision": "0",
+                "_tracking_master_version": "0"
+            },
+            "radio_options": [
+                {
+                    "name": "0a Kapton",
+                    "template_radio_option_uuid": "862420d",
+                    "updated_at": "2015-07-19 20:46:43"
+                },
+                {
+                    "name": "0b Kapton",
+                    "template_radio_option_uuid": "768d1b9",
+                    "updated_at": "2015-07-19 20:47:09"
+                },
+                {
+                    "name": "1a Kapton",
+                    "template_radio_option_uuid": "64963da",
+                    "updated_at": "2015-01-22 09:53:39"
+                },
+                {
+                    "name": "1b Kapton",
+                    "template_radio_option_uuid": "8c86523",
+                    "updated_at": "2015-01-22 09:53:40"
+                },
+                {
+                    "name": "2a Kapton",
+                    "template_radio_option_uuid": "b9aa0cd",
+                    "updated_at": "2015-01-22 09:53:41"
+                },
+                {
+                    "name": "2b Kapton",
+                    "template_radio_option_uuid": "90ba294",
+                    "updated_at": "2015-01-22 09:53:43"
+                },
+                {
+                    "name": "3a Kapton",
+                    "template_radio_option_uuid": "4728f18",
+                    "updated_at": "2015-01-22 09:53:45"
+                },
+                {
+                    "name": "3b Kapton",
+                    "template_radio_option_uuid": "986706a",
+                    "updated_at": "2015-01-22 09:54:42"
+                },
+                {
+                    "name": "4a Kapton",
+                    "template_radio_option_uuid": "54b82e5",
+                    "updated_at": "2015-01-22 09:54:43"
+                },
+                {
+                    "name": "4b Kapton",
+                    "template_radio_option_uuid": "a19edff",
+                    "updated_at": "2015-01-22 09:54:45"
+                },
+                {
+                    "name": "5a Kapton",
+                    "template_radio_option_uuid": "0848aa9",
+                    "updated_at": "2015-01-22 09:54:46"
+                },
+                {
+                    "name": "5b Kapton",
+                    "template_radio_option_uuid": "9d58708",
+                    "updated_at": "2015-01-22 09:54:47"
+                },
+                {
+                    "name": "6a Kapton",
+                    "template_radio_option_uuid": "0427597",
+                    "updated_at": "2015-01-22 09:55:25"
+                },
+                {
+                    "name": "6b quartz:beryl 12:88 Kapton",
+                    "template_radio_option_uuid": "1688fa6",
+                    "updated_at": "2015-01-22 09:55:26"
+                },
+                {
+                    "name": "7a mylar",
+                    "template_radio_option_uuid": "d3a8e94",
+                    "updated_at": "2015-01-22 09:55:27"
+                },
+                {
+                    "name": "7b mylar",
+                    "template_radio_option_uuid": "1f7545a",
+                    "updated_at": "2015-01-22 09:55:29"
+                },
+                {
+                    "name": "8a mylar",
+                    "template_radio_option_uuid": "17d1110",
+                    "updated_at": "2015-01-22 10:20:19"
+                },
+                {
+                    "name": "8b mylar",
+                    "template_radio_option_uuid": "8339fd1",
+                    "updated_at": "2015-01-22 10:20:24"
+                },
+                {
+                    "name": "9a mylar",
+                    "template_radio_option_uuid": "2935af9",
+                    "updated_at": "2015-01-22 10:25:49"
+                },
+                {
+                    "name": "9b mylar",
+                    "template_radio_option_uuid": "3c51dff",
+                    "updated_at": "2015-01-22 10:25:51"
+                },
+                {
+                    "name": "10a mylar",
+                    "template_radio_option_uuid": "d22fede",
+                    "updated_at": "2015-01-22 10:26:06"
+                },
+                {
+                    "name": "10b mylar",
+                    "template_radio_option_uuid": "286997b",
+                    "updated_at": "2015-01-22 10:26:07"
+                },
+                {
+                    "name": "11a mylar",
+                    "template_radio_option_uuid": "eb18a07",
+                    "updated_at": "2015-01-22 10:26:09"
+                },
+                {
+                    "name": "11b mylar",
+                    "template_radio_option_uuid": "4550bd8",
+                    "updated_at": "2015-01-22 10:26:11"
+                },
+                {
+                    "name": "12a mylar",
+                    "template_radio_option_uuid": "a98e86e",
+                    "updated_at": "2015-01-22 10:26:39"
+                },
+                {
+                    "name": "12b mylar",
+                    "template_radio_option_uuid": "87e28b8",
+                    "updated_at": "2015-01-22 10:26:41"
+                },
+                {
+                    "name": "13a mylar",
+                    "template_radio_option_uuid": "754bc78",
+                    "updated_at": "2015-01-22 10:26:42"
+                },
+                {
+                    "name": "13b mylar",
+                    "template_radio_option_uuid": "9a5da7f",
+                    "updated_at": "2015-01-27 18:22:15"
+                },
+                {
+                    "name": "14a amphibole mylar",
+                    "template_radio_option_uuid": "d7c54b8",
+                    "updated_at": "2015-01-22 10:27:09"
+                },
+                {
+                    "name": "14b Kapton",
+                    "template_radio_option_uuid": "915379c",
+                    "updated_at": "2015-01-22 10:27:10"
+                },
+                {
+                    "name": "15a Kapton",
+                    "template_radio_option_uuid": "580cc10",
+                    "updated_at": "2015-01-22 10:27:41"
+                },
+                {
+                    "name": "15b quartz:beryl 3:97 Kapton",
+                    "template_radio_option_uuid": "6a3b5ba",
+                    "updated_at": "2015-01-22 10:27:43"
+                }
+            ]
+        },
+        {
+            "internal_id": 413,
+            "name": "Narrative",
+            "description": "The narrative that describes the events of the analysis",
+            "fieldtype": "Paragraph Text",
+            "template_field_uuid": "76afac3",
+            "updated_at": "2017-07-02 07:47:12",
+            "_field_metadata": {
+                "_create_date": "2014-12-08 13:17:51",
+                "_create_auth": "Barbara Lafuente",
+                "_public_date": "2017-06-28 19:19:41",
+                "_master_published_version": "0",
+                "_master_revision": "0",
+                "_tracking_master_version": "0"
+            }
+        },
+        {
+            "internal_id": 407,
+            "name": "Mars Area Location",
+            "description": "Location where the sample was collected",
+            "fieldtype": "Long Text",
+            "template_field_uuid": "470a0bc",
+            "updated_at": "2017-06-28 19:20:03",
+            "_field_metadata": {
+                "_create_date": "2014-12-08 12:50:40",
+                "_create_auth": "Barbara Lafuente",
+                "_public_date": "2017-06-28 19:20:03",
+                "_master_published_version": "0",
+                "_master_revision": "0",
+                "_tracking_master_version": "0"
+            }
+        },
+        {
+            "internal_id": 1728,
+            "name": "Site position",
+            "description": "The site position tag of the analysis",
+            "fieldtype": "Short Text",
+            "template_field_uuid": "826f2a0",
+            "updated_at": "2017-07-02 07:48:44",
+            "_field_metadata": {
+                "_create_date": "2015-07-08 10:37:59",
+                "_create_auth": "Barbara Lafuente",
+                "_public_date": "2017-06-28 19:20:06",
+                "_master_published_version": "0",
+                "_master_revision": "0",
+                "_tracking_master_version": "0"
+            }
+        },
+        {
+            "internal_id": 1731,
+            "name": "Distance to Bradbury (m)",
+            "description": "The distance, in meters, from the Bradbury Landing site",
+            "fieldtype": "Decimal",
+            "template_field_uuid": "c6aff3f",
+            "updated_at": "2017-07-02 07:49:06",
+            "_field_metadata": {
+                "_create_date": "2015-07-08 10:50:21",
+                "_create_auth": "Barbara Lafuente",
+                "_public_date": "2017-06-28 19:20:07",
+                "_master_published_version": "0",
+                "_master_revision": "0",
+                "_tracking_master_version": "0"
+            }
+        },
+        {
+            "internal_id": 694,
+            "name": "Latitude",
+            "description": "Latitude",
+            "fieldtype": "Decimal",
+            "template_field_uuid": "6a7d638",
+            "updated_at": "2017-06-28 19:20:09",
+            "_field_metadata": {
+                "_create_date": "2015-01-27 13:02:20",
+                "_create_auth": "Barbara Lafuente",
+                "_public_date": "2017-06-28 19:20:09",
+                "_master_published_version": "0",
+                "_master_revision": "0",
+                "_tracking_master_version": "0"
+            }
+        },
+        {
+            "internal_id": 1729,
+            "name": "Longitude",
+            "description": "Longitude",
+            "fieldtype": "Decimal",
+            "template_field_uuid": "0e9a628",
+            "updated_at": "2017-06-28 19:20:05",
+            "_field_metadata": {
+                "_create_date": "2015-07-08 10:41:22",
+                "_create_auth": "Barbara Lafuente",
+                "_public_date": "2017-06-28 19:20:05",
+                "_master_published_version": "0",
+                "_master_revision": "0",
+                "_tracking_master_version": "0"
+            }
+        },
+        {
+            "internal_id": 1730,
+            "name": "Elevation (m)",
+            "description": "Elevation",
+            "fieldtype": "Decimal",
+            "template_field_uuid": "f08395d",
+            "updated_at": "2017-06-28 19:20:07",
+            "_field_metadata": {
+                "_create_date": "2015-07-08 10:41:25",
+                "_create_auth": "Barbara Lafuente",
+                "_public_date": "2017-06-28 19:20:07",
+                "_master_published_version": "0",
+                "_master_revision": "0",
+                "_tracking_master_version": "0"
+            }
+        },
+        {
+            "internal_id": 21935,
+            "name": "Our Test Field",
+            "description": "Field description.",
+            "fieldtype": "Integer",
+            "template_field_uuid": "2c4c36d3f00416b4e5d844b4e5ea",
+            "updated_at": "2019-07-10 13:58:05",
+            "_field_metadata": {
+                "_create_date": "2019-07-10 13:58:05",
+                "_create_auth": "nate@opendatarepository.org",
+                "_public_date": "2200-01-01 00:00:00",
+                "_master_published_version": "0",
+                "_master_revision": "0",
+                "_tracking_master_version": "0"
+            }
+        }
+    ],
+    "related_databases": [
+        {
+            "internal_id": 200,
+            "name": "XRD-RDA",
+            "description": "New Child Type",
+            "template_uuid": "4e96f0b",
+            "updated_at": "2018-04-20 20:56:55",
+            "render_plugin": "Graph Plugin",
+            "metadata_for_uuid": "",
+            "_database_metadata": {
+                "_create_date": "2015-07-19 12:30:59",
+                "_create_auth": "Barbara Lafuente",
+                "_public_date": "2015-08-24 16:10:15",
+                "_master_published_version": "0",
+                "_master_revision": "0",
+                "_tracking_master_version": "0"
+            },
+            "fields": [
+                {
+                    "internal_id": 1743,
+                    "name": "XRD Analysis name",
+                    "description": "Name of the XRD analysis",
+                    "fieldtype": "Long Text",
+                    "template_field_uuid": "a855463",
+                    "updated_at": "2017-06-28 19:20:22",
+                    "is_unique": 1,
+                    "_field_metadata": {
+                        "_create_date": "2015-07-19 12:31:58",
+                        "_create_auth": "Barbara Lafuente",
+                        "_public_date": "2017-06-28 19:20:22",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 1744,
+                    "name": "XRD Product_ID",
+                    "description": "Product_Id from the RDA-PDS file",
+                    "fieldtype": "Long Text",
+                    "template_field_uuid": "fae2dd6",
+                    "updated_at": "2017-06-28 19:20:23",
+                    "_field_metadata": {
+                        "_create_date": "2015-07-19 12:32:01",
+                        "_create_auth": "Barbara Lafuente",
+                        "_public_date": "2017-06-28 19:20:23",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 1745,
+                    "name": "XRD Start_Time",
+                    "description": "Start_time from the RDA-PDS file",
+                    "fieldtype": "Long Text",
+                    "template_field_uuid": "fe2ae44",
+                    "updated_at": "2017-06-28 19:20:25",
+                    "_field_metadata": {
+                        "_create_date": "2015-07-19 12:32:03",
+                        "_create_auth": "Barbara Lafuente",
+                        "_public_date": "2017-06-28 19:20:25",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 1756,
+                    "name": "XRD Analysis Description",
+                    "description": "Description from the RDA-PDS file",
+                    "fieldtype": "Paragraph Text",
+                    "template_field_uuid": "16735b9",
+                    "updated_at": "2017-06-28 19:20:22",
+                    "_field_metadata": {
+                        "_create_date": "2015-07-19 13:39:28",
+                        "_create_auth": "Barbara Lafuente",
+                        "_public_date": "2017-06-28 19:20:22",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 1758,
+                    "name": "XRD pattern",
+                    "description": "XRD XY file for plotting",
+                    "fieldtype": "File",
+                    "template_field_uuid": "48a9352",
+                    "updated_at": "2018-06-29 21:36:35",
+                    "_field_metadata": {
+                        "_create_date": "2015-07-19 19:49:58",
+                        "_create_auth": "Barbara Lafuente",
+                        "_public_date": "2018-06-29 21:39:06",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 1749,
+                    "name": "RDA - PDS label file",
+                    "description": "RDA label from PDS",
+                    "fieldtype": "File",
+                    "template_field_uuid": "d7b4904",
+                    "updated_at": "2017-06-28 19:20:33",
+                    "_field_metadata": {
+                        "_create_date": "2015-07-19 12:57:50",
+                        "_create_auth": "Barbara Lafuente",
+                        "_public_date": "2017-06-28 19:20:33",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 4088,
+                    "name": "Qanalyze XRD Analysis",
+                    "description": "Qanalyze XRD Analysis",
+                    "fieldtype": "Short Text",
+                    "template_field_uuid": "52f1b7a",
+                    "updated_at": "2018-01-26 18:27:05",
+                    "_field_metadata": {
+                        "_create_date": "2017-11-14 14:14:07",
+                        "_create_auth": "nate@opendatarepository.org",
+                        "_public_date": "2018-01-26 18:27:05",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 4307,
+                    "name": "AMCSD Phase List",
+                    "description": "List of AMCSD Phases used in the analysis of this sample.",
+                    "fieldtype": "File",
+                    "template_field_uuid": "6dffced",
+                    "updated_at": "2018-01-26 16:57:20",
+                    "_field_metadata": {
+                        "_create_date": "2018-01-25 14:48:33",
+                        "_create_auth": "nate@opendatarepository.org",
+                        "_public_date": "2018-01-25 14:49:33",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                }
+            ],
+            "related_databases": []
+        },
+        {
+            "internal_id": 50,
+            "name": "Mineral Abundances",
+            "description": "This table contains mineral abundances and\r\n analytical errors derived from diffraction-all K-alpha diffraction data",
+            "template_uuid": "b33892c",
+            "updated_at": "2018-04-20 20:57:27",
+            "render_plugin": "Graph Plugin",
+            "metadata_for_uuid": "",
+            "_database_metadata": {
+                "_create_date": "2014-12-09 12:33:10",
+                "_create_auth": "Barbara Lafuente",
+                "_public_date": "1970-01-01 00:00:00",
+                "_master_published_version": "0",
+                "_master_revision": "0",
+                "_tracking_master_version": "0"
+            },
+            "fields": [
+                {
+                    "internal_id": 696,
+                    "name": "MIN Analysis Name",
+                    "description": "Name of the MIN analysis",
+                    "fieldtype": "Long Text",
+                    "template_field_uuid": "fd96e86",
+                    "updated_at": "2017-06-28 19:20:38",
+                    "is_unique": 1,
+                    "_field_metadata": {
+                        "_create_date": "2015-01-27 15:42:48",
+                        "_create_auth": "Barbara Lafuente",
+                        "_public_date": "2017-06-28 19:20:38",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 443,
+                    "name": "MIN Product_ID",
+                    "description": "Product_Id from the MIN-PDS file",
+                    "fieldtype": "Long Text",
+                    "template_field_uuid": "599d60f",
+                    "updated_at": "2017-06-28 19:20:47",
+                    "_field_metadata": {
+                        "_create_date": "2014-12-09 12:34:17",
+                        "_create_auth": "Barbara Lafuente",
+                        "_public_date": "2017-06-28 19:20:47",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 445,
+                    "name": "MIN Start_Time",
+                    "description": "Start_time from the MIN-PDS file",
+                    "fieldtype": "Long Text",
+                    "template_field_uuid": "b390136",
+                    "updated_at": "2017-06-28 19:20:48",
+                    "_field_metadata": {
+                        "_create_date": "2014-12-09 12:38:37",
+                        "_create_auth": "Barbara Lafuente",
+                        "_public_date": "2017-06-28 19:20:48",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 446,
+                    "name": "MIN Analysis Description",
+                    "description": "Description from the MIN-PDS file",
+                    "fieldtype": "Paragraph Text",
+                    "template_field_uuid": "aa3595d",
+                    "updated_at": "2017-06-28 19:20:39",
+                    "_field_metadata": {
+                        "_create_date": "2014-12-09 12:38:57",
+                        "_create_auth": "Barbara Lafuente",
+                        "_public_date": "2017-06-28 19:20:39",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 447,
+                    "name": "MIN - PDS label file",
+                    "description": "MIN label from PDS",
+                    "fieldtype": "File",
+                    "template_field_uuid": "16e7c79",
+                    "updated_at": "2017-06-28 19:20:54",
+                    "_field_metadata": {
+                        "_create_date": "2014-12-09 12:39:14",
+                        "_create_auth": "Barbara Lafuente",
+                        "_public_date": "2017-06-28 19:20:54",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 449,
+                    "name": "Mineral abundance table",
+                    "description": "CSV file with mineral abundances",
+                    "fieldtype": "File",
+                    "template_field_uuid": "4c49ab1",
+                    "updated_at": "2017-06-28 19:20:50",
+                    "render_plugin": "CSV Table Plugin",
+                    "_field_metadata": {
+                        "_create_date": "2014-12-09 12:42:26",
+                        "_create_auth": "Barbara Lafuente",
+                        "_public_date": "2017-06-28 19:20:50",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                }
+            ],
+            "related_databases": []
+        },
+        {
+            "internal_id": 203,
+            "name": "XRF-RE",
+            "description": "New Child Type",
+            "template_uuid": "243dfea",
+            "updated_at": "2018-04-20 19:00:11",
+            "render_plugin": "Graph Plugin",
+            "metadata_for_uuid": "",
+            "_database_metadata": {
+                "_create_date": "2015-07-20 11:31:16",
+                "_create_auth": "Barbara Lafuente",
+                "_public_date": "2017-06-28 19:21:26",
+                "_master_published_version": "0",
+                "_master_revision": "0",
+                "_tracking_master_version": "0"
+            },
+            "fields": [
+                {
+                    "internal_id": 1761,
+                    "name": "XRF Analysis Name",
+                    "description": "Name of the XRF analysis",
+                    "fieldtype": "Long Text",
+                    "template_field_uuid": "7e5390b",
+                    "updated_at": "2017-06-28 19:21:09",
+                    "is_unique": 1,
+                    "_field_metadata": {
+                        "_create_date": "2015-07-20 11:31:59",
+                        "_create_auth": "Barbara Lafuente",
+                        "_public_date": "2017-06-28 19:21:09",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 1762,
+                    "name": "XRF Product_ID",
+                    "description": "Product_Id from the RE-PDS file",
+                    "fieldtype": "Long Text",
+                    "template_field_uuid": "164c677",
+                    "updated_at": "2017-06-28 19:21:13",
+                    "_field_metadata": {
+                        "_create_date": "2015-07-20 11:32:00",
+                        "_create_auth": "Barbara Lafuente",
+                        "_public_date": "2017-06-28 19:21:13",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 1763,
+                    "name": "XRF Start_Time",
+                    "description": "Start_time from the RE-PDS file",
+                    "fieldtype": "Long Text",
+                    "template_field_uuid": "d7b1603",
+                    "updated_at": "2017-06-28 19:21:14",
+                    "_field_metadata": {
+                        "_create_date": "2015-07-20 11:32:03",
+                        "_create_auth": "Barbara Lafuente",
+                        "_public_date": "2017-06-28 19:21:14",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 1766,
+                    "name": "XRF Analysis Description",
+                    "description": "Description from the RE-PDS file",
+                    "fieldtype": "Paragraph Text",
+                    "template_field_uuid": "e67604e",
+                    "updated_at": "2017-06-28 19:21:10",
+                    "_field_metadata": {
+                        "_create_date": "2015-07-20 11:36:37",
+                        "_create_auth": "Barbara Lafuente",
+                        "_public_date": "2017-06-28 19:21:10",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 1759,
+                    "name": "XRF pattern",
+                    "description": "XRF XY file for plotting",
+                    "fieldtype": "File",
+                    "template_field_uuid": "1b3d67f",
+                    "updated_at": "2017-06-28 19:21:11",
+                    "_field_metadata": {
+                        "_create_date": "2015-07-20 11:31:32",
+                        "_create_auth": "Barbara Lafuente",
+                        "_public_date": "2017-06-28 19:21:11",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 1764,
+                    "name": "RE - PDS label file",
+                    "description": "RE label from PDS",
+                    "fieldtype": "File",
+                    "template_field_uuid": "b318283",
+                    "updated_at": "2017-06-28 19:21:12",
+                    "_field_metadata": {
+                        "_create_date": "2015-07-20 11:34:08",
+                        "_create_auth": "Barbara Lafuente",
+                        "_public_date": "2017-06-28 19:21:12",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                }
+            ],
+            "related_databases": []
+        },
+        {
+            "internal_id": 175,
+            "name": "CheMin Cifs",
+            "description": null,
+            "template_uuid": "86ff696",
+            "updated_at": "2017-07-10 17:36:09",
+            "metadata_for_uuid": "",
+            "_database_metadata": {
+                "_create_date": "2015-05-14 15:09:53",
+                "_create_auth": "Barbara Lafuente",
+                "_public_date": "2015-05-15 15:17:38",
+                "_master_published_version": "0",
+                "_master_revision": "0",
+                "_tracking_master_version": "0"
+            },
+            "fields": [
+                {
+                    "internal_id": 1512,
+                    "name": "Mineral",
+                    "description": "Name of mineral species",
+                    "fieldtype": "Long Text",
+                    "template_field_uuid": "8140c58",
+                    "updated_at": "2017-06-28 19:23:36",
+                    "_field_metadata": {
+                        "_create_date": "2015-05-14 15:11:24",
+                        "_create_auth": "Barbara Lafuente",
+                        "_public_date": "2017-06-28 19:23:36",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 1515,
+                    "name": "cif",
+                    "description": "cif file in txt format",
+                    "fieldtype": "File",
+                    "template_field_uuid": "0e3ccbe",
+                    "updated_at": "2017-06-28 19:23:37",
+                    "_field_metadata": {
+                        "_create_date": "2015-05-14 15:30:31",
+                        "_create_auth": "Barbara Lafuente",
+                        "_public_date": "2017-06-28 19:23:37",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 1519,
+                    "name": "AMCSD ID",
+                    "description": "American Mineralogist Structural Database identification number",
+                    "fieldtype": "Long Text",
+                    "template_field_uuid": "5f83c3e",
+                    "updated_at": "2017-06-28 19:23:38",
+                    "render_plugin": "URL Field",
+                    "is_unique": 1,
+                    "_field_metadata": {
+                        "_create_date": "2015-05-19 20:04:25",
+                        "_create_auth": "Barbara Lafuente",
+                        "_public_date": "2017-06-28 19:23:38",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 1513,
+                    "name": "Notes",
+                    "description": "Data details and description",
+                    "fieldtype": "Paragraph Text",
+                    "template_field_uuid": "9786638",
+                    "updated_at": "2017-06-28 19:23:39",
+                    "_field_metadata": {
+                        "_create_date": "2015-05-14 15:24:06",
+                        "_create_auth": "Barbara Lafuente",
+                        "_public_date": "2017-06-28 19:23:39",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                }
+            ],
+            "related_databases": []
+        },
+        {
+            "internal_id": 65,
+            "name": "CheMin-References",
+            "description": null,
+            "template_uuid": "909a431",
+            "updated_at": "2017-06-28 19:25:01",
+            "render_plugin": "References Plugin",
+            "metadata_for_uuid": "",
+            "_database_metadata": {
+                "_create_date": "2015-01-08 10:42:14",
+                "_create_auth": "Barbara Lafuente",
+                "_public_date": "2017-06-28 19:25:01",
+                "_master_published_version": "0",
+                "_master_revision": "0",
+                "_tracking_master_version": "0"
+            },
+            "fields": [
+                {
+                    "internal_id": 512,
+                    "name": "Authors",
+                    "description": "The authors of this article.",
+                    "fieldtype": "Paragraph Text",
+                    "template_field_uuid": "00121d0",
+                    "updated_at": "2017-06-28 19:25:03",
+                    "_field_metadata": {
+                        "_create_date": "2015-01-08 10:43:16",
+                        "_create_auth": "Barbara Lafuente",
+                        "_public_date": "2017-06-28 19:25:03",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 513,
+                    "name": "Article Title",
+                    "description": "The title of this article.",
+                    "fieldtype": "Paragraph Text",
+                    "template_field_uuid": "7fd4571",
+                    "updated_at": "2017-06-28 19:25:03",
+                    "_field_metadata": {
+                        "_create_date": "2015-01-08 10:43:16",
+                        "_create_auth": "Barbara Lafuente",
+                        "_public_date": "2017-06-28 19:25:03",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 514,
+                    "name": "Journal",
+                    "description": "The name of the journal in which this article was published.",
+                    "fieldtype": "Paragraph Text",
+                    "template_field_uuid": "0f7a5dc",
+                    "updated_at": "2017-06-28 19:25:04",
+                    "_field_metadata": {
+                        "_create_date": "2015-01-08 10:43:16",
+                        "_create_auth": "Barbara Lafuente",
+                        "_public_date": "2017-06-28 19:25:04",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 515,
+                    "name": "Volume",
+                    "description": "The volume number of the journal the article was published in.",
+                    "fieldtype": "Long Text",
+                    "template_field_uuid": "e6416c3",
+                    "updated_at": "2017-06-28 19:25:05",
+                    "_field_metadata": {
+                        "_create_date": "2015-01-08 10:43:16",
+                        "_create_auth": "Barbara Lafuente",
+                        "_public_date": "2017-06-28 19:25:05",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 516,
+                    "name": "Year",
+                    "description": "What year the article was published.",
+                    "fieldtype": "Long Text",
+                    "template_field_uuid": "cf15e87",
+                    "updated_at": "2017-06-28 19:25:13",
+                    "_field_metadata": {
+                        "_create_date": "2015-01-08 10:43:16",
+                        "_create_auth": "Barbara Lafuente",
+                        "_public_date": "2017-06-28 19:25:13",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 517,
+                    "name": "Pages",
+                    "description": "The pages the article takes up in the journal.",
+                    "fieldtype": "Short Text",
+                    "template_field_uuid": "c598258",
+                    "updated_at": "2017-06-28 19:25:15",
+                    "_field_metadata": {
+                        "_create_date": "2015-01-08 10:43:16",
+                        "_create_auth": "Barbara Lafuente",
+                        "_public_date": "2017-06-28 19:25:15",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 599,
+                    "name": "Issue",
+                    "description": "Field description.",
+                    "fieldtype": "Short Text",
+                    "template_field_uuid": "bbad798",
+                    "updated_at": "2017-06-28 19:25:16",
+                    "_field_metadata": {
+                        "_create_date": "2015-01-21 19:39:05",
+                        "_create_auth": "Barbara Lafuente",
+                        "_public_date": "2017-06-28 19:25:16",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 590,
+                    "name": "Month",
+                    "description": "What month the article was published.",
+                    "fieldtype": "Short Text",
+                    "template_field_uuid": "f49141d",
+                    "updated_at": "2017-06-28 19:25:05",
+                    "_field_metadata": {
+                        "_create_date": "2015-01-21 19:09:46",
+                        "_create_auth": "Barbara Lafuente",
+                        "_public_date": "2017-06-28 19:25:05",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 593,
+                    "name": "Publisher Location",
+                    "description": "The location of the publisher of the book.",
+                    "fieldtype": "Long Text",
+                    "template_field_uuid": "9f76530",
+                    "updated_at": "2017-06-28 19:25:06",
+                    "_field_metadata": {
+                        "_create_date": "2015-01-21 19:35:48",
+                        "_create_auth": "Barbara Lafuente",
+                        "_public_date": "2017-06-28 19:25:06",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 594,
+                    "name": "Annotation",
+                    "description": "Annotation about the book or article",
+                    "fieldtype": "Paragraph Text",
+                    "template_field_uuid": "6cf5a31",
+                    "updated_at": "2017-06-28 19:25:07",
+                    "_field_metadata": {
+                        "_create_date": "2015-01-21 19:36:26",
+                        "_create_auth": "Barbara Lafuente",
+                        "_public_date": "2017-06-28 19:25:07",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 591,
+                    "name": "Book Title",
+                    "description": "The title of this book.",
+                    "fieldtype": "Paragraph Text",
+                    "template_field_uuid": "d9b431f",
+                    "updated_at": "2017-06-28 19:25:08",
+                    "_field_metadata": {
+                        "_create_date": "2015-01-21 19:17:48",
+                        "_create_auth": "Barbara Lafuente",
+                        "_public_date": "2017-06-28 19:25:08",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 597,
+                    "name": "Keywords",
+                    "description": "Field description.",
+                    "fieldtype": "Long Text",
+                    "template_field_uuid": "90b9411",
+                    "updated_at": "2017-06-28 19:25:09",
+                    "_field_metadata": {
+                        "_create_date": "2015-01-21 19:37:32",
+                        "_create_auth": "Barbara Lafuente",
+                        "_public_date": "2017-06-28 19:25:09",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 592,
+                    "name": "Publisher",
+                    "description": "The publisher of this book.",
+                    "fieldtype": "Long Text",
+                    "template_field_uuid": "546fcc1",
+                    "updated_at": "2017-06-28 19:25:10",
+                    "_field_metadata": {
+                        "_create_date": "2015-01-21 19:34:13",
+                        "_create_auth": "Barbara Lafuente",
+                        "_public_date": "2017-06-28 19:25:10",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 596,
+                    "name": "Ref. other URL",
+                    "description": "Field description.",
+                    "fieldtype": "Long Text",
+                    "template_field_uuid": "fa8f219",
+                    "updated_at": "2017-06-28 19:25:10",
+                    "_field_metadata": {
+                        "_create_date": "2015-01-21 19:37:30",
+                        "_create_auth": "Barbara Lafuente",
+                        "_public_date": "2017-06-28 19:25:10",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 595,
+                    "name": "Ref. DOI",
+                    "description": "Field description.",
+                    "fieldtype": "Long Text",
+                    "template_field_uuid": "73c9d63",
+                    "updated_at": "2017-06-28 19:25:12",
+                    "is_unique": 1,
+                    "_field_metadata": {
+                        "_create_date": "2015-01-21 19:36:28",
+                        "_create_auth": "Barbara Lafuente",
+                        "_public_date": "2017-06-28 19:25:12",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 518,
+                    "name": "File",
+                    "description": "A file containing a scan of the physical reference.",
+                    "fieldtype": "File",
+                    "template_field_uuid": "0bf288a",
+                    "updated_at": "2017-11-07 00:59:45",
+                    "_field_metadata": {
+                        "_create_date": "2015-01-08 10:43:16",
+                        "_create_auth": "Barbara Lafuente",
+                        "_public_date": "2017-11-07 00:59:46",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                }
+            ],
+            "related_databases": []
+        }
+    ]
+}

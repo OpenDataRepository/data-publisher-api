@@ -924,8 +924,6 @@ async function importDatasetAndRecord(record, user, session) {
 
   // Import dataset
   let [changes, dataset_uuid] = await DatasetModel.importDatasetFromCombinedRecursor(record, template, user, new Date(), session);
-  // Check what the draft looks like before the published
-  let dataset_draft = await DatasetModel.draftGet(dataset_uuid, user, session);
   // Publish dataset
   if(changes) {
     await DatasetModel.publishWithoutChecks(dataset_uuid, user, session, template);
@@ -933,7 +931,6 @@ async function importDatasetAndRecord(record, user, session) {
   let dataset = await DatasetModel.latestPublished(dataset_uuid, user, session);
   // Import record
   let new_record_uuid = (await importRecordFromCombinedRecursor(record, dataset, template, user, new Date(), session))[1];
-  let record_draft = await draftFetchOrCreate(new_record_uuid, user, session);
   return new_record_uuid;
 }
 
