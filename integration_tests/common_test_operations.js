@@ -508,6 +508,11 @@ module.exports = class Helper {
       .set('Cookie', [`user=${curr_user}`])
       .set('Accept', 'application/json');
   }
+  datasetLatestPublishedAndTest = async(uuid, curr_user) => {
+    let response = await this.datasetLatestPublished(uuid, curr_user);
+    expect(response.statusCode).toBe(200);
+    return response.body;
+  }
   datasetLatestPublishedBeforeDate = async (uuid, timestamp, curr_user) => {
     return await request(this.app)
       .get(`/dataset/${uuid}/${timestamp}`)
@@ -592,6 +597,19 @@ module.exports = class Helper {
       .post(`/dataset/${uuid}/duplicate`)
       .set('Cookie', [`user=${curr_user}`]);
   }
+
+  newDatasetForTemplate = async (template_uuid, curr_user) => {
+    return await request(this.app)
+      .get(`/dataset/new_dataset_for_template/${template_uuid}`)
+      .set('Cookie', [`user=${curr_user}`])
+      .set('Accept', 'application/json');
+  }
+  newDatasetForTemplateAndTest = async (template_uuid, curr_user) => {
+    let response = await this.newDatasetForTemplate(template_uuid, curr_user);
+    expect(response.statusCode).toBe(200);
+    return response.body;
+  }
+
 
   // record
 

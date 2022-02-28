@@ -946,6 +946,61 @@ async function importDatasetsAndRecords(session, records, user) {
   return result_uuids;
 }
 
+async function importRecord(record, user, session) {
+  if(!Util.isObject(record)) {
+    throw new Util.InputError('Record to import must be a json object.');
+  }
+
+  // Template must have already been imported
+  if(!record.dataset_uuid || typeof(record.dataset_uuid) !== 'string') {
+    throw new Util.InputError('Record provided to import must have a dataset_uuid, which is a string.');
+  }
+  let new_uuid = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(record.dataset_uuid, session);
+  if(!new_uuid) {
+    throw new Util.InputError('the dataset_uuid linked in the record you wish to import has not yet been imported.');
+  }
+
+  let dataset = await SharedFunctions.latestDocument(DatasetModel.collection(), new_uuid, session);
+  let template = await SharedFunctions.latestDocument(TemplateModel.collection(), new_uuid, session);
+  if(!dataset && !template) {
+    throw new Util.InputError(`Either a template or dataset with uuid ${record.dataset_uuid} must be imported before import a record referencing it`);
+  }
+
+  let dataset_uuid;
+  if(dataset) {
+    dataset_uuid = new_uuid;
+  } else {
+    // Find any dataset pointing to this template 
+    // this won't work if multiple datasets have been created for this template
+    // TODO: write this function
+    // dataset_uuid = await findDatasetForTemplate(new_uuid, user, session);
+    if(!dataset_uuid) {
+      throw new Util.InputError(`A dataset referencing template ${new_uuid} must be created before importing any records`);
+    }
+  }
+
+  // dataset must be published and user must have read access
+  dataset = await DatasetModel.latestPublished(dataset_uuid, user);
+  if(!dataset) {
+    throw new Util.InputError(`Dataset ${dataset_uuid} must be published before any record using it can be imported`);
+  }
+
+  // TODO: continue importing here
+  return null;
+}
+
+async function importRecords(session, records, user) {
+  if(!Array.isArray(records)) {
+    throw new Util.InputError(`'records' must be a valid array`);
+  }
+
+  let result_uuids = [];
+  for(let record of records) {
+    result_uuids.push(await importRecord(record, user, session));
+  }
+  return result_uuids;
+}
+
 // Wraps the actual request to create with a transaction
 exports.create = async function(record, user) {
   let inserted_uuid;
@@ -996,5 +1051,11 @@ exports.draftExisting = async function(uuid) {
 // Wraps the actual request to importDatasetsAndRecords with a transaction
 exports.importDatasetsAndRecords = async function(records, user) {
   let new_uuids = await SharedFunctions.executeWithTransaction(importDatasetsAndRecords, records, user);
+  return new_uuids;
+}
+
+// Wraps the actual request to importRecords with a transaction
+exports.importRecords = async function(records, user) {
+  let new_uuids = await SharedFunctions.executeWithTransaction(importRecords, records, user);
   return new_uuids;
 }

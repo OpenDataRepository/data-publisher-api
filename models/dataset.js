@@ -206,6 +206,9 @@ async function validateAndCreateOrUpdateRecurser(input_dataset, template, user, 
     throw new Util.InputError(`The template uuid provided by the dataset (${input_dataset.template_uuid}) does not correspond to the template uuid expected by the template (${template.uuid})`);
   }
 
+  // TODO: what if we don't have view access to this template? Are we still allowed to create a dataset for it?
+  // If yes, then we're definitely not recursing. 
+
   // Build object to create/update
   let new_dataset = {
     uuid,
@@ -278,20 +281,9 @@ async function validateAndCreateOrUpdate(session, dataset, user) {
     throw new Util.InputError(`dataset provided is not an object: ${dataset}`);
   }
 
-  let template;
-  try {
-    template = await TemplateModel.latestPublished(dataset.template_uuid, user);
-    if(!template) {
-      throw new Util.InputError(`a valid template_uuid was not provided for dataset with uuid ${dataset.uuid}`);
-    }
-  } catch(error) {
-    if(error instanceof Util.InputError) {
-      throw new Util.InputError(`a valid template_uuid was not provided for dataset with uuid ${dataset.uuid}`);
-    }
-    // if(error instanceof Util.PermissionDeniedError) {
-    //   throw new Util.PermissionDeniedError(`You do not have the view permissions to template ${dataset.template_uuid} required to create/update a dataset referencing it.`);
-    // }
-    throw error;
+  let template = await TemplateModel.latestPublished(dataset.template_uuid, user);
+  if(!template) {
+    throw new Util.InputError(`a valid template_uuid was not provided for dataset with uuid ${dataset.uuid}`);
   }
 
   // If this dataset does not already have a group uuid, create one for it
@@ -528,14 +520,16 @@ async function publishRecurser(uuid, user, session, template) {
     Error in dataset update implementation.`);
   }
 
+  // TODO: Datasets should use template_ids, not template uuids
+
+
   // check that the draft update is more recent than the last template publish
   if ((await TemplateModel.latest_published_time_for_uuid(dataset_draft.template_uuid)) > dataset_draft.updated_at) {
     throw new Util.InputError(`Dataset ${dataset_draft.uuid}'s template has been published more recently than when the dataset was updated. 
     Update the dataset again before publishing.`);
   }
 
-  let related_datasets, changes;
-  related_datasets = await publishRelatedDatasets(dataset_draft.related_datasets, template, user, session);
+  let related_datasets = await publishRelatedDatasets(dataset_draft.related_datasets, template, user, session);
 
   let publish_time = new Date();
   let response = await Dataset.updateOne(
@@ -935,6 +929,20 @@ async function importDatasetFromCombinedRecursor(record, template, user, updated
   
 }
 
+function newDatasetForTemplate(template) {
+  let dataset = {
+    template_uuid: template.uuid,
+    related_datasets: []
+  };
+  for(let related_template of template.related_templates) {
+    dataset.related_datasets.push(newDatasetForTemplate(related_template));
+  }
+  for(let subscribed_template of template.subscribed_templates) {
+    dataset.related_datasets.push(newDatasetForTemplate(subscribed_template));
+  }
+  return dataset;
+}
+
 // Wraps the actual request to create with a transaction
 exports.create = async function(dataset, user) {
   let inserted_uuid;
@@ -1011,6 +1019,14 @@ exports.template_uuid = async function(uuid) {
 exports.duplicate = async function(uuid, user) {
   let new_dataset = await SharedFunctions.executeWithTransaction(duplicate, uuid, user);
   return new_dataset;
+}
+
+exports.newDatasetForTemplate = async function(template_uuid, user) {
+  let template = await TemplateModel.latestPublished(template_uuid, user);
+  if(!template) {
+    throw new Util.NotFoundError(`No published template exists with uuid ${template_uuid}`);
+  }
+  return newDatasetForTemplate(template);
 }
 
 exports.importDatasetFromCombinedRecursor = importDatasetFromCombinedRecursor;

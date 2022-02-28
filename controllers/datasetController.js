@@ -105,3 +105,12 @@ exports.duplicate = async function(req, res, next) {
     next(err);
   }
 }
+
+exports.new_dataset_for_template = async function(req, res, next) {
+  try {
+    let new_dataset = await DatasetModel.newDatasetForTemplate(req.params.uuid, req.cookies.user);
+    res.json(new_dataset);
+  } catch(err) {
+    next(err);
+  }
+}

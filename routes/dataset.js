@@ -4,6 +4,7 @@ const router = express.Router();
 const {validateUuid, validateTimestamp} = require('../lib/middleware');
 const controller = require('../controllers/datasetController');
 
+router.get('/new_dataset_for_template/:uuid', validateUuid, controller.new_dataset_for_template);
 router.get('/:uuid/draft', validateUuid, controller.draft_get);
 router.get('/:uuid/draft_existing', validateUuid, controller.draft_existing);
 router.get('/:uuid/latest_published', validateUuid, controller.get_latest_published);

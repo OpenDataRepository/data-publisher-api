@@ -117,6 +117,12 @@ const importTemplatePublishAndTest = async (template, curr_user) => {
   return await Helper.templatePublishAndFetch(uuid, curr_user);
 }
 
+const importTemplateAndDatasetAndTest = async (template, curr_user) => {
+  template = await importTemplatePublishAndTest(template, curr_user);
+  let dataset = await Helper.newDatasetForTemplateAndTest(template.uuid, curr_user);
+  return await Helper.datasetCreatePublishTest(dataset, curr_user);
+}
+
 const importCombinedDatasetsAndRecords = async (datasets_and_records, curr_user) => {
   return await request(app)
     .post(`/import/datasets_and_records/`)
@@ -246,6 +252,125 @@ const sanitizeInputDatasetsAndRecords = (input_datasets_and_records) => {
     output_datasets_and_records.push(record);
   }
   return output_datasets_and_records;
+}
+
+const reformatInputRecordField = (input_field) => {
+  input_field.name = input_record.field_name;
+  delete input_field.field_name;
+
+  input_field.uuid = input_field.field_uuid;
+  delete input_field.field_uuid;
+}
+
+const reformatInputRecord = (input_record) => {
+  input_record.name = input_record.record_name;
+  delete input_record.record_name;
+
+  input_record.related_records = input_record.records;
+  delete input_record.records;
+
+  input_record.uuid = input_record.record_uuid;
+  delete input_record.record_uuid;
+
+  input_record.dataset_uuid = input_record.database_uuid;
+  delete input_record.database_uuid;
+
+  for(let field of input_record.fields) {
+    reformatInputRecordField(field);
+  }
+  for(let related_record of input_record.related_records) {
+    reformatInputRecord(related_record);
+  }
+}
+
+const importRecords = async (records, curr_user) => {
+  return await request(app)
+    .post(`/import/records/`)
+    .set('Cookie', [`user=${curr_user}`])
+    .send({records})
+    .set('Accept', 'application/json');
+}
+
+const testOldAndNewFieldEqual = (old_field, new_field, uuid_mapper) => {
+  if(old_field.uuid in uuid_mapper) {
+    expect(new_field.uuid).toEqual(uuid_mapper[old_field.uuid])
+  } else {
+    uuid_mapper[old_field.uuid] = new_field.uuid
+  }
+  expect(new_field.name).toEqual(old_field.name);
+  if(typeof(old_field.value) == 'string') {
+    expect(new_field.value).toEqual(old_field.value);
+  } else {
+    if(Array.isArray(old_field.value)) {
+      for(let i = 0; i < old_field.value.length; i++) {
+        expect(new_field.values[i].name).toEqual(old_field.value[i].name);
+      }
+    } else {
+      expect(new_field.value).toEqual(old_field.value);
+    }
+  }
+}
+
+const testOldAndNewRecordEqual = async (old_record, new_record, uuid_mapper) => {
+  // Check record_uuid
+  if(old_record.uuid in uuid_mapper) {
+    expect(new_record.uuid).toEqual(uuid_mapper[old_record.uuid]);
+  } else {
+    uuid_mapper[old_record.uuid] = new_record.uuid;
+  }
+  // Check dataset uuid
+  if(old_record.dataset_uuid in uuid_mapper) {
+    expect(new_record.dataset_uuid).toEqual(uuid_mapper[old_record.dataset_uuid]);
+  } else {
+    uuid_mapper[old_record.dataset_uuid] = new_dataset.dataset_uuid;
+  }
+
+  if(!old_record.fields) {
+    old_record.fields = []
+  }
+  if(!old_record.records) {
+    old_record.records = []
+  }
+
+  expect(typeof(old_record.fields)).toEqual(typeof(new_record.fields));
+  expect(new_record.fields.length).toBe(old_record.fields.length);
+  expect(new_record.related_records.length).toBe(old_record.related_records.length);
+
+  old_record.fields.sort(Helper.sortArrayByNameProperty);
+  new_record.fields.sort(Helper.sortArrayByNameProperty);
+  for(let i = 0; i < old_record.fields.length; i++) {
+    testOldAndNewFieldEqual(old_record.fields[i], new_record.fields[i], uuid_mapper);
+  }
+  for(let related_record of old_record.records) {
+    related_record.name = related_record.record_name;
+  }
+  old_record.records.sort(Helper.sortArrayByNameProperty);
+  new_record.related_records.sort(Helper.sortArrayByNameProperty);
+  for(let i = 0; i < old_record.records.length; i++) {
+    testOldAndNewRecordEqual(old_record.records[i], new_record.related_records[i], uuid_mapper)
+  }
+}
+
+const importRecordsTest = async (records, curr_user) => {
+
+  for(let record of records) {
+    reformatInputRecord(record);
+  }
+
+  let uuid_mapper = {};
+  let response = await importRecords(records, curr_user);
+  expect(response.statusCode).toBe(200);
+  let record_uuids = response.body.record_uuids;
+  expect(record_uuids.length).toBe(records.length);
+
+  for(let i = 0; i < records.length; i++) {
+
+    let new_record_uuid = record_uuids[i];
+    let new_record = await Helper.recordDraftGetAndTest(new_record_uuid, curr_user);
+    let old_record = records[i];
+
+    testOldAndNewRecordEqual(old_record, new_record, uuid_mapper);
+  }
 }
 
 
@@ -448,14 +573,7 @@ describe("template", () => {
       let rawdata = fs.readFileSync(__dirname + '/test_data/chemin_template.json');
       let old_template = JSON.parse(rawdata);
     
-      let response = await importTemplate(old_template, Helper.DEF_CURR_USER);
-      expect(response.statusCode).toBe(200);
-      let uuid = response.body.new_uuid;
-    
-      let new_template = await Helper.templateDraftGetAndTest(uuid, Helper.DEF_CURR_USER);
-    
-      testTemplatesEqual(old_template, new_template, {});
-      console.log(JSON.stringify(new_template, null, 4));
+      await importTemplateAndDatasetAndTest(old_template, Helper.DEF_CURR_USER);
     });
 
   });
@@ -542,517 +660,1047 @@ describe("template", () => {
 
 });
 
-describe("comebineddatasetsandrecords", () => {
+// TODO: re-write all of these tests just for records
+// describe("records", () => {
 
-  describe("success", () => {
+//   describe("success", () => {
 
-    test("basic - no fields or related datasets/records", async () => {
-      let template_uuid = "t1";
-      let template = {
-        template_uuid, 
-        name: "naruto", 
-        description: "awesome", 
-        updated_at: (new Date()).toISOString(),
-        fields: [],
-        related_databases: []
-      };
-      await importTemplatePublishAndTest(template, Helper.DEF_CURR_USER);
+//     test("basic - no fields or related datasets/records", async () => {
+//       let template_uuid = "t1";
+//       let template = {
+//         template_uuid, 
+//         name: "naruto", 
+//         description: "awesome", 
+//         updated_at: (new Date()).toISOString(),
+//         fields: [],
+//         related_databases: []
+//       };
+//       await importTemplateAndDatasetAndTest(template, Helper.DEF_CURR_USER);
 
-      let record = {
-        record_uuid: "r1",
-        database_uuid: "d1",
-        template_uuid,
-        fields: [],
-        records: []
-      };
-      await importDatasetsRecordsTest([record], Helper.DEF_CURR_USER);
-    });
+//       let record = {
+//         record_uuid: "r1",
+//         database_uuid: template_uuid,
+//         fields: [],
+//         records: []
+//       };
+//       await importRecordsTest([record], Helper.DEF_CURR_USER);
+//     });
 
-    test("one field and one related dataset/record", async () => {
-      let template_uuid = "t1";
-      let related_template_uuid = "t1.1";
-      let field_uuid = "t1f1";
+//     test("one field and one related dataset/record", async () => {
+//       let template_uuid = "t1";
+//       let related_template_uuid = "t1.1";
+//       let field_uuid = "t1f1";
 
-      let template = {
-        template_uuid, 
-        name: "naruto", 
-        description: "awesome", 
-        updated_at: (new Date()).toISOString(),
-        fields: [{
-          template_field_uuid: field_uuid
-        }],
-        related_databases: [{
-          template_uuid: related_template_uuid,
-          name: "sasuke"
-        }]
-      };
-      await importTemplatePublishAndTest(template, Helper.DEF_CURR_USER);
+//       let template = {
+//         template_uuid, 
+//         name: "naruto", 
+//         description: "awesome", 
+//         updated_at: (new Date()).toISOString(),
+//         fields: [{
+//           template_field_uuid: field_uuid
+//         }],
+//         related_databases: [{
+//           template_uuid: related_template_uuid,
+//           name: "sasuke"
+//         }]
+//       };
+//       await importTemplatePublishAndTest(template, Helper.DEF_CURR_USER);
 
-      let record = {
-        record_uuid: "r1",
-        database_uuid: "d1",
-        template_uuid,
-        fields: [{
-          template_field_uuid: field_uuid,
-          value: "peach"
-        }],
-        records: [{
-          record_uuid: "r1.1",
-          database_uuid: "d1.1",
-          template_uuid: related_template_uuid
-        }]
-      };
-      await importDatasetsRecordsTest([record], Helper.DEF_CURR_USER);
-    });
+//       let record = {
+//         record_uuid: "r1",
+//         database_uuid: "d1",
+//         template_uuid,
+//         fields: [{
+//           template_field_uuid: field_uuid,
+//           value: "peach"
+//         }],
+//         records: [{
+//           record_uuid: "r1.1",
+//           database_uuid: "d1.1",
+//           template_uuid: related_template_uuid
+//         }]
+//       };
+//       await importDatasetsRecordsTest([record], Helper.DEF_CURR_USER);
+//     });
 
-    test("multiple fields and multiple related dataset/record", async () => {
-      let template_uuid = "t1";
-      let related_template_uuid_1 = "t1.1";
-      let related_template_uuid_2 = "t1.2";
-      let field_uuid_1 = "t1f1";
-      let field_uuid_2 = "t1f2";
+//     test("multiple fields and multiple related dataset/record", async () => {
+//       let template_uuid = "t1";
+//       let related_template_uuid_1 = "t1.1";
+//       let related_template_uuid_2 = "t1.2";
+//       let field_uuid_1 = "t1f1";
+//       let field_uuid_2 = "t1f2";
 
-      let template = {
-        template_uuid, 
-        fields: [
-          {template_field_uuid: field_uuid_1, name: field_uuid_1},
-          {template_field_uuid: field_uuid_2, name: field_uuid_2}
-        ],
-        related_databases: [
-          {template_uuid: related_template_uuid_1, name: related_template_uuid_1},
-          {template_uuid: related_template_uuid_2, name: related_template_uuid_2}
-        ]
-      };
-      await importTemplatePublishAndTest(template, Helper.DEF_CURR_USER);
+//       let template = {
+//         template_uuid, 
+//         fields: [
+//           {template_field_uuid: field_uuid_1, name: field_uuid_1},
+//           {template_field_uuid: field_uuid_2, name: field_uuid_2}
+//         ],
+//         related_databases: [
+//           {template_uuid: related_template_uuid_1, name: related_template_uuid_1},
+//           {template_uuid: related_template_uuid_2, name: related_template_uuid_2}
+//         ]
+//       };
+//       await importTemplatePublishAndTest(template, Helper.DEF_CURR_USER);
 
-      let record = {
-        record_uuid: "r1",
-        database_uuid: "d1",
-        template_uuid,
-        fields: [
-          {template_field_uuid: field_uuid_1, value: "peach"},
-          {template_field_uuid: field_uuid_2, value: "daisy"}
-        ],
-        records: [
-          {record_uuid: "r1.1", database_uuid: "d1.1", template_uuid: related_template_uuid_1},
-          {record_uuid: "r1.2", database_uuid: "d1.2", template_uuid: related_template_uuid_2}
-        ]
-      };
-      await importDatasetsRecordsTest([record], Helper.DEF_CURR_USER);
-    });
+//       let record = {
+//         record_uuid: "r1",
+//         database_uuid: "d1",
+//         template_uuid,
+//         fields: [
+//           {template_field_uuid: field_uuid_1, value: "peach"},
+//           {template_field_uuid: field_uuid_2, value: "daisy"}
+//         ],
+//         records: [
+//           {record_uuid: "r1.1", database_uuid: "d1.1", template_uuid: related_template_uuid_1},
+//           {record_uuid: "r1.2", database_uuid: "d1.2", template_uuid: related_template_uuid_2}
+//         ]
+//       };
+//       await importDatasetsRecordsTest([record], Helper.DEF_CURR_USER);
+//     });
 
-    test("related datasets/records going 2 levels deep", async () => {
-      let template_1_uuid = "t1";
-      let template_11_uuid = "t1.1";
-      let template_111_uuid = "t1.1.1";
+//     test("related datasets/records going 2 levels deep", async () => {
+//       let template_1_uuid = "t1";
+//       let template_11_uuid = "t1.1";
+//       let template_111_uuid = "t1.1.1";
 
-      let template = {
-        template_uuid: template_1_uuid, 
-        related_databases: [{
-          template_uuid: template_11_uuid,
-          related_databases: [{
-            template_uuid: template_111_uuid
-          }]
-        }]
-      };
-      await importTemplatePublishAndTest(template, Helper.DEF_CURR_USER);
+//       let template = {
+//         template_uuid: template_1_uuid, 
+//         related_databases: [{
+//           template_uuid: template_11_uuid,
+//           related_databases: [{
+//             template_uuid: template_111_uuid
+//           }]
+//         }]
+//       };
+//       await importTemplatePublishAndTest(template, Helper.DEF_CURR_USER);
 
-      let record = {
-        record_uuid: "r1",
-        database_uuid: "d1",
-        template_uuid: template_1_uuid,
-        records: [{
-          record_uuid: "r1.1",
-          database_uuid: "d1.1",
-          template_uuid: template_11_uuid,
-          records: [{
-            record_uuid: "r1.1.1",
-            database_uuid: "d1.1.1",
-            template_uuid: template_111_uuid,
-          }]
-        }]
-      };
-      await importDatasetsRecordsTest([record], Helper.DEF_CURR_USER);
-    });
+//       let record = {
+//         record_uuid: "r1",
+//         database_uuid: "d1",
+//         template_uuid: template_1_uuid,
+//         records: [{
+//           record_uuid: "r1.1",
+//           database_uuid: "d1.1",
+//           template_uuid: template_11_uuid,
+//           records: [{
+//             record_uuid: "r1.1.1",
+//             database_uuid: "d1.1.1",
+//             template_uuid: template_111_uuid,
+//           }]
+//         }]
+//       };
+//       await importDatasetsRecordsTest([record], Helper.DEF_CURR_USER);
+//     });
 
-    test("field has options to pick from. Can pick nested or non-nested option, or both, or none", async () => {
-      let template_uuid = "t1";
-      let field_uuid = "t1f1";
+//     test("field has options to pick from. Can pick nested or non-nested option, or both, or none", async () => {
+//       let template_uuid = "t1";
+//       let field_uuid = "t1f1";
 
-      let option_uuid_1 = "toad";
-      let option_uuid_2 = "sexy jiutsu";
+//       let option_uuid_1 = "toad";
+//       let option_uuid_2 = "sexy jiutsu";
 
-      let template = {
-        template_uuid, 
-        name: "naruto", 
-        description: "awesome", 
-        updated_at: (new Date()).toISOString(),
-        fields: [
-          {
-            template_field_uuid: field_uuid,
-            radio_options: [
-              {template_radio_option_uuid: option_uuid_1, name: option_uuid_1},
-              {name: "ninjuitsu", radio_options: [
-                {
-                  name: option_uuid_2, template_radio_option_uuid: option_uuid_2
-                }
-              ]}
-            ]
-          }
-        ]
-      };
-      await importTemplatePublishAndTest(template, Helper.DEF_CURR_USER);
+//       let template = {
+//         template_uuid, 
+//         name: "naruto", 
+//         description: "awesome", 
+//         updated_at: (new Date()).toISOString(),
+//         fields: [
+//           {
+//             template_field_uuid: field_uuid,
+//             radio_options: [
+//               {template_radio_option_uuid: option_uuid_1, name: option_uuid_1},
+//               {name: "ninjuitsu", radio_options: [
+//                 {
+//                   name: option_uuid_2, template_radio_option_uuid: option_uuid_2
+//                 }
+//               ]}
+//             ]
+//           }
+//         ]
+//       };
+//       await importTemplatePublishAndTest(template, Helper.DEF_CURR_USER);
 
-      let record = {
-        record_uuid: "r1",
-        database_uuid: "d1",
-        template_uuid,
-        fields: [{
-          template_field_uuid: field_uuid,
-          value: [{template_radio_option_uuid: option_uuid_1}]
-        }]
-      };
-      await importDatasetsRecordsTest([record], Helper.DEF_CURR_USER);
+//       let record = {
+//         record_uuid: "r1",
+//         database_uuid: "d1",
+//         template_uuid,
+//         fields: [{
+//           template_field_uuid: field_uuid,
+//           value: [{template_radio_option_uuid: option_uuid_1}]
+//         }]
+//       };
+//       await importDatasetsRecordsTest([record], Helper.DEF_CURR_USER);
 
-      record = {
-        record_uuid: "r1",
-        database_uuid: "d1",
-        template_uuid,
-        fields: [{
-          template_field_uuid: field_uuid,
-          value: [{template_radio_option_uuid: option_uuid_2}]
-        }]
-      };
-      await importDatasetsRecordsTest([record], Helper.DEF_CURR_USER);
+//       record = {
+//         record_uuid: "r1",
+//         database_uuid: "d1",
+//         template_uuid,
+//         fields: [{
+//           template_field_uuid: field_uuid,
+//           value: [{template_radio_option_uuid: option_uuid_2}]
+//         }]
+//       };
+//       await importDatasetsRecordsTest([record], Helper.DEF_CURR_USER);
 
-      record = {
-        record_uuid: "r1",
-        database_uuid: "d1",
-        template_uuid,
-        fields: [{
-          template_field_uuid: field_uuid,
-          value: [
-            {template_radio_option_uuid: option_uuid_1},
-            {template_radio_option_uuid: option_uuid_2}
-          ]
-        }]
-      };
-      await importDatasetsRecordsTest([record], Helper.DEF_CURR_USER);
+//       record = {
+//         record_uuid: "r1",
+//         database_uuid: "d1",
+//         template_uuid,
+//         fields: [{
+//           template_field_uuid: field_uuid,
+//           value: [
+//             {template_radio_option_uuid: option_uuid_1},
+//             {template_radio_option_uuid: option_uuid_2}
+//           ]
+//         }]
+//       };
+//       await importDatasetsRecordsTest([record], Helper.DEF_CURR_USER);
 
-      record = {
-        record_uuid: "r1",
-        database_uuid: "d1",
-        template_uuid,
-        fields: [{
-          template_field_uuid: field_uuid
-        }]
-      };
-      await importDatasetsRecordsTest([record], Helper.DEF_CURR_USER);
-    });
+//       record = {
+//         record_uuid: "r1",
+//         database_uuid: "d1",
+//         template_uuid,
+//         fields: [{
+//           template_field_uuid: field_uuid
+//         }]
+//       };
+//       await importDatasetsRecordsTest([record], Helper.DEF_CURR_USER);
+//     });
 
-    test("import multiple datasets/records at once", async () => {
-      let template_uuid = "t1";
-      let template = {
-        template_uuid, 
-        name: "naruto", 
-        description: "awesome", 
-        updated_at: (new Date()).toISOString(),
-        fields: [],
-        related_databases: []
-      };
-      await importTemplatePublishAndTest(template, Helper.DEF_CURR_USER);
+//     test("import multiple datasets/records at once", async () => {
+//       let template_uuid = "t1";
+//       let template = {
+//         template_uuid, 
+//         name: "naruto", 
+//         description: "awesome", 
+//         updated_at: (new Date()).toISOString(),
+//         fields: [],
+//         related_databases: []
+//       };
+//       await importTemplatePublishAndTest(template, Helper.DEF_CURR_USER);
 
-      let records = [
-        {
-          record_uuid: "r1",
-          database_uuid: "d1",
-          template_uuid,
-          fields: [],
-          records: []
-        },
-        {
-          record_uuid: "r2",
-          database_uuid: "d2",
-          template_uuid,
-          fields: [],
-          records: []
-        } 
-      ];
-      await importDatasetsRecordsTest(records, Helper.DEF_CURR_USER);
-    });
+//       let records = [
+//         {
+//           record_uuid: "r1",
+//           database_uuid: "d1",
+//           template_uuid,
+//           fields: [],
+//           records: []
+//         },
+//         {
+//           record_uuid: "r2",
+//           database_uuid: "d2",
+//           template_uuid,
+//           fields: [],
+//           records: []
+//         } 
+//       ];
+//       await importDatasetsRecordsTest(records, Helper.DEF_CURR_USER);
+//     });
 
-    test("If dataset/record doesn't supply a related_dataset for a related_template, we provide one", async () => {
-      let template_uuid = "t1";
-      let related_template_uuid = "t1.1";
-      let field_uuid = "t1f1";
+//     test("If dataset/record doesn't supply a related_dataset for a related_template, we provide one", async () => {
+//       let template_uuid = "t1";
+//       let related_template_uuid = "t1.1";
+//       let field_uuid = "t1f1";
 
-      let template = {
-        template_uuid, 
-        name: "naruto", 
-        description: "awesome", 
-        updated_at: (new Date()).toISOString(),
-        fields: [{
-          template_field_uuid: field_uuid
-        }],
-        related_databases: [{
-          template_uuid: related_template_uuid,
-          name: "sasuke"
-        }]
-      };
-      await importTemplatePublishAndTest(template, Helper.DEF_CURR_USER);
+//       let template = {
+//         template_uuid, 
+//         name: "naruto", 
+//         description: "awesome", 
+//         updated_at: (new Date()).toISOString(),
+//         fields: [{
+//           template_field_uuid: field_uuid
+//         }],
+//         related_databases: [{
+//           template_uuid: related_template_uuid,
+//           name: "sasuke"
+//         }]
+//       };
+//       await importTemplatePublishAndTest(template, Helper.DEF_CURR_USER);
 
-      let record = {
-        record_uuid: "r1",
-        database_uuid: "d1",
-        template_uuid,
-        fields: [
-          {
-            template_field_uuid: field_uuid,
-            value: "peach"
-          }
-        ],
-        records: []
-      };
-      await importDatasetsRecordsTest([record], Helper.DEF_CURR_USER);
-    });
+//       let record = {
+//         record_uuid: "r1",
+//         database_uuid: "d1",
+//         template_uuid,
+//         fields: [
+//           {
+//             template_field_uuid: field_uuid,
+//             value: "peach"
+//           }
+//         ],
+//         records: []
+//       };
+//       await importDatasetsRecordsTest([record], Helper.DEF_CURR_USER);
+//     });
 
-    test("If a template uuid is not provided, just skip over the database/record", async () => {
-      let template_uuid = "t1";
-      let related_template_uuid = "t1.1";
-      let field_uuid = "t1f1";
+//     test("If a template uuid is not provided, just skip over the database/record", async () => {
+//       let template_uuid = "t1";
+//       let related_template_uuid = "t1.1";
+//       let field_uuid = "t1f1";
 
-      let template = {
-        template_uuid, 
-        name: "naruto", 
-        description: "awesome", 
-        updated_at: (new Date()).toISOString(),
-        fields: [{
-          template_field_uuid: field_uuid
-        }],
-        related_databases: [{
-          template_uuid: related_template_uuid,
-          name: "sasuke"
-        }]
-      };
-      await importTemplatePublishAndTest(template, Helper.DEF_CURR_USER);
+//       let template = {
+//         template_uuid, 
+//         name: "naruto", 
+//         description: "awesome", 
+//         updated_at: (new Date()).toISOString(),
+//         fields: [{
+//           template_field_uuid: field_uuid
+//         }],
+//         related_databases: [{
+//           template_uuid: related_template_uuid,
+//           name: "sasuke"
+//         }]
+//       };
+//       await importTemplatePublishAndTest(template, Helper.DEF_CURR_USER);
 
-      let record = {
-        record_uuid: "r1",
-        database_uuid: "d1",
-        template_uuid,
-        fields: [
-          {
-            template_field_uuid: field_uuid,
-            value: "peach"
-          }
-        ],
-        records: [{
-          record_uuid: "r1.1",
-          database_uuid: "d1.1",
-          template_uuid: ""
-        }]
-      };
-      await importDatasetsRecordsTest([record], Helper.DEF_CURR_USER);
-    });
+//       let record = {
+//         record_uuid: "r1",
+//         database_uuid: "d1",
+//         template_uuid,
+//         fields: [
+//           {
+//             template_field_uuid: field_uuid,
+//             value: "peach"
+//           }
+//         ],
+//         records: [{
+//           record_uuid: "r1.1",
+//           database_uuid: "d1.1",
+//           template_uuid: ""
+//         }]
+//       };
+//       await importDatasetsRecordsTest([record], Helper.DEF_CURR_USER);
+//     });
 
-    test("with real data", async () => {
+//     test("with Chemin data", async () => {
 
-      let raw_template = fs.readFileSync(__dirname + '/test_data/template.txt');
-      let old_template = JSON.parse(raw_template);
+//       let raw_template = fs.readFileSync(__dirname + '/test_data/template.txt');
+//       let old_template = JSON.parse(raw_template);
     
-      await importTemplatePublishAndTest(old_template, Helper.DEF_CURR_USER);
+//       await importTemplateAndDatasetAndTest(old_template, Helper.DEF_CURR_USER);
 
-      let raw_datasets_and_records = fs.readFileSync(__dirname + '/test_data/datasets_and_records.txt');
-      let old_datasets_and_records = JSON.parse(raw_datasets_and_records).records;
-      let cleansed_datasets_and_records = sanitizeInputDatasetsAndRecords(old_datasets_and_records);
+//       let raw_records = fs.readFileSync(__dirname + '/test_data/chemin_data.txt');
+//       let old_records = JSON.parse(raw_records).records;
 
-      await importDatasetsRecordsTest(cleansed_datasets_and_records, Helper.DEF_CURR_USER);
-    });
+//       await importRecordsTest(old_records, Helper.DEF_CURR_USER);
+//     });
 
-  });
+//   });
 
-  describe("failure", () => {
+//   describe("failure", () => {
 
-    const failureTest = async (databases_records, curr_user, responseCode) => {
-      let response = await importCombinedDatasetsAndRecords(databases_records, curr_user);
-      expect(response.statusCode).toBe(responseCode);
-    };
+//     const failureTest = async (databases_records, curr_user, responseCode) => {
+//       let response = await importCombinedDatasetsAndRecords(databases_records, curr_user);
+//       expect(response.statusCode).toBe(responseCode);
+//     };
 
-    test("Input must be a list", async () => {
-      let databases_records = {};
-      await failureTest(databases_records, Helper.DEF_CURR_USER, 400);
-    });
+//     test("Input must be a list", async () => {
+//       let databases_records = {};
+//       await failureTest(databases_records, Helper.DEF_CURR_USER, 400);
+//     });
 
-    test("Database/record must include a database_uuid, a record_uuid and a template_uuid, which are strings", async () => {
-      let template_uuid = "t1";
-      let template = {
-        template_uuid, 
-        name: "naruto", 
-        description: "awesome", 
-        updated_at: (new Date()).toISOString(),
-        fields: [],
-        related_databases: []
-      };
-      await importTemplatePublishAndTest(template, Helper.DEF_CURR_USER);
+//     test("Database/record must include a database_uuid, a record_uuid and a template_uuid, which are strings", async () => {
+//       let template_uuid = "t1";
+//       let template = {
+//         template_uuid, 
+//         name: "naruto", 
+//         description: "awesome", 
+//         updated_at: (new Date()).toISOString(),
+//         fields: [],
+//         related_databases: []
+//       };
+//       await importTemplatePublishAndTest(template, Helper.DEF_CURR_USER);
 
-      let record = {
-        database_uuid: "d1",
-        template_uuid,
-        fields: [],
-        records: []
-      };
-      await failureTest([record], Helper.DEF_CURR_USER, 400);
+//       let record = {
+//         database_uuid: "d1",
+//         template_uuid,
+//         fields: [],
+//         records: []
+//       };
+//       await failureTest([record], Helper.DEF_CURR_USER, 400);
 
-      record = {
-        record_uuid: "r1",
-        template_uuid,
-        fields: [],
-        records: []
-      };
-      await failureTest([record], Helper.DEF_CURR_USER, 400);
+//       record = {
+//         record_uuid: "r1",
+//         template_uuid,
+//         fields: [],
+//         records: []
+//       };
+//       await failureTest([record], Helper.DEF_CURR_USER, 400);
 
-      record = {
-        record_uuid: "r1",
-        database_uuid: "d1",
-        fields: [],
-        records: []
-      };
-      await failureTest([record], Helper.DEF_CURR_USER, 400);
+//       record = {
+//         record_uuid: "r1",
+//         database_uuid: "d1",
+//         fields: [],
+//         records: []
+//       };
+//       await failureTest([record], Helper.DEF_CURR_USER, 400);
 
 
-    });
+//     });
 
-    test("Database/record must reference a valid template_uuid, which has already been imported", async () => {
-      let template_uuid = "t1";
+//     test("Database/record must reference a valid template_uuid, which has already been imported", async () => {
+//       let template_uuid = "t1";
 
-      let record = {
-        record_uuid: "r1",
-        database_uuid: "d1",
-        template_uuid,
-        fields: [],
-        records: []
-      };
-      await failureTest([record], Helper.DEF_CURR_USER, 400);
-    });
+//       let record = {
+//         record_uuid: "r1",
+//         database_uuid: "d1",
+//         template_uuid,
+//         fields: [],
+//         records: []
+//       };
+//       await failureTest([record], Helper.DEF_CURR_USER, 400);
+//     });
 
-    test("Database/record format must match the format of the template", async () => {
-      let template_uuid = "t1";
-      let related_template_uuid = "t1.1";
-      let field_uuid = "t1f1";
+//     test("Database/record format must match the format of the template", async () => {
+//       let template_uuid = "t1";
+//       let related_template_uuid = "t1.1";
+//       let field_uuid = "t1f1";
 
-      let template = {
-        template_uuid, 
-        name: "naruto", 
-        description: "awesome", 
-        updated_at: (new Date()).toISOString(),
-        fields: [{
-          template_field_uuid: field_uuid
-        }],
-        related_databases: [{
-          template_uuid: related_template_uuid,
-          name: "sasuke"
-        }]
-      };
-      await importTemplatePublishAndTest(template, Helper.DEF_CURR_USER);
+//       let template = {
+//         template_uuid, 
+//         name: "naruto", 
+//         description: "awesome", 
+//         updated_at: (new Date()).toISOString(),
+//         fields: [{
+//           template_field_uuid: field_uuid
+//         }],
+//         related_databases: [{
+//           template_uuid: related_template_uuid,
+//           name: "sasuke"
+//         }]
+//       };
+//       await importTemplatePublishAndTest(template, Helper.DEF_CURR_USER);
 
-      let record = {
-        record_uuid: "r1",
-        database_uuid: "d1",
-        template_uuid,
-        fields: [
-          {
-            template_field_uuid: field_uuid,
-            value: "peach"
-          },
-          {
-            template_field_uuid: field_uuid,
-            value: "peach"
-          }
-        ],
-        records: [{
-          record_uuid: "r1.1",
-          database_uuid: "d1.1",
-          template_uuid: related_template_uuid
-        }]
-      };
-      await failureTest([record], Helper.DEF_CURR_USER, 400);
+//       let record = {
+//         record_uuid: "r1",
+//         database_uuid: "d1",
+//         template_uuid,
+//         fields: [
+//           {
+//             template_field_uuid: field_uuid,
+//             value: "peach"
+//           },
+//           {
+//             template_field_uuid: field_uuid,
+//             value: "peach"
+//           }
+//         ],
+//         records: [{
+//           record_uuid: "r1.1",
+//           database_uuid: "d1.1",
+//           template_uuid: related_template_uuid
+//         }]
+//       };
+//       await failureTest([record], Helper.DEF_CURR_USER, 400);
 
-      record = {
-        record_uuid: "r1",
-        database_uuid: "d1",
-        template_uuid,
-        fields: [
-          {
-            template_field_uuid: field_uuid,
-            value: "peach"
-          }
-        ],
-        records: [
-          {
-            record_uuid: "r1.1",
-            database_uuid: "d1.1",
-            template_uuid: related_template_uuid
-          },
-          {
-            record_uuid: "r1.1",
-            database_uuid: "d1.1",
-            template_uuid: related_template_uuid
-          }
-        ]
-      };
-      await failureTest([record], Helper.DEF_CURR_USER, 400);
-    });
+//       record = {
+//         record_uuid: "r1",
+//         database_uuid: "d1",
+//         template_uuid,
+//         fields: [
+//           {
+//             template_field_uuid: field_uuid,
+//             value: "peach"
+//           }
+//         ],
+//         records: [
+//           {
+//             record_uuid: "r1.1",
+//             database_uuid: "d1.1",
+//             template_uuid: related_template_uuid
+//           },
+//           {
+//             record_uuid: "r1.1",
+//             database_uuid: "d1.1",
+//             template_uuid: related_template_uuid
+//           }
+//         ]
+//       };
+//       await failureTest([record], Helper.DEF_CURR_USER, 400);
+//     });
 
-    test("field has options to pick from. Option picked must be valid", async () => {
-      let template_uuid = "t1";
-      let field_uuid = "t1f1";
+//     test("field has options to pick from. Option picked must be valid", async () => {
+//       let template_uuid = "t1";
+//       let field_uuid = "t1f1";
 
-      let option_uuid_1 = "toad";
-      let option_uuid_2 = "sexy jiutsu";
+//       let option_uuid_1 = "toad";
+//       let option_uuid_2 = "sexy jiutsu";
 
-      let template = {
-        template_uuid, 
-        name: "naruto", 
-        description: "awesome", 
-        updated_at: (new Date()).toISOString(),
-        fields: [
-          {
-            template_field_uuid: field_uuid,
-            radio_options: [
-              {template_radio_option_uuid: option_uuid_1, name: option_uuid_1},
-              {name: "ninjuitsu", radio_options: [
-                {
-                  name: option_uuid_2, template_radio_option_uuid: option_uuid_2
-                }
-              ]}
-            ]
-          }
-        ]
-      };
-      await importTemplatePublishAndTest(template, Helper.DEF_CURR_USER);
+//       let template = {
+//         template_uuid, 
+//         name: "naruto", 
+//         description: "awesome", 
+//         updated_at: (new Date()).toISOString(),
+//         fields: [
+//           {
+//             template_field_uuid: field_uuid,
+//             radio_options: [
+//               {template_radio_option_uuid: option_uuid_1, name: option_uuid_1},
+//               {name: "ninjuitsu", radio_options: [
+//                 {
+//                   name: option_uuid_2, template_radio_option_uuid: option_uuid_2
+//                 }
+//               ]}
+//             ]
+//           }
+//         ]
+//       };
+//       await importTemplatePublishAndTest(template, Helper.DEF_CURR_USER);
 
-      let record = {
-        record_uuid: "r1",
-        database_uuid: "d1",
-        template_uuid,
-        fields: [{
-          template_field_uuid: field_uuid,
-          value: [{template_radio_option_uuid: "invalid"}]
-        }]
-      };
-      await failureTest([record], Helper.DEF_CURR_USER, 400);
+//       let record = {
+//         record_uuid: "r1",
+//         database_uuid: "d1",
+//         template_uuid,
+//         fields: [{
+//           template_field_uuid: field_uuid,
+//           value: [{template_radio_option_uuid: "invalid"}]
+//         }]
+//       };
+//       await failureTest([record], Helper.DEF_CURR_USER, 400);
 
-      record = {
-        record_uuid: "r1",
-        database_uuid: "d1",
-        template_uuid,
-        fields: [{
-          template_field_uuid: field_uuid,
-          value: [{template_radio_option_uuid: option_uuid_2}, {template_radio_option_uuid: "invalid"}]
-        }]
-      };
-      await failureTest([record], Helper.DEF_CURR_USER, 400);
-    });
+//       record = {
+//         record_uuid: "r1",
+//         database_uuid: "d1",
+//         template_uuid,
+//         fields: [{
+//           template_field_uuid: field_uuid,
+//           value: [{template_radio_option_uuid: option_uuid_2}, {template_radio_option_uuid: "invalid"}]
+//         }]
+//       };
+//       await failureTest([record], Helper.DEF_CURR_USER, 400);
+//     });
 
-  });
-});
+//   });
+// });
+
+
+
+
+// describe("comebineddatasetsandrecords", () => {
+
+//   describe("success", () => {
+
+//     test("basic - no fields or related datasets/records", async () => {
+//       let template_uuid = "t1";
+//       let template = {
+//         template_uuid, 
+//         name: "naruto", 
+//         description: "awesome", 
+//         updated_at: (new Date()).toISOString(),
+//         fields: [],
+//         related_databases: []
+//       };
+//       await importTemplatePublishAndTest(template, Helper.DEF_CURR_USER);
+
+//       let record = {
+//         record_uuid: "r1",
+//         database_uuid: "d1",
+//         template_uuid,
+//         fields: [],
+//         records: []
+//       };
+//       await importDatasetsRecordsTest([record], Helper.DEF_CURR_USER);
+//     });
+
+//     test("one field and one related dataset/record", async () => {
+//       let template_uuid = "t1";
+//       let related_template_uuid = "t1.1";
+//       let field_uuid = "t1f1";
+
+//       let template = {
+//         template_uuid, 
+//         name: "naruto", 
+//         description: "awesome", 
+//         updated_at: (new Date()).toISOString(),
+//         fields: [{
+//           template_field_uuid: field_uuid
+//         }],
+//         related_databases: [{
+//           template_uuid: related_template_uuid,
+//           name: "sasuke"
+//         }]
+//       };
+//       await importTemplatePublishAndTest(template, Helper.DEF_CURR_USER);
+
+//       let record = {
+//         record_uuid: "r1",
+//         database_uuid: "d1",
+//         template_uuid,
+//         fields: [{
+//           template_field_uuid: field_uuid,
+//           value: "peach"
+//         }],
+//         records: [{
+//           record_uuid: "r1.1",
+//           database_uuid: "d1.1",
+//           template_uuid: related_template_uuid
+//         }]
+//       };
+//       await importDatasetsRecordsTest([record], Helper.DEF_CURR_USER);
+//     });
+
+//     test("multiple fields and multiple related dataset/record", async () => {
+//       let template_uuid = "t1";
+//       let related_template_uuid_1 = "t1.1";
+//       let related_template_uuid_2 = "t1.2";
+//       let field_uuid_1 = "t1f1";
+//       let field_uuid_2 = "t1f2";
+
+//       let template = {
+//         template_uuid, 
+//         fields: [
+//           {template_field_uuid: field_uuid_1, name: field_uuid_1},
+//           {template_field_uuid: field_uuid_2, name: field_uuid_2}
+//         ],
+//         related_databases: [
+//           {template_uuid: related_template_uuid_1, name: related_template_uuid_1},
+//           {template_uuid: related_template_uuid_2, name: related_template_uuid_2}
+//         ]
+//       };
+//       await importTemplatePublishAndTest(template, Helper.DEF_CURR_USER);
+
+//       let record = {
+//         record_uuid: "r1",
+//         database_uuid: "d1",
+//         template_uuid,
+//         fields: [
+//           {template_field_uuid: field_uuid_1, value: "peach"},
+//           {template_field_uuid: field_uuid_2, value: "daisy"}
+//         ],
+//         records: [
+//           {record_uuid: "r1.1", database_uuid: "d1.1", template_uuid: related_template_uuid_1},
+//           {record_uuid: "r1.2", database_uuid: "d1.2", template_uuid: related_template_uuid_2}
+//         ]
+//       };
+//       await importDatasetsRecordsTest([record], Helper.DEF_CURR_USER);
+//     });
+
+//     test("related datasets/records going 2 levels deep", async () => {
+//       let template_1_uuid = "t1";
+//       let template_11_uuid = "t1.1";
+//       let template_111_uuid = "t1.1.1";
+
+//       let template = {
+//         template_uuid: template_1_uuid, 
+//         related_databases: [{
+//           template_uuid: template_11_uuid,
+//           related_databases: [{
+//             template_uuid: template_111_uuid
+//           }]
+//         }]
+//       };
+//       await importTemplatePublishAndTest(template, Helper.DEF_CURR_USER);
+
+//       let record = {
+//         record_uuid: "r1",
+//         database_uuid: "d1",
+//         template_uuid: template_1_uuid,
+//         records: [{
+//           record_uuid: "r1.1",
+//           database_uuid: "d1.1",
+//           template_uuid: template_11_uuid,
+//           records: [{
+//             record_uuid: "r1.1.1",
+//             database_uuid: "d1.1.1",
+//             template_uuid: template_111_uuid,
+//           }]
+//         }]
+//       };
+//       await importDatasetsRecordsTest([record], Helper.DEF_CURR_USER);
+//     });
+
+//     test("field has options to pick from. Can pick nested or non-nested option, or both, or none", async () => {
+//       let template_uuid = "t1";
+//       let field_uuid = "t1f1";
+
+//       let option_uuid_1 = "toad";
+//       let option_uuid_2 = "sexy jiutsu";
+
+//       let template = {
+//         template_uuid, 
+//         name: "naruto", 
+//         description: "awesome", 
+//         updated_at: (new Date()).toISOString(),
+//         fields: [
+//           {
+//             template_field_uuid: field_uuid,
+//             radio_options: [
+//               {template_radio_option_uuid: option_uuid_1, name: option_uuid_1},
+//               {name: "ninjuitsu", radio_options: [
+//                 {
+//                   name: option_uuid_2, template_radio_option_uuid: option_uuid_2
+//                 }
+//               ]}
+//             ]
+//           }
+//         ]
+//       };
+//       await importTemplatePublishAndTest(template, Helper.DEF_CURR_USER);
+
+//       let record = {
+//         record_uuid: "r1",
+//         database_uuid: "d1",
+//         template_uuid,
+//         fields: [{
+//           template_field_uuid: field_uuid,
+//           value: [{template_radio_option_uuid: option_uuid_1}]
+//         }]
+//       };
+//       await importDatasetsRecordsTest([record], Helper.DEF_CURR_USER);
+
+//       record = {
+//         record_uuid: "r1",
+//         database_uuid: "d1",
+//         template_uuid,
+//         fields: [{
+//           template_field_uuid: field_uuid,
+//           value: [{template_radio_option_uuid: option_uuid_2}]
+//         }]
+//       };
+//       await importDatasetsRecordsTest([record], Helper.DEF_CURR_USER);
+
+//       record = {
+//         record_uuid: "r1",
+//         database_uuid: "d1",
+//         template_uuid,
+//         fields: [{
+//           template_field_uuid: field_uuid,
+//           value: [
+//             {template_radio_option_uuid: option_uuid_1},
+//             {template_radio_option_uuid: option_uuid_2}
+//           ]
+//         }]
+//       };
+//       await importDatasetsRecordsTest([record], Helper.DEF_CURR_USER);
+
+//       record = {
+//         record_uuid: "r1",
+//         database_uuid: "d1",
+//         template_uuid,
+//         fields: [{
+//           template_field_uuid: field_uuid
+//         }]
+//       };
+//       await importDatasetsRecordsTest([record], Helper.DEF_CURR_USER);
+//     });
+
+//     test("import multiple datasets/records at once", async () => {
+//       let template_uuid = "t1";
+//       let template = {
+//         template_uuid, 
+//         name: "naruto", 
+//         description: "awesome", 
+//         updated_at: (new Date()).toISOString(),
+//         fields: [],
+//         related_databases: []
+//       };
+//       await importTemplatePublishAndTest(template, Helper.DEF_CURR_USER);
+
+//       let records = [
+//         {
+//           record_uuid: "r1",
+//           database_uuid: "d1",
+//           template_uuid,
+//           fields: [],
+//           records: []
+//         },
+//         {
+//           record_uuid: "r2",
+//           database_uuid: "d2",
+//           template_uuid,
+//           fields: [],
+//           records: []
+//         } 
+//       ];
+//       await importDatasetsRecordsTest(records, Helper.DEF_CURR_USER);
+//     });
+
+//     test("If dataset/record doesn't supply a related_dataset for a related_template, we provide one", async () => {
+//       let template_uuid = "t1";
+//       let related_template_uuid = "t1.1";
+//       let field_uuid = "t1f1";
+
+//       let template = {
+//         template_uuid, 
+//         name: "naruto", 
+//         description: "awesome", 
+//         updated_at: (new Date()).toISOString(),
+//         fields: [{
+//           template_field_uuid: field_uuid
+//         }],
+//         related_databases: [{
+//           template_uuid: related_template_uuid,
+//           name: "sasuke"
+//         }]
+//       };
+//       await importTemplatePublishAndTest(template, Helper.DEF_CURR_USER);
+
+//       let record = {
+//         record_uuid: "r1",
+//         database_uuid: "d1",
+//         template_uuid,
+//         fields: [
+//           {
+//             template_field_uuid: field_uuid,
+//             value: "peach"
+//           }
+//         ],
+//         records: []
+//       };
+//       await importDatasetsRecordsTest([record], Helper.DEF_CURR_USER);
+//     });
+
+//     test("If a template uuid is not provided, just skip over the database/record", async () => {
+//       let template_uuid = "t1";
+//       let related_template_uuid = "t1.1";
+//       let field_uuid = "t1f1";
+
+//       let template = {
+//         template_uuid, 
+//         name: "naruto", 
+//         description: "awesome", 
+//         updated_at: (new Date()).toISOString(),
+//         fields: [{
+//           template_field_uuid: field_uuid
+//         }],
+//         related_databases: [{
+//           template_uuid: related_template_uuid,
+//           name: "sasuke"
+//         }]
+//       };
+//       await importTemplatePublishAndTest(template, Helper.DEF_CURR_USER);
+
+//       let record = {
+//         record_uuid: "r1",
+//         database_uuid: "d1",
+//         template_uuid,
+//         fields: [
+//           {
+//             template_field_uuid: field_uuid,
+//             value: "peach"
+//           }
+//         ],
+//         records: [{
+//           record_uuid: "r1.1",
+//           database_uuid: "d1.1",
+//           template_uuid: ""
+//         }]
+//       };
+//       await importDatasetsRecordsTest([record], Helper.DEF_CURR_USER);
+//     });
+
+//     test("with real data", async () => {
+
+//       let raw_template = fs.readFileSync(__dirname + '/test_data/template.txt');
+//       let old_template = JSON.parse(raw_template);
+    
+//       await importTemplatePublishAndTest(old_template, Helper.DEF_CURR_USER);
+
+//       let raw_datasets_and_records = fs.readFileSync(__dirname + '/test_data/datasets_and_records.txt');
+//       let old_datasets_and_records = JSON.parse(raw_datasets_and_records).records;
+//       let cleansed_datasets_and_records = sanitizeInputDatasetsAndRecords(old_datasets_and_records);
+
+//       await importDatasetsRecordsTest(cleansed_datasets_and_records, Helper.DEF_CURR_USER);
+//     });
+
+//     test("with Chemin data", async () => {
+
+//       let raw_template = fs.readFileSync(__dirname + '/test_data/template.txt');
+//       let old_template = JSON.parse(raw_template);
+    
+//       await importTemplateAndDatasetAndTest(old_template, Helper.DEF_CURR_USER);
+
+//       let raw_records = fs.readFileSync(__dirname + '/test_data/chemin_data.txt');
+//       let old_records = JSON.parse(raw_records).records;
+
+//       await importRecordsTest(old_records, Helper.DEF_CURR_USER);
+//     });
+
+//   });
+
+//   describe("failure", () => {
+
+//     const failureTest = async (databases_records, curr_user, responseCode) => {
+//       let response = await importCombinedDatasetsAndRecords(databases_records, curr_user);
+//       expect(response.statusCode).toBe(responseCode);
+//     };
+
+//     test("Input must be a list", async () => {
+//       let databases_records = {};
+//       await failureTest(databases_records, Helper.DEF_CURR_USER, 400);
+//     });
+
+//     test("Database/record must include a database_uuid, a record_uuid and a template_uuid, which are strings", async () => {
+//       let template_uuid = "t1";
+//       let template = {
+//         template_uuid, 
+//         name: "naruto", 
+//         description: "awesome", 
+//         updated_at: (new Date()).toISOString(),
+//         fields: [],
+//         related_databases: []
+//       };
+//       await importTemplatePublishAndTest(template, Helper.DEF_CURR_USER);
+
+//       let record = {
+//         database_uuid: "d1",
+//         template_uuid,
+//         fields: [],
+//         records: []
+//       };
+//       await failureTest([record], Helper.DEF_CURR_USER, 400);
+
+//       record = {
+//         record_uuid: "r1",
+//         template_uuid,
+//         fields: [],
+//         records: []
+//       };
+//       await failureTest([record], Helper.DEF_CURR_USER, 400);
+
+//       record = {
+//         record_uuid: "r1",
+//         database_uuid: "d1",
+//         fields: [],
+//         records: []
+//       };
+//       await failureTest([record], Helper.DEF_CURR_USER, 400);
+
+
+//     });
+
+//     test("Database/record must reference a valid template_uuid, which has already been imported", async () => {
+//       let template_uuid = "t1";
+
+//       let record = {
+//         record_uuid: "r1",
+//         database_uuid: "d1",
+//         template_uuid,
+//         fields: [],
+//         records: []
+//       };
+//       await failureTest([record], Helper.DEF_CURR_USER, 400);
+//     });
+
+//     test("Database/record format must match the format of the template", async () => {
+//       let template_uuid = "t1";
+//       let related_template_uuid = "t1.1";
+//       let field_uuid = "t1f1";
+
+//       let template = {
+//         template_uuid, 
+//         name: "naruto", 
+//         description: "awesome", 
+//         updated_at: (new Date()).toISOString(),
+//         fields: [{
+//           template_field_uuid: field_uuid
+//         }],
+//         related_databases: [{
+//           template_uuid: related_template_uuid,
+//           name: "sasuke"
+//         }]
+//       };
+//       await importTemplatePublishAndTest(template, Helper.DEF_CURR_USER);
+
+//       let record = {
+//         record_uuid: "r1",
+//         database_uuid: "d1",
+//         template_uuid,
+//         fields: [
+//           {
+//             template_field_uuid: field_uuid,
+//             value: "peach"
+//           },
+//           {
+//             template_field_uuid: field_uuid,
+//             value: "peach"
+//           }
+//         ],
+//         records: [{
+//           record_uuid: "r1.1",
+//           database_uuid: "d1.1",
+//           template_uuid: related_template_uuid
+//         }]
+//       };
+//       await failureTest([record], Helper.DEF_CURR_USER, 400);
+
+//       record = {
+//         record_uuid: "r1",
+//         database_uuid: "d1",
+//         template_uuid,
+//         fields: [
+//           {
+//             template_field_uuid: field_uuid,
+//             value: "peach"
+//           }
+//         ],
+//         records: [
+//           {
+//             record_uuid: "r1.1",
+//             database_uuid: "d1.1",
+//             template_uuid: related_template_uuid
+//           },
+//           {
+//             record_uuid: "r1.1",
+//             database_uuid: "d1.1",
+//             template_uuid: related_template_uuid
+//           }
+//         ]
+//       };
+//       await failureTest([record], Helper.DEF_CURR_USER, 400);
+//     });
+
+//     test("field has options to pick from. Option picked must be valid", async () => {
+//       let template_uuid = "t1";
+//       let field_uuid = "t1f1";
+
+//       let option_uuid_1 = "toad";
+//       let option_uuid_2 = "sexy jiutsu";
+
+//       let template = {
+//         template_uuid, 
+//         name: "naruto", 
+//         description: "awesome", 
+//         updated_at: (new Date()).toISOString(),
+//         fields: [
+//           {
+//             template_field_uuid: field_uuid,
+//             radio_options: [
+//               {template_radio_option_uuid: option_uuid_1, name: option_uuid_1},
+//               {name: "ninjuitsu", radio_options: [
+//                 {
+//                   name: option_uuid_2, template_radio_option_uuid: option_uuid_2
+//                 }
+//               ]}
+//             ]
+//           }
+//         ]
+//       };
+//       await importTemplatePublishAndTest(template, Helper.DEF_CURR_USER);
+
+//       let record = {
+//         record_uuid: "r1",
+//         database_uuid: "d1",
+//         template_uuid,
+//         fields: [{
+//           template_field_uuid: field_uuid,
+//           value: [{template_radio_option_uuid: "invalid"}]
+//         }]
+//       };
+//       await failureTest([record], Helper.DEF_CURR_USER, 400);
+
+//       record = {
+//         record_uuid: "r1",
+//         database_uuid: "d1",
+//         template_uuid,
+//         fields: [{
+//           template_field_uuid: field_uuid,
+//           value: [{template_radio_option_uuid: option_uuid_2}, {template_radio_option_uuid: "invalid"}]
+//         }]
+//       };
+//       await failureTest([record], Helper.DEF_CURR_USER, 400);
+//     });
+
+//   });
+// });
