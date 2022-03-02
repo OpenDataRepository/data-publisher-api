@@ -33,8 +33,6 @@ async function createDraftFromPublished(published) {
   delete draft._id;
   draft.updated_at = draft.publish_date;
   delete draft.publish_date;
-  draft.template_uuid = await SharedFunctions.uuidFor_id(TemplateModel.collection(), draft.template_id);
-  delete draft.template_id;
 
   // Replace each of the related_dataset _ids with uuids. 
   let related_datasets = [];
@@ -54,7 +52,7 @@ async function createDraftFromPublished(published) {
 
 function draftsEqual(draft1, draft2) {
   return draft1.uuid == draft2.uuid &&
-         draft1.template_uuid == draft2.template_uuid &&
+         draft1.template_id.toString() == draft2.template_id.toString() &&
          Util.datesEqual(draft1.public_date, draft2.public_date) &&
          Util.arrayEqual(draft1.related_datasets, draft2.related_datasets);
 }
@@ -70,11 +68,6 @@ async function draftDifferentFromLastPublished(draft, template_id) {
   // If the properties have changed since the last publishing
   let latest_published_as_draft = await createDraftFromPublished(latest_published);
   if (!draftsEqual(draft, latest_published_as_draft)) {
-    return true;
-  }
-
-  // If this draft's template_id is different from the latest_published drafts template_id, then the template has changed
-  if (!template_id.equals(latest_published.template_id)) {
     return true;
   }
 
@@ -110,12 +103,12 @@ async function extractRelatedDatasetsFromCreateOrUpdate(input_related_datasets, 
   let unseen_templates = new Set();
   let seen_datasets = new Set();
   for (let related_template of template.related_templates) {
-    supported_templates[related_template.uuid] = related_template;
-    unseen_templates.add(related_template.uuid);
+    supported_templates[related_template._id.toString()] = related_template;
+    unseen_templates.add(related_template._id.toString());
   }
   for(let subscribed_template of template.subscribed_templates) {
-    supported_templates[subscribed_template.uuid] = subscribed_template;
-    unseen_templates.add(subscribed_template.uuid);
+    supported_templates[subscribed_template._id.toString()] = subscribed_template;
+    unseen_templates.add(subscribed_template._id.toString());
   }
   for (let related_dataset of input_related_datasets) {
     if(!Util.isObject(related_dataset)) {
@@ -128,20 +121,20 @@ async function extractRelatedDatasetsFromCreateOrUpdate(input_related_datasets, 
         seen_datasets.add(related_dataset.uuid);
       }
     }
-    if(!related_dataset.template_uuid) {
+    if(!related_dataset.template_id) {
       // There is a chance the user will link a dataset they don't have view access to.
-      // In this case, there will be no template_uuid. Thus, try to fetch the template uuid. 
+      // In this case, there will be no template_id. Thus, try to fetch the template _id. 
       let existing_dataset = await SharedFunctions.latestDocument(Dataset, related_dataset.uuid);
       if(!existing_dataset) {
         throw new Util.InputError(`Each related_dataset in the dataset must supply a template_uuid`);
       }
-      related_dataset.template_uuid = existing_dataset.template_uuid;
+      related_dataset.template_id = existing_dataset.template_id.toString();
     }
-    if(!(related_dataset.template_uuid in supported_templates)) {
-      throw new Util.InputError(`related_template uuid ${related_dataset.template_uuid} is not supported by template ${template.uuid}`);
+    if(!(related_dataset.template_id in supported_templates)) {
+      throw new Util.InputError(`related_template _id ${related_dataset.template_id} is not supported by template ${template._id}`);
     }
-    let related_template = supported_templates[related_dataset.template_uuid];
-    unseen_templates.delete(related_dataset.template_uuid);
+    let related_template = supported_templates[related_dataset.template_id];
+    unseen_templates.delete(related_dataset.template_id);
 
     try {
       let new_changes;
@@ -201,18 +194,21 @@ async function validateAndCreateOrUpdateRecurser(input_dataset, template, user, 
     await PermissionGroupModel.initialize_permissions_for(user, uuid, session);
   }
 
-  // Verify that the template uuid provided by the user is the correct template uuid expected by the latest published template
-  if(input_dataset.template_uuid != template.uuid) {
-    throw new Util.InputError(`The template uuid provided by the dataset (${input_dataset.template_uuid}) does not correspond to the template uuid expected by the template (${template.uuid})`);
+  if(!input_dataset.template_id || typeof(input_dataset.template_id) !== 'string') {
+    throw new Util.InputError(`dataset template_id property must be a valid string`);
   }
-
-  // TODO: what if we don't have view access to this template? Are we still allowed to create a dataset for it?
-  // If yes, then we're definitely not recursing. 
+  // Verify that the template_id provided by the user is the template_id of a published template
+  if(input_dataset.template_id != template._id.toString()) {
+    throw new Util.InputError(`The template _id provided by the dataset (${input_dataset.template_id}) does not correspond to the template _id expected by the template (${template._id})`);
+  }
+  if(!(await SharedFunctions.userHasAccessToPublishedResource(TemplateModel.collection(), template.uuid, user, PermissionGroupModel, session))) {
+    throw new Util.PermissionDeniedError(`Cannot link to template_id ${template._id}, as you do not have view permissions to it`);
+  }
 
   // Build object to create/update
   let new_dataset = {
     uuid,
-    template_uuid: input_dataset.template_uuid,
+    template_id: SharedFunctions.convertToMongoId(input_dataset.template_id),
     group_uuid,
     updated_at,
     related_datasets: []
@@ -281,9 +277,9 @@ async function validateAndCreateOrUpdate(session, dataset, user) {
     throw new Util.InputError(`dataset provided is not an object: ${dataset}`);
   }
 
-  let template = await TemplateModel.latestPublished(dataset.template_uuid, user);
+  let template = await TemplateModel.publishedByIdWithoutPermissions(SharedFunctions.convertToMongoId(dataset.template_id));
   if(!template) {
-    throw new Util.InputError(`a valid template_uuid was not provided for dataset with uuid ${dataset.uuid}`);
+    throw new Util.InputError(`a valid template_id was not provided for the head dataset`);
   }
 
   // If this dataset does not already have a group uuid, create one for it
@@ -428,29 +424,29 @@ async function publishRelatedDatasets(input_related_dataset_uuids, template, use
   // - related_dataset can't point to a related_template not supported
   // - Each related_template must have a related_dataset pointing to it
   // - related_datasets is a set, so there can't be any duplicates
-  // Plan: Create a map of template_uuid to template, and a set of all template_uuids.
+  // Plan: Create a map of template_id to template, and a set of all template_ids.
   // Remove template_uuids from set as we see them. If there are any left at the end, that's an error
   let related_template_map = {};
   let templates_unseen = new Set();
   for (let related_template of template.related_templates) {
-    related_template_map[related_template.uuid] = related_template;
-    templates_unseen.add(related_template.uuid);
+    related_template_map[related_template._id.toString()] = related_template;
+    templates_unseen.add(related_template._id.toString());
   }
   for (let subscribed_template of template.subscribed_templates) {
-    related_template_map[subscribed_template.uuid] = subscribed_template;
-    templates_unseen.add(subscribed_template.uuid);
+    related_template_map[subscribed_template._id.toString()] = subscribed_template;
+    templates_unseen.add(subscribed_template._id.toString());
   }
   for(let related_dataset_uuid of input_related_dataset_uuids) {
     let related_dataset_document = await SharedFunctions.latestDocument(Dataset, related_dataset_uuid, session);
     if(!related_dataset_document) {
       throw new Util.InputError(`Cannot publish dataset. One of it's related_references does not exist and was probably deleted after creation.`);
     }
-    let related_template_uuid = related_dataset_document.template_uuid;
-    if(!(related_template_uuid in related_template_map)) {
+    let related_template_id = related_dataset_document.template_id.toString();
+    if(!(related_template_id in related_template_map)) {
       throw new Util.InputError(`One of the dataset's related_datsets points to a related_template not supported by it's template.`);
     } 
-    let related_template = related_template_map[related_template_uuid];
-    templates_unseen.delete(related_template_uuid);
+    let related_template = related_template_map[related_template_id];
+    templates_unseen.delete(related_template_id);
     try {
       let related_dataset_id = await publishRecurser(related_dataset_uuid, user, session, related_template);
       result_dataset_ids.push(related_dataset_id);
@@ -515,18 +511,8 @@ async function publishRecurser(uuid, user, session, template) {
   }
 
   // verify that the template uuid on the dataset draft and the expected template uuid match
-  if (dataset_draft.template_uuid != template.uuid) {
-    throw new Error(`The draft provided ${dataset_draft} does not reference the template required ${template.uuid}. 
-    Error in dataset update implementation.`);
-  }
-
-  // TODO: Datasets should use template_ids, not template uuids
-
-
-  // check that the draft update is more recent than the last template publish
-  if ((await TemplateModel.latest_published_time_for_uuid(dataset_draft.template_uuid)) > dataset_draft.updated_at) {
-    throw new Util.InputError(`Dataset ${dataset_draft.uuid}'s template has been published more recently than when the dataset was updated. 
-    Update the dataset again before publishing.`);
+  if (dataset_draft.template_id.toString() != template._id.toString()) {
+    throw new Error(`The draft provided ${dataset_draft} does not reference the template required ${template._id}.`);
   }
 
   let related_datasets = await publishRelatedDatasets(dataset_draft.related_datasets, template, user, session);
@@ -534,7 +520,7 @@ async function publishRecurser(uuid, user, session, template) {
   let publish_time = new Date();
   let response = await Dataset.updateOne(
     {"_id": dataset_draft._id},
-    {'$set': {'updated_at': publish_time, 'publish_date': publish_time, related_datasets, 'template_id': template._id}},
+    {'$set': {'updated_at': publish_time, 'publish_date': publish_time, related_datasets}},
     {session}
   )
   if (response.modifiedCount != 1) {
@@ -567,7 +553,7 @@ async function publish(session, dataset_uuid, user, last_update) {
     Fetch the draft again to get the latest update before attempting to publish again.`);
   }
 
-  let template = await TemplateModel.latestPublishedWithoutPermissions(dataset.template_uuid);
+  let template = await TemplateModel.publishedByIdWithoutPermissions(SharedFunctions.convertToMongoId(dataset.template_id));
 
   await publishRecurser(dataset_uuid, user, session, template);
 }
@@ -706,7 +692,7 @@ async function duplicateRecursor(original_dataset, original_group_uuid, new_grou
   let new_dataset = {
     uuid,
     updated_at: new Date(),
-    template_uuid: original_dataset.template_uuid,
+    template_id: original_dataset.template_id,
     group_uuid: new_group_uuid,
     related_datasets: []
   }
@@ -1005,14 +991,11 @@ exports.collection = function() {
 }
 
 exports.template_uuid = async function(uuid) {
-  let dataset = await SharedFunctions.latestPublished(Dataset, uuid);
+  let dataset = await SharedFunctions.latestDocument(Dataset, uuid);
   if(!dataset) {
-    dataset = await SharedFunctions.draft(Dataset, uuid);
+    return null;
   }
-
-  if(dataset) {
-    return dataset.template_uuid;
-  }
+  return await SharedFunctions.uuidFor_id(TemplateModel.collection(), dataset.template_id);
 }
 
 // Wraps the actual request to duplicate with a transaction

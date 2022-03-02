@@ -242,10 +242,10 @@ async function extractRelatedRecordsFromCreateOrUpdate(input_related_records, re
   }
   let related_template_map = {};
   for (let related_template of template.related_templates) {
-    related_template_map[related_template.uuid] = related_template;
+    related_template_map[related_template._id.toString()] = related_template;
   }
   for(let subscribed_template of template.subscribed_templates) {
-    related_template_map[subscribed_template.uuid] = subscribed_template;
+    related_template_map[subscribed_template._id.toString()] = subscribed_template;
   }
   for (let related_record of input_related_records) {
     if(!Util.isObject(related_record)) {
@@ -258,7 +258,7 @@ async function extractRelatedRecordsFromCreateOrUpdate(input_related_records, re
       throw new Util.InputError(`Each related_record in the record must link to a related_dataset supported by the dataset`);
     } 
     let related_dataset = related_dataset_map[related_record.dataset_uuid];
-    let related_template = related_template_map[related_dataset.template_uuid];
+    let related_template = related_template_map[related_dataset.template_id];
     try {
       let new_changes;
       [new_changes, related_record] = await validateAndCreateOrUpdateRecurser(related_record, related_dataset, related_template, user, session, updated_at);
@@ -409,7 +409,7 @@ async function validateAndCreateOrUpdate(session, record, user) {
       throw error;
     }
   }
-  let template = await TemplateModel.publishedByIdWithoutPermissions(dataset.template_id);
+  let template = await TemplateModel.publishedByIdWithoutPermissions(SharedFunctions.convertToMongoId(dataset.template_id));
 
   let updated_at = new Date();
 
@@ -483,10 +483,10 @@ async function publishRelatedRecords(related_record_uuids, related_datasets, tem
   }
   let related_template_map = {};
   for (let related_template of template.related_templates) {
-    related_template_map[related_template.uuid] = related_template;
+    related_template_map[related_template._id.toString()] = related_template;
   }
   for(let subscribed_template of template.subscribed_templates) {
-    related_template_map[subscribed_template.uuid] = subscribed_template;
+    related_template_map[subscribed_template._id.toString()] = subscribed_template;
   }
   for(let related_record_uuid of related_record_uuids) {
     let related_record_document = await SharedFunctions.latestDocument(Record, related_record_uuid);
@@ -498,7 +498,7 @@ async function publishRelatedRecords(related_record_uuids, related_datasets, tem
       throw new Util.InputError(`Cannot publish related_record pointing to related_dataset not supported by the dataset. 
       Dataset may have been published since last record update.`);
     }
-    let related_template = related_template_map[related_dataset.template_uuid];
+    let related_template = related_template_map[related_dataset.template_id.toString()];
     try {
       let related_record_id = await publishRecurser(related_record_uuid, related_dataset, related_template, user, session);
       return_record_ids.push(related_record_id);

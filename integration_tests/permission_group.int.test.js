@@ -179,7 +179,7 @@ describe("update (and get)",  () => {
     template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
     let dataset = {
-      template_uuid: template.uuid
+      template_id: template._id
     }
     dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
 

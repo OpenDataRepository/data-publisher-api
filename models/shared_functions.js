@@ -23,6 +23,9 @@ exports.draft = draft;
 
 function convertToMongoId(_id) {
   if(typeof(_id) === 'string') {
+    if(!ObjectId.isValid(_id)) {
+      throw new Util.InputError(`Invalid _id provided: ${_id}`);
+    }
     return new ObjectId(_id);
   } else {
     return _id

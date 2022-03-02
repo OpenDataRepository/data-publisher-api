@@ -54,6 +54,17 @@ module.exports = class Helper {
     }
     return 0;
   }
+  sortArrayByTemplate_idProperty = (o1, o2) => {
+    let n1 = o1.template_id;
+    let n2 = o2.template_id;
+    if(n1 < n2) {
+      return -1;
+    }
+    if(n1 > n2) {
+      return 1;
+    }
+    return 0;
+  }
 
 
   // template field
@@ -378,6 +389,8 @@ module.exports = class Helper {
       .set('Accept', 'application/json');
   }
 
+  // TODO: remove this function and other such functions. All comparison should
+  // be done with comparison functions and not with object.equal
   templateCleanseMetadata = (template) => {
     if(!template) {
       return;
@@ -459,19 +472,39 @@ module.exports = class Helper {
       .set('Cookie', [`user=${curr_user}`])
       .set('Accept', 'application/json');
   };
+  datasetDraftGetAndTest = async (uuid, curr_user) => {
+    let response = await this.datasetDraftGet(uuid, curr_user);
+    expect(response.statusCode).toBe(200);
+    return response.body;
+  };
+
+  testDatasetDraftsEqual = (original, created) => {
+    if(original.uuid) {
+      expect(created.uuid).toBe(original.uuid);
+    }
+    expect(created.template_id).toBe(original.template_id);
+    if(original.public_date) {
+      expect(created.public_date).toEqual(original.public_date);
+    }
+    if(original.related_datasets) {
+      expect(created.related_datasets.length).toBe(original.related_datasets.length);
+      original.related_datasets.sort(this.sortArrayByTemplate_idProperty);
+      created.related_datasets.sort(this.sortArrayByTemplate_idProperty);
+      for(let i = 0; i < original.related_datasets.length; i++) {
+        this.testDatasetDraftsEqual(original.related_datasets[i], created.related_datasets[i]);
+      }
+    }
+  }
 
   datasetCreateAndTest = async (dataset, curr_user) => {
     let response = await this.datasetCreate(dataset, curr_user);
     expect(response.statusCode).toBe(200);
     expect(response.body.inserted_uuid).toBeTruthy();
-  
     let uuid = response.body.inserted_uuid;
     
-    response = await this.datasetDraftGet(uuid, curr_user);
-    expect(response.statusCode).toBe(200);
-    let created_dataset = response.body;
-    this.datasetCleanseMetadata(dataset);
-    expect(created_dataset).toMatchObject(dataset);
+    let created_dataset = await this.datasetDraftGetAndTest(uuid, curr_user);
+
+    this.testDatasetDraftsEqual(dataset, created_dataset);
     return created_dataset;
   };
 
@@ -534,7 +567,7 @@ module.exports = class Helper {
   datasetCreatePublishTest = async (dataset, curr_user) => {
     let created_dataset = await this.datasetCreateAndTest(dataset, curr_user);
     let dataset_published = await this.datasetPublishAndFetch(created_dataset.uuid, curr_user)
-    expect(dataset_published).toMatchObject(dataset);
+    this.testDatasetDraftsEqual(dataset, dataset_published);
     return dataset_published;
   };
 

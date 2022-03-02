@@ -29,7 +29,7 @@ describe("create (and get draft)", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
-        template_uuid: template.uuid
+        template_id: template._id
       };
 
       await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
@@ -48,9 +48,9 @@ describe("create (and get draft)", () => {
 
 
       let dataset = {
-        template_uuid: template.uuid,
+        template_id: template._id,
         related_datasets: [{
-          template_uuid: template.related_templates[0].uuid
+          template_id: template.related_templates[0]._id
         }]
       };
 
@@ -91,22 +91,22 @@ describe("create (and get draft)", () => {
       template = await Helper.templateCreatePublishTest(template);
 
       let dataset = { 
-        "template_uuid": template.uuid,
+        template_id: template._id,
         "related_datasets": [
           { 
-            "template_uuid": template.related_templates[0].uuid,
+            template_id: template.related_templates[0]._id,
             "related_datasets": [
               { 
-                "template_uuid": template.related_templates[0].related_templates[0].uuid,
+                template_id: template.related_templates[0].related_templates[0]._id,
                 "related_datasets": [
                   { 
-                    "template_uuid": template.related_templates[0].related_templates[0].related_templates[0].uuid,
+                    template_id: template.related_templates[0].related_templates[0].related_templates[0]._id,
                     "related_datasets": [
                       { 
-                        "template_uuid": template.related_templates[0].related_templates[0].related_templates[0].related_templates[0].uuid,
+                        template_id: template.related_templates[0].related_templates[0].related_templates[0].related_templates[0]._id,
                         "related_datasets": [
                           { 
-                            "template_uuid": template.related_templates[0].related_templates[0].related_templates[0].related_templates[0].related_templates[0].uuid,
+                            template_id: template.related_templates[0].related_templates[0].related_templates[0].related_templates[0].related_templates[0]._id,
                           }
                         ]
                       }
@@ -134,13 +134,13 @@ describe("create (and get draft)", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       let related_dataset = {
-        template_uuid: template.related_templates[0].uuid
+        template_id: template.related_templates[0]._id
       };
 
       related_dataset = await Helper.datasetCreateAndTest(related_dataset, Helper.DEF_CURR_USER);
 
       let dataset = {
-        template_uuid: template.uuid,
+        template_id: template._id,
         related_datasets: [related_dataset]
       };
 
@@ -162,10 +162,10 @@ describe("create (and get draft)", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       let related_dataset_1 = {
-        template_uuid: template.related_templates[0].uuid
+        template_id: template.related_templates[0]._id
       };
       let related_dataset_2 = {
-        template_uuid: template.related_templates[1].uuid
+        template_id: template.related_templates[1]._id
       };
 
       let related_dataset_1_published = await Helper.datasetCreatePublishTest(related_dataset_1, Helper.DEF_CURR_USER);
@@ -184,7 +184,7 @@ describe("create (and get draft)", () => {
       expect(response.statusCode).toBe(200);
 
       let dataset = {
-        template_uuid: template.uuid,
+        template_id: template._id,
         related_datasets: [related_dataset_1, {uuid: related_dataset_2_published.uuid}]
       };
 
@@ -214,21 +214,20 @@ describe("create (and get draft)", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       let dataset12 = {
-        template_uuid: template.related_templates[1].uuid,
+        template_id: template.related_templates[1]._id,
         related_datasets: [{
-          template_uuid: template.related_templates[1].related_templates[0].uuid
+          template_id: template.related_templates[1].related_templates[0]._id
         }]
       }
       dataset12 = await Helper.datasetCreateAndTest(dataset12, Helper.DEF_CURR_USER);
-      Helper.datasetCleanseMetadata(dataset12);
 
       let dataset1 = {
-        template_uuid: template.uuid,
+        template_id: template._id,
         related_datasets: [
           {
-            template_uuid: template.related_templates[0].uuid,
+            template_id: template.related_templates[0]._id,
             related_datasets: [{
-              template_uuid: template.related_templates[0].related_templates[0].uuid
+              template_id: template.related_templates[0].related_templates[0]._id
             }]
           },
           dataset12
@@ -258,13 +257,13 @@ describe("create (and get draft)", () => {
 
       // uuid list using the templates in the wrong order
       dataset = {
-        template_uuid: template.uuid,
+        template_id: template._id,
         related_datasets: [
           { 
-            template_uuid: template.related_templates[1].uuid
+            template_id: template.related_templates[1]._id
           },
           { 
-            template_uuid: template.related_templates[0].uuid
+            template_id: template.related_templates[0]._id
           }
         ]
       };
@@ -284,13 +283,13 @@ describe("create (and get draft)", () => {
 
 
       let dataset = {
-        template_uuid: template.uuid,
+        template_id: template._id,
         related_datasets: [
           {
-            template_uuid: template.related_templates[0].uuid
+            template_id: template.related_templates[0]._id
           },
           {
-            template_uuid: template.related_templates[0].uuid
+            template_id: template.related_templates[0]._id
           }
         ]
       };
@@ -309,30 +308,30 @@ describe("create (and get draft)", () => {
       expect(response.statusCode).toBe(400);
     });
 
-    test("Template uuid must exist, be published, and the user has view access to it", async () => {
+    test("Template _id must exist, be published, and the user has view access to it", async () => {
 
       // template uuid isn't even a uuid
       let dataset = {
-        template_uuid: 6
+        template_id: 6
       };
       let response = await Helper.datasetCreate(dataset, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
 
       // no template exists with this uuid
       dataset = {
-        template_uuid: Helper.VALID_UUID
+        template_id: Helper.VALID_UUID
       };
       response = await Helper.datasetCreate(dataset, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
 
-      // template exists with this uuid but has not been published
+      // template exists with this _id but has not been published
       let template = {
         name: "t1"
       };
       template = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
-      let template_uuid = template.uuid;
+      let template_id = template._id;
       dataset = {
-        template_uuid
+        template_id
       };
       response = await Helper.datasetCreate(dataset, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
@@ -343,7 +342,7 @@ describe("create (and get draft)", () => {
       };
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
       dataset = {
-        template_uuid: template.uuid
+        template_id: template._id
       };
       response = await Helper.datasetCreate(dataset, Helper.USER_2);
       expect(response.statusCode).toBe(401);
@@ -361,14 +360,14 @@ describe("create (and get draft)", () => {
 
       let dataset = {
         public_date: (new Date()).toISOString(),
-        template_uuid: template.uuid,
+        template_id: template._id,
         related_datasets: []
       };
       await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
 
       dataset = {
         public_date: "not a date",
-        template_uuid: template.uuid,
+        template_id: template._id,
         related_datasets: []
       };
       response = await Helper.datasetCreate(dataset, Helper.DEF_CURR_USER);
@@ -376,7 +375,7 @@ describe("create (and get draft)", () => {
 
       dataset = {
         public_date: (new Date()).toISOString(),
-        template_uuid: template.uuid,
+        template_id: template._id,
         related_datasets: "invalid"
       };
       response = await Helper.datasetCreate(dataset, Helper.DEF_CURR_USER);
@@ -398,13 +397,13 @@ describe("create (and get draft)", () => {
 
       // all related templates match validly
       let dataset = {
-        template_uuid: template.uuid,
+        template_id: template._id,
         related_datasets: [
           { 
-            template_uuid: template.related_templates[0].uuid
+            template_id: template.related_templates[0]._id
           },
           { 
-            template_uuid: template.related_templates[1].uuid
+            template_id: template.related_templates[1]._id
           }
         ]
       };
@@ -412,20 +411,20 @@ describe("create (and get draft)", () => {
 
       // arrays must be of same length
       dataset = {
-        template_uuid: template.uuid
+        template_id: template._id
       };
       let response = await Helper.datasetCreate(dataset, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
 
       // related_datasets don't match up to related_templates
       dataset = {
-        template_uuid: template.uuid,
+        template_id: template._id,
         related_datasets: [
           { 
-            template_uuid: template.related_templates[0].uuid
+            template_id: template.related_templates[0]._id
           },
           { 
-            template_uuid: template.related_templates[0].uuid
+            template_id: template.related_templates[0]._id
           }
         ]
       };
@@ -466,22 +465,22 @@ describe("create (and get draft)", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       let dataset = { 
-        "template_uuid": template.uuid,
+        template_id: template._id,
         "related_datasets": [
           { 
-            "template_uuid": template.related_templates[0].uuid,
+            template_id: template.related_templates[0]._id,
             "related_datasets": [
               { 
-                "template_uuid": template.related_templates[0].related_templates[0].uuid,
+                template_id: template.related_templates[0].related_templates[0]._id,
                 "related_datasets": [
                   { 
-                    "template_uuid": template.related_templates[0].related_templates[0].related_templates[0].uuid,
+                    template_id: template.related_templates[0].related_templates[0].related_templates[0]._id,
                     "related_datasets": [
                       { 
-                        "template_uuid": template.related_templates[0].related_templates[0].related_templates[0].uuid,
+                        template_id: template.related_templates[0].related_templates[0].related_templates[0]._id,
                         "related_datasets": [
                           { 
-                            "template_uuid": template.related_templates[0].related_templates[0].related_templates[0].related_templates[0].related_templates[0].uuid,
+                            template_id: template.related_templates[0].related_templates[0].related_templates[0].related_templates[0].related_templates[0]._id,
                           }
                         ]
                       }
@@ -508,7 +507,7 @@ describe("create (and get draft)", () => {
 
       let dataset = {
         public_date: (new Date()).toISOString(),
-        template_uuid: template.uuid,
+        template_id: template._id,
         related_datasets: []
       };
       let response = await Helper.datasetCreate(dataset, Helper.DEF_CURR_USER);
@@ -527,7 +526,7 @@ describe("create (and get draft)", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
-        template_uuid: template.uuid,
+        template_id: template._id,
         related_datasets: []
       };
       let response = await Helper.datasetCreate(dataset, Helper.DEF_CURR_USER);
@@ -552,9 +551,9 @@ describe("create (and get draft)", () => {
 
 
       let dataset = {
-        template_uuid: template.uuid,
+        template_id: template._id,
         related_datasets: [{
-          template_uuid: other_template.uuid
+          template_id: other_template._id
         }]
       };
 
@@ -574,12 +573,12 @@ describe("create (and get draft)", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       let related_dataset = {
-        template_uuid: template.related_templates[0].uuid
+        template_id: template.related_templates[0]._id
       };
       related_dataset = await Helper.datasetCreateAndTest(related_dataset, Helper.DEF_CURR_USER);
 
       let dataset = { 
-        template_uuid: template.uuid,
+        template_id: template._id,
         related_datasets: [related_dataset, related_dataset],
       };
       let response = await Helper.datasetCreate(dataset, Helper.DEF_CURR_USER);
@@ -602,9 +601,9 @@ describe("create (and get draft)", () => {
       other_template = await Helper.templateCreatePublishTest(other_template, Helper.DEF_CURR_USER);
 
       let dataset = { 
-        template_uuid: template.uuid,
+        template_id: template._id,
         related_datasets: [{
-          template_uuid: other_template.uuid
+          template_id: other_template._id
         }]
       };
       let response = await Helper.datasetCreate(dataset, Helper.DEF_CURR_USER);
@@ -630,9 +629,9 @@ const populateWithDummyTemplateAndDataset = async () => {
   template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
   let dataset = {
-    template_uuid: template.uuid,
+    template_id: template._id,
     related_datasets: [{
-      template_uuid: template.related_templates[0].uuid
+      template_id: template.related_templates[0]._id
     }]
   };
 
@@ -660,7 +659,7 @@ describe("update (and get draft)", () => {
 
       dataset = {
         uuid: dataset.uuid,
-        template_uuid: new_template.uuid
+        template_id: new_template._id
       }
 
       await Helper.datasetUpdateAndTest(dataset, Helper.DEF_CURR_USER);
@@ -710,7 +709,7 @@ describe("update (and get draft)", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
   
       let dataset = {
-        template_uuid: template.uuid
+        template_id: template._id
       };
       dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
       expect(await Helper.datasetDraftExistingAndTest(dataset.uuid)).toBe(false);
@@ -720,18 +719,18 @@ describe("update (and get draft)", () => {
         public_date: (new Date()).toISOString()
       };
       template_2 = await Helper.templateCreatePublishTest(template_2, Helper.DEF_CURR_USER);
-      dataset.template_uuid = template_2.uuid;
+      dataset.template_id = template_2._id;
       await Helper.datasetUpdateAndTest(dataset, Helper.DEF_CURR_USER);
       expect(await Helper.datasetDraftExistingAndTest(dataset.uuid)).toBe(true);
   
-      dataset.template_uuid = template.uuid;
+      dataset.template_id = template._id;
       dataset.public_date = (new Date()).toISOString();
       await Helper.datasetUpdateAndTest(dataset, Helper.DEF_CURR_USER);
       expect(await Helper.datasetDraftExistingAndTest(dataset.uuid)).toBe(true);
   
     });
 
-    test("a new version of a related_dataset has been published", async () => {
+    test("new related_dataset", async () => {
       [template, dataset] = await populateWithDummyTemplateAndDataset();
 
       dataset = await Helper.datasetPublishAndFetch(dataset.uuid, Helper.DEF_CURR_USER);
@@ -751,13 +750,13 @@ describe("update (and get draft)", () => {
       [template, dataset] = await populateWithDummyTemplateAndDataset();
 
       // Modify the related template and publish it 
-      // Then updating the dataset should create a draft just by the fact that there is a new template.
+      // Nothing should change, since datasets point to template _ids
 
       dataset = await Helper.datasetPublishAndFetch(dataset.uuid, Helper.DEF_CURR_USER);
       template.description = "des";
       template = await Helper.templateUpdatePublishTest(template, Helper.DEF_CURR_USER);
       await Helper.datasetUpdateAndTest(dataset, Helper.DEF_CURR_USER);
-      expect(await Helper.datasetDraftExistingAndTest(dataset.uuid)).toBeTruthy();
+      expect(await Helper.datasetDraftExistingAndTest(dataset.uuid)).toBeFalsy();
       expect(await Helper.datasetDraftExistingAndTest(dataset.related_datasets[0].uuid)).toBeFalsy();
     });
 
@@ -794,13 +793,13 @@ describe("update (and get draft)", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
-        template_uuid: template.uuid,
+        template_id: template._id,
         related_datasets: [{
-          template_uuid: template.related_templates[0].uuid,
+          template_id: template.related_templates[0]._id,
           related_datasets: [{
-            template_uuid: template.related_templates[0].related_templates[0].uuid,
+            template_id: template.related_templates[0].related_templates[0]._id,
             related_datasets: [{
-              template_uuid: template.related_templates[0].related_templates[0].related_templates[0].uuid,
+              template_id: template.related_templates[0].related_templates[0].related_templates[0]._id,
             }]
           }]
         }]
@@ -836,10 +835,10 @@ describe("update (and get draft)", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
-        template_uuid: template.uuid,
+        template_id: template._id,
         related_datasets: [
           {
-            template_uuid: subscribed_template.uuid
+            template_id: subscribed_template._id
           }
         ]
       };
@@ -865,7 +864,7 @@ describe("get draft", () => {
     }
     template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
     let dataset = {
-      template_uuid: template.uuid
+      template_id: template._id
     };
     dataset = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
     
@@ -883,17 +882,15 @@ describe("get draft", () => {
     template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);  
 
     let related_dataset = {
-      template_uuid: template.related_templates[0].uuid
+      template_id: template.related_templates[0]._id
     };
     related_dataset = await Helper.datasetCreatePublishTest(related_dataset, Helper.DEF_CURR_USER);
-    Helper.datasetCleanseMetadata(related_dataset);
 
     let dataset = {
-      template_uuid: template.uuid,
+      template_id: template._id,
       related_datasets: [related_dataset]
     };
     dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
-    Helper.datasetCleanseMetadata(dataset);
 
     let users = [Helper.DEF_CURR_USER, Helper.USER_2];
 
@@ -906,10 +903,8 @@ describe("get draft", () => {
     expect(response.statusCode).toBe(200);
 
     // Fetch parent dataset, check that related_dataset is fetched as the published version
-    response = await Helper.datasetDraftGet(dataset.uuid, Helper.USER_2);
-    expect(response.statusCode).toBe(200);
-    let dataset_draft = response.body;
-    expect(dataset_draft).toMatchObject(dataset);    
+    let dataset_draft = await Helper.datasetDraftGetAndTest(dataset.uuid, Helper.USER_2);
+    Helper.testDatasetDraftsEqual(dataset, dataset_draft);
 
   });
 
@@ -923,17 +918,15 @@ describe("get draft", () => {
     template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);  
 
     let related_dataset = {
-      template_uuid: template.related_templates[0].uuid
+      template_id: template.related_templates[0]._id
     };
     related_dataset = await Helper.datasetCreatePublishTest(related_dataset, Helper.DEF_CURR_USER);
-    Helper.datasetCleanseMetadata(related_dataset);
 
     let dataset = {
-      template_uuid: template.uuid,
+      template_id: template._id,
       related_datasets: [related_dataset]
     };
     dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
-    Helper.datasetCleanseMetadata(dataset);
 
     let users = [Helper.DEF_CURR_USER, Helper.USER_2];
 
@@ -942,12 +935,9 @@ describe("get draft", () => {
 
 
     // Fetch parent dataset, check that related_dataset is fetched as the published version
-    response = await Helper.datasetDraftGet(dataset.uuid, Helper.USER_2);
-    expect(response.statusCode).toBe(200);
-    let dataset_draft = response.body;
+    let dataset_draft = await Helper.datasetDraftGetAndTest(dataset.uuid, Helper.USER_2);
     dataset.related_datasets[0] = {uuid: related_dataset.uuid};
-    expect(dataset_draft).toMatchObject(dataset);    
-
+    Helper.testDatasetDraftsEqual(dataset, dataset_draft);
   });
 });
 
@@ -959,7 +949,7 @@ describe("publish (and get published)", () => {
       };
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
       let dataset = {
-        template_uuid: template.uuid
+        template_id: template._id
       }
       await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
       
@@ -977,10 +967,10 @@ describe("publish (and get published)", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       let related_dataset = {
-        template_uuid: template.related_templates[0].uuid
+        template_id: template.related_templates[0]._id
       };
       let dataset = {
-        template_uuid: template.uuid,
+        template_id: template._id,
         related_datasets:[related_dataset]
       };
       let published = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
@@ -1011,13 +1001,13 @@ describe("publish (and get published)", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
-        template_uuid: template.uuid,
+        template_id: template._id,
         "related_datasets":[{
-          template_uuid: template.related_templates[0].uuid,
+          template_id: template.related_templates[0]._id,
           "related_datasets":[{
-            template_uuid: template.related_templates[0].related_templates[0].uuid,
+            template_id: template.related_templates[0].related_templates[0]._id,
             "related_datasets":[{
-              template_uuid: template.related_templates[0].related_templates[0].related_templates[0].uuid,
+              template_id: template.related_templates[0].related_templates[0].related_templates[0]._id,
             }]
           }]
         }]
@@ -1059,9 +1049,9 @@ describe("publish (and get published)", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
-        template_uuid: template.uuid,
+        template_id: template._id,
         "related_datasets":[{
-          template_uuid: template.related_templates[0].uuid,
+          template_id: template.related_templates[0]._id,
         }]
       };
       // Create initial data
@@ -1113,9 +1103,9 @@ describe("publish (and get published)", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
-        template_uuid: template.uuid,
+        template_id: template._id,
         related_datasets:[{
-          template_uuid: template.related_templates[0].uuid
+          template_id: template.related_templates[0]._id
         }]
       };
       dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
@@ -1160,14 +1150,15 @@ describe("publish (and get published)", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
       
       let dataset = {
-        template_uuid: template.uuid
+        template_id: template._id
       }
       let dataset_published = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
 
       template.description = "naruto";
-      await Helper.templateUpdatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateUpdatePublishTest(template, Helper.DEF_CURR_USER);
 
       dataset.uuid = dataset_published.uuid;
+      dataset.template_id = template._id;
       await Helper.datasetUpdatePublishTest(dataset, Helper.DEF_CURR_USER);
       
     });
@@ -1187,9 +1178,9 @@ describe("publish (and get published)", () => {
 
 
       let dataset = {
-        template_uuid: template.uuid,
+        template_id: template._id,
         related_datasets: [{
-          template_uuid: template.subscribed_templates[0].uuid
+          template_id: template.subscribed_templates[0]._id
         }]
       };
 
@@ -1208,7 +1199,7 @@ describe("publish (and get published)", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
-        template_uuid: template.uuid
+        template_id: template._id
       }
       dataset = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
 
@@ -1228,7 +1219,7 @@ describe("publish (and get published)", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
-        template_uuid: template.uuid
+        template_id: template._id
       }
       dataset = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
 
@@ -1253,9 +1244,9 @@ describe("publish (and get published)", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
-        template_uuid: template.uuid,
+        template_id: template._id,
         related_datasets: [{
-          template_uuid: template.related_templates[0].uuid
+          template_id: template.related_templates[0]._id
         }]
       }
 
@@ -1286,7 +1277,7 @@ describe("publish (and get published)", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
-        template_uuid: template.uuid
+        template_id: template._id
       };
       dataset = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
 
@@ -1307,9 +1298,9 @@ describe("publish (and get published)", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
-        template_uuid: template.uuid,
+        template_id: template._id,
         related_datasets: [{
-          template_uuid: template.related_templates[0].uuid
+          template_id: template.related_templates[0]._id
         }]
       };
       dataset = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
@@ -1343,7 +1334,7 @@ describe("publish (and get published)", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
-        template_uuid: template.uuid
+        template_id: template._id
       };
       dataset = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
 
@@ -1375,10 +1366,10 @@ describe("publish (and get published)", () => {
 
       // create dataset, matching template format
       let dataset = {
-        template_uuid: template.uuid,
+        template_id: template._id,
         related_datasets: [
           { 
-            template_uuid: template.related_templates[0].uuid
+            template_id: template.related_templates[0]._id
           }
         ]
       };
@@ -1410,12 +1401,12 @@ describe("publish (and get published)", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       let related_dataset = {
-        template_uuid: template.related_templates[0].uuid
+        template_id: template.related_templates[0]._id
       };
       related_dataset = await Helper.datasetCreateAndTest(related_dataset, Helper.USER_2);
 
       let dataset = {
-        template_uuid: template.uuid,
+        template_id: template._id,
         related_datasets:[{uuid: related_dataset.uuid}]
       };
       dataset = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
@@ -1437,9 +1428,9 @@ describe("get published", () => {
     template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);  
     
     let dataset = { 
-      template_uuid: template.uuid,
+      template_id: template._id,
       related_datasets: [{
-        template_uuid: template.related_templates[0].uuid
+        template_id: template.related_templates[0]._id
       }]
     };
     dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);  
@@ -1465,7 +1456,7 @@ describe("get published", () => {
     template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);  
 
     let dataset = { 
-      template_uuid: template.uuid
+      template_id: template._id
     };
     dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);  
 
@@ -1482,7 +1473,7 @@ test("get published for a certain date", async () => {
   template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
   let dataset = {
-    template_uuid: template.uuid
+    template_id: template._id
   };
   dataset = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
   let uuid = dataset.uuid;
@@ -1548,7 +1539,7 @@ describe("lastUpdate", () => {
 
       let timestamp = new Date();
       let dataset = {
-        template_uuid: template.uuid
+        template_id: template._id
       };
       dataset = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
 
@@ -1564,7 +1555,7 @@ describe("lastUpdate", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
       let timestamp = new Date();
       let dataset = {
-        template_uuid: template.uuid
+        template_id: template._id
       };
       dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
 
@@ -1597,11 +1588,11 @@ describe("lastUpdate", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
-        template_uuid: template.uuid,
+        template_id: template._id,
         related_datasets: [{
-          template_uuid: template.related_templates[0].uuid,
+          template_id: template.related_templates[0]._id,
           related_datasets: [{
-            template_uuid: template.related_templates[0].related_templates[0].uuid
+            template_id: template.related_templates[0].related_templates[0]._id
           }]
         }]
       };
@@ -1644,9 +1635,9 @@ describe("lastUpdate", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
-        template_uuid: template.uuid,
+        template_id: template._id,
         related_datasets: [{
-          template_uuid: template.related_templates[0].uuid
+          template_id: template.related_templates[0]._id
         }]
       };
       dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
@@ -1681,11 +1672,11 @@ describe("lastUpdate", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
-        template_uuid: template.uuid,
+        template_id: template._id,
         related_datasets: [{
-          template_uuid: template.related_templates[0].uuid,
+          template_id: template.related_templates[0]._id,
           related_datasets: [{
-            template_uuid: template.related_templates[0].related_templates[0].uuid
+            template_id: template.related_templates[0].related_templates[0]._id
           }]
         }]
       };
@@ -1732,7 +1723,7 @@ describe("lastUpdate", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
-        template_uuid: template.uuid
+        template_id: template._id
       };
       dataset = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
 
@@ -1747,7 +1738,7 @@ describe("lastUpdate", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
-        template_uuid: template.uuid
+        template_id: template._id
       };
       dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
 
@@ -1766,7 +1757,7 @@ describe("delete", () => {
     template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
     let dataset = {
-      template_uuid: template.uuid
+      template_id: template._id
     }
     dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
   
@@ -1808,7 +1799,7 @@ describe("delete", () => {
     template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
     let dataset = {
-      template_uuid: template.uuid
+      template_id: template._id
     };
     dataset = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
 
@@ -1840,21 +1831,20 @@ describe("duplicate", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       let dataset12 = {
-        template_uuid: template.related_templates[1].uuid,
+        template_id: template.related_templates[1]._id,
         related_datasets: [{
-          template_uuid: template.related_templates[1].related_templates[0].uuid
+          template_id: template.related_templates[1].related_templates[0]._id
         }]
       };
       dataset12 = await Helper.datasetCreateAndTest(dataset12, Helper.DEF_CURR_USER);
-      Helper.datasetCleanseMetadata(dataset12);
 
       let dataset1 = {
-        template_uuid: template.uuid,
+        template_id: template._id,
         related_datasets: [
           {
-            template_uuid: template.related_templates[0].uuid,
+            template_id: template.related_templates[0]._id,
             related_datasets: [{
-              template_uuid: template.related_templates[0].related_templates[0].uuid
+              template_id: template.related_templates[0].related_templates[0]._id
             }]
           },
           dataset12
@@ -1892,11 +1882,11 @@ describe("duplicate", () => {
       }
 
       // Expect duplicate to keep all of the templates of the original
-      expect(new_dataset.template_uuid).toEqual(dataset1.template_uuid);
-      expect(new_dataset_11.template_uuid).toEqual(dataset11.template_uuid);
-      expect(new_dataset_11.related_datasets[0].template_uuid).toEqual(dataset11.related_datasets[0].template_uuid);
-      expect(new_dataset_12.template_uuid).toEqual(dataset12.template_uuid);
-      expect(new_dataset_12.related_datasets[0].template_uuid).toEqual(dataset12.related_datasets[0].template_uuid);
+      expect(new_dataset.template_id).toEqual(dataset1.template_id);
+      expect(new_dataset_11.template_id).toEqual(dataset11.template_id);
+      expect(new_dataset_11.related_datasets[0].template_id).toEqual(dataset11.related_datasets[0].template_id);
+      expect(new_dataset_12.template_id).toEqual(dataset12.template_id);
+      expect(new_dataset_12.related_datasets[0].template_id).toEqual(dataset12.related_datasets[0].template_id);
 
       // Expect duplicate to keep the group categories as found in the original dataset
       expect(new_dataset.group_uuid).toEqual(new_dataset_11.group_uuid);
@@ -1920,12 +1910,12 @@ describe("duplicate", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       let related_dataset = {
-        template_uuid: template.related_templates[0].uuid
+        template_id: template.related_templates[0]._id
       };
       related_dataset = await Helper.datasetCreatePublishTest(related_dataset, Helper.DEF_CURR_USER);
 
       let dataset = {
-        template_uuid: template.uuid,
+        template_id: template._id,
         public_date: (new Date()).toISOString(),
         related_datasets: [related_dataset]
       };
@@ -1935,7 +1925,7 @@ describe("duplicate", () => {
       expect(response.statusCode).toBe(200);
       let new_dataset = response.body;
 
-      expect(new_dataset.template_uuid).toEqual(dataset.template_uuid);
+      expect(new_dataset.template_id).toEqual(dataset.template_id);
       expect(new_dataset.related_datasets).toEqual([]);
     });
 
@@ -1953,16 +1943,16 @@ describe("duplicate", () => {
       };
       template = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
       template.related_templates[1].related_templates.push(template.related_templates[0]);
-      await Helper.templateUpdatePublishTest(template, Helper.DEF_CURR_USER)
+      template = await Helper.templateUpdatePublishTest(template, Helper.DEF_CURR_USER)
 
       let dataset = {
-        template_uuid: template.uuid,
+        template_id: template._id,
         related_datasets: [
           {
-            template_uuid: template.related_templates[0].uuid
+            template_id: template.related_templates[0]._id
           },
           {
-            template_uuid: template.related_templates[1].uuid,
+            template_id: template.related_templates[1]._id,
             related_datasets: []
           }
         ]
@@ -1977,10 +1967,10 @@ describe("duplicate", () => {
       let new_dataset = response.body;
 
       // Expect duplicate to keep all of the templates of the original
-      expect(new_dataset.template_uuid).toEqual(dataset.template_uuid);
-      expect(new_dataset.related_datasets[0].template_uuid).toEqual(dataset.related_datasets[0].template_uuid);
-      expect(new_dataset.related_datasets[1].template_uuid).toEqual(dataset.related_datasets[1].template_uuid);
-      expect(new_dataset.related_datasets[1].related_datasets[0].template_uuid).toEqual(dataset.related_datasets[1].related_datasets[0].template_uuid);
+      expect(new_dataset.template_id).toEqual(dataset.template_id);
+      expect(new_dataset.related_datasets[0].template_id).toEqual(dataset.related_datasets[0].template_id);
+      expect(new_dataset.related_datasets[1].template_id).toEqual(dataset.related_datasets[1].template_id);
+      expect(new_dataset.related_datasets[1].related_datasets[0].template_id).toEqual(dataset.related_datasets[1].related_datasets[0].template_id);
 
       expect(new_dataset.related_datasets[0].uuid).toEqual(new_dataset.related_datasets[1].related_datasets[0].uuid);
     });
@@ -1994,7 +1984,7 @@ describe("duplicate", () => {
       template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
-        template_uuid: template.uuid
+        template_id: template._id
       };
       dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
 
@@ -2040,30 +2030,30 @@ test("full range of operations with big data", async () => {
   template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
 
   let dataset = {
-    template_uuid: template.uuid,
+    template_id: template._id,
     related_datasets: [
       {
-        template_uuid: template.related_templates[0].uuid,
+        template_id: template.related_templates[0]._id,
         related_datasets: [
           {
-            template_uuid: template.related_templates[0].related_templates[0].uuid,
+            template_id: template.related_templates[0].related_templates[0]._id,
             related_datasets: [
               {
-                template_uuid: template.related_templates[0].related_templates[0].related_templates[0].uuid
+                template_id: template.related_templates[0].related_templates[0].related_templates[0]._id
               },
               {
-                template_uuid: template.related_templates[0].related_templates[0].related_templates[1].uuid
+                template_id: template.related_templates[0].related_templates[0].related_templates[1]._id
               }
             ]
           },
           {
-            template_uuid: template.related_templates[0].related_templates[1].uuid,
+            template_id: template.related_templates[0].related_templates[1]._id,
             related_datasets: [
               {
-                template_uuid: template.related_templates[0].related_templates[1].related_templates[0].uuid
+                template_id: template.related_templates[0].related_templates[1].related_templates[0]._id
               },
               {
-                template_uuid: template.related_templates[0].related_templates[1].related_templates[1].uuid
+                template_id: template.related_templates[0].related_templates[1].related_templates[1]._id
               }
             ]
           }
