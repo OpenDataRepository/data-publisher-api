@@ -567,7 +567,7 @@ async function publishRelatedTemplates(input_related_templates_uuids, user, sess
       } else if (err instanceof Util.PermissionDeniedError) {
         // If the user doesn't have permissions, assume they want to link the published version of the template
         // But before we can link the published version of the template, we must make sure it exists
-        let related_template_published = await SharedFunctions.latestPublished(Template, related_template_uuid);
+        let related_template_published = await SharedFunctions.latestPublished(Template, related_template_uuid, session);
         if(!related_template_published) {
           throw new Util.InputError(`published template does not exist with uuid ${related_template_uuid}`);
         }
@@ -663,7 +663,7 @@ async function publish(session, uuid, user, last_update) {
     }
   }
 
-  if(!(await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT))) {
+  if(!(await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT, session))) {
     throw new Util.PermissionDeniedError(`You do not have the edit permissions required to publish ${uuid}`);
   }
 
@@ -747,7 +747,7 @@ function recursiveBuildPublishedQuery(current_pipeline, count) {
 }
 
 // Fetches the template with the specified match conditions, including fetching fields and related_records
-async function publishedWithJoins(pipelineMatchConditions) {
+async function publishedWithJoins(pipelineMatchConditions, session) {
   // Construct a mongodb aggregation pipeline that will recurse into related templates up to 5 levels deep.
   // Thus, the tree will have a depth of 6 nodes
   let pipeline = [
@@ -772,7 +772,7 @@ async function publishedWithJoins(pipelineMatchConditions) {
 
   recursiveBuildPublishedQuery(pipeline, 0);
 
-  let response = await Template.aggregate(pipeline);
+  let response = await Template.aggregate(pipeline, {session});
   if (await response.hasNext()){
     return await response.next();
   } else {
@@ -792,35 +792,35 @@ async function publishedByIdWithJoins(_id) {
 
 // Fetches the last template with the given uuid published before the given date. 
 // Also recursively looks up fields and related_templates.
-async function latestPublishedBeforeDateWithJoins(uuid, date) {
+async function latestPublishedBeforeDateWithJoins(uuid, date, session) {
   let pipelineMatchConditions = { 
     uuid,
     'publish_date': {'$lte': date}
   };
 
-  return await publishedWithJoins(pipelineMatchConditions);
+  return await publishedWithJoins(pipelineMatchConditions, session);
 }
 
-async function filterPublishedTemplateForPermissionsRecursor(template, user) {
+async function filterPublishedTemplateForPermissionsRecursor(template, user, session) {
   for(let i = 0; i < template.fields.length; i++) {
-    if(!(await SharedFunctions.userHasAccessToPublishedResource(TemplateField, template.fields[i].uuid, user, PermissionGroupModel))) {
+    if(!(await SharedFunctions.userHasAccessToPublishedResource(TemplateField, template.fields[i].uuid, user, PermissionGroupModel, session))) {
       template.fields[i] = {uuid: template.fields[i].uuid};
     }
   }
   for(let i = 0; i < template.related_templates.length; i++) {
-    if(!(await SharedFunctions.userHasAccessToPublishedResource(Template, template.related_templates[i].uuid, user, PermissionGroupModel))) {
+    if(!(await SharedFunctions.userHasAccessToPublishedResource(Template, template.related_templates[i].uuid, user, PermissionGroupModel, session))) {
       template.related_templates[i] = {uuid: template.related_templates[i].uuid};
     } else {
-      await filterPublishedTemplateForPermissionsRecursor(template.related_templates[i], user);
+      await filterPublishedTemplateForPermissionsRecursor(template.related_templates[i], user, session);
     }
   }
 }
 
-async function filterPublishedTemplateForPermissions(template, user) {
-  if(!(await SharedFunctions.userHasAccessToPublishedResource(Template, template.uuid, user, PermissionGroupModel))) {
+async function filterPublishedTemplateForPermissions(template, user, session) {
+  if(!(await SharedFunctions.userHasAccessToPublishedResource(Template, template.uuid, user, PermissionGroupModel, session))) {
     throw new Util.PermissionDeniedError(`Do not have view access to template ${template.uuid}`);
   }
-  await filterPublishedTemplateForPermissionsRecursor(template, user);
+  await filterPublishedTemplateForPermissionsRecursor(template, user, session);
 }
 
 async function publishedByIdWithJoinsAndPermissions(_id, user) {
@@ -832,19 +832,19 @@ async function publishedByIdWithJoinsAndPermissions(_id, user) {
   return template;
 } 
 
-async function latestPublishedBeforeDateWithJoinsAndPermissions(uuid, date, user) {
-  let template = await latestPublishedBeforeDateWithJoins(uuid, date);
+async function latestPublishedBeforeDateWithJoinsAndPermissions(uuid, date, user, session) {
+  let template = await latestPublishedBeforeDateWithJoins(uuid, date, session);
   if(!template) {
     return null;
   }
-  await filterPublishedTemplateForPermissions(template, user);
+  await filterPublishedTemplateForPermissions(template, user, session);
   return template;
 } 
 
 // Fetches the last published template with the given uuid. 
 // Also recursively looks up fields and related_templates.
-async function latestPublishedWithJoinsAndPermissions(uuid, user) {
-  return await latestPublishedBeforeDateWithJoinsAndPermissions(uuid, new Date(), user);
+async function latestPublishedWithJoinsAndPermissions(uuid, user, session) {
+  return await latestPublishedBeforeDateWithJoinsAndPermissions(uuid, new Date(), user, session);
 }
 
 async function draftFetchFields(input_field_uuids, user, session) {
@@ -988,8 +988,8 @@ async function lastUpdateFor(session, uuid, user) {
 
   let template_draft = await fetchDraftOrCreateFromPublished(uuid, session);
   let template_published = await SharedFunctions.latestPublished(Template, uuid, session);
-  let edit_permission = await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT);
-  let view_permission = await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_VIEW);
+  let edit_permission = await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT, session);
+  let view_permission = await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_VIEW, session);
 
   if(!template_draft) {
     throw new Util.NotFoundError(`No template  exists with uuid ${uuid}`);
@@ -1008,7 +1008,7 @@ async function lastUpdateFor(session, uuid, user) {
   let last_update = template_draft.updated_at;
   for(uuid of template_draft.fields) {
     try {
-      let update = await TemplateFieldModel.lastUpdate(uuid, user);
+      let update = await TemplateFieldModel.lastUpdate(uuid, user, session);
       if (update > last_update){
         last_update = update;
       }
@@ -1228,13 +1228,22 @@ exports.draftGet = async function(uuid, user) {
 }
 
 // Wraps the actual request to publish with a transaction
-exports.publish = async function(uuid, user, last_update) {
-  await SharedFunctions.executeWithTransaction(publish, uuid, user, last_update);
+exports.publish = async function(uuid, user, last_update, session) {
+  if(session) {
+    await publish(session, uuid, user, last_update);
+  } else {
+    await SharedFunctions.executeWithTransaction(publish, uuid, user, last_update);
+  }
 }
 
 // Wraps the actual request to getUpdate with a transaction
-exports.lastUpdate = async function(uuid, user) {
-  let update = await SharedFunctions.executeWithTransaction(lastUpdateFor, uuid, user);
+exports.lastUpdate = async function(uuid, user, session) {
+  let update;
+  if(session) {
+    update = await lastUpdateFor(session, uuid, user);
+  } else {
+    update = await SharedFunctions.executeWithTransaction(lastUpdateFor, uuid, user);
+  }
   return update;
 }
 
@@ -1296,8 +1305,13 @@ exports.duplicate = async function(uuid, user) {
 }
 
 // Wraps the actual request to import with a transaction
-exports.importTemplate = async function(template, user) {
-  let new_template_uuid = (await SharedFunctions.executeWithTransaction(importTemplate, template, user, new Date()))[1];
+exports.importTemplate = async function(template, user, session) {
+  let new_template_uuid;
+  if(session) {
+    new_template_uuid = (await importTemplate(session, template, user, new Date()))[1];
+  } else {
+    new_template_uuid = (await SharedFunctions.executeWithTransaction(importTemplate, template, user, new Date()))[1];
+  }
   return new_template_uuid;
 }
 

@@ -200,10 +200,14 @@ async function createRecordFieldsFromImportRecordAndTemplate(record_fields, temp
     if(!Util.isObject(field)) {
       throw new Util.InputError(`Each field in the record must be a json object`);
     }
-    if(!field.template_field_uuid) {
-      throw new Util.InputError(`Each field in the record must supply a template_field_uuid`);
+    let old_field_uuid = field.field_uuid;
+    if(!old_field_uuid) {
+      old_field_uuid = field.template_field_uuid;
     }
-    let field_uuid = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(field.template_field_uuid);
+    if(!old_field_uuid) {
+      throw new Util.InputError(`Each field in the record must supply a field_uuid/template_field_uuid`);
+    }
+    let field_uuid = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(old_field_uuid);
     if (record_field_map[field_uuid]) {
       throw new Util.InputError(`A record can only supply a single value for each field`);
     }
@@ -946,47 +950,143 @@ async function importDatasetsAndRecords(session, records, user) {
   return result_uuids;
 }
 
-async function importRecord(record, user, session) {
+async function importRelatedRecordsFromRecord(input_record, dataset, template, user, updated_at, session) {
+  if(!input_record.records) {
+    return [];
+  }
+  if(!Array.isArray(input_record.records)) {
+    throw new Util.InputError(`Records object in record to import must be an array`);
+  }
+  let result_records = [];
+  // Requirements:
+  // - related_records is a set, so there can't be any duplicates
+  // - Every related_record must point to a related_dataset supported by the dataset
+  // Plan: Create a dataset_uuid to dataset map. At the end, check related_records for duplicates
+  let related_dataset_map = {};
+  for (let related_dataset of dataset.related_datasets) {
+    related_dataset_map[related_dataset.uuid] = related_dataset;
+  }
+  let related_template_map = {};
+  for (let related_template of template.related_templates) {
+    related_template_map[related_template._id] = related_template;
+  }
+  for (let related_record of input_record.records) {
+    let related_dataset_uuid = await LegacyUuidToNewUuidMapperModel.get_secondary_uuid_from_old(related_record.database_uuid, session);
+    let related_dataset = related_dataset_map[related_dataset_uuid];
+    if(!related_dataset) {
+      throw new Util.InputError(`Record linking unexpected dataset/database: ${related_record.database_uuid}`);
+    }
+    let related_template = related_template_map[related_dataset.template_id];
+    try {
+      related_record = await importRecordRecursor(related_record, related_dataset, related_template, user, updated_at, session);
+    } catch(err) {
+      if (err instanceof Util.NotFoundError) {
+        throw new Util.InputError(err.message);
+      } else if (err instanceof Util.PermissionDeniedError) {
+        // If we don't have admin permissions to the related_dataset, don't try to update/create it. Just link it
+        related_record = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(related_record.record_uuid, session);
+      } else {
+        throw err;
+      }
+    }
+    // After validating and updating the related_record, replace the related_record with a uuid reference
+    result_records.push(related_record);
+  }
+  // Related_records is really a set, not a list. But Mongo doesn't store sets well, so have to manage it ourselves.
+  if(Util.anyDuplicateInArray(result_records)) {
+    throw new Util.InputError(`Each record may only have one instance of every related_record.`);
+  }
+  return result_records;
+}
+
+async function importRecordRecursor(input_record, dataset, template, user, updated_at, session) {
+  if(!Util.isObject(input_record)) {
+    throw new Util.InputError('Record to import must be a json object.');
+  }
+  
+  // Now get the matching database uuid for the imported database uuid
+  let old_template_uuid = input_record.database_uuid;
+  if(!old_template_uuid || typeof(old_template_uuid) !== 'string') {
+    throw new Util.InputError(`Each record to be imported must have a database_uuid, which is a string.`);
+  }
+  let new_dataset_uuid = await LegacyUuidToNewUuidMapperModel.get_secondary_uuid_from_old(old_template_uuid, session);
+  if(!new_dataset_uuid) {
+    throw new Util.InputError(`Template/dataset with uuid ${old_template_uuid} has not been imported, so no record linking it may be imported.`);
+  }
+  if(new_dataset_uuid != dataset.uuid) {
+    throw new Util.InputError(`Dataset expects related dataset with uuid ${dataset.uuid}, but record has ${new_dataset_uuid}`);
+  }
+  
+  let old_record_uuid = input_record.record_uuid;
+  if(!old_record_uuid || typeof(old_record_uuid) !== 'string') {
+    throw new Util.InputError(`Each record to be imported must have a record uuid, which is a string.`);
+  }
+  let new_record_uuid = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(old_record_uuid, session);
+  // If the uuid is found, then this has already been imported. Import again if we have edit permissions
+  if(new_record_uuid) {
+    if(!(await PermissionGroupModel.has_permission(user, new_dataset_uuid, PermissionGroupModel.PERMISSION_EDIT, session))) {
+      throw new Util.PermissionDeniedError(`You do not have edit permissions required to import record ${old_record_uuid}. It has already been imported.`);
+    }
+  } else {
+    new_record_uuid = await LegacyUuidToNewUuidMapperModel.create_new_uuid_for_old(old_record_uuid, session);
+  }
+
+  // Build object to create/update
+  let new_record = {
+    uuid: new_record_uuid,
+    dataset_uuid: new_dataset_uuid,
+    updated_at,
+    related_records: []
+  };
+
+  if (input_record._record_metadata && Util.isObject(input_record._record_metadata) && 
+  input_record._record_metadata._public_date && Date.parse(input_record._record_metadata._public_date)) {
+    new_record.public_date = new Date(input_record._record_metadata._public_date);
+  }
+
+  new_record.fields = await createRecordFieldsFromImportRecordAndTemplate(input_record.fields, template.fields);
+
+  new_record.related_records = await importRelatedRecordsFromRecord(input_record, dataset, template, user, updated_at, session)
+
+  // If a draft of this record already exists: overwrite it, using it's same uuid
+  // If a draft of this record doesn't exist: create a new draft
+  // Fortunately both cases can be handled with a single MongoDB UpdateOne query using upsert: true
+  let response = await Record.updateOne(
+    {"uuid": new_record_uuid, 'publish_date': {'$exists': false}}, 
+    {$set: new_record}, 
+    {'upsert': true, session}
+  );
+  if (response.upsertedCount != 1 && response.matchedCount != 1) {
+    throw new Error(`Record.importRecordFromCombinedRecursor: Upserted: ${response.upsertedCount}. Matched: ${response.matchedCount}`);
+  } 
+
+  // If successfull, return the uuid of the created / updated dataset
+  return new_record_uuid;
+}
+
+async function importRecord(record, user, session, updated_at) {
   if(!Util.isObject(record)) {
     throw new Util.InputError('Record to import must be a json object.');
   }
 
   // Template must have already been imported
-  if(!record.dataset_uuid || typeof(record.dataset_uuid) !== 'string') {
-    throw new Util.InputError('Record provided to import must have a dataset_uuid, which is a string.');
+  if(!record.database_uuid || typeof(record.database_uuid) !== 'string') {
+    throw new Util.InputError('Record provided to import must have a database_uuid, which is a string.');
   }
-  let new_uuid = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(record.dataset_uuid, session);
-  if(!new_uuid) {
-    throw new Util.InputError('the dataset_uuid linked in the record you wish to import has not yet been imported.');
-  }
-
-  let dataset = await SharedFunctions.latestDocument(DatasetModel.collection(), new_uuid, session);
-  let template = await SharedFunctions.latestDocument(TemplateModel.collection(), new_uuid, session);
-  if(!dataset && !template) {
-    throw new Util.InputError(`Either a template or dataset with uuid ${record.dataset_uuid} must be imported before import a record referencing it`);
-  }
-
-  let dataset_uuid;
-  if(dataset) {
-    dataset_uuid = new_uuid;
-  } else {
-    // Find any dataset pointing to this template 
-    // this won't work if multiple datasets have been created for this template
-    // TODO: write this function
-    // dataset_uuid = await findDatasetForTemplate(new_uuid, user, session);
-    if(!dataset_uuid) {
-      throw new Util.InputError(`A dataset referencing template ${new_uuid} must be created before importing any records`);
-    }
+  let dataset_uuid = await LegacyUuidToNewUuidMapperModel.get_secondary_uuid_from_old(record.database_uuid, session);
+  if(!dataset_uuid) {
+    throw new Util.InputError(`the dataset/template uuid (${record.database_uuid}) linked in the record you wish to import has not yet been imported.`);
   }
 
   // dataset must be published and user must have read access
-  dataset = await DatasetModel.latestPublished(dataset_uuid, user);
+  dataset = await DatasetModel.latestPublished(dataset_uuid, user, session);
   if(!dataset) {
     throw new Util.InputError(`Dataset ${dataset_uuid} must be published before any record using it can be imported`);
   }
 
-  // TODO: continue importing here
-  return null;
+  let template = await TemplateModel.publishedByIdWithoutPermissions(dataset.template_id);
+
+  return importRecordRecursor(record, dataset, template, user, updated_at, session);
 }
 
 async function importRecords(session, records, user) {
@@ -994,9 +1094,11 @@ async function importRecords(session, records, user) {
     throw new Util.InputError(`'records' must be a valid array`);
   }
 
+  let updated_at = new Date();
+
   let result_uuids = [];
   for(let record of records) {
-    result_uuids.push(await importRecord(record, user, session));
+    result_uuids.push(await importRecord(record, user, session, updated_at));
   }
   return result_uuids;
 }

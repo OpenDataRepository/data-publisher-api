@@ -340,6 +340,11 @@ module.exports = class Helper {
       .set('Cookie', [`user=${curr_user}`])
       .set('Accept', 'application/json');
   }
+  templateLatestPublishedAndTest = async(uuid, curr_user) => {
+    let response = await this.templateLatestPublished(uuid, curr_user);
+    expect(response.statusCode).toBe(200);
+    return response.body;
+  }
   templateLatestPublishedBeforeDate = async (uuid, timestamp, curr_user) => {
     return await request(this.app)
       .get(`/template/${uuid}/${timestamp}`)
@@ -541,6 +546,7 @@ module.exports = class Helper {
       .set('Cookie', [`user=${curr_user}`])
       .set('Accept', 'application/json');
   }
+  // TODO: could I commoninze this 'AndTest' part to be a single function?
   datasetLatestPublishedAndTest = async(uuid, curr_user) => {
     let response = await this.datasetLatestPublished(uuid, curr_user);
     expect(response.statusCode).toBe(200);

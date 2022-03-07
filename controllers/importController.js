@@ -2,6 +2,8 @@ const { InputError } = require('../lib/util');
 const TemplateModel = require('../models/template');
 const DatasetModel = require('../models/dataset');
 const RecordModel = require('../models/record');
+const SharedFunctions = require('../models/shared_functions');
+
 
 exports.template = async function(req, res, next) {
   try {
@@ -26,15 +28,24 @@ exports.datasets_and_records = async function(req, res, next) {
 }
 
 
-// exports.template_with_dataset = async function(req, res, next) {
-//   try {
-//     let template_uuid = await TemplateModel.importTemplate(req.body, req.cookies.user);
-//     let dataset_uuid = await DatasetModel.createDatasetForTemplate(template.uuid, req.cookies.user);
-//     res.send({template_uuid, dataset_uuid});
-//   } catch(err) {
-//     next(err);
-//   }
-// }
+exports.template_with_dataset = async function(req, res, next) {
+  try {
+    let template_uuid, dataset_uuid;
+    let import_template = req.body;
+    let user = req.cookies.user;
+    let callback = async (session) => {
+      template_uuid = await TemplateModel.importTemplate(import_template, user, session);
+      let last_update = await TemplateModel.lastUpdate(template_uuid, user, session);
+      await TemplateModel.publish(template_uuid, user, last_update, session);
+      dataset_uuid = await DatasetModel.importDatasetForTemplate(import_template, user, session);
+    };
+    await SharedFunctions.executeWithTransaction(callback);
+
+    res.send({template_uuid, dataset_uuid});
+  } catch(err) {
+    next(err);
+  }
+}
 
 exports.records = async function(req, res, next) {
   try {

@@ -440,7 +440,7 @@ async function publishField(session, uuid, last_update, user) {
   }
 
   // if the user doesn't have edit permissions, throw a permission denied error
-  let has_permission = await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT);
+  let has_permission = await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT, session);
   if(!has_permission) {
     throw new Util.PermissionDeniedError();
   }
@@ -530,12 +530,12 @@ exports.draftDelete = async function(uuid, user) {
   }
 }
 
-exports.lastUpdate = async function(uuid, user) {
+exports.lastUpdate = async function(uuid, user, session) {
 
-  let field_draft = await SharedFunctions.draft(TemplateField, uuid);
-  let field_published = await latestPublished(uuid);
-  let edit_permission = await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT);
-  let view_permission = await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_VIEW);
+  let field_draft = await SharedFunctions.draft(TemplateField, uuid, session);
+  let field_published = await latestPublished(uuid, session);
+  let edit_permission = await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT, session);
+  let view_permission = await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_VIEW, session);
 
   // Get the lat update for the draft if the user has permission to the draft. Otherwise, the last published.
   if(!field_draft) {

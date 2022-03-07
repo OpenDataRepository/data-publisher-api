@@ -917,7 +917,7 @@ async function importDatasetFromCombinedRecursor(record, template, user, updated
 
 function newDatasetForTemplate(template) {
   let dataset = {
-    template_uuid: template.uuid,
+    template_id: template._id,
     related_datasets: []
   };
   for(let related_template of template.related_templates) {
@@ -929,10 +929,57 @@ function newDatasetForTemplate(template) {
   return dataset;
 }
 
+async function importDatasetForTemplate(template, user, session, updated_at) {
+  let old_template_uuid = template.template_uuid;
+  let new_template_uuid = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(old_template_uuid, session);
+  let new_template = await SharedFunctions.latestPublished(TemplateModel.collection(), new_template_uuid, session);
+  
+
+  let dataset_uuid = await LegacyUuidToNewUuidMapperModel.get_secondary_uuid_from_old(old_template_uuid, session);
+  // If the uuid is found, then this has already been imported. Import again if we have edit permissions
+  if(dataset_uuid) {
+    if(!(await PermissionGroupModel.has_permission(user, dataset_uuid, PermissionGroupModel.PERMISSION_EDIT, session))) {
+      throw new Util.PermissionDeniedError(`You do not have edit permissions required to import dataset ${old_template_uuid}. It has already been imported.`);
+    }
+  } else {
+    dataset_uuid = await LegacyUuidToNewUuidMapperModel.create_secondary_uuid_for_old(old_template_uuid, session);
+    await PermissionGroupModel.initialize_permissions_for(user, dataset_uuid, session);
+  }
+
+  let dataset = {
+    uuid: dataset_uuid,
+    template_id: new_template._id,
+    updated_at, 
+    public_date: new_template.public_date,
+    related_datasets: []
+  };
+
+  if (template.related_databases !== undefined) {
+    for(let related_template of template.related_databases) {
+      let related_dataset_uuid = await importDatasetForTemplate(related_template, user, session, updated_at);
+      dataset.related_datasets.push(related_dataset_uuid)
+    }
+  } 
+
+  let response = await Dataset.updateOne(
+    {"uuid": dataset.uuid, 'publish_date': {'$exists': false}}, 
+    {$set: dataset}, 
+    {'upsert': true, session}
+  );
+  if (response.upsertedCount != 1 && response.matchedCount != 1) {
+    throw new Error(`Template.importTemplate: Upserted: ${response.upsertedCount}. Matched: ${response.matchedCount}`);
+  } 
+  return dataset.uuid;
+}
+
 // Wraps the actual request to create with a transaction
-exports.create = async function(dataset, user) {
+exports.create = async function(dataset, user, session) {
   let inserted_uuid;
-  [_, inserted_uuid] = await SharedFunctions.executeWithTransaction(validateAndCreateOrUpdate, dataset, user);
+  if(session) {
+    [_, inserted_uuid] = await validateAndCreateOrUpdate(session, dataset, user);
+  } else {
+    [_, inserted_uuid] = await SharedFunctions.executeWithTransaction(validateAndCreateOrUpdate, dataset, user);
+  }
   return inserted_uuid;
 }
 
@@ -1004,8 +1051,8 @@ exports.duplicate = async function(uuid, user) {
   return new_dataset;
 }
 
-exports.newDatasetForTemplate = async function(template_uuid, user) {
-  let template = await TemplateModel.latestPublished(template_uuid, user);
+exports.newDatasetForTemplate = async function(template_uuid, user, session) {
+  let template = await TemplateModel.latestPublished(template_uuid, user, session);
   if(!template) {
     throw new Util.NotFoundError(`No published template exists with uuid ${template_uuid}`);
   }
@@ -1014,3 +1061,7 @@ exports.newDatasetForTemplate = async function(template_uuid, user) {
 
 exports.importDatasetFromCombinedRecursor = importDatasetFromCombinedRecursor;
 exports.publishWithoutChecks = publishRecurser;
+
+exports.importDatasetForTemplate = async (template, user, session) => {
+  return await importDatasetForTemplate(template, user, session, new Date());
+};
