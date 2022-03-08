@@ -1962,9 +1962,7 @@ describe("duplicate", () => {
       dataset.related_datasets[1].related_datasets[0].uuid = dataset.related_datasets[0].uuid;
       dataset = await Helper.datasetUpdatePublishTest(dataset, Helper.DEF_CURR_USER);
 
-      response = await Helper.datasetDuplicate(dataset.uuid, Helper.DEF_CURR_USER);
-      expect(response.statusCode).toBe(200);
-      let new_dataset = response.body;
+      let new_dataset = await Helper.testAndExtract(Helper.datasetDuplicate, dataset.uuid, Helper.DEF_CURR_USER);
 
       // Expect duplicate to keep all of the templates of the original
       expect(new_dataset.template_id).toEqual(dataset.template_id);

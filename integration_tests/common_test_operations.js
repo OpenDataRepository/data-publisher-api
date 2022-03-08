@@ -382,27 +382,6 @@ module.exports = class Helper {
       .set('Accept', 'application/json');
   }
 
-  // TODO: remove this function and other such functions. All comparison should
-  // be done with comparison functions and not with object.equal
-  templateCleanseMetadata = (template) => {
-    if(!template) {
-      return;
-    }  
-    delete template.updated_at;
-    delete template._id;
-    delete template.publish_date;
-    if(template.fields) {
-      for(let field of template.fields) {
-        delete field.updated_at;
-      }
-    }
-    if(template.related_templates) {
-      for(template of template.related_templates) {
-        this.templateCleanseMetadata(template);
-      }
-    }
-  }
-
   templateSortFieldsAndRelatedTemplates = (template) => {
     if(!template) {
       return;
@@ -556,36 +535,18 @@ module.exports = class Helper {
     return dataset_published;
   };
 
-  datasetCleanseMetadata = (dataset) => {
-    if(!dataset) {
-      return;
-    }  
-    delete dataset.updated_at;
-    delete dataset._id;
-    delete dataset.publish_date;
-    delete dataset.template_id;
-    if(dataset.related_datasets) {
-      for(dataset of dataset.related_datasets) {
-        this.datasetCleanseMetadata(dataset);
-      }
-    }
-  }
-
   datasetUpdateAndTest = async (dataset, curr_user) => {
     let response = await this.datasetUpdate(dataset.uuid, dataset, curr_user);
     expect(response.statusCode).toBe(200);
     
-    response = await this.datasetDraftGet(dataset.uuid, curr_user);
-    expect(response.statusCode).toBe(200);
-    let updated_dataset = response.body;
-    this.datasetCleanseMetadata(dataset);
-    expect(updated_dataset).toMatchObject(dataset);
+    let updated_dataset = await this.testAndExtract(this.datasetDraftGet, dataset.uuid, curr_user);
+    this.testDatasetDraftsEqual(dataset, updated_dataset);
   };
 
   datasetUpdatePublishTest = async (dataset, curr_user) => {
     await this.datasetUpdateAndTest(dataset, curr_user);
     let published_dataset = await this.datasetPublishAndFetch(dataset.uuid, curr_user)
-    expect(published_dataset).toMatchObject(dataset);
+    this.testDatasetDraftsEqual(dataset, published_dataset);
     return published_dataset;
   };
 
@@ -625,21 +586,6 @@ module.exports = class Helper {
 
 
   // record
-
-  recordCleanseMetadata = (record) => {
-    if(!record) {
-      return;
-    }  
-    delete record.updated_at;
-    delete record._id;
-    delete record.publish_date;
-    delete record.dataset_id;
-    if(record.related_records) {
-      for(record of record.related_records) {
-        this.recordCleanseMetadata(record);
-      }
-    }
-  }
   
   recordCreate = async (record, curr_user) => {
     return await request(this.app)
@@ -725,13 +671,9 @@ module.exports = class Helper {
   recordUpdateAndTest = async (record, curr_user) => {
     let response = await this.recordUpdate(record, record.uuid, curr_user);
     expect(response.statusCode).toBe(200);
-    delete record.updated_at;
     
-    response = await this.recordDraftGet(record.uuid, curr_user);
-    expect(response.statusCode).toBe(200);
-    let updated_record = response.body;
-    this.recordCleanseMetadata(record);
-    expect(updated_record).toMatchObject(record);
+    let updated_record = await this.testAndExtract(this.recordDraftGet, record.uuid, curr_user);
+    this.testRecordsEqual(record, updated_record);
   };
   
   recordDelete = async (uuid, curr_user) => {
@@ -762,12 +704,9 @@ module.exports = class Helper {
     let last_update = await this.recordLastUpdateAndTest(uuid, curr_user);
     let response = await this.recordPublish(uuid, last_update, curr_user);
     expect(response.statusCode).toBe(200);
-    response = await this.recordLatestPublishedGet(uuid, curr_user);
-    expect(response.statusCode).toBe(200);
-    let published = response.body;
+    let published = await this.testAndExtract(this.recordLatestPublishedGet, uuid, curr_user);
     expect(published).toHaveProperty("publish_date");
-    this.recordCleanseMetadata(record);
-    expect(published).toMatchObject(record);
+    this.testRecordsEqual(record, published);
     return published;
   }
   
