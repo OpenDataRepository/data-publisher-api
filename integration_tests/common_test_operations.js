@@ -66,6 +66,13 @@ module.exports = class Helper {
     return 0;
   }
 
+  // A wrapper function which calls the api callback with the specified args,
+  // verifies that the status code is 200, and returns the response
+  testAndExtract = async(callback, ...args) => {
+    let response = await callback(...args);
+    expect(response.statusCode).toBe(200);
+    return response.body;
+  }
 
   // template field
 
@@ -84,9 +91,7 @@ module.exports = class Helper {
       .set('Accept', 'application/json');
   };
   templateFieldDraftGetAndTest = async (uuid, current_user) => {
-    let response = await this.templateFieldDraftGet(uuid, current_user);
-    expect(response.statusCode).toBe(200);
-    return response.body;
+    return await this.testAndExtract(this.templateFieldDraftGet, uuid, current_user);
   };
 
   templateFieldUpdate = async (uuid, field, current_user) => {
@@ -144,10 +149,9 @@ module.exports = class Helper {
     expect(response.statusCode).toBe(200);
     expect(response.body.inserted_uuid).toBeTruthy();
   
-    response = await this.templateFieldDraftGet(response.body.inserted_uuid, current_user);
-    expect(response.statusCode).toBe(200);
-    expect(response.body).toMatchObject(field);
-    return response.body.uuid;
+    let new_field = await this.testAndExtract(this.templateFieldDraftGet, response.body.inserted_uuid, current_user);
+    expect(new_field).toMatchObject(field);
+    return new_field.uuid;
   };
 
   templateFieldLastUpdate = async (uuid, current_user) => {
@@ -157,9 +161,7 @@ module.exports = class Helper {
   };
 
   templateFieldLastUpdateAndTest = async (uuid, current_user) => {
-    let response = await this.templateFieldLastUpdate(uuid, current_user);
-    expect(response.statusCode).toBe(200);
-    return response.body;
+    return await this.testAndExtract(this.templateFieldLastUpdate, uuid, current_user);
   };
 
   templateFieldPublish = async (uuid, last_update, current_user) => {
@@ -171,8 +173,7 @@ module.exports = class Helper {
   };
   
   templateFieldPublishAndTest = async (uuid, last_update, current_user) => {
-    let response = await this.templateFieldPublish(uuid, last_update, current_user);
-    expect(response.statusCode).toBe(200);
+    await this.testAndExtract(this.templateFieldPublish, uuid, last_update, current_user);
   };
 
   templateFieldLatestPublished = async (uuid, current_user) => {
@@ -193,9 +194,7 @@ module.exports = class Helper {
   };
   
   templateFieldDraftExistingAndTest = async (uuid) => {
-    let response = await this.templateFieldDraftExisting(uuid);
-    expect(response.statusCode).toBe(200);
-    return response.body;
+    return await this.testAndExtract(this.templateFieldDraftExisting, uuid);
   };
 
   templateFieldPublishAfterCreateOrUpdateThenTest = async (field, current_user) => {
@@ -205,9 +204,7 @@ module.exports = class Helper {
     await this.templateFieldPublishAndTest(uuid, last_update, current_user);
   
     // Check that a published version now exists
-    let response = await this.templateFieldLatestPublished(uuid, current_user);
-    expect(response.statusCode).toBe(200);
-    let published = response.body;
+    let published = await this.testAndExtract(this.templateFieldLatestPublished, uuid, current_user);
     this.testTemplateFieldsEqual(field, published);
     expect(published).toHaveProperty("publish_date");
 
@@ -239,8 +236,7 @@ module.exports = class Helper {
       .set('Cookie', [`user=${current_user}`]);
   };
   templateFieldDraftDeleteAndTest = async (uuid, current_user) => {
-    let response = await this.templateFieldDraftDelete(uuid, current_user);
-    expect(response.statusCode).toBe(200);
+    await this.testAndExtract(this.templateFieldDraftDelete, uuid, current_user);
   };
 
   // template
@@ -260,9 +256,7 @@ module.exports = class Helper {
       .set('Accept', 'application/json');
   };
   templateDraftGetAndTest = async (uuid, current_user) => {
-    let response = await this.templateDraftGet(uuid, current_user);
-    expect(response.statusCode).toBe(200);
-    return response.body;
+    return await this.testAndExtract(this.templateDraftGet, uuid, current_user);
   };
 
   testTemplateDraftsEqual = (original, created) => {
@@ -310,10 +304,9 @@ module.exports = class Helper {
     let uuid = response.body.inserted_uuid;
     expect(uuid).toBeTruthy();
   
-    response = await this.templateDraftGet(uuid, current_user)
-    expect(response.statusCode).toBe(200);
-    this.testTemplateDraftsEqual(template, response.body);
-    return response.body;
+    let new_draft = await this.testAndExtract(this.templateDraftGet, uuid, current_user)
+    this.testTemplateDraftsEqual(template, new_draft);
+    return new_draft;
   };
 
   templateLastUpdate = async(uuid, curr_user) => {
@@ -322,8 +315,7 @@ module.exports = class Helper {
       .set('Cookie', [`user=${curr_user}`]);
   }
   templateLastUpdateAndTest = async(uuid, curr_user) => {
-    let response = await this.templateLastUpdate(uuid, curr_user);
-    return response.body;
+    return await this.testAndExtract(this.templateLastUpdate, uuid, curr_user);
   }
 
   templatePublish = async (uuid, last_update, curr_user) => {
@@ -341,9 +333,7 @@ module.exports = class Helper {
       .set('Accept', 'application/json');
   }
   templateLatestPublishedAndTest = async(uuid, curr_user) => {
-    let response = await this.templateLatestPublished(uuid, curr_user);
-    expect(response.statusCode).toBe(200);
-    return response.body;
+    return await this.testAndExtract(this.templateLatestPublished, uuid, curr_user);
   }
   templateLatestPublishedBeforeDate = async (uuid, timestamp, curr_user) => {
     return await request(this.app)
@@ -357,9 +347,7 @@ module.exports = class Helper {
   };
   
   templateDraftExistingAndTest = async (uuid) => {
-    let response = await this.templateDraftExisting(uuid);
-    expect(response.statusCode).toBe(200);
-    return response.body;
+    return await this.testAndExtract(this.templateDraftExisting, uuid);
   };
 
   templatePublishAndFetch = async (uuid, curr_user) => {
@@ -451,8 +439,7 @@ module.exports = class Helper {
       .set('Cookie', [`user=${curr_user}`]);
   }
   templateDeleteAndTest = async (uuid, current_user) => {
-    let response = await this.templateDelete(uuid, current_user);
-    expect(response.statusCode).toBe(200);
+    await this.testAndExtract(this.templateDelete, uuid, current_user);
   };
 
   templateDuplicate = async (uuid, curr_user) => {
@@ -478,9 +465,7 @@ module.exports = class Helper {
       .set('Accept', 'application/json');
   };
   datasetDraftGetAndTest = async (uuid, curr_user) => {
-    let response = await this.datasetDraftGet(uuid, curr_user);
-    expect(response.statusCode).toBe(200);
-    return response.body;
+    return await this.testAndExtract(this.datasetDraftGet, uuid, curr_user);
   };
 
   testDatasetDraftsEqual = (original, created) => {
@@ -525,11 +510,8 @@ module.exports = class Helper {
       .get(`/dataset/${uuid}/last_update`)
       .set('Cookie', [`user=${curr_user}`]);
   }
-
   datasetLastUpdateAndTest = async(uuid, curr_user) => {
-    let response = await this.datasetLastUpdate(uuid, curr_user);
-    expect(response.statusCode).toBe(200);
-    return response.body;
+    return await this.testAndExtract(this.datasetLastUpdate, uuid, curr_user);
   }
 
   datasetPublish = async (uuid, last_update, curr_user) => {
@@ -546,11 +528,8 @@ module.exports = class Helper {
       .set('Cookie', [`user=${curr_user}`])
       .set('Accept', 'application/json');
   }
-  // TODO: could I commoninze this 'AndTest' part to be a single function?
   datasetLatestPublishedAndTest = async(uuid, curr_user) => {
-    let response = await this.datasetLatestPublished(uuid, curr_user);
-    expect(response.statusCode).toBe(200);
-    return response.body;
+    return await this.testAndExtract(this.datasetLatestPublished, uuid, curr_user);
   }
   datasetLatestPublishedBeforeDate = async (uuid, timestamp, curr_user) => {
     return await request(this.app)
@@ -616,8 +595,7 @@ module.exports = class Helper {
       .set('Cookie', [`user=${curr_user}`]);
   }
   datasetDeleteAndTest = async (uuid, curr_user) => {
-    let response = await this.datasetDelete(uuid, curr_user);
-    expect(response.statusCode).toBe(200);
+    await this.testAndExtract(this.datasetDelete, uuid, curr_user);
   }
 
   datasetDraftExisting = async (uuid) => {
@@ -626,9 +604,7 @@ module.exports = class Helper {
       .set('Accept', 'application/json');
   };
   datasetDraftExistingAndTest = async (uuid) => {
-    let response = await this.datasetDraftExisting(uuid);
-    expect(response.statusCode).toBe(200);
-    return response.body;
+    return await this.testAndExtract(this.datasetDraftExisting, uuid);
   }
 
   datasetDuplicate = async (uuid, curr_user) => {
@@ -644,9 +620,7 @@ module.exports = class Helper {
       .set('Accept', 'application/json');
   }
   newDatasetForTemplateAndTest = async (template_uuid, curr_user) => {
-    let response = await this.newDatasetForTemplate(template_uuid, curr_user);
-    expect(response.statusCode).toBe(200);
-    return response.body;
+    return await this.testAndExtract(this.newDatasetForTemplate, template_uuid, curr_user);
   }
 
 
@@ -681,9 +655,7 @@ module.exports = class Helper {
       .set('Accept', 'application/json');
   };
   recordDraftGetAndTest = async (uuid, curr_user) => {
-    let response = await this.recordDraftGet(uuid, curr_user);
-    expect(response.statusCode).toBe(200);
-    return response.body;
+    return await this.testAndExtract(this.recordDraftGet, uuid, curr_user);
   };
   
   testRecordFieldsEqual = (before, after) => {
@@ -768,8 +740,7 @@ module.exports = class Helper {
       .set('Cookie', [`user=${curr_user}`]);
   };
   recordDeleteAndTest = async (uuid, curr_user) => {
-    let response = await this.recordDelete(uuid, curr_user);
-    expect(response.statusCode).toBe(200);
+    await this.testAndExtract(this.recordDelete, uuid, curr_user);
   };
   
   recordPublish = async (uuid, last_update, curr_user) => {
