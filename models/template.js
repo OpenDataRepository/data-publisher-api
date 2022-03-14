@@ -1175,6 +1175,10 @@ async function importTemplate(session, template, user, updated_at) {
         }
       }
       // After validating and updating the related_template, replace the imbedded related_template with a uuid reference
+      // if(related_template.subscribed) {
+      //   // TODO: push the _id and not the uuid
+      //   new_template.subscribed_templates.push(related_template_uuid);
+      // }
       new_template.related_templates.push(related_template_uuid);
     }
   }

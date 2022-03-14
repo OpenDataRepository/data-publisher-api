@@ -850,6 +850,14 @@ describe("template and dataset", () => {
     await importTemplateDatasetTest(old_template, Helper.DEF_CURR_USER);
   });
 
+  test("import rruff template", async () => {
+    let rawdata = fs.readFileSync(__dirname + '/test_data/rruff_sample_template.json');
+    let old_template = JSON.parse(rawdata);
+  
+    // TODO: handle subscribed templates
+    await importTemplateDatasetTest(old_template, Helper.DEF_CURR_USER);
+  });
+
 });
 
 describe("records", () => {
@@ -1127,6 +1135,19 @@ describe("records", () => {
 
     await importRecordsTest(old_records, Helper.DEF_CURR_USER);
   });
+
+  // test("with rruff data", async () => {
+
+  //   let raw_template = fs.readFileSync(__dirname + '/test_data/rruff_sample_template.json');
+  //   let old_template = JSON.parse(raw_template);
+  
+  //   await importTemplateDatasetPublishTest(old_template, Helper.DEF_CURR_USER);
+
+  //   let raw_records = fs.readFileSync(__dirname + '/test_data/rruff_samples.json');
+  //   let old_records = JSON.parse(raw_records).records;
+
+  //   await importRecordsTest(old_records, Helper.DEF_CURR_USER);
+  // });
 
   describe("failure", () => {
 
