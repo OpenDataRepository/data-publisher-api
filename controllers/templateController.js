@@ -14,9 +14,9 @@ exports.draft_get = async function(req, res, next) {
   }
 }
 
-exports.get_latest_published = async function(req, res, next) {
+exports.get_latest_persisted = async function(req, res, next) {
   try {
-    let template = await TemplateModel.latestPublished(req.params.uuid, req.cookies.user);
+    let template = await TemplateModel.latestPersisted(req.params.uuid, req.cookies.user);
     if(template) {
       res.json(template);
     } else {
@@ -27,9 +27,9 @@ exports.get_latest_published = async function(req, res, next) {
   }
 }
 
-exports.get_published_before_timestamp = async function(req, res, next) {
+exports.get_persisted_before_timestamp = async function(req, res, next) {
   try {
-    let template = await TemplateModel.publishedBeforeDate(req.params.uuid, new Date(req.params.timestamp), req.cookies.user);
+    let template = await TemplateModel.persistedBeforeDate(req.params.uuid, new Date(req.params.timestamp), req.cookies.user);
     if(template) {
       res.json(template);
     } else {
@@ -63,10 +63,10 @@ exports.update = async function(req, res, next) {
   }
 }
 
-exports.publish = async function(req, res, next) {
+exports.persist = async function(req, res, next) {
   try {
     if(Date.parse(req.body.last_update)) {
-      await TemplateModel.publish(req.params.uuid, req.cookies.user, new Date(req.body.last_update));
+      await TemplateModel.persist(req.params.uuid, req.cookies.user, new Date(req.body.last_update));
     } else {
       throw new Util.InputError(`last_update provided as parameter is not in valid date format: ${req.body.last_update}`);
     }

@@ -26,7 +26,7 @@ describe("create (and get draft)", () => {
       let template = {
         "name":"t1"
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
         template_id: template._id
@@ -44,7 +44,7 @@ describe("create (and get draft)", () => {
           name: "t2"
         }]
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
 
       let dataset = {
@@ -88,7 +88,7 @@ describe("create (and get draft)", () => {
           }
         ]
       };
-      template = await Helper.templateCreatePublishTest(template);
+      template = await Helper.templateCreatePersistTest(template);
 
       let dataset = { 
         template_id: template._id,
@@ -131,7 +131,7 @@ describe("create (and get draft)", () => {
           name: "t2"
         }]
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let related_dataset = {
         template_id: template.related_templates[0]._id
@@ -159,7 +159,7 @@ describe("create (and get draft)", () => {
           name: "t1.2"
         }]
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let related_dataset_1 = {
         template_id: template.related_templates[0]._id
@@ -168,16 +168,16 @@ describe("create (and get draft)", () => {
         template_id: template.related_templates[1]._id
       };
 
-      let related_dataset_1_published = await Helper.datasetCreatePublishTest(related_dataset_1, Helper.DEF_CURR_USER);
-      let related_dataset_2_published = await Helper.datasetCreatePublishTest(related_dataset_2, Helper.DEF_CURR_USER);
+      let related_dataset_1_persisted = await Helper.datasetCreatePersistTest(related_dataset_1, Helper.DEF_CURR_USER);
+      let related_dataset_2_persisted = await Helper.datasetCreatePersistTest(related_dataset_2, Helper.DEF_CURR_USER);
 
-      related_dataset_1.uuid = related_dataset_1_published.uuid;
-      related_dataset_2.uuid = related_dataset_2_published.uuid;
+      related_dataset_1.uuid = related_dataset_1_persisted.uuid;
+      related_dataset_2.uuid = related_dataset_2_persisted.uuid;
 
       let view_users = [Helper.DEF_CURR_USER, Helper.USER_2];
       let response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, template.related_templates[0].uuid, PERMISSION_VIEW, view_users);
       expect(response.statusCode).toBe(200);
-      response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, related_dataset_1_published.uuid, PERMISSION_VIEW, view_users);
+      response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, related_dataset_1_persisted.uuid, PERMISSION_VIEW, view_users);
       expect(response.statusCode).toBe(200);
 
       response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, template.uuid, PERMISSION_VIEW, view_users);
@@ -185,7 +185,7 @@ describe("create (and get draft)", () => {
 
       let dataset = {
         template_id: template._id,
-        related_datasets: [related_dataset_1, {uuid: related_dataset_2_published.uuid}]
+        related_datasets: [related_dataset_1, {uuid: related_dataset_2_persisted.uuid}]
       };
 
       await Helper.datasetCreateAndTest(dataset, Helper.USER_2);
@@ -211,7 +211,7 @@ describe("create (and get draft)", () => {
           }
         ]
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let dataset12 = {
         template_id: template.related_templates[1]._id,
@@ -253,7 +253,7 @@ describe("create (and get draft)", () => {
         ]
       };
 
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       // uuid list using the templates in the wrong order
       dataset = {
@@ -279,7 +279,7 @@ describe("create (and get draft)", () => {
           name: "t2"
         }]
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
 
       let dataset = {
@@ -308,7 +308,7 @@ describe("create (and get draft)", () => {
       expect(response.statusCode).toBe(400);
     });
 
-    test("Template _id must exist, be published, and the user has view access to it", async () => {
+    test("Template _id must exist, be persisted, and the user has view access to it", async () => {
 
       // template uuid isn't even a uuid
       let dataset = {
@@ -324,7 +324,7 @@ describe("create (and get draft)", () => {
       response = await Helper.datasetCreate(dataset, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
 
-      // template exists with this _id but has not been published
+      // template exists with this _id but has not been persisted
       let template = {
         name: "t1"
       };
@@ -340,7 +340,7 @@ describe("create (and get draft)", () => {
       template = {
         name: "t1"
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
       dataset = {
         template_id: template._id
       };
@@ -356,7 +356,7 @@ describe("create (and get draft)", () => {
         public_date: (new Date()).toISOString(),
       };
 
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
         public_date: (new Date()).toISOString(),
@@ -393,7 +393,7 @@ describe("create (and get draft)", () => {
         ]
       };
 
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       // all related templates match validly
       let dataset = {
@@ -462,7 +462,7 @@ describe("create (and get draft)", () => {
           }
         ]
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let dataset = { 
         template_id: template._id,
@@ -503,7 +503,7 @@ describe("create (and get draft)", () => {
         name:"t1"
       };
 
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
         public_date: (new Date()).toISOString(),
@@ -523,7 +523,7 @@ describe("create (and get draft)", () => {
           name: "t2"
         }]
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
         template_id: template._id,
@@ -542,12 +542,12 @@ describe("create (and get draft)", () => {
           name: "t2"
         }]
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let other_template = {
         name: "other"
       }
-      other_template = await Helper.templateCreatePublishTest(other_template, Helper.DEF_CURR_USER);
+      other_template = await Helper.templateCreatePersistTest(other_template, Helper.DEF_CURR_USER);
 
 
       let dataset = {
@@ -570,7 +570,7 @@ describe("create (and get draft)", () => {
           name: "naruto"
         }],
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let related_dataset = {
         template_id: template.related_templates[0]._id
@@ -593,12 +593,12 @@ describe("create (and get draft)", () => {
           name: "naruto"
         }],
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let other_template = {
         name: "sasuke"
       };
-      other_template = await Helper.templateCreatePublishTest(other_template, Helper.DEF_CURR_USER);
+      other_template = await Helper.templateCreatePersistTest(other_template, Helper.DEF_CURR_USER);
 
       let dataset = { 
         template_id: template._id,
@@ -626,7 +626,7 @@ const populateWithDummyTemplateAndDataset = async () => {
       }
     ]
   };
-  template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+  template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
   let dataset = {
     template_id: template._id,
@@ -655,7 +655,7 @@ describe("update (and get draft)", () => {
 
     test("Change template used by the dataset", async () => {
       let new_template = { name: "t2"};
-      new_template = await Helper.templateCreatePublishTest(new_template, Helper.DEF_CURR_USER);
+      new_template = await Helper.templateCreatePersistTest(new_template, Helper.DEF_CURR_USER);
 
       dataset = {
         uuid: dataset.uuid,
@@ -689,12 +689,12 @@ describe("update (and get draft)", () => {
 
   });
 
-  describe("update after a publish: is draft different and thus created or not?", () => {
+  describe("update after a persist: is draft different and thus created or not?", () => {
 
-    test("update includes no change since last published", async () => {
+    test("update includes no change since last persisted", async () => {
       [template, dataset] = await populateWithDummyTemplateAndDataset();
 
-      dataset = await Helper.datasetPublishAndFetch(dataset.uuid, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetPersistAndFetch(dataset.uuid, Helper.DEF_CURR_USER);
       let response = await Helper.datasetUpdate(dataset.uuid, dataset, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
       expect(await Helper.datasetDraftExistingAndTest(dataset.uuid)).toBeFalsy();
@@ -706,19 +706,19 @@ describe("update (and get draft)", () => {
         name: "naruto",
         public_date: (new Date()).toISOString()
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
   
       let dataset = {
         template_id: template._id
       };
-      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
       expect(await Helper.datasetDraftExistingAndTest(dataset.uuid)).toBe(false);
   
       let template_2 = {
         name: "sasuke",
         public_date: (new Date()).toISOString()
       };
-      template_2 = await Helper.templateCreatePublishTest(template_2, Helper.DEF_CURR_USER);
+      template_2 = await Helper.templateCreatePersistTest(template_2, Helper.DEF_CURR_USER);
       dataset.template_id = template_2._id;
       await Helper.datasetUpdateAndTest(dataset, Helper.DEF_CURR_USER);
       expect(await Helper.datasetDraftExistingAndTest(dataset.uuid)).toBe(true);
@@ -733,12 +733,12 @@ describe("update (and get draft)", () => {
     test("new related_dataset", async () => {
       [template, dataset] = await populateWithDummyTemplateAndDataset();
 
-      dataset = await Helper.datasetPublishAndFetch(dataset.uuid, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetPersistAndFetch(dataset.uuid, Helper.DEF_CURR_USER);
 
       let new_related_dataset = dataset.related_datasets[0];
       delete new_related_dataset.uuid;
       delete new_related_dataset.group_uuid;
-      new_related_dataset =  await Helper.datasetCreatePublishTest(new_related_dataset, Helper.DEF_CURR_USER);
+      new_related_dataset =  await Helper.datasetCreatePersistTest(new_related_dataset, Helper.DEF_CURR_USER);
 
       dataset.related_datasets = [new_related_dataset];
 
@@ -746,29 +746,29 @@ describe("update (and get draft)", () => {
       expect(await Helper.datasetDraftExistingAndTest(dataset.uuid)).toBeTruthy();
     });
 
-    test("a new version of the linked template has been published", async () => {
+    test("a new version of the linked template has been persisted", async () => {
       [template, dataset] = await populateWithDummyTemplateAndDataset();
 
-      // Modify the related template and publish it 
+      // Modify the related template and persist it 
       // Nothing should change, since datasets point to template _ids
 
-      dataset = await Helper.datasetPublishAndFetch(dataset.uuid, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetPersistAndFetch(dataset.uuid, Helper.DEF_CURR_USER);
       template.description = "des";
-      template = await Helper.templateUpdatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateUpdatePersistTest(template, Helper.DEF_CURR_USER);
       await Helper.datasetUpdateAndTest(dataset, Helper.DEF_CURR_USER);
       expect(await Helper.datasetDraftExistingAndTest(dataset.uuid)).toBeFalsy();
       expect(await Helper.datasetDraftExistingAndTest(dataset.related_datasets[0].uuid)).toBeFalsy();
     });
 
-    test("a new version of a related_dataset has been published", async () => {
+    test("a new version of a related_dataset has been persisted", async () => {
       [template, dataset] = await populateWithDummyTemplateAndDataset();
 
-      dataset = await Helper.datasetPublishAndFetch(dataset.uuid, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetPersistAndFetch(dataset.uuid, Helper.DEF_CURR_USER);
 
       let related_dataset = dataset.related_datasets[0];
       related_dataset.public_date = (new Date()).toISOString();
       await Helper.datasetUpdateAndTest(related_dataset, Helper.DEF_CURR_USER);
-      await Helper.datasetPublishAndFetch(related_dataset.uuid, Helper.DEF_CURR_USER);
+      await Helper.datasetPersistAndFetch(related_dataset.uuid, Helper.DEF_CURR_USER);
 
       await Helper.datasetUpdateAndTest(dataset, Helper.DEF_CURR_USER);
       expect(await Helper.datasetDraftExistingAndTest(dataset.uuid)).toBeTruthy();
@@ -776,7 +776,7 @@ describe("update (and get draft)", () => {
     });
 
     test("updating a related_dataset creates drafts of parents but not children", async () => {
-      // Create and publish template
+      // Create and persist template
       let template = {
         "name":"t1",
         "related_templates":[{
@@ -790,7 +790,7 @@ describe("update (and get draft)", () => {
           }]
         }]
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
         template_id: template._id,
@@ -805,8 +805,8 @@ describe("update (and get draft)", () => {
         }]
       };
 
-      // Publish the first time
-      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      // Persist the first time
+      dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
       //  Submit an update on the 3rd layer
       let response = await Helper.datasetDraftGet(dataset.uuid, Helper.DEF_CURR_USER);
@@ -823,16 +823,16 @@ describe("update (and get draft)", () => {
 
     });
 
-    test("if a subscribed template is updated and published but the dataset's subscribed reference doesn't change, dataset doesn't update", async () => {
+    test("if a subscribed template is updated and persisted but the dataset's subscribed reference doesn't change, dataset doesn't update", async () => {
 
       let subscribed_template = {name: "sub"};
-      subscribed_template = await Helper.templateCreatePublishTest(subscribed_template, Helper.DEF_CURR_USER);
+      subscribed_template = await Helper.templateCreatePersistTest(subscribed_template, Helper.DEF_CURR_USER);
 
       let template = {
         name: "t", 
         subscribed_templates: [subscribed_template]
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
         template_id: template._id,
@@ -842,11 +842,11 @@ describe("update (and get draft)", () => {
           }
         ]
       };
-      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
-      // Modify the subscribed template and publish it 
+      // Modify the subscribed template and persist it 
       subscribed_template.description = "changed";
-      subscribed_template = await Helper.templateUpdatePublishTest(subscribed_template, Helper.DEF_CURR_USER);
+      subscribed_template = await Helper.templateUpdatePersistTest(subscribed_template, Helper.DEF_CURR_USER);
 
       // Now there shouldn't be any update to the dataset if we try to update
       await Helper.datasetUpdateAndTest(dataset, Helper.DEF_CURR_USER);
@@ -862,7 +862,7 @@ describe("get draft", () => {
     let template = {
       name: "t"
     }
-    template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+    template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
     let dataset = {
       template_id: template._id
     };
@@ -879,18 +879,18 @@ describe("get draft", () => {
       related_templates: [{name: "t2"}],
       public_date: (new Date()).toISOString()
     };
-    template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);  
+    template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);  
 
     let related_dataset = {
       template_id: template.related_templates[0]._id
     };
-    related_dataset = await Helper.datasetCreatePublishTest(related_dataset, Helper.DEF_CURR_USER);
+    related_dataset = await Helper.datasetCreatePersistTest(related_dataset, Helper.DEF_CURR_USER);
 
     let dataset = {
       template_id: template._id,
       related_datasets: [related_dataset]
     };
-    dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+    dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
     let users = [Helper.DEF_CURR_USER, Helper.USER_2];
 
@@ -902,7 +902,7 @@ describe("get draft", () => {
     response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, dataset.related_datasets[0].uuid, PERMISSION_VIEW, users);
     expect(response.statusCode).toBe(200);
 
-    // Fetch parent dataset, check that related_dataset is fetched as the published version
+    // Fetch parent dataset, check that related_dataset is fetched as the persisted version
     let dataset_draft = await Helper.datasetDraftGetAndTest(dataset.uuid, Helper.USER_2);
     Helper.testDatasetDraftsEqual(dataset, dataset_draft);
 
@@ -915,18 +915,18 @@ describe("get draft", () => {
       related_templates: [{name: "t2"}],
       public_date: (new Date()).toISOString()
     };
-    template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);  
+    template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);  
 
     let related_dataset = {
       template_id: template.related_templates[0]._id
     };
-    related_dataset = await Helper.datasetCreatePublishTest(related_dataset, Helper.DEF_CURR_USER);
+    related_dataset = await Helper.datasetCreatePersistTest(related_dataset, Helper.DEF_CURR_USER);
 
     let dataset = {
       template_id: template._id,
       related_datasets: [related_dataset]
     };
-    dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+    dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
     let users = [Helper.DEF_CURR_USER, Helper.USER_2];
 
@@ -934,28 +934,28 @@ describe("get draft", () => {
     expect(response.statusCode).toBe(200);
 
 
-    // Fetch parent dataset, check that related_dataset is fetched as the published version
+    // Fetch parent dataset, check that related_dataset is fetched as the persisted version
     let dataset_draft = await Helper.datasetDraftGetAndTest(dataset.uuid, Helper.USER_2);
     dataset.related_datasets[0] = {uuid: related_dataset.uuid};
     Helper.testDatasetDraftsEqual(dataset, dataset_draft);
   });
 });
 
-describe("publish (and get published)", () => {
+describe("persist (and get persisted)", () => {
   describe("Success cases", () => {
-    test("Simple publish - no related datasets", async () => {
+    test("Simple persist - no related datasets", async () => {
       let template = { 
         "name": "t1"
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
       let dataset = {
         template_id: template._id
       }
-      await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
       
     });
 
-    test("Complex publish - with a related dataset", async () => {
+    test("Complex persist - with a related dataset", async () => {
 
       let template = {
         name:"t1",
@@ -964,7 +964,7 @@ describe("publish (and get published)", () => {
         }]
       };
 
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let related_dataset = {
         template_id: template.related_templates[0]._id
@@ -973,17 +973,17 @@ describe("publish (and get published)", () => {
         template_id: template._id,
         related_datasets:[related_dataset]
       };
-      let published = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      let persisted = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
-      let related_dataset_uuid = published.related_datasets[0].uuid;
+      let related_dataset_uuid = persisted.related_datasets[0].uuid;
 
-      // Check that the related dataset was also published
-      response = await Helper.datasetLatestPublished(related_dataset_uuid, Helper.DEF_CURR_USER);
+      // Check that the related dataset was also persisted
+      response = await Helper.datasetLatestPersisted(related_dataset_uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
       expect(response.body).toMatchObject(related_dataset);
     });
 
-    test("Complex publish - changes in a nested property result in publishing for all parent properties", async () => {
+    test("Complex persist - changes in a nested property result in persisting for all parent properties", async () => {
 
       let template = {
         "name":"t1",
@@ -998,7 +998,7 @@ describe("publish (and get published)", () => {
           }]
         }]
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
         template_id: template._id,
@@ -1012,7 +1012,7 @@ describe("publish (and get published)", () => {
           }]
         }]
       };
-      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
       // Make a change in the third level of data
       dataset.related_datasets[0].related_datasets[0].public_date = (new Date()).toISOString();
@@ -1021,22 +1021,22 @@ describe("publish (and get published)", () => {
       let response = await Helper.datasetUpdate(dataset.uuid, dataset, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
 
-      // Record the date before we publish a second time
-      let intermediate_publish_date = (new Date()).getTime();
+      // Record the date before we persist a second time
+      let intermediate_persist_date = (new Date()).getTime();
 
-      dataset = await Helper.datasetPublishAndFetch(dataset.uuid, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetPersistAndFetch(dataset.uuid, Helper.DEF_CURR_USER);
 
-      // On the third node and above, the publish date should be newer than the intermediate_publish_date. 
+      // On the third node and above, the persist date should be newer than the intermediate_persist_date. 
       // The fourth should be older
       
-      expect(new Date(dataset.publish_date).getTime()).toBeGreaterThan(intermediate_publish_date);
-      expect(new Date(dataset.related_datasets[0].publish_date).getTime()).toBeGreaterThan(intermediate_publish_date);
-      expect(new Date(dataset.related_datasets[0].related_datasets[0].publish_date).getTime()).toBeGreaterThan(intermediate_publish_date);
-      expect(new Date(dataset.related_datasets[0].related_datasets[0].related_datasets[0].publish_date).getTime()).toBeLessThan(intermediate_publish_date);
+      expect(new Date(dataset.persist_date).getTime()).toBeGreaterThan(intermediate_persist_date);
+      expect(new Date(dataset.related_datasets[0].persist_date).getTime()).toBeGreaterThan(intermediate_persist_date);
+      expect(new Date(dataset.related_datasets[0].related_datasets[0].persist_date).getTime()).toBeGreaterThan(intermediate_persist_date);
+      expect(new Date(dataset.related_datasets[0].related_datasets[0].related_datasets[0].persist_date).getTime()).toBeLessThan(intermediate_persist_date);
 
     });
 
-    test("Complex publish - publish parent who's child changed previously and no other changes are present", async () => {
+    test("Complex persist - persist parent who's child changed previously and no other changes are present", async () => {
 
       let template = {
         "name":"1",
@@ -1046,7 +1046,7 @@ describe("publish (and get published)", () => {
         }]
       };
       // Create initial data
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
         template_id: template._id,
@@ -1055,7 +1055,7 @@ describe("publish (and get published)", () => {
         }]
       };
       // Create initial data
-      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
       let uuid = dataset.uuid;
 
       // Make a change in the second level of data
@@ -1066,12 +1066,12 @@ describe("publish (and get published)", () => {
       let response = await Helper.datasetUpdate(uuid2, dataset.related_datasets[0], Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
 
-      // Record the date before we publish the change to the second dataset
-      let publish_date_2 = (new Date()).getTime();
+      // Record the date before we persist the change to the second dataset
+      let persist_date_2 = (new Date()).getTime();
 
-      await Helper.datasetPublishAndFetch(uuid2, Helper.DEF_CURR_USER);
+      await Helper.datasetPersistAndFetch(uuid2, Helper.DEF_CURR_USER);
       
-      // Now we want to get a draft of the parent and publish that draft as it is. It should be successful since the child changed.
+      // Now we want to get a draft of the parent and persist that draft as it is. It should be successful since the child changed.
       
       response = await Helper.datasetDraftGet(uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
@@ -1081,17 +1081,17 @@ describe("publish (and get published)", () => {
       response = await Helper.datasetUpdate(uuid, dataset, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
 
-      // Record the date before we publish the parent dataset again
-      let publish_date_3 = (new Date()).getTime();
+      // Record the date before we persist the parent dataset again
+      let persist_date_3 = (new Date()).getTime();
 
-      dataset = await Helper.datasetPublishAndFetch(uuid, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetPersistAndFetch(uuid, Helper.DEF_CURR_USER);
 
-      expect(new Date(dataset.publish_date).getTime()).toBeGreaterThan(publish_date_3);
-      expect(new Date(dataset.related_datasets[0].publish_date).getTime()).toBeGreaterThan(publish_date_2);
-      expect(new Date(dataset.related_datasets[0].publish_date).getTime()).toBeLessThan(publish_date_3);
+      expect(new Date(dataset.persist_date).getTime()).toBeGreaterThan(persist_date_3);
+      expect(new Date(dataset.related_datasets[0].persist_date).getTime()).toBeGreaterThan(persist_date_2);
+      expect(new Date(dataset.related_datasets[0].persist_date).getTime()).toBeLessThan(persist_date_3);
     });
 
-    test("Still able to publish parent even if don't have permission to publish child", async () => {
+    test("Still able to persist parent even if don't have permission to persist child", async () => {
       let template = {
         name:"t1",
         public_date: (new Date()).toISOString(),
@@ -1100,7 +1100,7 @@ describe("publish (and get published)", () => {
           public_date: (new Date()).toISOString()
         }]
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
         template_id: template._id,
@@ -1108,7 +1108,7 @@ describe("publish (and get published)", () => {
           template_id: template.related_templates[0]._id
         }]
       };
-      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
       // Update with user 1
       let response = await Helper.datasetDraftGet(dataset.uuid, Helper.DEF_CURR_USER);
@@ -1124,21 +1124,21 @@ describe("publish (and get published)", () => {
       response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, dataset.uuid, PERMISSION_ADMIN, admin_users);
       expect(response.statusCode).toBe(200);
 
-      // Now let user 2 publish the parent dataset
-      await Helper.datasetPublishAndFetch(dataset.uuid, Helper.USER_2);
+      // Now let user 2 persist the parent dataset
+      await Helper.datasetPersistAndFetch(dataset.uuid, Helper.USER_2);
 
-      // Now verify that user 2 published the parent but not the child.
+      // Now verify that user 2 persisted the parent but not the child.
 
-      // Check that the related dataset was not published
-      response = await Helper.datasetLatestPublished(dataset.related_datasets[0].uuid, Helper.DEF_CURR_USER);
+      // Check that the related dataset was not persisted
+      response = await Helper.datasetLatestPersisted(dataset.related_datasets[0].uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
       expect(response.body).toMatchObject(dataset.related_datasets[0]);
 
-      // Check that the parent was published
-      response = await Helper.datasetLatestPublished(dataset.uuid, Helper.DEF_CURR_USER);
+      // Check that the parent was persisted
+      response = await Helper.datasetLatestPersisted(dataset.uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
       expect(response.body).not.toMatchObject(dataset);
-      // Also check that it is still pointing to the original published related_dataset
+      // Also check that it is still pointing to the original persisted related_dataset
       expect(response.body.related_datasets[0]._id).toBe(dataset.related_datasets[0]._id);
 
     });
@@ -1147,19 +1147,19 @@ describe("publish (and get published)", () => {
       let template = { 
         "name": "t1"
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
       
       let dataset = {
         template_id: template._id
       }
-      let dataset_published = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      let dataset_persisted = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
       template.description = "naruto";
-      template = await Helper.templateUpdatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateUpdatePersistTest(template, Helper.DEF_CURR_USER);
 
-      dataset.uuid = dataset_published.uuid;
+      dataset.uuid = dataset_persisted.uuid;
       dataset.template_id = template._id;
-      await Helper.datasetUpdatePublishTest(dataset, Helper.DEF_CURR_USER);
+      await Helper.datasetUpdatePersistTest(dataset, Helper.DEF_CURR_USER);
       
     });
 
@@ -1168,13 +1168,13 @@ describe("publish (and get published)", () => {
       let subscribed_template = {
         name: "t2"
       };
-      subscribed_template = await Helper.templateCreatePublishTest(subscribed_template, Helper.DEF_CURR_USER);
+      subscribed_template = await Helper.templateCreatePersistTest(subscribed_template, Helper.DEF_CURR_USER);
 
       let template = {
         name:"t1",
         subscribed_templates:[subscribed_template]
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
 
       let dataset = {
@@ -1184,7 +1184,7 @@ describe("publish (and get published)", () => {
         }]
       };
 
-      await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
     });
 
@@ -1196,7 +1196,7 @@ describe("publish (and get published)", () => {
       let template = {
         name:"t1"
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
         template_id: template._id
@@ -1207,16 +1207,16 @@ describe("publish (and get published)", () => {
       expect(response.statusCode).toBe(200);
       let last_update = response.body;
 
-      response = await Helper.datasetPublish(Helper.VALID_UUID, last_update, Helper.DEF_CURR_USER);
+      response = await Helper.datasetPersist(Helper.VALID_UUID, last_update, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(404);
 
     });
 
-    test("There must be changes to publish", async () => {
+    test("There must be changes to persist", async () => {
       let template = {
         name:"t1"
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
         template_id: template._id
@@ -1227,10 +1227,10 @@ describe("publish (and get published)", () => {
       expect(response.statusCode).toBe(200);
       let last_update = response.body;
 
-      response = await Helper.datasetPublish(dataset.uuid, last_update, Helper.DEF_CURR_USER);
+      response = await Helper.datasetPersist(dataset.uuid, last_update, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
 
-      response = await Helper.datasetPublish(dataset.uuid, last_update, Helper.DEF_CURR_USER);
+      response = await Helper.datasetPersist(dataset.uuid, last_update, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
     });
 
@@ -1241,7 +1241,7 @@ describe("publish (and get published)", () => {
           name: "t1.1"
         }]
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
         template_id: template._id,
@@ -1260,8 +1260,8 @@ describe("publish (and get published)", () => {
       expect(response.statusCode).toBe(200);
       let last_update = response.body;
 
-      // Expect publish of parent draft to fail because of invalid reference 
-      response = await Helper.datasetPublish(dataset.uuid, last_update, Helper.DEF_CURR_USER);
+      // Expect persist of parent draft to fail because of invalid reference 
+      response = await Helper.datasetPersist(dataset.uuid, last_update, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
 
       // Try updating. This should also fail.
@@ -1274,14 +1274,14 @@ describe("publish (and get published)", () => {
       let template = {
         name: "t1"
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
         template_id: template._id
       };
       dataset = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
 
-      let response =  await Helper.datasetPublish(dataset.uuid, (new Date()).toISOString(), Helper.DEF_CURR_USER);
+      let response =  await Helper.datasetPersist(dataset.uuid, (new Date()).toISOString(), Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
     });
 
@@ -1295,7 +1295,7 @@ describe("publish (and get published)", () => {
           }
         ]
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
         template_id: template._id,
@@ -1313,44 +1313,44 @@ describe("publish (and get published)", () => {
       expect(response.statusCode).toBe(200);
 
       // Should fail to update since we don't have the most recent update
-      response = await Helper.datasetPublish(dataset.uuid, old_update, Helper.DEF_CURR_USER);
+      response = await Helper.datasetPersist(dataset.uuid, old_update, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
 
-      // Should succeed in publishing if we do use the most recent update
+      // Should succeed in persisting if we do use the most recent update
       response = await Helper.datasetDraftGet(related_dataset.uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
       let new_update = response.body.updated_at;
 
-      response = await Helper.datasetPublish(dataset.uuid, new_update, Helper.DEF_CURR_USER);
+      response = await Helper.datasetPersist(dataset.uuid, new_update, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
 
     });
 
-    test("User must have admin permission to publish", async () => {
+    test("User must have admin permission to persist", async () => {
 
       let template = {
         name:"t1"
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
         template_id: template._id
       };
       dataset = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
 
-      // A different user shouldn't be able to publish
+      // A different user shouldn't be able to persist
       let response = await Helper.datasetLastUpdate(dataset.uuid, Helper.DEF_CURR_USER);
       let last_update = response.body;
-      response = await Helper.datasetPublish(dataset.uuid, last_update, Helper.USER_2);
+      response = await Helper.datasetPersist(dataset.uuid, last_update, Helper.USER_2);
       expect(response.statusCode).toBe(401);
 
-      // Even if that user has view permissions, they still shouldn't be able to publish
+      // Even if that user has view permissions, they still shouldn't be able to persist
       response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, template.uuid, PERMISSION_VIEW, [Helper.DEF_CURR_USER, Helper.USER_2]);
       expect(response.statusCode).toBe(200);
       response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, dataset.uuid, PERMISSION_VIEW, [Helper.DEF_CURR_USER, Helper.USER_2]);
       expect(response.statusCode).toBe(200);
 
-      response = await Helper.datasetPublish(dataset.uuid, last_update, Helper.USER_2);
+      response = await Helper.datasetPersist(dataset.uuid, last_update, Helper.USER_2);
       expect(response.statusCode).toBe(401);
     });
 
@@ -1362,7 +1362,7 @@ describe("publish (and get published)", () => {
           {name: "t1.1"}
         ]
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       // create dataset, matching template format
       let dataset = {
@@ -1377,17 +1377,17 @@ describe("publish (and get published)", () => {
 
       // in the meantime, the template format changes
       template.related_templates = [];
-      template = await Helper.templateUpdatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateUpdatePersistTest(template, Helper.DEF_CURR_USER);
 
       let response = await Helper.datasetLastUpdate(dataset.uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
       let last_update = response.body;
 
-      // Now publishing the dataset should fail since it no longer matches the template format
-      await Helper.datasetPublish(dataset.uuid, last_update, Helper.DEF_CURR_USER);
+      // Now persisting the dataset should fail since it no longer matches the template format
+      await Helper.datasetPersist(dataset.uuid, last_update, Helper.DEF_CURR_USER);
     });
 
-    test("If user doesn't have admin access to linked dataset and that dataset doesn't have a published version, then we can't publish", async () => {
+    test("If user doesn't have admin access to linked dataset and that dataset doesn't have a persisted version, then we can't persist", async () => {
       let public_date = (new Date()).toISOString();
       let template = {
         name:"t1",
@@ -1398,7 +1398,7 @@ describe("publish (and get published)", () => {
         }]
       };
 
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let related_dataset = {
         template_id: template.related_templates[0]._id
@@ -1412,20 +1412,20 @@ describe("publish (and get published)", () => {
       dataset = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
 
       let last_update = await Helper.datasetLastUpdateAndTest(dataset.uuid, Helper.DEF_CURR_USER);
-      let response = await Helper.datasetPublish(dataset.uuid, last_update, Helper.DEF_CURR_USER);
+      let response = await Helper.datasetPersist(dataset.uuid, last_update, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
     });
   });
 });
 
-describe("get published", () => {
+describe("get persisted", () => {
   test("if user does not have view access to linked properties, an empty object replaces that property", async () => {
     
     let template = { 
       name: "t1",
       related_templates: [{name: "t1.1"}]
     };
-    template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);  
+    template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);  
     
     let dataset = { 
       template_id: template._id,
@@ -1433,7 +1433,7 @@ describe("get published", () => {
         template_id: template.related_templates[0]._id
       }]
     };
-    dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);  
+    dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);  
     
     let view_users = [Helper.USER_2, Helper.DEF_CURR_USER];
     let response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, template.uuid, PERMISSION_VIEW, view_users);
@@ -1444,7 +1444,7 @@ describe("get published", () => {
     dataset.related_datasets[0] = {uuid: dataset.related_datasets[0].uuid};
     // Fetch parent dataset, check that the related_dataset is fetched as blank 
     // since the second user
-    response = await Helper.datasetLatestPublished(dataset.uuid, Helper.USER_2);
+    response = await Helper.datasetLatestPersisted(dataset.uuid, Helper.USER_2);
     expect(response.statusCode).toBe(200);
     expect(response.body).toMatchObject(dataset);   
   });
@@ -1453,24 +1453,24 @@ describe("get published", () => {
     let template = { 
       name: "t1"
     };
-    template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);  
+    template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);  
 
     let dataset = { 
       template_id: template._id
     };
-    dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);  
+    dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);  
 
-    let response = await Helper.datasetLatestPublished(dataset.uuid, Helper.USER_2);
+    let response = await Helper.datasetLatestPersisted(dataset.uuid, Helper.USER_2);
     expect(response.statusCode).toBe(401);
   });
 });
 
-test("get published for a certain date", async () => {
+test("get persisted for a certain date", async () => {
   let template = {
     name:"t1",
     public_date: (new Date()).toISOString()
   };
-  template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+  template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
   let dataset = {
     template_id: template._id
@@ -1478,15 +1478,15 @@ test("get published for a certain date", async () => {
   dataset = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
   let uuid = dataset.uuid;
 
-  let beforeFirstPublish = new Date();
+  let beforeFirstPersist = new Date();
 
   // Test that if only a draft exists, it is not fetched
-  let response = await Helper.datasetLatestPublishedBeforeDate(uuid, beforeFirstPublish.toISOString(), Helper.DEF_CURR_USER);
+  let response = await Helper.datasetLatestPersistedBeforeDate(uuid, beforeFirstPersist.toISOString(), Helper.DEF_CURR_USER);
   expect(response.statusCode).toBe(404);
 
-  await Helper.datasetPublishAndFetch(uuid, Helper.DEF_CURR_USER);
+  await Helper.datasetPersistAndFetch(uuid, Helper.DEF_CURR_USER);
 
-  let afterFirstPublish = new Date();
+  let afterFirstPersist = new Date();
 
   // dataset.uuid = uuid;
   let public_date_1 = (new Date()).toISOString();
@@ -1495,36 +1495,36 @@ test("get published for a certain date", async () => {
 
   response = await Helper.datasetUpdate(uuid, dataset, Helper.DEF_CURR_USER);
   expect(response.statusCode).toBe(200);
-  await Helper.datasetPublishAndFetch(uuid, Helper.DEF_CURR_USER);
+  await Helper.datasetPersistAndFetch(uuid, Helper.DEF_CURR_USER);
 
-  let afterSecondPublish = new Date();
+  let afterSecondPersist = new Date();
 
   let public_date_2 = (new Date()).toISOString();
   dataset.public_date = public_date_2;
 
   response = await Helper.datasetUpdate(uuid, dataset, Helper.DEF_CURR_USER);
   expect(response.statusCode).toBe(200);
-  await Helper.datasetPublishAndFetch(uuid, Helper.DEF_CURR_USER);
+  await Helper.datasetPersistAndFetch(uuid, Helper.DEF_CURR_USER);
 
-  // Now there should be three published versions. Search for each based on the date
+  // Now there should be three persisted versions. Search for each based on the date
 
-  response = await Helper.datasetLatestPublished(uuid, Helper.DEF_CURR_USER);
+  response = await Helper.datasetLatestPersisted(uuid, Helper.DEF_CURR_USER);
   expect(response.statusCode).toBe(200);
   expect(response.body.public_date).toEqual(public_date_2);
 
-  response = await Helper.datasetLatestPublishedBeforeDate(uuid, (new Date()).toISOString(), Helper.DEF_CURR_USER);
+  response = await Helper.datasetLatestPersistedBeforeDate(uuid, (new Date()).toISOString(), Helper.DEF_CURR_USER);
   expect(response.statusCode).toBe(200);
   expect(response.body.public_date).toEqual(public_date_2);
 
-  response = await Helper.datasetLatestPublishedBeforeDate(uuid, afterSecondPublish.toISOString(), Helper.DEF_CURR_USER);
+  response = await Helper.datasetLatestPersistedBeforeDate(uuid, afterSecondPersist.toISOString(), Helper.DEF_CURR_USER);
   expect(response.statusCode).toBe(200);
   expect(response.body.public_date).toEqual(public_date_1);
 
-  response = await Helper.datasetLatestPublishedBeforeDate(uuid, afterFirstPublish.toISOString(), Helper.DEF_CURR_USER);
+  response = await Helper.datasetLatestPersistedBeforeDate(uuid, afterFirstPersist.toISOString(), Helper.DEF_CURR_USER);
   expect(response.statusCode).toBe(200);
   expect(response.body.public_date).toBe(undefined);
 
-  response = await Helper.datasetLatestPublishedBeforeDate(uuid, beforeFirstPublish.toISOString(), Helper.DEF_CURR_USER);
+  response = await Helper.datasetLatestPersistedBeforeDate(uuid, beforeFirstPersist.toISOString(), Helper.DEF_CURR_USER);
   expect(response.statusCode).toBe(404);
 });
 
@@ -1535,7 +1535,7 @@ describe("lastUpdate", () => {
       let template = {
         "name":"t1"
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let timestamp = new Date();
       let dataset = {
@@ -1548,16 +1548,16 @@ describe("lastUpdate", () => {
       expect((new Date(response.body)).getTime()).toBeGreaterThan(timestamp.getTime());
     });
 
-    test("basic published, with related_datasets. available to anyone with view permissions", async () => {
+    test("basic persisted, with related_datasets. available to anyone with view permissions", async () => {
       let template = {
         name:"t1"
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
       let timestamp = new Date();
       let dataset = {
         template_id: template._id
       };
-      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
       let response = await Helper.datasetLastUpdate(dataset.uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(200);
@@ -1585,7 +1585,7 @@ describe("lastUpdate", () => {
           }]
         }]
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
         template_id: template._id,
@@ -1623,7 +1623,7 @@ describe("lastUpdate", () => {
       
     });
 
-    test("sub dataset updated and published later than parent dataset", async () => {
+    test("sub dataset updated and persisted later than parent dataset", async () => {
 
       let template = {
         "name": "1",
@@ -1632,7 +1632,7 @@ describe("lastUpdate", () => {
           public_date: (new Date()).toISOString()
         }]
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
         template_id: template._id,
@@ -1640,7 +1640,7 @@ describe("lastUpdate", () => {
           template_id: template.related_templates[0]._id
         }]
       };
-      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
       let related_dataset = dataset.related_datasets[0];
       related_dataset.public_date = (new Date()).toISOString();
@@ -1649,7 +1649,7 @@ describe("lastUpdate", () => {
       expect(response.statusCode).toEqual(200);
 
       let time1 = new Date();
-      await Helper.datasetPublishAndFetch(related_dataset.uuid, Helper.DEF_CURR_USER);
+      await Helper.datasetPersistAndFetch(related_dataset.uuid, Helper.DEF_CURR_USER);
       let time2 = new Date();
 
       response = await Helper.datasetLastUpdate(dataset.uuid, Helper.DEF_CURR_USER);
@@ -1669,7 +1669,7 @@ describe("lastUpdate", () => {
           }]
         }]
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
         template_id: template._id,
@@ -1685,8 +1685,8 @@ describe("lastUpdate", () => {
       let dataset2 = dataset.related_datasets[0];
       let dataset3 = dataset2.related_datasets[0];
 
-      // publish
-      await Helper.datasetPublishAndFetch(dataset.uuid, Helper.DEF_CURR_USER);
+      // persist
+      await Helper.datasetPersistAndFetch(dataset.uuid, Helper.DEF_CURR_USER);
 
       // Update grandchild
       dataset3.public_date = (new Date()).toISOString();
@@ -1720,7 +1720,7 @@ describe("lastUpdate", () => {
       let template = {
         "name":"t1"
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
         template_id: template._id
@@ -1731,16 +1731,16 @@ describe("lastUpdate", () => {
       expect(response.statusCode).toBe(401);
     });
 
-    test("must have view permissions to get last update of published", async () => {
+    test("must have view permissions to get last update of persisted", async () => {
       let template = {
         "name":"t1"
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
         template_id: template._id
       };
-      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
       let response = await Helper.datasetLastUpdate(dataset.uuid, Helper.USER_2);
       expect(response.statusCode).toBe(401);
@@ -1749,21 +1749,21 @@ describe("lastUpdate", () => {
 });
 
 describe("delete", () => {
-  test("delete a draft, not a published version", async () => {
+  test("delete a draft, not a persisted version", async () => {
     let template = {
       name: "t1",
       public_date: (new Date()).toISOString()
     };
-    template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+    template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
     let dataset = {
       template_id: template._id
     }
-    dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+    dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
   
     dataset.public_date = (new Date()).toISOString();
   
-    // Change the draft, but don't publish the change
+    // Change the draft, but don't persist the change
     response = await Helper.datasetUpdate(dataset.uuid, dataset, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(200);
   
@@ -1775,13 +1775,13 @@ describe("delete", () => {
     response = await Helper.datasetDelete(dataset.uuid, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(200);
   
-    // Get the draft again. Make sure it matches the latest published version
+    // Get the draft again. Make sure it matches the latest persisted version
     response = await Helper.datasetDraftGet(dataset.uuid, Helper.DEF_CURR_USER);
     expect(response.statusCode).toBe(200);
   
     delete dataset._id;
     delete dataset.template_id;
-    delete dataset.publish_date;
+    delete dataset.persist_date;
     delete dataset.public_date;
     expect(response.body).toMatchObject(dataset);
   
@@ -1796,7 +1796,7 @@ describe("delete", () => {
     let template = {
       name: "t1"
     };
-    template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+    template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
     let dataset = {
       template_id: template._id
@@ -1828,7 +1828,7 @@ describe("duplicate", () => {
           }
         ]
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let dataset12 = {
         template_id: template.related_templates[1]._id,
@@ -1850,9 +1850,9 @@ describe("duplicate", () => {
           dataset12
         ]
       };
-      dataset1 = await Helper.datasetCreatePublishTest(dataset1, Helper.DEF_CURR_USER);
+      dataset1 = await Helper.datasetCreatePersistTest(dataset1, Helper.DEF_CURR_USER);
 
-      // Necessary because fetching the published doesn't guarentee the order of the related_datasets
+      // Necessary because fetching the persisted doesn't guarentee the order of the related_datasets
       let dataset11;
       if(dataset1.related_datasets[0].uuid == dataset12.uuid) {
         dataset12 = dataset1.related_datasets[0];
@@ -1907,19 +1907,19 @@ describe("duplicate", () => {
           }
         ]
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let related_dataset = {
         template_id: template.related_templates[0]._id
       };
-      related_dataset = await Helper.datasetCreatePublishTest(related_dataset, Helper.DEF_CURR_USER);
+      related_dataset = await Helper.datasetCreatePersistTest(related_dataset, Helper.DEF_CURR_USER);
 
       let dataset = {
         template_id: template._id,
         public_date: (new Date()).toISOString(),
         related_datasets: [related_dataset]
       };
-      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
       response = await Helper.datasetDuplicate(dataset.uuid, Helper.USER_2);
       expect(response.statusCode).toBe(200);
@@ -1943,7 +1943,7 @@ describe("duplicate", () => {
       };
       template = await Helper.templateCreateAndTest(template, Helper.DEF_CURR_USER);
       template.related_templates[1].related_templates.push(template.related_templates[0]);
-      template = await Helper.templateUpdatePublishTest(template, Helper.DEF_CURR_USER)
+      template = await Helper.templateUpdatePersistTest(template, Helper.DEF_CURR_USER)
 
       let dataset = {
         template_id: template._id,
@@ -1960,7 +1960,7 @@ describe("duplicate", () => {
       dataset.related_datasets[1].related_datasets.push(dataset.related_datasets[0]);
       dataset = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
       dataset.related_datasets[1].related_datasets[0].uuid = dataset.related_datasets[0].uuid;
-      dataset = await Helper.datasetUpdatePublishTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetUpdatePersistTest(dataset, Helper.DEF_CURR_USER);
 
       let new_dataset = await Helper.testAndExtract(Helper.datasetDuplicate, dataset.uuid, Helper.DEF_CURR_USER);
 
@@ -1979,12 +1979,12 @@ describe("duplicate", () => {
       let template = {
         name:"t1"
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
         template_id: template._id
       };
-      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
       response = await Helper.datasetDuplicate(dataset.uuid, Helper.USER_2);
       expect(response.statusCode).toBe(401);
@@ -2025,7 +2025,7 @@ test("full range of operations with big data", async () => {
       }
     ]
   }
-  template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+  template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
   let dataset = {
     template_id: template._id,
@@ -2059,5 +2059,5 @@ test("full range of operations with big data", async () => {
       }
     ]
   }
-  dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+  dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 });

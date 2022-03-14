@@ -18,23 +18,23 @@ async function collection() {
   return TemplateField;
 }
 
-// Creates a draft from the published version.
-function createDraftFromPublished(published) {
-  let draft = published;
+// Creates a draft from the persisted version.
+function createDraftFromPersisted(persisted) {
+  let draft = persisted;
 
   delete draft._id;
-  draft.updated_at = draft.publish_date;
-  delete draft.publish_date;
+  draft.updated_at = draft.persist_date;
+  delete draft.persist_date;
 
   return draft;
 }
 
-// Fetches the latest published field with the given uuid. 
-async function latestPublishedBeforeDate(uuid, date, session) {
+// Fetches the latest persisted field with the given uuid. 
+async function latestPersistedBeforeDate(uuid, date, session) {
   let cursor = await TemplateField.find(
-    {"uuid": uuid, 'publish_date': {'$lte': date}},
+    {"uuid": uuid, 'persist_date': {'$lte': date}},
     {session}
-  ).sort({'publish_date': -1})
+  ).sort({'persist_date': -1})
   .limit(1);
   if (!(await cursor.hasNext())) {
     return null;
@@ -42,37 +42,37 @@ async function latestPublishedBeforeDate(uuid, date, session) {
   return await cursor.next();
 }
 
-// Fetches the latest published field with the given uuid. 
-async function latestPublished(uuid, session) {
-  return await latestPublishedBeforeDate(uuid, new Date(), session);
+// Fetches the latest persisted field with the given uuid. 
+async function latestPersisted(uuid, session) {
+  return await latestPersistedBeforeDate(uuid, new Date(), session);
 }
 
-async function latestPublishedBeforeDateWithPermissions(uuid, date, user) {
-  let field = await latestPublishedBeforeDate(uuid, date);
+async function latestPersistedBeforeDateWithPermissions(uuid, date, user) {
+  let field = await latestPersistedBeforeDate(uuid, date);
   if(!field) {
     return null;
   }
 
   // Ensure user has permission to view
-  if (!(await SharedFunctions.userHasAccessToPublishedResource(TemplateField, uuid, user, PermissionGroupModel))) {
+  if (!(await SharedFunctions.userHasAccessToPersistedResource(TemplateField, uuid, user, PermissionGroupModel))) {
     throw new Util.PermissionDeniedError(`Do not have permission to view template field with uuid ${uuid}`);
   }
 
   return field;
 }
 
-async function fetchPublishedAndConvertToDraft(uuid, session) {
-  let published_field = await latestPublished(uuid, session);
-  if(!published_field) {
+async function fetchPersistedAndConvertToDraft(uuid, session) {
+  let persisted_field = await latestPersisted(uuid, session);
+  if(!persisted_field) {
     return null;
   }
 
-  return (await createDraftFromPublished(published_field));
+  return (await createDraftFromPersisted(persisted_field));
 }
 
 async function draftDelete(uuid) {
 
-  let response = await TemplateField.deleteMany({ uuid, publish_date: {'$exists': false} });
+  let response = await TemplateField.deleteMany({ uuid, persist_date: {'$exists': false} });
   if (!response.deletedCount) {
     throw new Util.NotFoundError();
   }
@@ -301,7 +301,7 @@ async function initializeNewImportedDraftWithProperties(input_field, uuid, updat
 // If no uuid is included in the field object., create a new field.
 // Also validate input. 
 // Return:
-// 1. A boolean: true if there were changes from the last published.
+// 1. A boolean: true if there were changes from the last persisted.
 // 2. The uuid of the template field created / updated
 async function validateAndCreateOrUpdate(session, input_field, user, updated_at) {
 
@@ -341,8 +341,8 @@ async function validateAndCreateOrUpdate(session, input_field, user, updated_at)
   // Populate field properties
   let new_field = await initializeNewDraftWithProperties(input_field, uuid, updated_at);
 
-  // If this draft is identical to the latest published, delete it.
-  let old_field = await fetchPublishedAndConvertToDraft(uuid);
+  // If this draft is identical to the latest persisted, delete it.
+  let old_field = await fetchPersistedAndConvertToDraft(uuid);
   if (old_field) {
     let changes = !fieldEquals(new_field, old_field);
     if (!changes) {
@@ -362,7 +362,7 @@ async function validateAndCreateOrUpdate(session, input_field, user, updated_at)
   // If a draft of this field doesn't exist: create a new draft
   // Fortunately both cases can be handled with a single MongoDB UpdateOne query using 'upsert: true'
   let response = await TemplateField.updateOne(
-    {uuid, 'publish_date': {'$exists': false}}, 
+    {uuid, 'persist_date': {'$exists': false}}, 
     {$set: new_field}, 
     {'upsert': true, session}
   );
@@ -387,9 +387,9 @@ async function draftFetchOrCreate(session, uuid, user) {
     return template_field_draft;
   }
 
-  // If a draft of this template field does not exist, create a new template_field_draft from the last published
-  template_field_draft = await latestPublished(uuid, session);
-  // If not even a published version of this template field was found, return null
+  // If a draft of this template field does not exist, create a new template_field_draft from the last persisted
+  template_field_draft = await latestPersisted(uuid, session);
+  // If not even a persisted version of this template field was found, return null
   if(!template_field_draft) {
     return null;
   } else {
@@ -399,41 +399,41 @@ async function draftFetchOrCreate(session, uuid, user) {
     }
   }
 
-  // Remove the internal_id and publish_date
+  // Remove the internal_id and persist_date
   delete template_field_draft._id;
-  template_field_draft.updated_at = template_field_draft.publish_date;
-  delete template_field_draft.publish_date;
+  template_field_draft.updated_at = template_field_draft.persist_date;
+  delete template_field_draft.persist_date;
 
   return template_field_draft;
 
 }
 
-// Publishes the field with the provided uuid
+// Persistes the field with the provided uuid
 //   If a draft exists of the field, then:
 //     if a last_update is provided, verify that it matches the last update in the db
-//     if that draft has changes from the latest published:
-//       publish it, and return the new internal_id
+//     if that draft has changes from the latest persisted:
+//       persist it, and return the new internal_id
 //     else: 
-//       return the internal_id of the latest published
+//       return the internal_id of the latest persisted
 //   else:
-//     return the internal_id of the latest_published
+//     return the internal_id of the latest_persisted
 // Input: 
-//   uuid: the uuid of a field to be published
+//   uuid: the uuid of a field to be persisted
 //   session: the mongo session that must be used to make transactions atomic
-//   last_update: the timestamp of the last known update by the user. Cannot publish if the actual last update and that expected by the user differ.
+//   last_update: the timestamp of the last known update by the user. Cannot persist if the actual last update and that expected by the user differ.
 //   user: username of the user performing this operation
 // Returns:
-//   internal_id: the internal id of the published field
-async function publishField(session, uuid, last_update, user) {
+//   internal_id: the internal id of the persisted field
+async function persistField(session, uuid, last_update, user) {
   var return_id;
 
   let field_draft = await SharedFunctions.draft(TemplateField, uuid, session);
-  let last_published = await latestPublished(uuid, session);
+  let last_persisted = await latestPersisted(uuid, session);
 
   // Check if a draft with this uuid exists
   if(!field_draft) {
-    if(last_published) {
-      throw new Util.InputError('No changes to publish');
+    if(last_persisted) {
+      throw new Util.InputError('No changes to persist');
     } else {
       throw new Util.NotFoundError(`Field with uuid ${uuid} does not exist`);
     }
@@ -450,19 +450,19 @@ async function publishField(session, uuid, last_update, user) {
     let db_last_update = new Date(field_draft.updated_at);
     if(last_update.getTime() != db_last_update.getTime()) {
       throw new Util.InputError(`The last update submitted ${last_update.toISOString()} does not match that found in the db ${db_last_update.toISOString()}. 
-      Fetch the draft again to get the latest update before attempting to publish again.`);
+      Fetch the draft again to get the latest update before attempting to persist again.`);
     }
   }
 
-  // If there are changes, publish the current draft
-  let publish_time = new Date();
+  // If there are changes, persist the current draft
+  let persist_time = new Date();
   let response = await TemplateField.updateOne(
     {"_id": field_draft._id},
-    {'$set': {'updated_at': publish_time, 'publish_date': publish_time}},
+    {'$set': {'updated_at': persist_time, 'persist_date': persist_time}},
     {session}
   )
   if (response.modifiedCount != 1) {
-    throw new Error(`TemplateField.publishField: should be 1 updated document. Instead: ${response.modifiedCount}`);
+    throw new Error(`TemplateField.persistField: should be 1 updated document. Instead: ${response.modifiedCount}`);
   }
   return_id = field_draft._id;
   return return_id;
@@ -478,10 +478,10 @@ async function lastupdateFor(uuid, session) {
 
 exports.collection = collection;
 exports.validateAndCreateOrUpdate = validateAndCreateOrUpdate;
-exports.publishField = publishField;
+exports.persistField = persistField;
 exports.draft = draftFetchOrCreate;
 exports.lastupdateFor = lastupdateFor;
-exports.latestPublishedWithoutPermissions = latestPublished;
+exports.latestPersistedWithoutPermissions = latestPersisted;
 
 // Wraps the request to create with a transaction
 exports.create = async function(field, user) {
@@ -501,16 +501,16 @@ exports.update = async function(field, user) {
   await SharedFunctions.executeWithTransaction(validateAndCreateOrUpdate, field, user, new Date());
 }
 
-// Wraps the request to publish with a transaction
-exports.publish = async function(uuid, last_update, user) {
-  await SharedFunctions.executeWithTransaction(publishField, uuid, last_update, user);
+// Wraps the request to persist with a transaction
+exports.persist = async function(uuid, last_update, user) {
+  await SharedFunctions.executeWithTransaction(persistField, uuid, last_update, user);
 }
 
-exports.latestPublished = async function(uuid, user) {
-  return await latestPublishedBeforeDateWithPermissions(uuid, new Date(), user)
+exports.latestPersisted = async function(uuid, user) {
+  return await latestPersistedBeforeDateWithPermissions(uuid, new Date(), user)
 }
 
-exports.latestPublishedBeforeDate = latestPublishedBeforeDateWithPermissions;
+exports.latestPersistedBeforeDate = latestPersistedBeforeDateWithPermissions;
 
 exports.draftDelete = async function(uuid, user) {
 
@@ -524,7 +524,7 @@ exports.draftDelete = async function(uuid, user) {
     throw new Util.PermissionDeniedError();
   }
 
-  let response = await TemplateField.deleteMany({ uuid, publish_date: {'$exists': false} });
+  let response = await TemplateField.deleteMany({ uuid, persist_date: {'$exists': false} });
   if (response.deletedCount > 1) {
     console.error(`template field draftDelete: Template Field with uuid '${uuid}' had more than one draft to delete.`);
   }
@@ -533,29 +533,29 @@ exports.draftDelete = async function(uuid, user) {
 exports.lastUpdate = async function(uuid, user, session) {
 
   let field_draft = await SharedFunctions.draft(TemplateField, uuid, session);
-  let field_published = await latestPublished(uuid, session);
+  let field_persisted = await latestPersisted(uuid, session);
   let edit_permission = await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT, session);
   let view_permission = await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_VIEW, session);
 
-  // Get the lat update for the draft if the user has permission to the draft. Otherwise, the last published.
+  // Get the lat update for the draft if the user has permission to the draft. Otherwise, the last persisted.
   if(!field_draft) {
-    if(!field_published) {
+    if(!field_persisted) {
       throw new Util.NotFoundError(`No template field exists with uuid ${uuid}`);
     }
     if(!view_permission) {
-      throw new Util.PermissionDeniedError(`field ${uuid}: no draft exists and do not have view permissions for published`);
+      throw new Util.PermissionDeniedError(`field ${uuid}: no draft exists and do not have view permissions for persisted`);
     }
-    return field_published.updated_at;
+    return field_persisted.updated_at;
   }
 
   if(!edit_permission) {
-    if(!field_published) {
-      throw new Util.PermissionDeniedError(`field ${uuid}: do not permissions for draft, and no published version exists`);
+    if(!field_persisted) {
+      throw new Util.PermissionDeniedError(`field ${uuid}: do not permissions for draft, and no persisted version exists`);
     }
     if(!view_permission) {
       throw new Util.PermissionDeniedError(`field ${uuid}: do not have view or edit permissions`);
     }
-    return field_published.updated_at;
+    return field_persisted.updated_at;
   }
 
   return field_draft.updated_at;
@@ -570,7 +570,7 @@ exports.duplicate = async function(field, user, session) {
   if(!field) {
     throw new Util.NotFoundError();
   }
-  if(!(await SharedFunctions.userHasAccessToPublishedResource(TemplateField, field.uuid, user, PermissionGroupModel))) {
+  if(!(await SharedFunctions.userHasAccessToPersistedResource(TemplateField, field.uuid, user, PermissionGroupModel))) {
     throw new Util.PermissionDeniedError();
   }
 
@@ -579,7 +579,7 @@ exports.duplicate = async function(field, user, session) {
   field.uuid = uuidv4();
   delete field._id;
   delete field.updated_at;
-  delete field.publish_date;
+  delete field.persist_date;
   delete field.public_date;
   await PermissionGroupModel.initialize_permissions_for(user, field.uuid, session);
 
@@ -618,8 +618,8 @@ exports.importField = async function(field, user, updated_at, session) {
 
   let new_field = await initializeNewImportedDraftWithProperties(field, uuid, updated_at, session);
 
-  // If this draft is identical to the latest published, delete it.
-  let old_field = await fetchPublishedAndConvertToDraft(uuid);
+  // If this draft is identical to the latest persisted, delete it.
+  let old_field = await fetchPersistedAndConvertToDraft(uuid);
   if (old_field) {
     let changes = !fieldEquals(new_field, old_field);
     if (!changes) {
@@ -636,7 +636,7 @@ exports.importField = async function(field, user, updated_at, session) {
   }
 
   let response = await TemplateField.updateOne(
-    {"uuid": new_field.uuid, 'publish_date': {'$exists': false}}, 
+    {"uuid": new_field.uuid, 'persist_date': {'$exists': false}}, 
     {$set: new_field}, 
     {'upsert': true, session}
   );

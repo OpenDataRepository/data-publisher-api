@@ -36,7 +36,7 @@ exports.template_with_dataset = async function(req, res, next) {
     let callback = async (session) => {
       template_uuid = await TemplateModel.importTemplate(import_template, user, session);
       let last_update = await TemplateModel.lastUpdate(template_uuid, user, session);
-      await TemplateModel.publish(template_uuid, user, last_update, session);
+      await TemplateModel.persist(template_uuid, user, last_update, session);
       dataset_uuid = await DatasetModel.importDatasetForTemplate(import_template, user, session);
     };
     await SharedFunctions.executeWithTransaction(callback);

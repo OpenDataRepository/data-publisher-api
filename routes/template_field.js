@@ -9,7 +9,7 @@ router.get('/:uuid/draft', validateUuid, templateFieldController.draft_get);
 
 router.get('/:uuid/draft_existing', validateUuid, templateFieldController.draft_existing);
 
-router.get('/:uuid/latest_published', validateUuid, templateFieldController.get_latest_published);
+router.get('/:uuid/latest_persisted', validateUuid, templateFieldController.get_latest_persisted);
 
 router.get('/:uuid/last_update', validateUuid, templateFieldController.get_last_update);
 
@@ -19,14 +19,14 @@ router.get(
   validateTimestamp,
   // param('timestamp').isDate(),
   // handleErrors,
-  templateFieldController.get_published_before_timestamp
+  templateFieldController.get_persisted_before_timestamp
 );
 
 router.post('/', templateFieldController.create);
 
 router.put('/:uuid', validateUuid, templateFieldController.update);
 
-router.post('/:uuid/publish', validateUuid, templateFieldController.publish);
+router.post('/:uuid/persist', validateUuid, templateFieldController.persist);
 
 router.delete('/:uuid/draft', validateUuid, templateFieldController.draft_delete);
 

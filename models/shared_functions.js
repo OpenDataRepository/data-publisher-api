@@ -6,7 +6,7 @@ const ObjectId = require('mongodb').ObjectId;
 // Does not look up fields or related_templates
 const draft = async (collection, uuid, session) => {
   let cursor = await collection.find(
-    {uuid, 'publish_date': {'$exists': false}}, 
+    {uuid, 'persist_date': {'$exists': false}}, 
     {session}
   );
 
@@ -33,27 +33,27 @@ function convertToMongoId(_id) {
 }
 exports.convertToMongoId = convertToMongoId;
 
-// Fetches the latest published document with the given uuid. 
+// Fetches the latest persisted document with the given uuid. 
 // Does not look up related documents
-const latestPublished = async (collection, uuid, session) => {
+const latestPersisted = async (collection, uuid, session) => {
   let cursor = await collection.find(
-    {"uuid": uuid, 'publish_date': {'$exists': true}}, 
+    {"uuid": uuid, 'persist_date': {'$exists': true}}, 
     {session}
-  ).sort({'publish_date': -1})
+  ).sort({'persist_date': -1})
   .limit(1);
   if (!(await cursor.hasNext())) {
     return null;
   }
   return await cursor.next();
 }
-exports.latestPublished = latestPublished;
+exports.latestPersisted = latestPersisted;
 
 exports.latestDocument = async (collection, uuid, session) => {
   let result = await draft(collection, uuid, session);
   if(result) {
     return result;
   }
-  result = await latestPublished(collection, uuid, session);
+  result = await latestPersisted(collection, uuid, session);
   return result;
 }
 
@@ -80,23 +80,23 @@ exports.uuidFor_id = async (collection, _id, session) => {
   return document.uuid;
 }
 
-exports.latest_published_id_for_uuid = async (collection, uuid) => {
-  let document = await latestPublished(collection, uuid);
+exports.latest_persisted_id_for_uuid = async (collection, uuid) => {
+  let document = await latestPersisted(collection, uuid);
   return document ? document._id : null;
 }
 
 exports.draftDelete = async (collection, uuid) => {
-  let response = await collection.deleteMany({ uuid, publish_date: {'$exists': false} });
+  let response = await collection.deleteMany({ uuid, persist_date: {'$exists': false} });
   if (response.deletedCount > 1) {
     console.error(`draftDelete: Document with uuid '${uuid}' had more than one draft to delete.`);
   }
 }
 
-exports.userHasAccessToPublishedResource = async (collection, uuid, user, PermissionGroupModel, session) => {
-  let latest_published = await latestPublished(collection, uuid, session);
+exports.userHasAccessToPersistedResource = async (collection, uuid, user, PermissionGroupModel, session) => {
+  let latest_persisted = await latestPersisted(collection, uuid, session);
 
   // If public, then automatic yes
-  if (latest_published.public_date && Util.compareTimeStamp((new Date).getTime(), latest_published.public_date)){
+  if (latest_persisted.public_date && Util.compareTimeStamp((new Date).getTime(), latest_persisted.public_date)){
     return true;
   }
 
@@ -104,7 +104,7 @@ exports.userHasAccessToPublishedResource = async (collection, uuid, user, Permis
   return await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_VIEW, session);
 }
 
-exports.publishDateFor_id = async (collection, _id, session) => {
+exports.persistDateFor_id = async (collection, _id, session) => {
   let cursor = await collection.find(
     {"_id": _id}, 
     {session}
@@ -113,12 +113,12 @@ exports.publishDateFor_id = async (collection, _id, session) => {
     return null;
   }
   let document = await cursor.next();
-  return document.publish_date;
+  return document.persist_date;
 }
 
-exports.latest_published_time_for_uuid = async (collection, uuid) => {
-  let document = await latestPublished(collection, uuid);
-  return document ? document.publish_date : null;
+exports.latest_persisted_time_for_uuid = async (collection, uuid) => {
+  let document = await latestPersisted(collection, uuid);
+  return document ? document.persist_date : null;
 }
 
 exports.executeWithTransaction = async (callback, ...args) => {

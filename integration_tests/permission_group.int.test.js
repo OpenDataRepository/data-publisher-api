@@ -133,7 +133,7 @@ describe("update (and get)",  () => {
     let template = {
       name: "t1"
     }
-    template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+    template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
     let view_users = ['a', 'b', Helper.DEF_CURR_USER];
     let response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, template.uuid, PERMISSION_VIEW, view_users);
@@ -152,7 +152,7 @@ describe("update (and get)",  () => {
     let template = {
       name: "t1"
     }
-    template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+    template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
     let users = ['a', 'b', Helper.DEF_CURR_USER];
     let response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, template.uuid, PERMISSION_EDIT, users);
@@ -176,12 +176,12 @@ describe("update (and get)",  () => {
     let template = {
       name: "t1"
     }
-    template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+    template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
     let dataset = {
       template_id: template._id
     }
-    dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+    dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
     let view_users = ['a', Helper.DEF_CURR_USER];
     let response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, dataset.uuid, PERMISSION_VIEW, view_users);

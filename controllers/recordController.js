@@ -44,10 +44,10 @@ exports.draft_delete = async function(req, res, next) {
   res.sendStatus(200);
 }
 
-exports.publish = async function(req, res, next) {
+exports.persist = async function(req, res, next) {
   try {
     if(Date.parse(req.body.last_update)) {
-      await RecordModel.publish(req.params.uuid, new Date(req.body.last_update), req.cookies.user);
+      await RecordModel.persist(req.params.uuid, new Date(req.body.last_update), req.cookies.user);
     } else {
       throw new Util.InputError(`last_update provided as parameter is not in valid date format: ${req.body.last_update}`);
     }
@@ -57,18 +57,18 @@ exports.publish = async function(req, res, next) {
   }
 }
 
-exports.get_latest_published = async function(req, res, next) {
+exports.get_latest_persisted = async function(req, res, next) {
   try {
-    let record = await RecordModel.latestPublished(req.params.uuid, req.cookies.user);
+    let record = await RecordModel.latestPersisted(req.params.uuid, req.cookies.user);
     res.json(record);
   } catch(err) {
     next(err);
   }
 }
 
-exports.get_published_before_timestamp = async function(req, res, next) {
+exports.get_persisted_before_timestamp = async function(req, res, next) {
   try {
-    let record = await RecordModel.publishedBeforeDate(req.params.uuid, new Date(req.params.timestamp), req.cookies.user);
+    let record = await RecordModel.persistedBeforeDate(req.params.uuid, new Date(req.params.timestamp), req.cookies.user);
     res.json(record);
   } catch(err) {
     next(err);

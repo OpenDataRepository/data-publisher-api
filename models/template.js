@@ -26,19 +26,19 @@ exports.init = async function() {
   TemplateField = await TemplateFieldModel.collection();
 }
 
-// Creates a draft from the published version.
-async function createDraftFromPublished(published) {
+// Creates a draft from the persisted version.
+async function createDraftFromPersisted(persisted) {
 
-  // Create a copy of published
-  let draft = Object.assign({}, published);
+  // Create a copy of persisted
+  let draft = Object.assign({}, persisted);
 
   delete draft._id;
-  draft.updated_at = draft.publish_date;
-  delete draft.publish_date;
+  draft.updated_at = draft.persist_date;
+  delete draft.persist_date;
 
   // Replace each of the field _ids with uuids.
   let fields = [];
-  for(_id of published.fields) {
+  for(_id of persisted.fields) {
     let uuid = await SharedFunctions.uuidFor_id(TemplateField, _id);
     if(uuid) {
       fields.push(uuid);
@@ -50,7 +50,7 @@ async function createDraftFromPublished(published) {
 
   // Replace each of the related_template _ids with uuids. 
   let related_templates = [];
-  for(_id of published.related_templates) {
+  for(_id of persisted.related_templates) {
     let uuid = await SharedFunctions.uuidFor_id(Template, _id);
     if(uuid) {
       related_templates.push(uuid);
@@ -64,29 +64,29 @@ async function createDraftFromPublished(published) {
 
 }
 
-async function fetchPublishAndConvertToDraft(uuid, session) {
-  let published_template = await SharedFunctions.latestPublished(Template, uuid, session);
-  if(!published_template) {
+async function fetchPersistAndConvertToDraft(uuid, session) {
+  let persisted_template = await SharedFunctions.latestPersisted(Template, uuid, session);
+  if(!persisted_template) {
     return null;
   }
 
-  return (await createDraftFromPublished(published_template));
+  return (await createDraftFromPersisted(persisted_template));
 }
 
 // Fetches a template draft 
-// If it does not exist, it creates a draft from the latest published.
+// If it does not exist, it creates a draft from the latest persisted.
 // Does not lookup fields or related_templates
-async function fetchDraftOrCreateFromPublished(uuid, session) {
+async function fetchDraftOrCreateFromPersisted(uuid, session) {
   let template_draft = await SharedFunctions.draft(Template, uuid, session);
   if(template_draft) {
     return template_draft;
   }
 
-  let published_template = await SharedFunctions.latestPublished(Template, uuid, session);
-  if(!published_template) {
+  let persisted_template = await SharedFunctions.latestPersisted(Template, uuid, session);
+  if(!persisted_template) {
     return null;
   }
-  template_draft = await createDraftFromPublished(published_template);
+  template_draft = await createDraftFromPersisted(persisted_template);
 
   return template_draft;
 }
@@ -112,32 +112,32 @@ function equals(template_1, template_2) {
            convertObjectIdArrayToStringArray(template_2.subscribed_templates));
 }
 
-// Returns true if the draft has any changes from it's previous published version
-async function draftDifferentFromLastPublished(draft) {
-  // If there is no published version, obviously there are changes
-  let latest_published = await SharedFunctions.latestPublished(Template, draft.uuid);
-  if(!latest_published) {
+// Returns true if the draft has any changes from it's previous persisted version
+async function draftDifferentFromLastPersisted(draft) {
+  // If there is no persisted version, obviously there are changes
+  let latest_persisted = await SharedFunctions.latestPersisted(Template, draft.uuid);
+  if(!latest_persisted) {
     return true;
   }
 
-  // If the properties have changed since the last publishing
-  let latest_publish_as_draft = await createDraftFromPublished(latest_published);
-  if (!equals(draft, latest_publish_as_draft)) {
+  // If the properties have changed since the last persisting
+  let latest_persist_as_draft = await createDraftFromPersisted(latest_persisted);
+  if (!equals(draft, latest_persist_as_draft)) {
     return true;
   }
 
-  // Finally, if any of the dependencies have been published more recently than this template, then there are changes
-  let last_publish_date = latest_published.publish_date;
+  // Finally, if any of the dependencies have been persisted more recently than this template, then there are changes
+  let last_persist_date = latest_persisted.persist_date;
   for(let field of draft.fields) {
-    let field_last_published = (await TemplateFieldModel.latestPublishedWithoutPermissions(field)).publish_date;
-    if (Util.compareTimeStamp(field_last_published, last_publish_date) > 0) {
+    let field_last_persisted = (await TemplateFieldModel.latestPersistedWithoutPermissions(field)).persist_date;
+    if (Util.compareTimeStamp(field_last_persisted, last_persist_date) > 0) {
       return true;
     }
   }
 
   for(let related_template of draft.related_templates) {
-    let related_template_last_published = (await SharedFunctions.latestPublished(Template, related_template)).publish_date;
-    if (Util.compareTimeStamp(related_template_last_published, last_publish_date) > 0) {
+    let related_template_last_persisted = (await SharedFunctions.latestPersisted(Template, related_template)).persist_date;
+    if (Util.compareTimeStamp(related_template_last_persisted, last_persist_date) > 0) {
       return true;
     }
   }
@@ -148,16 +148,16 @@ async function draftDifferentFromLastPublished(draft) {
 async function templateUUIDsThatReference(uuid, templateOrField) {
   // Get the last 3 _ids associated with this uuid. Then use those _ids to find the uuids of the templates referencing this template.
 
-  // First, get the three _ids last published by this uuid
+  // First, get the three _ids last persisted by this uuid
   let pipeline = [
     {
       '$match': { 
         uuid,
-        "publish_date": {"$exists": true}
+        "persist_date": {"$exists": true}
       }
     },
     {
-      '$sort' : { 'publish_date' : -1}
+      '$sort' : { 'persist_date' : -1}
     },
     {
       '$limit' : 3
@@ -216,17 +216,17 @@ async function templateUUIDsThatReference(uuid, templateOrField) {
   return uuids;
 }
 
-async function createDraftFromLastPublished(uuid, user, session) {
+async function createDraftFromLastPersisted(uuid, user, session) {
   let draft = await draftFetchOrCreate(session, uuid, user);
   await validateAndCreateOrUpdate(session, draft, user, new Date());
 }
 
-async function createDraftFromLastPublishedWithSession(uuid, user) {
+async function createDraftFromLastPersistedWithSession(uuid, user) {
   const session = MongoDB.newSession();
   try {
     await session.withTransaction(async () => {
       try {
-        await createDraftFromLastPublished(uuid, user, session);
+        await createDraftFromLastPersisted(uuid, user, session);
       } catch(err) {
         await session.abortTransaction();
         throw err;
@@ -364,7 +364,7 @@ async function extractRelatedTemplatesFromCreateOrUpdate(input_related_templates
       if (err instanceof Util.NotFoundError) {
         throw new Util.InputError(err.message);
       } else if (err instanceof Util.PermissionDeniedError) {
-        // If the user doesn't have edit permissions, assume they want to link the published version of the template, or keep something another editor added
+        // If the user doesn't have edit permissions, assume they want to link the persisted version of the template, or keep something another editor added
         related_template_uuid = related_template.uuid;
       } else {
         throw err;
@@ -396,11 +396,11 @@ async function extractSubscribedTemplateFromCreateOrUpdate(input_subscribed_temp
     throw new Util.InputError(`subscribed template provided with _id ${subscribed_id} does not exist`);
   }
 
-  // Either subscribed_id had to have been on the list before before, or it has to be the latest published version of subscribed_uuid
+  // Either subscribed_id had to have been on the list before before, or it has to be the latest persisted version of subscribed_uuid
   if(!previous_subscribed_template_ids.has(input_subscribed_template._id)) {
-    let latest_published_id = await SharedFunctions.latest_published_id_for_uuid(Template, subscribed_uuid);
-    if(!subscribed_id.equals(latest_published_id)) {
-      throw new Util.InputError(`subscribed_template ${subscribed_id} is required to be the same _id as previously or the latest published version`);
+    let latest_persisted_id = await SharedFunctions.latest_persisted_id_for_uuid(Template, subscribed_uuid);
+    if(!subscribed_id.equals(latest_persisted_id)) {
+      throw new Util.InputError(`subscribed_template ${subscribed_id} is required to be the same _id as previously or the latest persisted version`);
     }
   }
 
@@ -415,8 +415,8 @@ async function extractSubscribedTemplateFromCreateOrUpdate(input_subscribed_temp
 }
 
 // Rules: can only subscribe to the latest version or maintain the version we were subscribing to. 
-// The output will of course just be that version of the published template fetched.
-// How will the input indicate if it wants to update? It will submit the latest published version of that template
+// The output will of course just be that version of the persisted template fetched.
+// How will the input indicate if it wants to update? It will submit the latest persisted version of that template
 async function extractSubscribedTemplatesFromCreateOrUpdate(input_subscribed_templates, parent_uuid) {
   let return_subscribed_templates = [];
   if (input_subscribed_templates === undefined) {
@@ -426,11 +426,11 @@ async function extractSubscribedTemplatesFromCreateOrUpdate(input_subscribed_tem
     throw new Util.InputError('subscribed_templates property must be of type array');
   }
 
-  // build previous_subscribed_ids from last published / last draft
+  // build previous_subscribed_ids from last persisted / last draft
   let previous_subscribed_ids = new Set();
-  let previous_parent_published = await SharedFunctions.latestPublished(Template, parent_uuid);
-  if(previous_parent_published) {
-    for(let _id of previous_parent_published.subscribed_templates) {
+  let previous_parent_persisted = await SharedFunctions.latestPersisted(Template, parent_uuid);
+  if(previous_parent_persisted) {
+    for(let _id of previous_parent_persisted.subscribed_templates) {
       previous_subscribed_ids.add(_id.toString());
     }
   }
@@ -453,10 +453,10 @@ async function extractSubscribedTemplatesFromCreateOrUpdate(input_subscribed_tem
 
 // If a uuid is provided, update the template with the provided uuid.
 // Otherwise, create a new template.
-// If the updated template is the same as the last published, delete the draft instead of updating. 
+// If the updated template is the same as the last persisted, delete the draft instead of updating. 
 // In both cases, validate the given template as well.
 // Return:
-// 1. A boolean indicating true if there were changes from the last published.
+// 1. A boolean indicating true if there were changes from the last persisted.
 // 2. The uuid of the template created / updated
 async function validateAndCreateOrUpdate(session, input_template, user, updated_at) {
 
@@ -470,7 +470,7 @@ async function validateAndCreateOrUpdate(session, input_template, user, updated_
   // Populate template properties
   let new_template = initializeNewDraftWithProperties(input_template, uuid, updated_at);
 
-  // Need to determine if this draft is any different from the published one.
+  // Need to determine if this draft is any different from the persisted one.
   let changes;
 
   [new_template.fields, changes] = await extractFieldsFromCreateOrUpdate(input_template.fields, user, session, updated_at);
@@ -483,11 +483,11 @@ async function validateAndCreateOrUpdate(session, input_template, user, updated_
   changes = changes || more_changes;
   
 
-  // If this draft is identical to the latest published, delete it.
+  // If this draft is identical to the latest persisted, delete it.
   // The reason to do so is so when a change is submitted, we won't create drafts of sub-templates.
   // Only create drafts for the templates that actually have changes
   if (!changes) {
-    changes = await draftDifferentFromLastPublished(new_template);
+    changes = await draftDifferentFromLastPersisted(new_template);
     if (!changes) {
       // Delete the current draft
       try {
@@ -505,7 +505,7 @@ async function validateAndCreateOrUpdate(session, input_template, user, updated_
   // If a draft of this template doesn't exist: create a new draft
   // Fortunately both cases can be handled with a single MongoDB UpdateOne query using upsert: true
   let response = await Template.updateOne(
-    {uuid, 'publish_date': {'$exists': false}}, 
+    {uuid, 'persist_date': {'$exists': false}}, 
     {$set: new_template}, 
     {'upsert': true, session}
   );
@@ -518,33 +518,33 @@ async function validateAndCreateOrUpdate(session, input_template, user, updated_
 
 }
 
-async function publishFields(input_field_uuids, user, session) {
+async function persistFields(input_field_uuids, user, session) {
   let return_field_ids = [];
-  // For each template field, publish that field, then replace the uuid with the internal_id.
-  // It is possible there weren't any changes to publish, so keep track of whether we actually published anything.
+  // For each template field, persist that field, then replace the uuid with the internal_id.
+  // It is possible there weren't any changes to persist, so keep track of whether we actually persisted anything.
   for (let field_uuid of input_field_uuids) {
     if(!await SharedFunctions.draft(TemplateField, field_uuid, session)) {
-      let latest_published_field = await SharedFunctions.latestPublished(TemplateField, field_uuid, session);
-      if(!latest_published_field) {
+      let latest_persisted_field = await SharedFunctions.latestPersisted(TemplateField, field_uuid, session);
+      if(!latest_persisted_field) {
         throw new Util.InputError(`Field with uuid ${field_uuid} does not exist`);
       } 
-      return_field_ids.push(latest_published_field._id);
+      return_field_ids.push(latest_persisted_field._id);
       continue;
     }
     try {
-      let field_id = await TemplateFieldModel.publishField(session, field_uuid, null, user);
+      let field_id = await TemplateFieldModel.persistField(session, field_uuid, null, user);
       return_field_ids.push(field_id);
     } catch(err) {
       if (err instanceof Util.NotFoundError) {
         throw new Util.InputError("Internal reference within this draft is invalid. Fetch/update draft to cleanse it.");
       } else if (err instanceof Util.PermissionDeniedError) {
-        // If the user doesn't have permissions, assume they want to link the published version of the field
-        // But before we can link the published version of the field, we must make sure it exists and we have view access
-        let published_field = await TemplateFieldModel.latestPublishedWithoutPermissions(field_uuid, session);
-        if(!published_field) {
-          throw new Util.InputError(`you do not have edit permissions to the draft of template_field ${field_uuid}, and a published version does not exist.`);
+        // If the user doesn't have permissions, assume they want to link the persisted version of the field
+        // But before we can link the persisted version of the field, we must make sure it exists and we have view access
+        let persisted_field = await TemplateFieldModel.latestPersistedWithoutPermissions(field_uuid, session);
+        if(!persisted_field) {
+          throw new Util.InputError(`you do not have edit permissions to the draft of template_field ${field_uuid}, and a persisted version does not exist.`);
         }
-        return_field_ids.push(published_field._id);
+        return_field_ids.push(persisted_field._id);
       } else {
         throw err;
       }
@@ -553,25 +553,25 @@ async function publishFields(input_field_uuids, user, session) {
   return return_field_ids;
 }
 
-async function publishRelatedTemplates(input_related_templates_uuids, user, session) {
+async function persistRelatedTemplates(input_related_templates_uuids, user, session) {
   let result_related_templates_ids = [];
-  // For each template's related_templates, publish that related_template, then replace the uuid with the internal_id.
-  // It is possible there weren't any changes to publish, so keep track of whether we actually published anything.
+  // For each template's related_templates, persist that related_template, then replace the uuid with the internal_id.
+  // It is possible there weren't any changes to persist, so keep track of whether we actually persisted anything.
   for(let related_template_uuid of input_related_templates_uuids) {
     try {
-      let related_template_id = await publishRecursor(related_template_uuid, user, session);
+      let related_template_id = await persistRecursor(related_template_uuid, user, session);
       result_related_templates_ids.push(related_template_id);
     } catch(err) {
       if (err instanceof Util.NotFoundError) {
         throw new Util.InputError("Internal reference within this draft is invalid. Fetch/update draft to cleanse it.");
       } else if (err instanceof Util.PermissionDeniedError) {
-        // If the user doesn't have permissions, assume they want to link the published version of the template
-        // But before we can link the published version of the template, we must make sure it exists
-        let related_template_published = await SharedFunctions.latestPublished(Template, related_template_uuid, session);
-        if(!related_template_published) {
-          throw new Util.InputError(`published template does not exist with uuid ${related_template_uuid}`);
+        // If the user doesn't have permissions, assume they want to link the persisted version of the template
+        // But before we can link the persisted version of the template, we must make sure it exists
+        let related_template_persisted = await SharedFunctions.latestPersisted(Template, related_template_uuid, session);
+        if(!related_template_persisted) {
+          throw new Util.InputError(`persisted template does not exist with uuid ${related_template_uuid}`);
         }
-        result_related_templates_ids.push(related_template_published._id);
+        result_related_templates_ids.push(related_template_persisted._id);
       } else {
         throw err;
       }
@@ -580,64 +580,64 @@ async function publishRelatedTemplates(input_related_templates_uuids, user, sess
   return result_related_templates_ids;
 }
 
-// Publishes the template with the provided uuid
-//   If a draft exists of the template, the user has edit permissions, and the draft has some changes, publish it
-//   If a draft doesn't exist, doesn't have changes, or the user doesn't have edit permissions, return the latest published instead
-//   If a draft doesn't exist or the user doesn't have edit permissions, then ensure they have view permissions for the published template
+// Persistes the template with the provided uuid
+//   If a draft exists of the template, the user has edit permissions, and the draft has some changes, persist it
+//   If a draft doesn't exist, doesn't have changes, or the user doesn't have edit permissions, return the latest persisted instead
+//   If a draft doesn't exist or the user doesn't have edit permissions, then ensure they have view permissions for the persisted template
 // Input: 
-//   uuid: the uuid of a template to be published
+//   uuid: the uuid of a template to be persisted
 //   session: the mongo session that must be used to make transactions atomic
 // Returns:
-//   internal_id: the internal id of the published template
-async function publishRecursor(uuid, user, session) {
+//   internal_id: the internal id of the persisted template
+async function persistRecursor(uuid, user, session) {
 
   var return_id;
 
-  let published_template = await SharedFunctions.latestPublished(Template, uuid, session);
+  let persisted_template = await SharedFunctions.latestPersisted(Template, uuid, session);
 
   let template_draft = await SharedFunctions.draft(Template, uuid, session);
 
-  // If a draft of this template doesn't exist, we'll use the published template instead
+  // If a draft of this template doesn't exist, we'll use the persisted template instead
   if(!template_draft) {
-    // There is no draft of this uuid. Return the latest published template instead.
-    if (!published_template) {
+    // There is no draft of this uuid. Return the latest persisted template instead.
+    if (!persisted_template) {
       throw new Util.NotFoundError(`Template with uuid ${uuid} does not exist`);
     }
-    if(!(await SharedFunctions.userHasAccessToPublishedResource(Template, uuid, user, PermissionGroupModel, session))) {
+    if(!(await SharedFunctions.userHasAccessToPersistedResource(Template, uuid, user, PermissionGroupModel, session))) {
       throw new Util.PermissionDeniedError(`cannot link template with uuid ${uuid}. Requires at least view permissions.`);
     }
-    return published_template._id;
+    return persisted_template._id;
   }
 
-  // If a user doesn't have edit access to this template, we'll use the published template instead
+  // If a user doesn't have edit access to this template, we'll use the persisted template instead
   if(!(await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT, session))) {
-    // There is no draft of this uuid. Return the latest published template instead.
-    if (!published_template) {
-      throw new Util.InputError(`Do not have access to template draft with uuid ${uuid}, and no published version exists`);
+    // There is no draft of this uuid. Return the latest persisted template instead.
+    if (!persisted_template) {
+      throw new Util.InputError(`Do not have access to template draft with uuid ${uuid}, and no persisted version exists`);
     }
-    if(!(await SharedFunctions.userHasAccessToPublishedResource(Template, uuid, user, PermissionGroupModel, session))) {
+    if(!(await SharedFunctions.userHasAccessToPersistedResource(Template, uuid, user, PermissionGroupModel, session))) {
       throw new Util.PermissionDeniedError(`cannot link template with uuid ${uuid}. Requires at least view permissions.`);
     }
-    return published_template._id;
+    return persisted_template._id;
   }
 
   let fields = [];
   let related_templates = [];
 
-  fields = await publishFields(template_draft.fields, user, session);
+  fields = await persistFields(template_draft.fields, user, session);
 
-  related_templates = await publishRelatedTemplates(template_draft.related_templates, user, session);
+  related_templates = await persistRelatedTemplates(template_draft.related_templates, user, session);
 
-  // If there are changes, publish the current draft
-  let publish_time = new Date();
+  // If there are changes, persist the current draft
+  let persist_time = new Date();
   let response = await Template.updateOne(
     {"_id": template_draft._id},
-    {'$set': {'updated_at': publish_time, 'publish_date': publish_time, 
+    {'$set': {'updated_at': persist_time, 'persist_date': persist_time, 
       fields, related_templates, subscribed_templates: template_draft.subscribed_templates}},
     {session}
   )
   if (response.modifiedCount != 1) {
-    throw `Template.publish: should be 1 modified document. Instead: ${response.modifiedCount}`;
+    throw `Template.persist: should be 1 modified document. Instead: ${response.modifiedCount}`;
   }
   return_id = template_draft._id;
 
@@ -645,40 +645,40 @@ async function publishRecursor(uuid, user, session) {
 
 }
 
-// Publishes the template with the provided uuid
+// Persistes the template with the provided uuid
 // Input: 
-//   uuid: the uuid of a template to be published
+//   uuid: the uuid of a template to be persisted
 //   session: the mongo session that must be used to make transactions atomic
-//   last_update: the timestamp of the last known update by the user. Cannot publish if the actual last update and that expected by the user differ.
-async function publish(session, uuid, user, last_update) {
+//   last_update: the timestamp of the last known update by the user. Cannot persist if the actual last update and that expected by the user differ.
+async function persist(session, uuid, user, last_update) {
 
   // Check if a draft with this uuid exists
   let template_draft = await SharedFunctions.draft(Template, uuid, session);
-  let last_published = await SharedFunctions.latestPublished(Template, uuid, session);
+  let last_persisted = await SharedFunctions.latestPersisted(Template, uuid, session);
   if(!template_draft) {
-    if(last_published) {
-      throw new Util.InputError('No changes to publish');
+    if(last_persisted) {
+      throw new Util.InputError('No changes to persist');
     } else {
       throw new Util.NotFoundError(`Template with uuid ${uuid} does not exist`);
     }
   }
 
   if(!(await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT, session))) {
-    throw new Util.PermissionDeniedError(`You do not have the edit permissions required to publish ${uuid}`);
+    throw new Util.PermissionDeniedError(`You do not have the edit permissions required to persist ${uuid}`);
   }
 
   // If the last update provided doesn't match to the last update found in the db, fail.
   let db_last_update = new Date(await lastUpdateFor(session, uuid, user));
   if(last_update.getTime() != db_last_update.getTime()) {
     throw new Util.InputError(`The last update submitted ${last_update.toISOString()} does not match that found in the db ${db_last_update.toISOString()}. 
-    Fetch the draft again to get the latest update before attempting to publish again.`);
+    Fetch the draft again to get the latest update before attempting to persist again.`);
   }
 
-  // Recursively publish template, it's fields and related templates
-  await publishRecursor(uuid, user, session);
+  // Recursively persist template, it's fields and related templates
+  await persistRecursor(uuid, user, session);
 }
 
-function recursiveBuildPublishedQuery(current_pipeline, count) {
+function recursiveBuildPersistedQuery(current_pipeline, count) {
   if(count >= 5) {
     return;
   }
@@ -739,15 +739,15 @@ function recursiveBuildPublishedQuery(current_pipeline, count) {
   };
 
   current_pipeline.push(pipeline_related_templates_addon);
-  recursiveBuildPublishedQuery(pipeline_related_templates_addon['$lookup']['pipeline'], count);
+  recursiveBuildPersistedQuery(pipeline_related_templates_addon['$lookup']['pipeline'], count);
 
   current_pipeline.push(pipeline_subscribed_templates_addon);
-  recursiveBuildPublishedQuery(pipeline_subscribed_templates_addon['$lookup']['pipeline'], count);
+  recursiveBuildPersistedQuery(pipeline_subscribed_templates_addon['$lookup']['pipeline'], count);
 
 }
 
 // Fetches the template with the specified match conditions, including fetching fields and related_records
-async function publishedWithJoins(pipelineMatchConditions, session) {
+async function persistedWithJoins(pipelineMatchConditions, session) {
   // Construct a mongodb aggregation pipeline that will recurse into related templates up to 5 levels deep.
   // Thus, the tree will have a depth of 6 nodes
   let pipeline = [
@@ -755,7 +755,7 @@ async function publishedWithJoins(pipelineMatchConditions, session) {
       '$match': pipelineMatchConditions
     },
     {
-      '$sort' : { 'publish_date' : -1 }
+      '$sort' : { 'persist_date' : -1 }
     },
     {
       '$limit' : 1
@@ -770,7 +770,7 @@ async function publishedWithJoins(pipelineMatchConditions, session) {
     }
   ]
 
-  recursiveBuildPublishedQuery(pipeline, 0);
+  recursiveBuildPersistedQuery(pipeline, 0);
 
   let response = await Template.aggregate(pipeline, {session});
   if (await response.hasNext()){
@@ -781,70 +781,70 @@ async function publishedWithJoins(pipelineMatchConditions, session) {
 }
 
 // Fetches the last template with the given _id
-async function publishedByIdWithJoins(_id) {
+async function persistedByIdWithJoins(_id) {
 
   let pipelineMatchConditions = { 
     _id
   };
 
-  return await publishedWithJoins(pipelineMatchConditions);
+  return await persistedWithJoins(pipelineMatchConditions);
 }
 
-// Fetches the last template with the given uuid published before the given date. 
+// Fetches the last template with the given uuid persisted before the given date. 
 // Also recursively looks up fields and related_templates.
-async function latestPublishedBeforeDateWithJoins(uuid, date, session) {
+async function latestPersistedBeforeDateWithJoins(uuid, date, session) {
   let pipelineMatchConditions = { 
     uuid,
-    'publish_date': {'$lte': date}
+    'persist_date': {'$lte': date}
   };
 
-  return await publishedWithJoins(pipelineMatchConditions, session);
+  return await persistedWithJoins(pipelineMatchConditions, session);
 }
 
-async function filterPublishedTemplateForPermissionsRecursor(template, user, session) {
+async function filterPersistedTemplateForPermissionsRecursor(template, user, session) {
   for(let i = 0; i < template.fields.length; i++) {
-    if(!(await SharedFunctions.userHasAccessToPublishedResource(TemplateField, template.fields[i].uuid, user, PermissionGroupModel, session))) {
+    if(!(await SharedFunctions.userHasAccessToPersistedResource(TemplateField, template.fields[i].uuid, user, PermissionGroupModel, session))) {
       template.fields[i] = {uuid: template.fields[i].uuid};
     }
   }
   for(let i = 0; i < template.related_templates.length; i++) {
-    if(!(await SharedFunctions.userHasAccessToPublishedResource(Template, template.related_templates[i].uuid, user, PermissionGroupModel, session))) {
+    if(!(await SharedFunctions.userHasAccessToPersistedResource(Template, template.related_templates[i].uuid, user, PermissionGroupModel, session))) {
       template.related_templates[i] = {uuid: template.related_templates[i].uuid};
     } else {
-      await filterPublishedTemplateForPermissionsRecursor(template.related_templates[i], user, session);
+      await filterPersistedTemplateForPermissionsRecursor(template.related_templates[i], user, session);
     }
   }
 }
 
-async function filterPublishedTemplateForPermissions(template, user, session) {
-  if(!(await SharedFunctions.userHasAccessToPublishedResource(Template, template.uuid, user, PermissionGroupModel, session))) {
+async function filterPersistedTemplateForPermissions(template, user, session) {
+  if(!(await SharedFunctions.userHasAccessToPersistedResource(Template, template.uuid, user, PermissionGroupModel, session))) {
     throw new Util.PermissionDeniedError(`Do not have view access to template ${template.uuid}`);
   }
-  await filterPublishedTemplateForPermissionsRecursor(template, user, session);
+  await filterPersistedTemplateForPermissionsRecursor(template, user, session);
 }
 
-async function publishedByIdWithJoinsAndPermissions(_id, user) {
-  let template = await publishedByIdWithJoins(_id);
+async function persistedByIdWithJoinsAndPermissions(_id, user) {
+  let template = await persistedByIdWithJoins(_id);
   if(!template) {
     return null;
   }
-  await filterPublishedTemplateForPermissions(template, user);
+  await filterPersistedTemplateForPermissions(template, user);
   return template;
 } 
 
-async function latestPublishedBeforeDateWithJoinsAndPermissions(uuid, date, user, session) {
-  let template = await latestPublishedBeforeDateWithJoins(uuid, date, session);
+async function latestPersistedBeforeDateWithJoinsAndPermissions(uuid, date, user, session) {
+  let template = await latestPersistedBeforeDateWithJoins(uuid, date, session);
   if(!template) {
     return null;
   }
-  await filterPublishedTemplateForPermissions(template, user, session);
+  await filterPersistedTemplateForPermissions(template, user, session);
   return template;
 } 
 
-// Fetches the last published template with the given uuid. 
+// Fetches the last persisted template with the given uuid. 
 // Also recursively looks up fields and related_templates.
-async function latestPublishedWithJoinsAndPermissions(uuid, user, session) {
-  return await latestPublishedBeforeDateWithJoinsAndPermissions(uuid, new Date(), user, session);
+async function latestPersistedWithJoinsAndPermissions(uuid, user, session) {
+  return await latestPersistedBeforeDateWithJoinsAndPermissions(uuid, new Date(), user, session);
 }
 
 async function draftFetchFields(input_field_uuids, user, session) {
@@ -857,9 +857,9 @@ async function draftFetchFields(input_field_uuids, user, session) {
       field = await TemplateFieldModel.draft(session, field_uuid, user);
     } catch (err) {
       if (err instanceof Util.PermissionDeniedError) {
-        // If we don't have permission for the draft, get the latest published instead
+        // If we don't have permission for the draft, get the latest persisted instead
         try {
-          field = await TemplateFieldModel.latestPublished(field_uuid, user)
+          field = await TemplateFieldModel.latestPersisted(field_uuid, user)
           if(!field) {
             field = {uuid: field_uuid}
           }
@@ -894,16 +894,16 @@ async function draftFetchRelatedTemplates(input_related_template_uuids, user, se
       related_template = await draftFetchOrCreate(session, related_template_uuid, user);
     } catch (err) {
       if (err instanceof Util.PermissionDeniedError) {
-        // If we don't have permission for the draft, get the latest published instead
+        // If we don't have permission for the draft, get the latest persisted instead
         try {
-          related_template = await latestPublishedWithJoinsAndPermissions(related_template_uuid, user);
+          related_template = await latestPersistedWithJoinsAndPermissions(related_template_uuid, user);
           if(!related_template) {
-            // If a published version doesn't exist, just attach a uuid
+            // If a persisted version doesn't exist, just attach a uuid
             related_template = {uuid: related_template_uuid};
           }
         } catch (err) {
           if (err instanceof Util.PermissionDeniedError || err instanceof Util.NotFoundError) {
-            // If we don't have permission for the published version
+            // If we don't have permission for the persisted version
             related_template = {uuid: related_template_uuid, no_permissions: true};
           } else {
             throw err;
@@ -924,11 +924,11 @@ async function draftFetchRelatedTemplates(input_related_template_uuids, user, se
 }
 
 // Fetches the template draft with the given uuid, recursively looking up fields and related_templates.
-// If a draft of a given template doesn't exist, a new one will be generated using the last published template.
+// If a draft of a given template doesn't exist, a new one will be generated using the last persisted template.
 async function draftFetchOrCreate(session, uuid, user) {
 
   // See if a draft of this template exists. 
-  let template_draft = await fetchDraftOrCreateFromPublished(uuid, session);
+  let template_draft = await fetchDraftOrCreateFromPersisted(uuid, session);
   if (!template_draft) {
     return null;
   }
@@ -947,7 +947,7 @@ async function draftFetchOrCreate(session, uuid, user) {
 
   let subscribed_templates = [];
   for(let subscribed_id of template_draft.subscribed_templates) {
-    let subscribed_template = await publishedByIdWithJoinsAndPermissions(subscribed_id, user);
+    let subscribed_template = await persistedByIdWithJoinsAndPermissions(subscribed_id, user);
     subscribed_templates.push(subscribed_template);
   }
 
@@ -986,8 +986,8 @@ async function draftFetchOrCreate(session, uuid, user) {
 // This function will provide the timestamp of the last update made to this template and all of it's sub-properties
 async function lastUpdateFor(session, uuid, user) {
 
-  let template_draft = await fetchDraftOrCreateFromPublished(uuid, session);
-  let template_published = await SharedFunctions.latestPublished(Template, uuid, session);
+  let template_draft = await fetchDraftOrCreateFromPersisted(uuid, session);
+  let template_persisted = await SharedFunctions.latestPersisted(Template, uuid, session);
   let edit_permission = await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT, session);
   let view_permission = await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_VIEW, session);
 
@@ -996,13 +996,13 @@ async function lastUpdateFor(session, uuid, user) {
   }
 
   if(!edit_permission) {
-    if(!template_published) {
-      throw new Util.PermissionDeniedError(`template ${uuid}: do not permissions for draft, and no published version exists`);
+    if(!template_persisted) {
+      throw new Util.PermissionDeniedError(`template ${uuid}: do not permissions for draft, and no persisted version exists`);
     }
     if(!view_permission) {
       throw new Util.PermissionDeniedError(`template ${uuid}: do not have view or edit permissions`);
     }
-    return template_published.updated_at;
+    return template_persisted.updated_at;
   }
 
   let last_update = template_draft.updated_at;
@@ -1040,7 +1040,7 @@ async function duplicateRecursor(template, user, session) {
   if(!template) {
     throw new Util.NotFoundError();
   }
-  if(!(await SharedFunctions.userHasAccessToPublishedResource(Template, template.uuid, user, PermissionGroupModel))) {
+  if(!(await SharedFunctions.userHasAccessToPersistedResource(Template, template.uuid, user, PermissionGroupModel))) {
     throw new Util.PermissionDeniedError();
   }
 
@@ -1049,7 +1049,7 @@ async function duplicateRecursor(template, user, session) {
   template.uuid = uuidv4();
   delete template._id;
   delete template.updated_at;
-  delete template.publish_date;
+  delete template.persist_date;
   delete template.public_date;
   await PermissionGroupModel.initialize_permissions_for(user, template.uuid, session);
 
@@ -1092,11 +1092,11 @@ async function duplicateRecursor(template, user, session) {
 }
 
 async function duplicate(session, uuid, user) {
-  let template = await latestPublishedBeforeDateWithJoins(uuid, new Date());
+  let template = await latestPersistedBeforeDateWithJoins(uuid, new Date());
   if(!template) {
-    throw new Util.NotFoundError(`Published template ${uuid} does not exist`);
+    throw new Util.NotFoundError(`Persisted template ${uuid} does not exist`);
   }
-  if(!(await SharedFunctions.userHasAccessToPublishedResource(Template, template.uuid, user, PermissionGroupModel))) {
+  if(!(await SharedFunctions.userHasAccessToPersistedResource(Template, template.uuid, user, PermissionGroupModel))) {
     throw new Util.PermissionDeniedError(`You do not have view permissions required to duplicate template ${uuid}.`);
   }
   return await duplicateRecursor(template, user, session)
@@ -1126,7 +1126,7 @@ async function importTemplate(session, template, user, updated_at) {
   // Populate template properties
   let new_template = initializeNewImportedDraftWithProperties(template, uuid, updated_at);
 
-  // Need to determine if this draft is any different from the published one.
+  // Need to determine if this draft is any different from the persisted one.
   let changes = false;
 
   // Recursively handle each of the fields
@@ -1168,7 +1168,7 @@ async function importTemplate(session, template, user, updated_at) {
         changes |= more_changes;
       } catch(err) {
         if (err instanceof Util.PermissionDeniedError) {
-          // If the user doesn't have edit permissions, assume they want to link the published version of the template, or keep something another editor added
+          // If the user doesn't have edit permissions, assume they want to link the persisted version of the template, or keep something another editor added
           related_template_uuid = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(related_template.template_uuid, session);;
         } else {
           throw err;
@@ -1183,11 +1183,11 @@ async function importTemplate(session, template, user, updated_at) {
     }
   }
 
-  // If this draft is identical to the latest published, delete it.
+  // If this draft is identical to the latest persisted, delete it.
   // The reason to do so is so when a change is submitted, we won't create drafts of sub-templates.
   // Only create drafts for the templates that actually have changes
   if (!changes) {
-    changes = await draftDifferentFromLastPublished(new_template);
+    changes = await draftDifferentFromLastPersisted(new_template);
     if (!changes) {
       // Delete the current draft
       try {
@@ -1202,7 +1202,7 @@ async function importTemplate(session, template, user, updated_at) {
   }
 
   let response = await Template.updateOne(
-    {"uuid": new_template.uuid, 'publish_date': {'$exists': false}}, 
+    {"uuid": new_template.uuid, 'persist_date': {'$exists': false}}, 
     {$set: new_template}, 
     {'upsert': true, session}
   );
@@ -1231,12 +1231,12 @@ exports.draftGet = async function(uuid, user) {
   return template;
 }
 
-// Wraps the actual request to publish with a transaction
-exports.publish = async function(uuid, user, last_update, session) {
+// Wraps the actual request to persist with a transaction
+exports.persist = async function(uuid, user, last_update, session) {
   if(session) {
-    await publish(session, uuid, user, last_update);
+    await persist(session, uuid, user, last_update);
   } else {
-    await SharedFunctions.executeWithTransaction(publish, uuid, user, last_update);
+    await SharedFunctions.executeWithTransaction(persist, uuid, user, last_update);
   }
 }
 
@@ -1259,7 +1259,7 @@ exports.updateTemplatesThatReference = async function(uuid, user, templateOrFiel
   for(uuid of uuids) {
     // when time starts being a problem, move this into a queue OR just remove the await statement.
     try {
-      await createDraftFromLastPublishedWithSession(uuid, user);
+      await createDraftFromLastPersistedWithSession(uuid, user);
     } catch(err) {
       console.error(err);
     }
@@ -1271,14 +1271,14 @@ exports.draftExisting = async function(uuid) {
   return (await SharedFunctions.draft(Template, uuid)) ? true : false;
 }
 
-exports.latestPublished = latestPublishedWithJoinsAndPermissions;
-exports.publishedBeforeDate = latestPublishedBeforeDateWithJoinsAndPermissions;
+exports.latestPersisted = latestPersistedWithJoinsAndPermissions;
+exports.persistedBeforeDate = latestPersistedBeforeDateWithJoinsAndPermissions;
 
-exports.latestPublishedWithoutPermissions = async function(uuid) {
-  return await latestPublishedBeforeDateWithJoins(uuid, new Date());
+exports.latestPersistedWithoutPermissions = async function(uuid) {
+  return await latestPersistedBeforeDateWithJoins(uuid, new Date());
 }
 
-exports.publishedByIdWithoutPermissions = publishedByIdWithJoins;
+exports.persistedByIdWithoutPermissions = persistedByIdWithJoins;
 
 exports.draftDelete = async function(uuid, user) {
 
@@ -1293,13 +1293,13 @@ exports.draftDelete = async function(uuid, user) {
   await SharedFunctions.draftDelete(Template, uuid);
 };
 
-exports.latest_published_id_for_uuid = async function(uuid) {
-  let template = await SharedFunctions.latestPublished(Template, uuid);
+exports.latest_persisted_id_for_uuid = async function(uuid) {
+  let template = await SharedFunctions.latestPersisted(Template, uuid);
   return template ? template._id : null;
 }
-exports.latest_published_time_for_uuid = async function(uuid) {
-  let template = await SharedFunctions.latestPublished(Template, uuid);
-  return template ? template.publish_date : null;
+exports.latest_persisted_time_for_uuid = async function(uuid) {
+  let template = await SharedFunctions.latestPersisted(Template, uuid);
+  return template ? template.persist_date : null;
 }
 
 // Wraps the actual request to duplicate with a transaction

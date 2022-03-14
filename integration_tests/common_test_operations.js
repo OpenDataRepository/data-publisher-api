@@ -164,25 +164,25 @@ module.exports = class Helper {
     return await this.testAndExtract(this.templateFieldLastUpdate, uuid, current_user);
   };
 
-  templateFieldPublish = async (uuid, last_update, current_user) => {
+  templateFieldPersist = async (uuid, last_update, current_user) => {
     return await request(this.app)
-    .post(`/template_field/${uuid}/publish`)
+    .post(`/template_field/${uuid}/persist`)
     .set('Cookie', [`user=${current_user}`])
     .send({last_update})
     .set('Accept', 'application/json');
   };
   
-  templateFieldPublishAndTest = async (uuid, last_update, current_user) => {
-    await this.testAndExtract(this.templateFieldPublish, uuid, last_update, current_user);
+  templateFieldPersistAndTest = async (uuid, last_update, current_user) => {
+    await this.testAndExtract(this.templateFieldPersist, uuid, last_update, current_user);
   };
 
-  templateFieldLatestPublished = async (uuid, current_user) => {
+  templateFieldLatestPersisted = async (uuid, current_user) => {
     return await request(this.app)
-    .get(`/template_field/${uuid}/latest_published`)
+    .get(`/template_field/${uuid}/latest_persisted`)
     .set('Cookie', [`user=${current_user}`]);
   };
 
-  templateFieldLatestPublishedBeforeDate = async (uuid, timestamp, current_user) => {
+  templateFieldLatestPersistedBeforeDate = async (uuid, timestamp, current_user) => {
     return await request(this.app)
       .get(`/template_field/${uuid}/${timestamp}`)
       .set('Cookie', [`user=${current_user}`]);
@@ -197,37 +197,37 @@ module.exports = class Helper {
     return await this.testAndExtract(this.templateFieldDraftExisting, uuid);
   };
 
-  templateFieldPublishAfterCreateOrUpdateThenTest = async (field, current_user) => {
+  templateFieldPersistAfterCreateOrUpdateThenTest = async (field, current_user) => {
     let uuid = field.uuid;
     let last_update = await this.templateFieldLastUpdateAndTest(uuid, current_user);
 
-    await this.templateFieldPublishAndTest(uuid, last_update, current_user);
+    await this.templateFieldPersistAndTest(uuid, last_update, current_user);
   
-    // Check that a published version now exists
-    let published = await this.testAndExtract(this.templateFieldLatestPublished, uuid, current_user);
-    this.testTemplateFieldsEqual(field, published);
-    expect(published).toHaveProperty("publish_date");
+    // Check that a persisted version now exists
+    let persisted = await this.testAndExtract(this.templateFieldLatestPersisted, uuid, current_user);
+    this.testTemplateFieldsEqual(field, persisted);
+    expect(persisted).toHaveProperty("persist_date");
 
     // Check that we can still get a new draft if requested
     let new_draft = await this.templateFieldDraftGetAndTest(uuid, current_user);
     this.testTemplateFieldsEqual(field, new_draft);
 
-    return published;
+    return persisted;
   };
 
-  templateFieldCreatePublishTest = async (field, current_user) => {
+  templateFieldCreatePersistTest = async (field, current_user) => {
     let uuid = await this.templateFieldCreateAndTest(field, current_user);
     field.uuid = uuid;
 
-    return await this.templateFieldPublishAfterCreateOrUpdateThenTest(field, current_user);
+    return await this.templateFieldPersistAfterCreateOrUpdateThenTest(field, current_user);
   };
 
-  templateFieldUpdatePublishTest = async (field, current_user) => {
+  templateFieldUpdatePersistTest = async (field, current_user) => {
     await this.templateFieldUpdateAndTest(field, current_user);
   
     expect(await this.templateFieldDraftExistingAndTest(field.uuid)).toBe(true);
   
-    return await this.templateFieldPublishAfterCreateOrUpdateThenTest(field, current_user);
+    return await this.templateFieldPersistAfterCreateOrUpdateThenTest(field, current_user);
   };
 
   templateFieldDraftDelete = async (uuid, current_user) => {
@@ -318,24 +318,24 @@ module.exports = class Helper {
     return await this.testAndExtract(this.templateLastUpdate, uuid, curr_user);
   }
 
-  templatePublish = async (uuid, last_update, curr_user) => {
+  templatePersist = async (uuid, last_update, curr_user) => {
     return await request(this.app)
-      .post(`/template/${uuid}/publish`)
+      .post(`/template/${uuid}/persist`)
       .set('Cookie', [`user=${curr_user}`])
       .send({last_update})
       .set('Accept', 'application/json');
   };
 
-  templateLatestPublished = async(uuid, curr_user) => {
+  templateLatestPersisted = async(uuid, curr_user) => {
     return await request(this.app)
-      .get(`/template/${uuid}/latest_published`)
+      .get(`/template/${uuid}/latest_persisted`)
       .set('Cookie', [`user=${curr_user}`])
       .set('Accept', 'application/json');
   }
-  templateLatestPublishedAndTest = async(uuid, curr_user) => {
-    return await this.testAndExtract(this.templateLatestPublished, uuid, curr_user);
+  templateLatestPersistedAndTest = async(uuid, curr_user) => {
+    return await this.testAndExtract(this.templateLatestPersisted, uuid, curr_user);
   }
-  templateLatestPublishedBeforeDate = async (uuid, timestamp, curr_user) => {
+  templateLatestPersistedBeforeDate = async (uuid, timestamp, curr_user) => {
     return await request(this.app)
       .get(`/template/${uuid}/${timestamp}`)
       .set('Cookie', [`user=${curr_user}`]);
@@ -350,28 +350,28 @@ module.exports = class Helper {
     return await this.testAndExtract(this.templateDraftExisting, uuid);
   };
 
-  templatePublishAndFetch = async (uuid, curr_user) => {
+  templatePersistAndFetch = async (uuid, curr_user) => {
     let response = await this.templateLastUpdate(uuid, curr_user);
     expect(response.statusCode).toBe(200);
     let last_update = response.body;
 
-    response = await this.templatePublish(uuid, last_update, curr_user);
+    response = await this.templatePersist(uuid, last_update, curr_user);
     expect(response.statusCode).toBe(200);
 
-    response = await this.templateLatestPublished(uuid, curr_user);
+    response = await this.templateLatestPersisted(uuid, curr_user);
     expect(response.statusCode).toBe(200);
-    let published_template = response.body;
-    expect(published_template).toHaveProperty("publish_date");
-    return published_template;
+    let persisted_template = response.body;
+    expect(persisted_template).toHaveProperty("persist_date");
+    return persisted_template;
   };
 
-  templateCreatePublishTest = async (template, curr_user) => {
+  templateCreatePersistTest = async (template, curr_user) => {
     let created_template = await this.templateCreateAndTest(template, curr_user);
-    let published_template = await this.templatePublishAndFetch(created_template.uuid, curr_user)
+    let persisted_template = await this.templatePersistAndFetch(created_template.uuid, curr_user)
     this.templateSortFieldsAndRelatedTemplates(template);
-    this.templateSortFieldsAndRelatedTemplates(published_template);
-    this.testTemplateDraftsEqual(template, published_template);
-    return published_template;
+    this.templateSortFieldsAndRelatedTemplates(persisted_template);
+    this.testTemplateDraftsEqual(template, persisted_template);
+    return persisted_template;
   };
 
   templateUpdate = async (uuid, template, curr_user) => {
@@ -405,11 +405,11 @@ module.exports = class Helper {
     this.testTemplateDraftsEqual(template, new_draft);
   }
 
-  templateUpdatePublishTest = async (template, curr_user) => {
+  templateUpdatePersistTest = async (template, curr_user) => {
     await this.templateUpdateAndTest(template, curr_user);
-    let published_template = await this.templatePublishAndFetch(template.uuid, curr_user);
-    this.testTemplateDraftsEqual(template, published_template);
-    return published_template;
+    let persisted_template = await this.templatePersistAndFetch(template.uuid, curr_user);
+    this.testTemplateDraftsEqual(template, persisted_template);
+    return persisted_template;
   };
 
   templateDelete = async (uuid, curr_user) => {
@@ -493,46 +493,46 @@ module.exports = class Helper {
     return await this.testAndExtract(this.datasetLastUpdate, uuid, curr_user);
   }
 
-  datasetPublish = async (uuid, last_update, curr_user) => {
+  datasetPersist = async (uuid, last_update, curr_user) => {
     return await request(this.app)
-      .post(`/dataset/${uuid}/publish`)
+      .post(`/dataset/${uuid}/persist`)
       .set('Cookie', [`user=${curr_user}`])
       .send({last_update})
       .set('Accept', 'application/json');
   };
 
-  datasetLatestPublished = async(uuid, curr_user) => {
+  datasetLatestPersisted = async(uuid, curr_user) => {
     return await request(this.app)
-      .get(`/dataset/${uuid}/latest_published`)
+      .get(`/dataset/${uuid}/latest_persisted`)
       .set('Cookie', [`user=${curr_user}`])
       .set('Accept', 'application/json');
   }
-  datasetLatestPublishedAndTest = async(uuid, curr_user) => {
-    return await this.testAndExtract(this.datasetLatestPublished, uuid, curr_user);
+  datasetLatestPersistedAndTest = async(uuid, curr_user) => {
+    return await this.testAndExtract(this.datasetLatestPersisted, uuid, curr_user);
   }
-  datasetLatestPublishedBeforeDate = async (uuid, timestamp, curr_user) => {
+  datasetLatestPersistedBeforeDate = async (uuid, timestamp, curr_user) => {
     return await request(this.app)
       .get(`/dataset/${uuid}/${timestamp}`)
       .set('Cookie', [`user=${curr_user}`]);
   }
 
-  datasetPublishAndFetch = async (uuid, curr_user) => {
+  datasetPersistAndFetch = async (uuid, curr_user) => {
     let last_update = await this.datasetLastUpdateAndTest(uuid, curr_user);
-    let response = await this.datasetPublish(uuid, last_update, curr_user);
+    let response = await this.datasetPersist(uuid, last_update, curr_user);
     expect(response.statusCode).toBe(200);
   
-    response = await this.datasetLatestPublished(uuid, curr_user);
+    response = await this.datasetLatestPersisted(uuid, curr_user);
     expect(response.statusCode).toBe(200);
-    let published_template = response.body;
-    expect(published_template).toHaveProperty("publish_date");
-    return published_template;
+    let persisted_template = response.body;
+    expect(persisted_template).toHaveProperty("persist_date");
+    return persisted_template;
   };
 
-  datasetCreatePublishTest = async (dataset, curr_user) => {
+  datasetCreatePersistTest = async (dataset, curr_user) => {
     let created_dataset = await this.datasetCreateAndTest(dataset, curr_user);
-    let dataset_published = await this.datasetPublishAndFetch(created_dataset.uuid, curr_user)
-    this.testDatasetDraftsEqual(dataset, dataset_published);
-    return dataset_published;
+    let dataset_persisted = await this.datasetPersistAndFetch(created_dataset.uuid, curr_user)
+    this.testDatasetDraftsEqual(dataset, dataset_persisted);
+    return dataset_persisted;
   };
 
   datasetUpdateAndTest = async (dataset, curr_user) => {
@@ -543,11 +543,11 @@ module.exports = class Helper {
     this.testDatasetDraftsEqual(dataset, updated_dataset);
   };
 
-  datasetUpdatePublishTest = async (dataset, curr_user) => {
+  datasetUpdatePersistTest = async (dataset, curr_user) => {
     await this.datasetUpdateAndTest(dataset, curr_user);
-    let published_dataset = await this.datasetPublishAndFetch(dataset.uuid, curr_user)
-    this.testDatasetDraftsEqual(dataset, published_dataset);
-    return published_dataset;
+    let persisted_dataset = await this.datasetPersistAndFetch(dataset.uuid, curr_user)
+    this.testDatasetDraftsEqual(dataset, persisted_dataset);
+    return persisted_dataset;
   };
 
   datasetDelete = async (uuid, curr_user) => {
@@ -685,36 +685,36 @@ module.exports = class Helper {
     await this.testAndExtract(this.recordDelete, uuid, curr_user);
   };
   
-  recordPublish = async (uuid, last_update, curr_user) => {
+  recordPersist = async (uuid, last_update, curr_user) => {
     return await request(this.app)
-      .post(`/record/${uuid}/publish`)
+      .post(`/record/${uuid}/persist`)
       .send({last_update})
       .set('Cookie', [`user=${curr_user}`]);
   }
   
-  recordLatestPublishedGet = async (uuid, curr_user) => {
+  recordLatestPersistedGet = async (uuid, curr_user) => {
     return await request(this.app)
-      .get(`/record/${uuid}/latest_published`)
+      .get(`/record/${uuid}/latest_persisted`)
       .set('Cookie', [`user=${curr_user}`])
       .set('Accept', 'application/json');
   };
   
-  recordPublishAndTest = async (record, curr_user) => {
+  recordPersistAndTest = async (record, curr_user) => {
     let uuid = record.uuid;
     let last_update = await this.recordLastUpdateAndTest(uuid, curr_user);
-    let response = await this.recordPublish(uuid, last_update, curr_user);
+    let response = await this.recordPersist(uuid, last_update, curr_user);
     expect(response.statusCode).toBe(200);
-    let published = await this.testAndExtract(this.recordLatestPublishedGet, uuid, curr_user);
-    expect(published).toHaveProperty("publish_date");
-    this.testRecordsEqual(record, published);
-    return published;
+    let persisted = await this.testAndExtract(this.recordLatestPersistedGet, uuid, curr_user);
+    expect(persisted).toHaveProperty("persist_date");
+    this.testRecordsEqual(record, persisted);
+    return persisted;
   }
   
-  recordCreatePublishTest = async (record, curr_user) => {
+  recordCreatePersistTest = async (record, curr_user) => {
     let created_record = await this.recordCreateAndTest(record, curr_user);
-    let published = await this.recordPublishAndTest(created_record, curr_user)
-    expect(published).toMatchObject(record);
-    return published;
+    let persisted = await this.recordPersistAndTest(created_record, curr_user)
+    expect(persisted).toMatchObject(record);
+    return persisted;
   };
   
   recordDraftExisting = async (uuid) => {
@@ -725,7 +725,7 @@ module.exports = class Helper {
     return response.body;
   }
   
-  recordGetPublishedBeforeTimestamp = async(uuid, time, curr_user) => {
+  recordGetPersistedBeforeTimestamp = async(uuid, time, curr_user) => {
     let response = await request(this.app)
       .get(`/record/${uuid}/${time.toISOString()}`)
       .set('Cookie', [`user=${curr_user}`])
@@ -745,26 +745,26 @@ module.exports = class Helper {
     return new Date(response.body);
   }
   
-  recordPublishAndFetch = async (uuid, curr_user) => {
+  recordPersistAndFetch = async (uuid, curr_user) => {
     let response = await this.recordLastUpdate(uuid, curr_user);
     expect(response.statusCode).toBe(200);
     let last_update = response.body;
   
-    response = await this.recordPublish(uuid, last_update, curr_user);
+    response = await this.recordPersist(uuid, last_update, curr_user);
     expect(response.statusCode).toBe(200);
   
-    response = await this.recordLatestPublishedGet(uuid, curr_user);
+    response = await this.recordLatestPersistedGet(uuid, curr_user);
     expect(response.statusCode).toBe(200);
-    let published_record = response.body;
-    expect(published_record).toHaveProperty("publish_date");
-    return published_record;
+    let persisted_record = response.body;
+    expect(persisted_record).toHaveProperty("persist_date");
+    return persisted_record;
   };
   
-  recordUpdatePublishTest = async (record, curr_user) => {
+  recordUpdatePersistTest = async (record, curr_user) => {
     await this.recordUpdateAndTest(record, curr_user);
-    let published_record = await this.recordPublishAndFetch(record.uuid, curr_user)
-    expect(published_record).toMatchObject(record);
-    return published_record;
+    let persisted_record = await this.recordPersistAndFetch(record.uuid, curr_user)
+    expect(persisted_record).toMatchObject(record);
+    return persisted_record;
   };
 
   // permission group

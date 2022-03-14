@@ -24,19 +24,19 @@ exports.init = async function() {
   Dataset = await collection();
 }
 
-// Creates a draft from the published version.
-async function createDraftFromPublished(published) {
+// Creates a draft from the persisted version.
+async function createDraftFromPersisted(persisted) {
 
-  // Create a copy of published
-  let draft = Object.assign({}, published);
+  // Create a copy of persisted
+  let draft = Object.assign({}, persisted);
 
   delete draft._id;
-  draft.updated_at = draft.publish_date;
-  delete draft.publish_date;
+  draft.updated_at = draft.persist_date;
+  delete draft.persist_date;
 
   // Replace each of the related_dataset _ids with uuids. 
   let related_datasets = [];
-  for(_id of published.related_datasets) {
+  for(_id of persisted.related_datasets) {
     let uuid = await SharedFunctions.uuidFor_id(Dataset, _id);
     if(uuid) {
       related_datasets.push(uuid);
@@ -57,24 +57,24 @@ function draftsEqual(draft1, draft2) {
          Util.arrayEqual(draft1.related_datasets, draft2.related_datasets);
 }
 
-// Returns true if the draft has any changes from it's previous published version
-async function draftDifferentFromLastPublished(draft, template_id) {
-  // If there is no published version, obviously there are changes
-  let latest_published = await SharedFunctions.latestPublished(Dataset, draft.uuid);
-  if(!latest_published) {
+// Returns true if the draft has any changes from it's previous persisted version
+async function draftDifferentFromLastPersisted(draft, template_id) {
+  // If there is no persisted version, obviously there are changes
+  let latest_persisted = await SharedFunctions.latestPersisted(Dataset, draft.uuid);
+  if(!latest_persisted) {
     return true;
   }
 
-  // If the properties have changed since the last publishing
-  let latest_published_as_draft = await createDraftFromPublished(latest_published);
-  if (!draftsEqual(draft, latest_published_as_draft)) {
+  // If the properties have changed since the last persisting
+  let latest_persisted_as_draft = await createDraftFromPersisted(latest_persisted);
+  if (!draftsEqual(draft, latest_persisted_as_draft)) {
     return true;
   }
 
-  // Finally, if any of the dependencies have been published more recently than this record, then there are changes
+  // Finally, if any of the dependencies have been persisted more recently than this record, then there are changes
   for(let related_dataset of draft.related_datasets) {
-    let related_dataset_last_published = (await SharedFunctions.latestPublished(Dataset, related_dataset)).publish_date;
-    if (Util.compareTimeStamp(related_dataset_last_published, latest_published.publish_date) > 0) {
+    let related_dataset_last_persisted = (await SharedFunctions.latestPersisted(Dataset, related_dataset)).persist_date;
+    if (Util.compareTimeStamp(related_dataset_last_persisted, latest_persisted.persist_date) > 0) {
       return true;
     }
   }
@@ -197,11 +197,11 @@ async function validateAndCreateOrUpdateRecurser(input_dataset, template, user, 
   if(!input_dataset.template_id || typeof(input_dataset.template_id) !== 'string') {
     throw new Util.InputError(`dataset template_id property must be a valid string`);
   }
-  // Verify that the template_id provided by the user is the template_id of a published template
+  // Verify that the template_id provided by the user is the template_id of a persisted template
   if(input_dataset.template_id != template._id.toString()) {
     throw new Util.InputError(`The template _id provided by the dataset (${input_dataset.template_id}) does not correspond to the template _id expected by the template (${template._id})`);
   }
-  if(!(await SharedFunctions.userHasAccessToPublishedResource(TemplateModel.collection(), template.uuid, user, PermissionGroupModel, session))) {
+  if(!(await SharedFunctions.userHasAccessToPersistedResource(TemplateModel.collection(), template.uuid, user, PermissionGroupModel, session))) {
     throw new Util.PermissionDeniedError(`Cannot link to template_id ${template._id}, as you do not have view permissions to it`);
   }
 
@@ -224,15 +224,15 @@ async function validateAndCreateOrUpdateRecurser(input_dataset, template, user, 
     }
   }
 
-  // Need to determine if this draft is any different from the published one.
+  // Need to determine if this draft is any different from the persisted one.
   let changes = false;
 
   [new_dataset.related_datasets, changes] = await extractRelatedDatasetsFromCreateOrUpdate(input_dataset.related_datasets, template, user, session, group_uuid, updated_at);
 
-  // If this draft is identical to the latest published, delete it.
+  // If this draft is identical to the latest persisted, delete it.
   // The reason to do so is so when an update to a dataset is submitted, we won't create drafts of sub-datasets that haven't changed.
   if (!changes) {
-    changes = await draftDifferentFromLastPublished(new_dataset, template._id);
+    changes = await draftDifferentFromLastPersisted(new_dataset, template._id);
     if (!changes) {
       // Delete the current draft
       try {
@@ -250,7 +250,7 @@ async function validateAndCreateOrUpdateRecurser(input_dataset, template, user, 
   // If a draft of this dataset doesn't exist: create a new draft
   // Fortunately both cases can be handled with a single MongoDB UpdateOne query using upsert: true
   let response = await Dataset.updateOne(
-    {uuid, 'publish_date': {'$exists': false}}, 
+    {uuid, 'persist_date': {'$exists': false}}, 
     {$set: new_dataset}, 
     {'upsert': true, session}
   );
@@ -265,10 +265,10 @@ async function validateAndCreateOrUpdateRecurser(input_dataset, template, user, 
 
 // If a uuid is provided, update the dataset with the provided uuid.
 // Otherwise, create a new dataset.
-// If the updated dataset is the same as the last published, delete the draft instead of updating. 
+// If the updated dataset is the same as the last persisted, delete the draft instead of updating. 
 // In both cases, validate the given dataset as well, making sure it adheres to the latest public template
 // Return:
-// 1. A boolean indicating true if there were changes from the last published.
+// 1. A boolean indicating true if there were changes from the last persisted.
 // 2. The uuid of the dataset created / updated
 async function validateAndCreateOrUpdate(session, dataset, user) {
 
@@ -277,7 +277,7 @@ async function validateAndCreateOrUpdate(session, dataset, user) {
     throw new Util.InputError(`dataset provided is not an object: ${dataset}`);
   }
 
-  let template = await TemplateModel.publishedByIdWithoutPermissions(SharedFunctions.convertToMongoId(dataset.template_id));
+  let template = await TemplateModel.persistedByIdWithoutPermissions(SharedFunctions.convertToMongoId(dataset.template_id));
   if(!template) {
     throw new Util.InputError(`a valid template_id was not provided for the head dataset`);
   }
@@ -301,29 +301,29 @@ async function validateAndCreateOrUpdate(session, dataset, user) {
 }
 
 // Fetches a dataset draft 
-// If it does not exist, it creates a draft from the latest published.
+// If it does not exist, it creates a draft from the latest persisted.
 // Does not lookup related_datasets
-async function fetchDraftOrCreateFromPublished(uuid, session) {
+async function fetchDraftOrCreateFromPersisted(uuid, session) {
   let dataset_draft = await SharedFunctions.draft(Dataset, uuid, session);
   if(dataset_draft) {
     return dataset_draft;
   }
 
-  let published_dataset = await SharedFunctions.latestPublished(Dataset, uuid, session);
-  if(!published_dataset) {
+  let persisted_dataset = await SharedFunctions.latestPersisted(Dataset, uuid, session);
+  if(!persisted_dataset) {
     return null;
   }
-  dataset_draft = await createDraftFromPublished(published_dataset);
+  dataset_draft = await createDraftFromPersisted(persisted_dataset);
 
   return dataset_draft;
 }
 
 // Fetches the dataset draft with the given uuid, recursively looking up related_datasets.
-// If a draft of a given dataset doesn't exist, a new one will be generated using the last published dataset.
+// If a draft of a given dataset doesn't exist, a new one will be generated using the last persisted dataset.
 async function draftFetchOrCreate(session, uuid, user) {
 
   // See if a draft of this dataset exists. 
-  let dataset_draft = await fetchDraftOrCreateFromPublished(uuid, session);
+  let dataset_draft = await fetchDraftOrCreateFromPersisted(uuid, session);
   if (!dataset_draft) {
     return null;
   }
@@ -343,12 +343,12 @@ async function draftFetchOrCreate(session, uuid, user) {
       related_dataset = await draftFetchOrCreate(session, related_dataset_uuid, user);
     } catch (err) {
       if (err instanceof Util.PermissionDeniedError) {
-        // If we don't have permission for the draft, get the latest published instead
+        // If we don't have permission for the draft, get the latest persisted instead
         try {
-          related_dataset = await latestPublishedWithJoinsAndPermissions(related_dataset_uuid, user)
+          related_dataset = await latestPersistedWithJoinsAndPermissions(related_dataset_uuid, user)
         } catch (err) {
           if (err instanceof Util.PermissionDeniedError || err instanceof Util.NotFoundError) {
-            // If we don't have permission for the published version, or a published version doesn't exist, just attach a uuid and a flag marking no_permissions
+            // If we don't have permission for the persisted version, or a persisted version doesn't exist, just attach a uuid and a flag marking no_permissions
             related_dataset = {uuid: related_dataset_uuid, no_permissions: true};
           } 
           else {
@@ -377,23 +377,23 @@ async function draftFetchOrCreate(session, uuid, user) {
 // This function will provide the timestamp of the last update made to this dataset and all of it's related_datasets
 async function lastUpdateFor(session, uuid, user) {
 
-  let draft = await fetchDraftOrCreateFromPublished(uuid, session);
+  let draft = await fetchDraftOrCreateFromPersisted(uuid, session);
   if(!draft) {
     throw new Util.NotFoundError();
   }
 
-  let published = await SharedFunctions.latestPublished(Dataset, uuid, session);
+  let persisted = await SharedFunctions.latestPersisted(Dataset, uuid, session);
   let admin_permission = await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_ADMIN);
   let view_permission = await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_VIEW);
 
   if(!admin_permission) {
-    if(!published) {
-      throw new Util.PermissionDeniedError(`dataset ${uuid}: do not have admin permissions for draft, and no published version exists`);
+    if(!persisted) {
+      throw new Util.PermissionDeniedError(`dataset ${uuid}: do not have admin permissions for draft, and no persisted version exists`);
     }
     if(!view_permission) {
       throw new Util.PermissionDeniedError(`dataset ${uuid}: do not have view or admin permissions`);
     }
-    return published.updated_at;
+    return persisted.updated_at;
   }
 
   let last_update = draft.updated_at;
@@ -416,10 +416,10 @@ async function lastUpdateFor(session, uuid, user) {
 
 }
 
-async function publishRelatedDatasets(input_related_dataset_uuids, template, user, session) {
+async function persistRelatedDatasets(input_related_dataset_uuids, template, user, session) {
   let result_dataset_ids = [];
-  // For each dataset's related_datasets, publish that related_dataset, then replace the uuid with the internal_id.
-  // It is possible there weren't any changes to publish, so keep track of whether we actually published anything.
+  // For each dataset's related_datasets, persist that related_dataset, then replace the uuid with the internal_id.
+  // It is possible there weren't any changes to persist, so keep track of whether we actually persisted anything.
   // Requirements:
   // - related_dataset can't point to a related_template not supported
   // - Each related_template must have a related_dataset pointing to it
@@ -439,7 +439,7 @@ async function publishRelatedDatasets(input_related_dataset_uuids, template, use
   for(let related_dataset_uuid of input_related_dataset_uuids) {
     let related_dataset_document = await SharedFunctions.latestDocument(Dataset, related_dataset_uuid, session);
     if(!related_dataset_document) {
-      throw new Util.InputError(`Cannot publish dataset. One of it's related_references does not exist and was probably deleted after creation.`);
+      throw new Util.InputError(`Cannot persist dataset. One of it's related_references does not exist and was probably deleted after creation.`);
     }
     let related_template_id = related_dataset_document.template_id.toString();
     if(!(related_template_id in related_template_map)) {
@@ -448,19 +448,19 @@ async function publishRelatedDatasets(input_related_dataset_uuids, template, use
     let related_template = related_template_map[related_template_id];
     templates_unseen.delete(related_template_id);
     try {
-      let related_dataset_id = await publishRecurser(related_dataset_uuid, user, session, related_template);
+      let related_dataset_id = await persistRecurser(related_dataset_uuid, user, session, related_template);
       result_dataset_ids.push(related_dataset_id);
     } catch(err) {
       if (err instanceof Util.NotFoundError) {
         throw new Util.InputError(`Internal reference within this draft is invalid. Fetch/update draft to cleanse it.`);
       } else if (err instanceof Util.PermissionDeniedError) {
-        // If the user doesn't have permissions, assume they want to link the published version of the dataset
-        // But before we can link the published version of the dataset, we must make sure it exists
-        let related_dataset_published = await SharedFunctions.latestPublished(Dataset, related_dataset_uuid);
-        if(!related_dataset_published) {
-          throw new Util.InputError(`Invalid link to dataset ${related_dataset_uuid}, which has no published version to link.`);
+        // If the user doesn't have permissions, assume they want to link the persisted version of the dataset
+        // But before we can link the persisted version of the dataset, we must make sure it exists
+        let related_dataset_persisted = await SharedFunctions.latestPersisted(Dataset, related_dataset_uuid);
+        if(!related_dataset_persisted) {
+          throw new Util.InputError(`Invalid link to dataset ${related_dataset_uuid}, which has no persisted version to link.`);
         }
-        result_dataset_ids.push(related_dataset_published._id);
+        result_dataset_ids.push(related_dataset_persisted._id);
       } else {
         throw err;
       }
@@ -472,37 +472,37 @@ async function publishRelatedDatasets(input_related_dataset_uuids, template, use
   return result_dataset_ids;
 }
 
-// A recursive helper for publish. 
-// Publishes the dataset with the provided uuid
+// A recursive helper for persist. 
+// Persistes the dataset with the provided uuid
 //   If a draft exists of the dataset, then:
-//     if a template has been published more recently than the dataset, reject
-//     if the template has been been published since the last_update that is a problem. Fail
+//     if a template has been persisted more recently than the dataset, reject
+//     if the template has been been persisted since the last_update that is a problem. Fail
 //     if this dataset doesn't conform to the template, fail
-//     if that draft has changes from the latest published (including changes to it's sub-properties):
-//       publish it, and return the new internal_id
+//     if that draft has changes from the latest persisted (including changes to it's sub-properties):
+//       persist it, and return the new internal_id
 //     else: 
-//       return the internal_id of the latest published
+//       return the internal_id of the latest persisted
 //   else:
-//     return the internal_id of the latest_published
+//     return the internal_id of the latest_persisted
 // Input: 
-//   uuid: the uuid of a dataset to be published
-//   user: the user publishing this template
+//   uuid: the uuid of a dataset to be persisted
+//   user: the user persisting this template
 //   session: the mongo session that must be used to make transactions atomic
 //   template: the template this dataset must conform to
 // Returns:
-//   internal_id: the internal id of the published dataset
-async function publishRecurser(uuid, user, session, template) {
+//   internal_id: the internal id of the persisted dataset
+async function persistRecurser(uuid, user, session, template) {
 
-  let published_dataset = await SharedFunctions.latestPublished(Dataset, uuid, session);
+  let persisted_dataset = await SharedFunctions.latestPersisted(Dataset, uuid, session);
 
   // Check if a draft with this uuid exists
   let dataset_draft = await SharedFunctions.draft(Dataset, uuid, session);
   if(!dataset_draft) {
-    // There is no draft of this uuid. Return the latest published dataset instead.
-    if (!published_dataset) {
+    // There is no draft of this uuid. Return the latest persisted dataset instead.
+    if (!persisted_dataset) {
       throw new Util.NotFoundError(`Dataset with uuid ${uuid} does not exist`);
     }
-    return published_dataset._id;
+    return persisted_dataset._id;
   }
 
   // verify that this user is in the 'admin' permission group
@@ -515,63 +515,63 @@ async function publishRecurser(uuid, user, session, template) {
     throw new Error(`The draft provided ${dataset_draft} does not reference the template required ${template._id}.`);
   }
 
-  let related_datasets = await publishRelatedDatasets(dataset_draft.related_datasets, template, user, session);
+  let related_datasets = await persistRelatedDatasets(dataset_draft.related_datasets, template, user, session);
 
-  let publish_time = new Date();
+  let persist_time = new Date();
   let response = await Dataset.updateOne(
     {"_id": dataset_draft._id},
-    {'$set': {'updated_at': publish_time, 'publish_date': publish_time, related_datasets}},
+    {'$set': {'updated_at': persist_time, 'persist_date': persist_time, related_datasets}},
     {session}
   )
   if (response.modifiedCount != 1) {
-    throw `Dataset.publish: should be 1 modified document. Instead: ${response.modifiedCount}`;
+    throw `Dataset.persist: should be 1 modified document. Instead: ${response.modifiedCount}`;
   }
   return dataset_draft._id;
 }
 
-// Publishes the dataset with the provided uuid
+// Persistes the dataset with the provided uuid
 // Input: 
-//   uuid: the uuid of a dataset to be published
-//   user: the user publishing this uuid
+//   uuid: the uuid of a dataset to be persisted
+//   user: the user persisting this uuid
 //   session: the mongo session that must be used to make transactions atomic
-//   last_update: the timestamp of the last known update by the user. Cannot publish if the actual last update and that expected by the user differ.
-async function publish(session, dataset_uuid, user, last_update) {
+//   last_update: the timestamp of the last known update by the user. Cannot persist if the actual last update and that expected by the user differ.
+async function persist(session, dataset_uuid, user, last_update) {
 
   let dataset = await SharedFunctions.draft(Dataset, dataset_uuid);
   if (!dataset) {
-    dataset = await SharedFunctions.latestPublished(Dataset, dataset_uuid);
+    dataset = await SharedFunctions.latestPersisted(Dataset, dataset_uuid);
     if (!dataset) {
       throw new Util.NotFoundError(`Dataset with uuid ${dataset_uuid} does not exist`);
     } 
-    throw new Util.InputError('No changes to publish');
+    throw new Util.InputError('No changes to persist');
   }
 
   // If the last update provided doesn't match to the last update found in the db, fail.
   let db_last_update = new Date(await lastUpdateFor(session, dataset_uuid, user));
   if(last_update.getTime() != db_last_update.getTime()) {
     throw new Util.InputError(`The last update submitted ${last_update.toISOString()} does not match that found in the db ${db_last_update.toISOString()}. 
-    Fetch the draft again to get the latest update before attempting to publish again.`);
+    Fetch the draft again to get the latest update before attempting to persist again.`);
   }
 
-  let template = await TemplateModel.publishedByIdWithoutPermissions(SharedFunctions.convertToMongoId(dataset.template_id));
+  let template = await TemplateModel.persistedByIdWithoutPermissions(SharedFunctions.convertToMongoId(dataset.template_id));
 
-  await publishRecurser(dataset_uuid, user, session, template);
+  await persistRecurser(dataset_uuid, user, session, template);
 }
 
-// Fetches the last dataset with the given uuid published before the given date. 
+// Fetches the last dataset with the given uuid persisted before the given date. 
 // Also recursively looks up fields and related_templates.
-async function latestPublishedBeforeDateWithJoins(uuid, date, session) {
+async function latestPersistedBeforeDateWithJoins(uuid, date, session) {
   // Construct a mongodb aggregation pipeline that will recurse into related templates up to 5 levels deep.
   // Thus, the tree will have a depth of 6 nodes
   let pipeline = [
     {
       '$match': { 
         'uuid': uuid,
-        'publish_date': {'$lte': date}
+        'persist_date': {'$lte': date}
       }
     },
     {
-      '$sort' : { 'publish_date' : -1 }
+      '$sort' : { 'persist_date' : -1 }
     },
     {
       '$limit' : 1
@@ -636,42 +636,42 @@ async function latestPublishedBeforeDateWithJoins(uuid, date, session) {
   if (await response.hasNext()){
     return await response.next();
   } else {
-    throw new Util.NotFoundError(`No dataset exists with uuid ${uuid} which was published before the provided date.`);
+    throw new Util.NotFoundError(`No dataset exists with uuid ${uuid} which was persisted before the provided date.`);
   }
 }
 
-async function filterPublishedForPermissionsRecursor(dataset, user, session) {
+async function filterPersistedForPermissionsRecursor(dataset, user, session) {
   for(let i = 0; i < dataset.related_datasets.length; i++) {
-    if(!(await SharedFunctions.userHasAccessToPublishedResource(Dataset, dataset.related_datasets[i].uuid, user, PermissionGroupModel, session))) {
+    if(!(await SharedFunctions.userHasAccessToPersistedResource(Dataset, dataset.related_datasets[i].uuid, user, PermissionGroupModel, session))) {
       dataset.related_datasets[i] = {uuid: dataset.related_datasets[i].uuid};
     } else {
-      await filterPublishedForPermissionsRecursor(dataset.related_datasets[i], user, session);
+      await filterPersistedForPermissionsRecursor(dataset.related_datasets[i], user, session);
     }
   }
 }
 
-async function filterPublishedForPermissions(dataset, user, session) {
-  if(!(await SharedFunctions.userHasAccessToPublishedResource(Dataset, dataset.uuid, user, PermissionGroupModel, session))) {
+async function filterPersistedForPermissions(dataset, user, session) {
+  if(!(await SharedFunctions.userHasAccessToPersistedResource(Dataset, dataset.uuid, user, PermissionGroupModel, session))) {
     throw new Util.PermissionDeniedError(`Do not have view access to dataset ${dataset.uuid}`);
   }
-  await filterPublishedForPermissionsRecursor(dataset, user, session);
+  await filterPersistedForPermissionsRecursor(dataset, user, session);
 }
 
-async function latestPublishedBeforeDateWithJoinsAndPermissions(uuid, date, user, session) {
-  let dataset = await latestPublishedBeforeDateWithJoins(uuid, date, session);
-  await filterPublishedForPermissions(dataset, user, session);
+async function latestPersistedBeforeDateWithJoinsAndPermissions(uuid, date, user, session) {
+  let dataset = await latestPersistedBeforeDateWithJoins(uuid, date, session);
+  await filterPersistedForPermissions(dataset, user, session);
   return dataset;
 } 
 
-// Fetches the last published dataset with the given uuid. 
+// Fetches the last persisted dataset with the given uuid. 
 // Also recursively looks up related_datasets.
-async function latestPublishedWithJoinsAndPermissions(uuid, user, session) {
-  return await latestPublishedBeforeDateWithJoinsAndPermissions(uuid, new Date(), user, session);
+async function latestPersistedWithJoinsAndPermissions(uuid, user, session) {
+  return await latestPersistedBeforeDateWithJoinsAndPermissions(uuid, new Date(), user, session);
 }
 
 async function duplicateRecursor(original_dataset, original_group_uuid, new_group_uuid, uuid_dictionary, user, session) {
   // verify that this user is in the 'view' permission group
-  if (!(await SharedFunctions.userHasAccessToPublishedResource(Dataset, original_dataset.uuid, user, PermissionGroupModel))) {
+  if (!(await SharedFunctions.userHasAccessToPersistedResource(Dataset, original_dataset.uuid, user, PermissionGroupModel))) {
     throw new Util.PermissionDeniedError(`Do not have view permissions required to duplicate dataset: ${original_dataset.uuid}`);
   }
 
@@ -722,7 +722,7 @@ async function duplicateRecursor(original_dataset, original_group_uuid, new_grou
 }
 
 async function duplicate(session, uuid, user) {
-  let original_dataset = await latestPublishedWithJoinsAndPermissions(uuid, user);
+  let original_dataset = await latestPersistedWithJoinsAndPermissions(uuid, user);
   let original_group_uuid = original_dataset.group_uuid;
   let uuid_dictionary = {};
   let new_uuid = await duplicateRecursor(original_dataset, original_group_uuid, uuidv4(), uuid_dictionary, user, session);
@@ -767,11 +767,11 @@ async function importDatasetFromCombinedRecursor(record, template, user, updated
     throw new Util.InputError(`template expects template_uuid ${template.uuid}. Record ${record.record_uuid} suuplied uuid ${new_template_uuid}`);
   }
 
-  // template must be published and user must have read access
-  let latest_published_template = await TemplateModel.latestPublished(new_template_uuid, user);
-  if(!latest_published_template) {
+  // template must be persisted and user must have read access
+  let latest_persisted_template = await TemplateModel.latestPersisted(new_template_uuid, user);
+  if(!latest_persisted_template) {
     throw new Util.InputError(`Cannot import record with template_uuid ${record.template_uuid} because the template 
-    (converted to uuid ${new_template_uuid}) has not yet been published.`);
+    (converted to uuid ${new_template_uuid}) has not yet been persisted.`);
   }
 
   if(!record.database_uuid || typeof(record.database_uuid) !== 'string') {
@@ -807,7 +807,7 @@ async function importDatasetFromCombinedRecursor(record, template, user, updated
     new_dataset.public_date = new Date(record._record_metadata._public_date);
   }
 
-  // Need to determine if this draft is any different from the published one.
+  // Need to determine if this draft is any different from the persisted one.
   let changes = false;
 
   // Recurse into related_datasets
@@ -881,10 +881,10 @@ async function importDatasetFromCombinedRecursor(record, template, user, updated
 
   
   
-  // If this draft is identical to the latest published, delete it.
+  // If this draft is identical to the latest persisted, delete it.
   // The reason to do so is so when an update to a dataset is submitted, we won't create drafts of sub-datasets that haven't changed.
   if (!changes) {
-    changes = await draftDifferentFromLastPublished(new_dataset, template._id);
+    changes = await draftDifferentFromLastPersisted(new_dataset, template._id);
     if (!changes) {
       // Delete the current draft
       try {
@@ -902,7 +902,7 @@ async function importDatasetFromCombinedRecursor(record, template, user, updated
   // If a draft of this dataset doesn't exist: create a new draft
   // Fortunately both cases can be handled with a single MongoDB UpdateOne query using upsert: true
   let response = await Dataset.updateOne(
-    {"uuid": dataset_uuid, 'publish_date': {'$exists': false}}, 
+    {"uuid": dataset_uuid, 'persist_date': {'$exists': false}}, 
     {$set: new_dataset}, 
     {'upsert': true, session}
   );
@@ -932,7 +932,7 @@ function newDatasetForTemplate(template) {
 async function importDatasetForTemplate(template, user, session, updated_at) {
   let old_template_uuid = template.template_uuid;
   let new_template_uuid = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(old_template_uuid, session);
-  let new_template = await SharedFunctions.latestPublished(TemplateModel.collection(), new_template_uuid, session);
+  let new_template = await SharedFunctions.latestPersisted(TemplateModel.collection(), new_template_uuid, session);
   
 
   let dataset_uuid = await LegacyUuidToNewUuidMapperModel.get_secondary_uuid_from_old(old_template_uuid, session);
@@ -962,7 +962,7 @@ async function importDatasetForTemplate(template, user, session, updated_at) {
   } 
 
   let response = await Dataset.updateOne(
-    {"uuid": dataset.uuid, 'publish_date': {'$exists': false}}, 
+    {"uuid": dataset.uuid, 'persist_date': {'$exists': false}}, 
     {$set: dataset}, 
     {'upsert': true, session}
   );
@@ -998,9 +998,9 @@ exports.update = async function(dataset, user) {
   await SharedFunctions.executeWithTransaction(validateAndCreateOrUpdate, dataset, user);
 }
 
-// Wraps the actual request to publish with a transaction
-exports.publish = async function(uuid, user, last_update) {
-  await SharedFunctions.executeWithTransaction(publish, uuid, user, last_update);
+// Wraps the actual request to persist with a transaction
+exports.persist = async function(uuid, user, last_update) {
+  await SharedFunctions.executeWithTransaction(persist, uuid, user, last_update);
 }
 
 // Wraps the actual request to getUpdate with a transaction
@@ -1009,8 +1009,8 @@ exports.lastUpdate = async function(uuid, user) {
   return update;
 }
 
-exports.latestPublished = latestPublishedWithJoinsAndPermissions;
-exports.publishedBeforeDate = latestPublishedBeforeDateWithJoinsAndPermissions;
+exports.latestPersisted = latestPersistedWithJoinsAndPermissions;
+exports.persistedBeforeDate = latestPersistedBeforeDateWithJoinsAndPermissions;
 
 exports.draftDelete = async function(uuid, user) {
   // if draft doesn't exist, return not found
@@ -1029,8 +1029,8 @@ exports.draftExisting = async function(uuid) {
   return (await SharedFunctions.draft(Dataset, uuid)) ? true : false;
 }
 
-exports.latestPublishedWithoutPermissions = async function(uuid) {
-  return await latestPublishedBeforeDateWithJoins(uuid, new Date());
+exports.latestPersistedWithoutPermissions = async function(uuid) {
+  return await latestPersistedBeforeDateWithJoins(uuid, new Date());
 }
 
 exports.collection = function() {
@@ -1052,15 +1052,15 @@ exports.duplicate = async function(uuid, user) {
 }
 
 exports.newDatasetForTemplate = async function(template_uuid, user, session) {
-  let template = await TemplateModel.latestPublished(template_uuid, user, session);
+  let template = await TemplateModel.latestPersisted(template_uuid, user, session);
   if(!template) {
-    throw new Util.NotFoundError(`No published template exists with uuid ${template_uuid}`);
+    throw new Util.NotFoundError(`No persisted template exists with uuid ${template_uuid}`);
   }
   return newDatasetForTemplate(template);
 }
 
 exports.importDatasetFromCombinedRecursor = importDatasetFromCombinedRecursor;
-exports.publishWithoutChecks = publishRecurser;
+exports.persistWithoutChecks = persistRecurser;
 
 exports.importDatasetForTemplate = async (template, user, session) => {
   return await importDatasetForTemplate(template, user, session, new Date());

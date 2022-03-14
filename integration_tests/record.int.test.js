@@ -26,12 +26,12 @@ describe("create (and get draft)", () => {
       let template = {
         name:"t1"
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
         template_id: template._id
       };
-      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
       let record = {
         dataset_uuid: dataset.uuid
@@ -53,7 +53,7 @@ describe("create (and get draft)", () => {
         "name":"t1",
         "fields":[name_field, color_field]
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       if(template.fields[0].name == 'name') {
         name_field.uuid = template.fields[0].uuid;
@@ -68,7 +68,7 @@ describe("create (and get draft)", () => {
       let dataset = {
         template_id: template._id
       };
-      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
       let record = {
         dataset_uuid: dataset.uuid,
@@ -100,7 +100,7 @@ describe("create (and get draft)", () => {
         "fields":[name_field],
         "related_templates":[related_template]
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
         template_id: template._id,
@@ -108,7 +108,7 @@ describe("create (and get draft)", () => {
           template_id: template.related_templates[0]._id
         }]
       };
-      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
       name_field.uuid = template.fields[0].uuid;
       name_field.value = "Caleb";
@@ -158,7 +158,7 @@ describe("create (and get draft)", () => {
           }
         ]
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let dataset = { 
         template_id: template._id,
@@ -188,7 +188,7 @@ describe("create (and get draft)", () => {
           }
         ]
       };
-      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
       let record = { 
         "dataset_uuid": dataset.uuid,
@@ -231,7 +231,7 @@ describe("create (and get draft)", () => {
           name: "t2"
         }]
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
         template_id: template._id,
@@ -239,7 +239,7 @@ describe("create (and get draft)", () => {
           template_id: template.related_templates[0]._id 
         }]
       };
-      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
       let related_record = {
         dataset_uuid: dataset.related_datasets[0].uuid
@@ -269,7 +269,7 @@ describe("create (and get draft)", () => {
           }
         ]
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
         template_id: template._id,
@@ -282,7 +282,7 @@ describe("create (and get draft)", () => {
           }
         ]
       };
-      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
       let related_record_1 = {
         dataset_uuid: dataset.related_datasets[0].uuid
@@ -291,11 +291,11 @@ describe("create (and get draft)", () => {
         dataset_uuid: dataset.related_datasets[1].uuid
       };
 
-      let related_record_1_published = await Helper.recordCreatePublishTest(related_record_1, Helper.DEF_CURR_USER);
-      let related_record_2_published = await Helper.recordCreatePublishTest(related_record_2, Helper.DEF_CURR_USER);
+      let related_record_1_persisted = await Helper.recordCreatePersistTest(related_record_1, Helper.DEF_CURR_USER);
+      let related_record_2_persisted = await Helper.recordCreatePersistTest(related_record_2, Helper.DEF_CURR_USER);
 
-      related_record_1.uuid = related_record_1_published.uuid;
-      related_record_2.uuid = related_record_2_published.uuid;
+      related_record_1.uuid = related_record_1_persisted.uuid;
+      related_record_2.uuid = related_record_2_persisted.uuid;
 
       let both_users = [Helper.DEF_CURR_USER, Helper.USER_2];
       let response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, template.uuid, PERMISSION_EDIT, both_users);
@@ -312,7 +312,7 @@ describe("create (and get draft)", () => {
 
       let record = {
         dataset_uuid: dataset.uuid,
-        related_records: [related_record_1, {uuid: related_record_2_published.uuid, dataset_uuid: related_record_2_published.dataset_uuid}]
+        related_records: [related_record_1, {uuid: related_record_2_persisted.uuid, dataset_uuid: related_record_2_persisted.dataset_uuid}]
       };
 
       await Helper.recordCreateAndTest(record, Helper.USER_2);
@@ -326,7 +326,7 @@ describe("create (and get draft)", () => {
         "fields":[],
         "related_templates":[{"name":"1.1"}, {"name":"1.2"}]
       };
-      template1 = await Helper.templateCreatePublishTest(template1, Helper.DEF_CURR_USER);
+      template1 = await Helper.templateCreatePersistTest(template1, Helper.DEF_CURR_USER);
 
       let dataset = {
         template_id: template1._id,
@@ -339,7 +339,7 @@ describe("create (and get draft)", () => {
           }
         ]
       };
-      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
       let record = {
         dataset_uuid: dataset.uuid,
@@ -381,7 +381,7 @@ describe("create (and get draft)", () => {
         "name":"t1",
         "fields":[field]
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       field.uuid = template.fields[0].uuid;
       field.options = template.fields[0].options;
@@ -389,7 +389,7 @@ describe("create (and get draft)", () => {
       let dataset = {
         template_id: template._id
       };
-      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
       // The tests automatically sort by name. So options[0] is 'caleb' and options[1] is 'naruto'
       let option_uuid_1 = field.options[1].uuid;
@@ -441,7 +441,7 @@ describe("create (and get draft)", () => {
         "fields":[name_field],
         "related_templates":[related_template]
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       name_field.uuid = template.fields[0].uuid;
 
@@ -451,7 +451,7 @@ describe("create (and get draft)", () => {
           template_id: template.related_templates[0]._id
         }]
       };
-      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
       let record = {
         dataset_uuid: dataset.uuid,
@@ -496,12 +496,12 @@ describe("create (and get draft)", () => {
       let template = {
         "name":"t1"
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
         template_id: template._id
       };
-      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
       let record = {
         dataset_uuid: dataset.uuid,
@@ -529,9 +529,9 @@ describe("create (and get draft)", () => {
         "name": "incorrect"
       }
 
-      other_template = await Helper.templateCreatePublishTest(other_template, Helper.DEF_CURR_USER);
+      other_template = await Helper.templateCreatePersistTest(other_template, Helper.DEF_CURR_USER);
 
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
         template_id: template._id,
@@ -539,12 +539,12 @@ describe("create (and get draft)", () => {
           template_id: template.related_templates[0]._id
         }]
       }
-      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
       let other_dataset = {
         template_id: other_template._id
       }
-      other_dataset = await Helper.datasetCreatePublishTest(other_dataset, Helper.DEF_CURR_USER);
+      other_dataset = await Helper.datasetCreatePersistTest(other_dataset, Helper.DEF_CURR_USER);
 
       let record = {
         dataset_uuid: dataset.uuid,
@@ -587,7 +587,7 @@ describe("create (and get draft)", () => {
           }
         ]
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let dataset = { 
         template_id: template._id,
@@ -617,7 +617,7 @@ describe("create (and get draft)", () => {
           }
         ]
       };
-      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
       let record = { 
         "dataset_uuid": dataset.uuid,
@@ -657,12 +657,12 @@ describe("create (and get draft)", () => {
       let template = {
         name:"t1"
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
         template_id: template._id
       };
-      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
       let both_users = [Helper.DEF_CURR_USER, Helper.USER_2];
       let response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, template.uuid, PERMISSION_VIEW, both_users);
@@ -687,7 +687,7 @@ describe("create (and get draft)", () => {
         "name":"t1",
         "fields":[name_field]
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       name_field.uuid = template.fields[0].uuid;
       name_field.value = "Caleb";
@@ -695,7 +695,7 @@ describe("create (and get draft)", () => {
       let dataset = {
         template_id: template._id
       };
-      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
       delete name_field.uuid;
       let record = {
@@ -717,7 +717,7 @@ describe("create (and get draft)", () => {
         "name":"t1",
         "fields":[name_field]
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       name_field.uuid = template.fields[0].uuid;
       name_field.value = "Caleb";
@@ -725,7 +725,7 @@ describe("create (and get draft)", () => {
       let dataset = {
         template_id: template._id
       };
-      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
       let record = {
         dataset_uuid: dataset.uuid,
@@ -743,7 +743,7 @@ describe("create (and get draft)", () => {
         "fields":[],
         "related_templates":[{"name":"1.1"}, {"name":"1.2"}]
       };
-      template1 = await Helper.templateCreatePublishTest(template1, Helper.DEF_CURR_USER);
+      template1 = await Helper.templateCreatePersistTest(template1, Helper.DEF_CURR_USER);
 
       let dataset = {
         template_id: template1._id,
@@ -756,8 +756,8 @@ describe("create (and get draft)", () => {
           }
         ]
       };
-      let dataset1 = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
-      let dataset2 = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      let dataset1 = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
+      let dataset2 = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
       // Try to create a record with a related_record using an invalid dataset_uuid
       let record = {
@@ -794,7 +794,7 @@ describe("create (and get draft)", () => {
         "name":"t1",
         "fields":[field]
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       field.uuid = template.fields[0].uuid;
       field.options = template.fields[0].options;
@@ -802,7 +802,7 @@ describe("create (and get draft)", () => {
       let dataset = {
         template_id: template._id
       };
-      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
       // option_uuid supplied not supported
       field.values = [{uuid: "invalid"}];
@@ -823,7 +823,7 @@ describe("create (and get draft)", () => {
           name: "t2"
         }]
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
         template_id: template._id,
@@ -831,7 +831,7 @@ describe("create (and get draft)", () => {
           template_id: template.related_templates[0]._id 
         }]
       };
-      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
       let related_record = {
         dataset_uuid: dataset.related_datasets[0].uuid
@@ -872,7 +872,7 @@ const populateWithDummyTemplateAndRecord = async () => {
       }
     ]
   };
-  template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+  template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
   let dataset = {
     template_id: template._id,
@@ -881,7 +881,7 @@ const populateWithDummyTemplateAndRecord = async () => {
       }
     ]
   };
-  dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+  dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
   f1.uuid = template.fields[0].uuid;
   f1.value = "happy";
@@ -945,8 +945,8 @@ describe("update", () => {
       expect(response.statusCode).toBe(401);
     });
 
-    test("once a record is published, its dataset may never be changed", async () => {
-      record = await Helper.recordPublishAndTest(record, Helper.DEF_CURR_USER);
+    test("once a record is persisted, its dataset may never be changed", async () => {
+      record = await Helper.recordPersistAndTest(record, Helper.DEF_CURR_USER);
       let dataset_alternative = {
         template_id: template._id,
         related_datasets: [{
@@ -955,14 +955,14 @@ describe("update", () => {
           }
         ]
       };
-      dataset_alternative = await Helper.datasetCreatePublishTest(dataset_alternative, Helper.DEF_CURR_USER);
+      dataset_alternative = await Helper.datasetCreatePersistTest(dataset_alternative, Helper.DEF_CURR_USER);
       record.dataset_uuid = dataset_alternative.uuid;
       let response = await Helper.recordUpdate(record, record.uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
     });
   });
 
-  describe("update after a publish: is draft different and thus created or not?", () => {
+  describe("update after a persist: is draft different and thus created or not?", () => {
 
     test("public_date, field", async () => {
 
@@ -971,19 +971,19 @@ describe("update", () => {
         public_date: (new Date()).toISOString(),
         fields: [{name: "field"}]
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
         template_id: template._id,
         public_date: (new Date()).toISOString()
       };
-      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
       let record = {
         dataset_uuid: dataset.uuid,
         fields: [{uuid: template.fields[0].uuid, value: "something"}]
       };
-      record = await Helper.recordCreatePublishTest(record, Helper.DEF_CURR_USER);
+      record = await Helper.recordCreatePersistTest(record, Helper.DEF_CURR_USER);
 
       // Test that draft exists if field changes
       record.fields[0].value = "else";
@@ -1002,7 +1002,7 @@ describe("update", () => {
 
     test("updating a related_record creates drafts of parents but not children", async () => {
       let field = {"name": "t1.1.1 f1"};
-      // Create and publish template
+      // Create and persist template
       let template = {
         "name":"t1",
         "related_templates":[{
@@ -1016,7 +1016,7 @@ describe("update", () => {
           }]
         }]
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
         template_id: template._id,
@@ -1036,7 +1036,7 @@ describe("update", () => {
           }
         ]
       };
-      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
       field.uuid = template.related_templates[0].related_templates[0].fields[0].uuid;
       field.value = "strawberry";
@@ -1057,8 +1057,8 @@ describe("update", () => {
 
       record = await Helper.recordCreateAndTest(record, Helper.DEF_CURR_USER);
 
-      // Publish the first time
-      await Helper.recordPublishAndTest(record, Helper.DEF_CURR_USER);
+      // Persist the first time
+      await Helper.recordPersistAndTest(record, Helper.DEF_CURR_USER);
 
       //  Submit an update on the 3rd layer
       response = await Helper.recordDraftGet(record.uuid, Helper.DEF_CURR_USER);
@@ -1075,35 +1075,35 @@ describe("update", () => {
 
     });
 
-    test("update includes no change since last published: no draft created", async () => {
+    test("update includes no change since last persisted: no draft created", async () => {
       [template, dataset, record] = await populateWithDummyTemplateAndRecord();
 
-      await Helper.recordPublishAndTest(record, Helper.DEF_CURR_USER);
+      await Helper.recordPersistAndTest(record, Helper.DEF_CURR_USER);
       await Helper.recordUpdateAndTest(record, Helper.DEF_CURR_USER);
       expect(await Helper.recordDraftExisting(record.uuid)).toBeFalsy();
       expect(await Helper.recordDraftExisting(record.related_records[0].uuid)).toBeFalsy();
     });
 
-    test("update includes no changes since last published but a new dataset has been published: a new draft is created", async () => {
+    test("update includes no changes since last persisted but a new dataset has been persisted: a new draft is created", async () => {
       [template, dataset, record] = await populateWithDummyTemplateAndRecord();
 
-      await Helper.recordPublishAndTest(record, Helper.DEF_CURR_USER);
+      await Helper.recordPersistAndTest(record, Helper.DEF_CURR_USER);
       dataset.public_date = (new Date()).toISOString();
-      await Helper.datasetUpdatePublishTest(dataset, Helper.DEF_CURR_USER);
+      await Helper.datasetUpdatePersistTest(dataset, Helper.DEF_CURR_USER);
       await Helper.recordUpdateAndTest(record, Helper.DEF_CURR_USER);
       expect(await Helper.recordDraftExisting(record.uuid)).toBeTruthy();
       expect(await Helper.recordDraftExisting(record.related_records[0].uuid)).toBeFalsy();
     });
 
-    test("update includes no changes except that a new version of a related_record has been published: a new draft is created", async () => {
+    test("update includes no changes except that a new version of a related_record has been persisted: a new draft is created", async () => {
       [template, dataset, record] = await populateWithDummyTemplateAndRecord();
 
-      await Helper.recordPublishAndTest(record, Helper.DEF_CURR_USER);
+      await Helper.recordPersistAndTest(record, Helper.DEF_CURR_USER);
 
       let related_record = record.related_records[0];
       related_record.fields[0].value = "new value";
       await Helper.recordUpdateAndTest(related_record, Helper.DEF_CURR_USER);
-      await Helper.recordPublishAndTest(related_record, Helper.DEF_CURR_USER);
+      await Helper.recordPersistAndTest(related_record, Helper.DEF_CURR_USER);
 
       await Helper.recordUpdateAndTest(record, Helper.DEF_CURR_USER);
       expect(await Helper.recordDraftExisting(record.uuid)).toBeTruthy();
@@ -1148,18 +1148,18 @@ describe("delete", () => {
   });
 });
 
-describe("publish (and get published)", () => {
+describe("persist (and get persisted)", () => {
 
   describe("Success cases", () => {
-    test("Simple publish - no fields and no related records", async () => {
+    test("Simple persist - no fields and no related records", async () => {
       let template = { 
         "name": "t1"
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
       let dataset = {
         template_id: template._id
       }
-      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
       let record = {
         dataset_uuid: dataset.uuid
@@ -1167,18 +1167,18 @@ describe("publish (and get published)", () => {
 
       record = await Helper.recordCreateAndTest(record, Helper.DEF_CURR_USER);
 
-      await Helper.recordPublishAndTest(record, Helper.DEF_CURR_USER);
+      await Helper.recordPersistAndTest(record, Helper.DEF_CURR_USER);
       
     });
 
-    test("Complex publish - with nested fields and related templates to publish", async () => {
+    test("Complex persist - with nested fields and related templates to persist", async () => {
       let record;
       [_, _, record] = await populateWithDummyTemplateAndRecord();
-      await Helper.recordPublishAndTest(record, Helper.DEF_CURR_USER);
+      await Helper.recordPersistAndTest(record, Helper.DEF_CURR_USER);
     });
 
-    test("Complex publish - changes in a nested property result in publishing for all parent properties", async () => {
-      // Create and publish template
+    test("Complex persist - changes in a nested property result in persisting for all parent properties", async () => {
+      // Create and persist template
       let field = {"name": "f1"};
       let template = {
         "name":"1",
@@ -1193,7 +1193,7 @@ describe("publish (and get published)", () => {
           }]
         }]
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
         template_id: template._id,
@@ -1207,7 +1207,7 @@ describe("publish (and get published)", () => {
           }]
         }]
       };
-      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
       field.uuid = template.related_templates[0].related_templates[0].fields[0].uuid;
       field.value = "strawberry";
@@ -1228,8 +1228,8 @@ describe("publish (and get published)", () => {
 
       record = await Helper.recordCreateAndTest(record, Helper.DEF_CURR_USER);
 
-      // Publish the first time
-      await Helper.recordPublishAndTest(record, Helper.DEF_CURR_USER);
+      // Persist the first time
+      await Helper.recordPersistAndTest(record, Helper.DEF_CURR_USER);
 
       // Edit the third record
       response = await Helper.recordDraftGet(record.uuid, Helper.DEF_CURR_USER);
@@ -1238,33 +1238,33 @@ describe("publish (and get published)", () => {
       record.related_records[0].related_records[0].fields[0].value = "banana";
       await Helper.recordUpdateAndTest(record, Helper.DEF_CURR_USER);
 
-      // Record the date before we publish a second time
-      let intermediate_publish_date = (new Date()).getTime();
+      // Record the date before we persist a second time
+      let intermediate_persist_date = (new Date()).getTime();
 
-      // Now publish the record again
-      let published = await Helper.recordPublishAndTest(record, Helper.DEF_CURR_USER);
+      // Now persist the record again
+      let persisted = await Helper.recordPersistAndTest(record, Helper.DEF_CURR_USER);
 
-      // On the third node and above, the publish date should be newer than the intermediate_publish_date. 
+      // On the third node and above, the persist date should be newer than the intermediate_persist_date. 
       // The fourth should be older
       
-      expect(new Date(published.publish_date).getTime()).toBeGreaterThan(intermediate_publish_date);
-      expect(new Date(published.related_records[0].publish_date).getTime()).toBeGreaterThan(intermediate_publish_date);
-      expect(new Date(published.related_records[0].related_records[0].publish_date).getTime()).toBeGreaterThan(intermediate_publish_date);
-      expect(new Date(published.related_records[0].related_records[0].related_records[0].publish_date).getTime()).toBeLessThan(intermediate_publish_date);
+      expect(new Date(persisted.persist_date).getTime()).toBeGreaterThan(intermediate_persist_date);
+      expect(new Date(persisted.related_records[0].persist_date).getTime()).toBeGreaterThan(intermediate_persist_date);
+      expect(new Date(persisted.related_records[0].related_records[0].persist_date).getTime()).toBeGreaterThan(intermediate_persist_date);
+      expect(new Date(persisted.related_records[0].related_records[0].related_records[0].persist_date).getTime()).toBeLessThan(intermediate_persist_date);
     });
 
-    test("can create and publish records for subscribed templates", async () => {
+    test("can create and persist records for subscribed templates", async () => {
 
       let subscribed_template = {
         name:"t2",
       };
-      subscribed_template = await Helper.templateCreatePublishTest(subscribed_template, Helper.DEF_CURR_USER);
+      subscribed_template = await Helper.templateCreatePersistTest(subscribed_template, Helper.DEF_CURR_USER);
 
       let template = {
         name:"t1",
         subscribed_templates:[subscribed_template]
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
 
       let dataset = {
@@ -1274,7 +1274,7 @@ describe("publish (and get published)", () => {
         }]
       };
 
-      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
       let record = {
         dataset_uuid: dataset.uuid,
@@ -1282,7 +1282,7 @@ describe("publish (and get published)", () => {
           dataset_uuid: dataset.related_datasets[0].uuid,
         }]
       };
-      await Helper.recordCreatePublishTest(record, Helper.DEF_CURR_USER);
+      await Helper.recordCreatePersistTest(record, Helper.DEF_CURR_USER);
 
     });
 
@@ -1290,11 +1290,11 @@ describe("publish (and get published)", () => {
 
   describe("Failure cases", () => {
 
-    const publishFailureTest = async (uuid, curr_user, responseCode, last_update) => {
+    const persistFailureTest = async (uuid, curr_user, responseCode, last_update) => {
       if(!last_update) {
         last_update = await Helper.recordLastUpdateAndTest(uuid, curr_user);
       }
-      let response = await Helper.recordPublish(uuid, last_update, curr_user);
+      let response = await Helper.recordPersist(uuid, last_update, curr_user);
       expect(response.statusCode).toBe(responseCode);
     };
 
@@ -1306,32 +1306,32 @@ describe("publish (and get published)", () => {
     });
 
     test("Record with uuid does not exist", async () => {
-      await publishFailureTest(Helper.VALID_UUID, Helper.DEF_CURR_USER, 404, new Date());
+      await persistFailureTest(Helper.VALID_UUID, Helper.DEF_CURR_USER, 404, new Date());
     });
 
-    test("No changes to publish", async () => {
-      await Helper.recordPublishAndTest(record, Helper.DEF_CURR_USER);
-      await publishFailureTest(record.uuid, Helper.DEF_CURR_USER, 400);
+    test("No changes to persist", async () => {
+      await Helper.recordPersistAndTest(record, Helper.DEF_CURR_USER);
+      await persistFailureTest(record.uuid, Helper.DEF_CURR_USER, 400);
     });
 
-    test("A new dataset has been published since this record was last updated", async () => {
-      // publish original data
-      await Helper.recordPublishAndTest(record, Helper.DEF_CURR_USER);
+    test("A new dataset has been persisted since this record was last updated", async () => {
+      // persist original data
+      await Helper.recordPersistAndTest(record, Helper.DEF_CURR_USER);
       // update record
       record.fields[0].value = "waffle";
       await Helper.recordUpdateAndTest(record, Helper.DEF_CURR_USER);
-      // update dataset and publish
+      // update dataset and persist
       dataset.public_date = (new Date()).toISOString();
-      await Helper.datasetUpdatePublishTest(dataset, Helper.DEF_CURR_USER);
-      // fail to publish record because it's dataset was just published
-      await publishFailureTest(record.uuid, Helper.DEF_CURR_USER, 400);
-      // update record again and this time succeed in publishing 
+      await Helper.datasetUpdatePersistTest(dataset, Helper.DEF_CURR_USER);
+      // fail to persist record because it's dataset was just persisted
+      await persistFailureTest(record.uuid, Helper.DEF_CURR_USER, 400);
+      // update record again and this time succeed in persisting 
       await Helper.recordUpdateAndTest(record, Helper.DEF_CURR_USER);
-      await Helper.recordPublishAndTest(record, Helper.DEF_CURR_USER);
+      await Helper.recordPersistAndTest(record, Helper.DEF_CURR_USER);
     });
 
     test("Last update provided must match to actual last update in the database", async () => {
-      await publishFailureTest(record.uuid, Helper.DEF_CURR_USER, 400, new Date());
+      await persistFailureTest(record.uuid, Helper.DEF_CURR_USER, 400, new Date());
     });
 
     test("Last update provided must match to actual last update in the database, also if sub-property is updated later", async () => {
@@ -1340,20 +1340,20 @@ describe("publish (and get published)", () => {
       related_record.fields[0].value = "this programmer just ate a pear";
       await Helper.recordUpdateAndTest(related_record, Helper.DEF_CURR_USER);
 
-      await publishFailureTest(record.uuid, Helper.DEF_CURR_USER, 400, parent_update);
+      await persistFailureTest(record.uuid, Helper.DEF_CURR_USER, 400, parent_update);
 
-      await Helper.recordPublishAndTest(record, Helper.DEF_CURR_USER);
+      await Helper.recordPersistAndTest(record, Helper.DEF_CURR_USER);
     });
 
-    test("Must have edit permissions to publish", async () => {
+    test("Must have edit permissions to persist", async () => {
       let template = { 
         "name": "t1"
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
       let dataset = {
         template_id: template._id
       }
-      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
       let record = {
         dataset_uuid: dataset.uuid
@@ -1362,7 +1362,7 @@ describe("publish (and get published)", () => {
       record = await Helper.recordCreateAndTest(record, Helper.DEF_CURR_USER);
 
       let last_update = await Helper.recordLastUpdateAndTest(record.uuid, Helper.DEF_CURR_USER);
-      let response = await Helper.recordPublish(record.uuid, last_update, Helper.USER_2);
+      let response = await Helper.recordPersist(record.uuid, last_update, Helper.USER_2);
       expect(response.statusCode).toBe(401);
       
     });
@@ -1370,14 +1370,14 @@ describe("publish (and get published)", () => {
   });
 });
 
-describe("get published", () => {
+describe("get persisted", () => {
   test("if user does not have view access to linked properties, an empty object replaces that property", async () => {
     
     let template = { 
       name: "t1",
       related_templates: [{name: "t1.1"}]
     };
-    template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);  
+    template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);  
 
     let dataset = { 
       template_id: template._id,
@@ -1385,7 +1385,7 @@ describe("get published", () => {
         template_id: template.related_templates[0]._id
       }]
     };
-    dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);  
+    dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);  
     
     let record = { 
       dataset_uuid: dataset.uuid,
@@ -1393,7 +1393,7 @@ describe("get published", () => {
         dataset_uuid: dataset.related_datasets[0].uuid
       }]
     };
-    record = await Helper.recordCreatePublishTest(record, Helper.DEF_CURR_USER);  
+    record = await Helper.recordCreatePersistTest(record, Helper.DEF_CURR_USER);  
     
     let view_users = [Helper.USER_2, Helper.DEF_CURR_USER];
     let response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, template.uuid, PERMISSION_VIEW, view_users);
@@ -1404,7 +1404,7 @@ describe("get published", () => {
     record.related_records[0] = {uuid: record.related_records[0].uuid};
     // Fetch parent dataset, check that the related_dataset is fetched as blank 
     // since the second user
-    response = await Helper.recordLatestPublishedGet(record.uuid, Helper.USER_2);
+    response = await Helper.recordLatestPersistedGet(record.uuid, Helper.USER_2);
     expect(response.statusCode).toBe(200);
     expect(response.body).toMatchObject(record);   
   });
@@ -1413,59 +1413,59 @@ describe("get published", () => {
     let template = { 
       name: "t1"
     };
-    template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);  
+    template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);  
 
     let dataset = { 
       template_id: template._id
     };
-    dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);  
+    dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);  
 
     let record = { 
       dataset_uuid: dataset.uuid
     };
-    record = await Helper.recordCreatePublishTest(record, Helper.DEF_CURR_USER);  
+    record = await Helper.recordCreatePersistTest(record, Helper.DEF_CURR_USER);  
 
-    let response = await Helper.recordLatestPublishedGet(record.uuid, Helper.USER_2);
+    let response = await Helper.recordLatestPersistedGet(record.uuid, Helper.USER_2);
     expect(response.statusCode).toBe(401);
   });
 });
 
-test("get published for a certain date", async () => {
+test("get persisted for a certain date", async () => {
   let template, dataset, record;
   [template, dataset, record] = await populateWithDummyTemplateAndRecord();
 
-  let publish0 = new Date();
+  let persist0 = new Date();
 
-  await Helper.recordPublishAndTest(record, Helper.DEF_CURR_USER);
+  await Helper.recordPersistAndTest(record, Helper.DEF_CURR_USER);
 
-  let publish1 = new Date();
+  let persist1 = new Date();
 
   record.fields[0].value = '2';
   await Helper.recordUpdateAndTest(record, Helper.DEF_CURR_USER);
-  await Helper.recordPublishAndTest(record, Helper.DEF_CURR_USER);
+  await Helper.recordPersistAndTest(record, Helper.DEF_CURR_USER);
 
-  let publish2 = new Date();
+  let persist2 = new Date();
 
   record.fields[0].value = '3';
   await Helper.recordUpdateAndTest(record, Helper.DEF_CURR_USER);
-  await Helper.recordPublishAndTest(record, Helper.DEF_CURR_USER);
+  await Helper.recordPersistAndTest(record, Helper.DEF_CURR_USER);
 
-  let publish3 = new Date();
+  let persist3 = new Date();
 
-  // Now we have published 3 times. Search for versions based on timestamps.
+  // Now we have persisted 3 times. Search for versions based on timestamps.
 
-  let response = await Helper.recordGetPublishedBeforeTimestamp(record.uuid, publish0, Helper.DEF_CURR_USER);
+  let response = await Helper.recordGetPersistedBeforeTimestamp(record.uuid, persist0, Helper.DEF_CURR_USER);
   expect(response.statusCode).toEqual(404);
 
-  response = await Helper.recordGetPublishedBeforeTimestamp(record.uuid, publish1, Helper.DEF_CURR_USER);
+  response = await Helper.recordGetPersistedBeforeTimestamp(record.uuid, persist1, Helper.DEF_CURR_USER);
   expect(response.statusCode).toEqual(200);
   expect(response.body.fields[0].value).toEqual(expect.stringMatching("happy"));
 
-  response = await Helper.recordGetPublishedBeforeTimestamp(record.uuid, publish2, Helper.DEF_CURR_USER);
+  response = await Helper.recordGetPersistedBeforeTimestamp(record.uuid, persist2, Helper.DEF_CURR_USER);
   expect(response.statusCode).toEqual(200);
   expect(response.body.fields[0].value).toEqual(expect.stringMatching("2"));
 
-  response = await Helper.recordGetPublishedBeforeTimestamp(record.uuid, publish3, Helper.DEF_CURR_USER);
+  response = await Helper.recordGetPersistedBeforeTimestamp(record.uuid, persist3, Helper.DEF_CURR_USER);
   expect(response.statusCode).toEqual(200);
   expect(response.body.fields[0].value).toEqual(expect.stringMatching("3"));
 });
@@ -1477,12 +1477,12 @@ describe("Helper.recordLastUpdate", () => {
       let template = {
         "name":"t1"
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
         template_id: template._id
       };
-      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
       let record = {
         dataset_uuid: dataset.uuid
@@ -1510,7 +1510,7 @@ describe("Helper.recordLastUpdate", () => {
       expect(last_update.getTime()).toBeGreaterThan(between_updates.getTime());
     });
 
-    test("sub record updated and published later than parent dataset", async () => {
+    test("sub record updated and persisted later than parent dataset", async () => {
 
       let field = {name: "t1.1f1"};
       let template = {
@@ -1520,7 +1520,7 @@ describe("Helper.recordLastUpdate", () => {
           fields: [{name: "t1.1f1"}]
         }]
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
         template_id: template._id,
@@ -1528,7 +1528,7 @@ describe("Helper.recordLastUpdate", () => {
           template_id: template.related_templates[0]._id
         }]
       };
-      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
       field.uuid = template.related_templates[0].fields[0].uuid;
       field.value = "naruto";
@@ -1540,7 +1540,7 @@ describe("Helper.recordLastUpdate", () => {
           fields: [field]
         }]
       };
-      record = await Helper.recordCreatePublishTest(record, Helper.DEF_CURR_USER);
+      record = await Helper.recordCreatePersistTest(record, Helper.DEF_CURR_USER);
 
       let related_record = record.related_records[0];
       related_record.fields[0].value = "pokemon";
@@ -1549,7 +1549,7 @@ describe("Helper.recordLastUpdate", () => {
       expect(response.statusCode).toEqual(200);
 
       let time1 = new Date();
-      await Helper.recordPublishAndTest(related_record, Helper.DEF_CURR_USER);
+      await Helper.recordPersistAndTest(related_record, Helper.DEF_CURR_USER);
       let time2 = new Date();
 
       response = await Helper.recordLastUpdate(record.uuid, Helper.DEF_CURR_USER);
@@ -1570,7 +1570,7 @@ describe("Helper.recordLastUpdate", () => {
           }]
         }]
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
         template_id: template._id,
@@ -1581,7 +1581,7 @@ describe("Helper.recordLastUpdate", () => {
           }]
         }]
       };
-      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
       field.uuid = template.related_templates[0].related_templates[0].fields[0].uuid;
       field.value = 'waffle';
@@ -1601,8 +1601,8 @@ describe("Helper.recordLastUpdate", () => {
       let record2 = record.related_records[0];
       let record3 = record2.related_records[0];
 
-      // publish
-      await Helper.recordPublishAndTest(record, Helper.DEF_CURR_USER);
+      // persist
+      await Helper.recordPersistAndTest(record, Helper.DEF_CURR_USER);
 
       // Update grandchild
       record3.fields[0].value = "jutsu";
@@ -1636,12 +1636,12 @@ describe("Helper.recordLastUpdate", () => {
       let template = {
         "name":"t1"
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
         template_id: template._id
       };
-      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
       let record = {
         dataset_uuid: dataset.uuid
@@ -1652,21 +1652,21 @@ describe("Helper.recordLastUpdate", () => {
       expect(response.statusCode).toBe(401);
     });
 
-    test("must have view permissions to get last update of published", async () => {
+    test("must have view permissions to get last update of persisted", async () => {
       let template = {
         "name":"t1"
       };
-      template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
       let dataset = {
         template_id: template._id
       };
-      dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+      dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
       let record = {
         dataset_uuid: dataset.uuid
       };
-      record = await Helper.recordCreatePublishTest(record, Helper.DEF_CURR_USER);
+      record = await Helper.recordCreatePersistTest(record, Helper.DEF_CURR_USER);
 
       let response = await Helper.recordLastUpdate(record.uuid, Helper.USER_2);
       expect(response.statusCode).toBe(401);
@@ -1725,7 +1725,7 @@ test("full range of operations with big data", async () => {
       }
     ]
   }
-  template = await Helper.templateCreatePublishTest(template, Helper.DEF_CURR_USER);
+  template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
 
   let dataset = {
     template_id: template._id,
@@ -1759,7 +1759,7 @@ test("full range of operations with big data", async () => {
       }
     ]
   };
-  dataset = await Helper.datasetCreatePublishTest(dataset, Helper.DEF_CURR_USER);
+  dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
 
   t1f1.uuid = template.fields[0].uuid;
   t1f2.uuid = template.fields[1].uuid;
@@ -1817,6 +1817,6 @@ test("full range of operations with big data", async () => {
 
   record = await Helper.recordCreateAndTest(record, Helper.DEF_CURR_USER);
 
-  await Helper.recordPublishAndTest(record, Helper.DEF_CURR_USER);
+  await Helper.recordPersistAndTest(record, Helper.DEF_CURR_USER);
 
 });
