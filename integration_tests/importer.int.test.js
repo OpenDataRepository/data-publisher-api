@@ -91,16 +91,17 @@ const testTemplatesEqual = (before, after, uuid_mapper) => {
     expect(after.name).toEqual(before.name);
   }
   expect(after.fields.length).toBe(before.fields.length);
-  expect(after.related_templates.length).toBe(before.related_databases.length);
+  expect(after.related_templates.length + after.subscribed_templates.length).toBe(before.related_databases.length);
   before.fields.sort(Helper.sortArrayByNameProperty);
   after.fields.sort(Helper.sortArrayByNameProperty);
   for(let i = 0; i < before.fields.length; i++) {
     testTemplateFieldsEqual(before.fields[i], after.fields[i], uuid_mapper);
   }
+  let all_linked_templates = after.related_templates.concat(after.subscribed_templates);
   before.related_databases.sort(Helper.sortArrayByNameProperty);
-  after.related_templates.sort(Helper.sortArrayByNameProperty);
+  all_linked_templates.sort(Helper.sortArrayByNameProperty);
   for(let i = 0; i < before.related_databases.length; i++) {
-    testTemplatesEqual(before.related_databases[i], after.related_templates[i], uuid_mapper);
+    testTemplatesEqual(before.related_databases[i], all_linked_templates[i], uuid_mapper);
   }
 }
 
@@ -366,13 +367,17 @@ const testOldAndNewRecordEqual = async (old_record, new_record, uuid_mapper) => 
   }
 
   expect(typeof(old_record.fields)).toEqual(typeof(new_record.fields));
-  expect(new_record.fields.length).toBe(old_record.fields.length);
+  // the case where the input record doesn't include a field the template requires and thus inserts automatically
+  expect(new_record.fields.length).toBeGreaterThanOrEqual(old_record.fields.length);
   expect(new_record.related_records.length).toBe(old_record.related_records.length);
 
-  old_record.fields.sort(Helper.sortArrayByNameProperty);
-  new_record.fields.sort(Helper.sortArrayByNameProperty);
-  for(let i = 0; i < old_record.fields.length; i++) {
-    testOldAndNewFieldEqual(old_record.fields[i], new_record.fields[i], uuid_mapper);
+  // Create a map of new field uuid -> new field
+  let new_record_field_map = {};
+  for(field of new_record.fields) {
+    new_record_field_map[field.name] = field;
+  }
+  for(let old_field of old_record.fields) {
+    testOldAndNewFieldEqual(old_field, new_record_field_map[old_field.name], uuid_mapper);
   }
   for(let related_record of old_record.records) {
     related_record.name = related_record.record_name;
@@ -841,6 +846,25 @@ describe("template and dataset", () => {
       await importTemplateDatasetTest(template, Helper.DEF_CURR_USER);
     });
 
+    test("includes subscribed template", async () => {
+      let name = "";
+      let description = "";
+      let updated_at = (new Date()).toISOString();
+      let template = {
+        template_uuid: "t1", 
+        name, description, updated_at,
+        related_databases: [{
+          template_uuid: "t1.1",
+          subscribed: true,
+          name, description, updated_at
+        }]
+      };
+      await importTemplateDatasetTest(template, Helper.DEF_CURR_USER);
+
+      template.name = "name";
+      await importTemplateDatasetTest(template, Helper.DEF_CURR_USER);
+    });
+
   });
 
   test("import chemin template", async () => {
@@ -854,7 +878,6 @@ describe("template and dataset", () => {
     let rawdata = fs.readFileSync(__dirname + '/test_data/rruff_sample_template.json');
     let old_template = JSON.parse(rawdata);
   
-    // TODO: handle subscribed templates
     await importTemplateDatasetTest(old_template, Helper.DEF_CURR_USER);
   });
 
@@ -1121,6 +1144,37 @@ describe("records", () => {
       await importRecordsTest([record], Helper.DEF_CURR_USER);
     });
 
+    test("includes subscribed template", async () => {
+      let name = "";
+      let description = "";
+      let updated_at = (new Date()).toISOString();
+
+      let parent_template_uuid = "t1";
+      let child_template_uuid = "t1.1";
+
+      let template = {
+        template_uuid: parent_template_uuid, 
+        name, description, updated_at,
+        related_databases: [{
+          template_uuid: child_template_uuid,
+          subscribed: true,
+          name, description, updated_at
+        }]
+      };
+      await importTemplateDatasetPersistTest(template, Helper.DEF_CURR_USER);
+
+      let record = {
+        record_uuid: "r1",
+        database_uuid: parent_template_uuid,
+        records: [{
+          record_uuid: "r1.1",
+          database_uuid: child_template_uuid,
+          records: []
+        }]
+      };
+      await importRecordsTest([record], Helper.DEF_CURR_USER);
+    });
+
   });
 
   test("with Chemin data", async () => {
@@ -1136,18 +1190,18 @@ describe("records", () => {
     await importRecordsTest(old_records, Helper.DEF_CURR_USER);
   });
 
-  // test("with rruff data", async () => {
+  test("with rruff data", async () => {
 
-  //   let raw_template = fs.readFileSync(__dirname + '/test_data/rruff_sample_template.json');
-  //   let old_template = JSON.parse(raw_template);
+    let raw_template = fs.readFileSync(__dirname + '/test_data/rruff_sample_template.json');
+    let old_template = JSON.parse(raw_template);
   
-  //   await importTemplateDatasetPersistTest(old_template, Helper.DEF_CURR_USER);
+    await importTemplateDatasetPersistTest(old_template, Helper.DEF_CURR_USER);
 
-  //   let raw_records = fs.readFileSync(__dirname + '/test_data/rruff_samples.json');
-  //   let old_records = JSON.parse(raw_records).records;
+    let raw_records = fs.readFileSync(__dirname + '/test_data/rruff_samples.json');
+    let old_records = JSON.parse(raw_records).records;
 
-  //   await importRecordsTest(old_records, Helper.DEF_CURR_USER);
-  // });
+    await importRecordsTest(old_records, Helper.DEF_CURR_USER);
+  });
 
   describe("failure", () => {
 

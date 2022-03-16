@@ -1162,8 +1162,8 @@ async function importTemplate(session, template, user, updated_at) {
     }
     for (let related_template of template.related_databases) {
       let related_template_uuid;
+      let more_changes;
       try {
-        let more_changes;
         [more_changes, related_template_uuid] = await importTemplate(session, related_template, user, updated_at);
         changes |= more_changes;
       } catch(err) {
@@ -1174,12 +1174,20 @@ async function importTemplate(session, template, user, updated_at) {
           throw err;
         }
       }
-      // After validating and updating the related_template, replace the imbedded related_template with a uuid reference
-      // if(related_template.subscribed) {
-      //   // TODO: push the _id and not the uuid
-      //   new_template.subscribed_templates.push(related_template_uuid);
-      // }
-      new_template.related_templates.push(related_template_uuid);
+      // If this is a subscribed template
+      if(related_template.subscribed) {
+        // If the template is different from the previously imported, publish it and return it's _id
+        if(more_changes) {
+          let created_template = await SharedFunctions.draft(Template, related_template_uuid, session);
+          await persist(session, related_template_uuid, user, created_template.updated_at);
+        } 
+        let published_template = await SharedFunctions.latestPersisted(Template, related_template_uuid, session);
+        new_template.subscribed_templates.push(published_template._id);
+      } else {
+        // This is the normal case: not a subscribed template. Just a related_template
+        // After validating and updating the related_template, replace the imbedded related_template with a uuid reference
+        new_template.related_templates.push(related_template_uuid);
+      }
     }
   }
 

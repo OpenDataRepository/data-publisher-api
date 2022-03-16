@@ -970,6 +970,9 @@ async function importRelatedRecordsFromRecord(input_record, dataset, template, u
   for (let related_template of template.related_templates) {
     related_template_map[related_template._id] = related_template;
   }
+  for (let subscribed_template of template.subscribed_templates) {
+    related_template_map[subscribed_template._id] = subscribed_template;
+  }
   for (let related_record of input_record.records) {
     let related_dataset_uuid = await LegacyUuidToNewUuidMapperModel.get_secondary_uuid_from_old(related_record.database_uuid, session);
     let related_dataset = related_dataset_map[related_dataset_uuid];
