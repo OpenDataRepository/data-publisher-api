@@ -1,4 +1,6 @@
 const DatasetModel = require('../models/dataset');
+const DatasetPublishModel = require('../models/datasetPublish');
+
 const Util = require('../lib/util');
 
 exports.draft_get = async function(req, res, next) {
@@ -110,6 +112,38 @@ exports.new_dataset_for_template = async function(req, res, next) {
   try {
     let new_dataset = await DatasetModel.newDatasetForTemplate(req.params.uuid, req.cookies.user);
     res.json(new_dataset);
+  } catch(err) {
+    next(err);
+  }
+}
+
+exports.publish = async function(req, res, next) {
+  try {
+    let name = req.body.name;
+    if(!name || typeof(name) !== 'string') {
+      throw new Util.InputError('Must provide a valid name for your published dataset version');
+    }
+    await DatasetPublishModel.publish(req.params.uuid, name, req.cookies.user);
+    res.sendStatus(200);
+  } catch(err) {
+    next(err);
+  }
+}
+
+exports.published = async function(req, res, next) {
+  try {
+    let name = req.params.name;
+    if(!name || typeof(name) !== 'string') {
+      throw new Util.InputError('Must provide a valid name for your published dataset version');
+    }
+    // Get timestamp of published
+    let time = await DatasetPublishModel.publishedTimeForDatasetUUIDAndName(req.params.uuid, name);
+    if(!time) {
+      throw new Util.NotFoundError();
+    }
+    // Use timestamp to get latest persisted dataset
+    let dataset = await DatasetModel.persistedBeforeDate(req.params.uuid, time, req.cookies.user);
+    res.json(dataset);
   } catch(err) {
     next(err);
   }

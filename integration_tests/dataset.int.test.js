@@ -1990,7 +1990,109 @@ describe("duplicate", () => {
       expect(response.statusCode).toBe(401);
     });
   });
-})
+});
+
+describe("publish (and get published", () => {
+
+  test("basic test that it works", async () => {
+
+    let template = {
+      name:"t1",
+      public_date: (new Date()).toISOString()
+    };
+    template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
+  
+    let public_date_1 = (new Date()).toISOString();
+    let dataset = {
+      template_id: template._id,
+      public_date: public_date_1
+    };
+    dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
+
+    let public_date_2 = (new Date()).toISOString();
+    dataset.public_date = public_date_2;
+    let dataset_1 = await Helper.datasetUpdatePersistTest(dataset, Helper.DEF_CURR_USER);
+
+    let published_name_1 = "first";
+    let published_name_2 = "second";
+  
+    await Helper.testAndExtract(Helper.datasetPublish, dataset.uuid, published_name_1, Helper.DEF_CURR_USER);
+
+    let public_date_3 = (new Date()).toISOString();
+    dataset.public_date = public_date_3;
+    dataset = await Helper.datasetUpdatePersistTest(dataset, Helper.DEF_CURR_USER);
+
+    let public_date_4 = (new Date()).toISOString();
+    dataset.public_date = public_date_4;
+    let dataset_2 = await Helper.datasetUpdatePersistTest(dataset, Helper.DEF_CURR_USER);
+
+    await Helper.testAndExtract(Helper.datasetPublish, dataset.uuid, published_name_2, Helper.DEF_CURR_USER);
+
+    let dataset_uuid = dataset.uuid;
+    dataset = await Helper.testAndExtract(Helper.datasetPublished, dataset_uuid, published_name_1, Helper.DEF_CURR_USER);
+    Helper.testDatasetDraftsEqual(dataset_1, dataset);
+
+    dataset = await Helper.testAndExtract(Helper.datasetPublished, dataset_uuid, published_name_2, Helper.DEF_CURR_USER);
+    Helper.testDatasetDraftsEqual(dataset_2, dataset);
+
+  });
+
+  describe("Failure cases", () => {
+
+    const createDummyTemplateAndDataset = async () => {
+      let template = {
+        name: "t"
+      };
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
+
+      let dataset = {
+        template_id: template._id
+      }
+      dataset = await Helper.datasetCreateAndTest(dataset, Helper.DEF_CURR_USER);
+      return dataset;
+    }
+
+    const createDummyTemplateAndPersistedDataset = async () => {
+      dataset = await createDummyTemplateAndDataset();
+      return await Helper.datasetPersistAndFetch(dataset.uuid, Helper.DEF_CURR_USER);
+    }
+
+    test("uuid and name must be valid format", async () => {
+      let response = await Helper.datasetPublish("6", "name", Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(400);
+
+      response = await Helper.datasetPublish(Helper.VALID_UUID, 6, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(400);
+    });
+
+    test("published dataset must exist", async () => {
+      let response = await Helper.datasetPublish(Helper.VALID_UUID, "name", Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(404);
+
+      let dataset = await createDummyTemplateAndDataset();
+      response = await Helper.datasetPublish(dataset.uuid, "name", Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(404);
+    });
+
+    test("user must have admin permissions", async () => {
+      let dataset = await createDummyTemplateAndPersistedDataset();
+      response = await Helper.datasetPublish(dataset.uuid, "name", Helper.USER_2);
+      expect(response.statusCode).toBe(401);
+    });
+
+    test("Cannot publish with the same name twice", async () => {
+      let dataset = await createDummyTemplateAndPersistedDataset();
+      response = await Helper.datasetPublish(dataset.uuid, "name", Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(200);
+      response = await Helper.datasetPublish(dataset.uuid, "name", Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(400);
+    });
+
+    // TODO: continue testing failure cases
+
+  });
+
+});
 
 test("full range of operations with big data", async () => {
   let template = {

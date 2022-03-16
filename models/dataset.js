@@ -8,7 +8,7 @@ const LegacyUuidToNewUuidMapperModel = require('./legacy_uuid_to_new_uuid_mapper
 
 var Dataset;
 
-// Returns a reference to the record Mongo Collection
+// Returns a reference to the dataset Mongo Collection
 async function collection() {
   if (Dataset === undefined) {
     let db = MongoDB.db();

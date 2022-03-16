@@ -584,6 +584,19 @@ module.exports = class Helper {
     return await this.testAndExtract(this.newDatasetForTemplate, template_uuid, curr_user);
   }
 
+  datasetPublish = async (uuid, name, curr_user) => {
+    return await request(this.app)
+      .post(`/dataset/${uuid}/publish`)
+      .set('Cookie', [`user=${curr_user}`])
+      .send({name})
+      .set('Accept', 'application/json');
+  };
+
+  datasetPublished = async (uuid, name, curr_user) => {
+    return await request(this.app)
+      .get(`/dataset/${uuid}/published/${name}`)
+      .set('Cookie', [`user=${curr_user}`]);
+  }
 
   // record
   
