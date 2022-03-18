@@ -956,7 +956,21 @@ async function importDatasetForTemplate(template, user, session, updated_at) {
 
   if (template.related_databases !== undefined) {
     for(let related_template of template.related_databases) {
-      let related_dataset_uuid = await importDatasetForTemplate(related_template, user, session, updated_at);
+      let related_dataset_uuid;
+      try {
+        related_dataset_uuid = await importDatasetForTemplate(related_template, user, session, updated_at);
+      } catch(err) {
+        if (err instanceof Util.PermissionDeniedError) {
+          // If the user doesn't have edit permissions, assume they want to link the persisted version of the dataset, or keep something another editor added
+          related_dataset_uuid = await LegacyUuidToNewUuidMapperModel.get_secondary_uuid_from_old(related_template.template_uuid, session);
+          // make sure the above dataset has been published
+          if(!(await SharedFunctions.latestPersisted(Dataset, related_dataset_uuid, session))) {
+            throw new Util.PermissionDeniedError();
+          }
+        } else {
+          throw err;
+        }
+      }
       dataset.related_datasets.push(related_dataset_uuid)
     }
   } 

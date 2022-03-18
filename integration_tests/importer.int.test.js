@@ -2,6 +2,7 @@ const request = require("supertest");
 const fs = require('fs');
 const MongoDB = require('../lib/mongoDB');
 var { app, init: appInit } = require('../app');
+var { PERMISSION_ADMIN, PERMISSION_EDIT, PERMISSION_VIEW } = require('../models/permission_group');
 var HelperClass = require('./common_test_operations');
 var Helper = new HelperClass(app);
 
@@ -275,24 +276,24 @@ const sanitizeInputDatasetsAndRecords = (input_datasets_and_records) => {
 
 const reformatInputRecordField = (input_field) => {
   input_field.name = input_field.field_name;
-  delete input_field.field_name;
+  // delete input_field.field_name;
   if(!input_field.name) {
     input_field.name = "";
   }
 
   input_field.uuid = input_field.field_uuid;
-  delete input_field.field_uuid;
+  // delete input_field.field_uuid;
 }
 
 const reformatInputRecord = (input_record) => {
   input_record.name = input_record.record_name;
-  delete input_record.record_name;
+  // delete input_record.record_name;
   if(!input_record.name) {
     input_record.name = "";
   }
 
   input_record.related_records = input_record.records;
-  delete input_record.records;
+  // delete input_record.records;
   if(!input_record.related_records) {
     input_record.related_records = [];
   }
@@ -302,10 +303,10 @@ const reformatInputRecord = (input_record) => {
   }
 
   input_record.uuid = input_record.record_uuid;
-  delete input_record.record_uuid;
+  // delete input_record.record_uuid;
 
   input_record.dataset_uuid = input_record.database_uuid;
-  delete input_record.database_uuid;
+  // delete input_record.database_uuid;
 
   for(let field of input_record.fields) {
     reformatInputRecordField(field);
@@ -345,7 +346,7 @@ const testOldAndNewFieldEqual = (old_field, new_field, uuid_mapper) => {
   }
 }
 
-const testOldAndNewRecordEqual = async (old_record, new_record, uuid_mapper) => {
+const testOldAndNewRecordEqual = (old_record, new_record, uuid_mapper) => {
   // Check record_uuid
   if(old_record.uuid in uuid_mapper) {
     expect(new_record.uuid).toEqual(uuid_mapper[old_record.uuid]);
@@ -379,13 +380,18 @@ const testOldAndNewRecordEqual = async (old_record, new_record, uuid_mapper) => 
   for(let old_field of old_record.fields) {
     testOldAndNewFieldEqual(old_field, new_record_field_map[old_field.name], uuid_mapper);
   }
+
+  // TODO: I think I need to create a map. I can't sort by name property. Some records have the same name
+  // But how do I create a map? I should probably have a link from the new record to the old record uuid
+  // And do the same for templates and datasets and such
   for(let related_record of old_record.records) {
     related_record.name = related_record.record_name;
   }
-  old_record.records.sort(Helper.sortArrayByNameProperty);
+  old_record.related_records.sort(Helper.sortArrayByNameProperty);
   new_record.related_records.sort(Helper.sortArrayByNameProperty);
-  for(let i = 0; i < old_record.records.length; i++) {
-    testOldAndNewRecordEqual(old_record.records[i], new_record.related_records[i], uuid_mapper)
+
+  for(let i = 0; i < old_record.related_records.length; i++) {
+    testOldAndNewRecordEqual(old_record.related_records[i], new_record.related_records[i], uuid_mapper)
   }
 }
 
@@ -400,7 +406,7 @@ const importRecordsTest = async (records, curr_user) => {
   for(let record of records) {
     reformatInputRecord(record);
   }
-
+  
   for(let i = 0; i < records.length; i++) {
 
     let new_record_uuid = record_uuids[i];
@@ -409,6 +415,18 @@ const importRecordsTest = async (records, curr_user) => {
 
     testOldAndNewRecordEqual(old_record, new_record, uuid_mapper);
   }
+
+  return record_uuids;
+}
+
+const importRecordsPersistTest = async (records, curr_user) => {
+
+  let record_uuids = await importRecordsTest(records, curr_user);
+  let persisted_records = [];
+  for(let record_uuid of record_uuids) {
+    persisted_records.push(await Helper.recordPersistAndFetch(record_uuid, curr_user));
+  }
+  return persisted_records;
 }
 
 
@@ -865,6 +883,35 @@ describe("template and dataset", () => {
       await importTemplateDatasetTest(template, Helper.DEF_CURR_USER);
     });
 
+    test("import template with link to an isLink template, aka we don't have edit permissions to it", async () => {
+      let name = "";
+      let description = "";
+      let updated_at = (new Date()).toISOString();
+
+      let related_template_uuid = "t1.1";
+      let related_template = {
+        template_uuid: related_template_uuid, 
+        name, description, updated_at
+      };
+      let new_related_template, new_related_dataset;
+      [new_related_template, new_related_dataset] = await importTemplateDatasetPersistTest(related_template, Helper.USER_2);
+      await Helper.testAndExtract(Helper.updatePermissionGroup, Helper.USER_2, new_related_template.uuid, PERMISSION_VIEW, [Helper.DEF_CURR_USER]);
+      await Helper.testAndExtract(Helper.updatePermissionGroup, Helper.USER_2, new_related_dataset.uuid, PERMISSION_VIEW, [Helper.DEF_CURR_USER]);
+
+      let template = {
+        template_uuid: "t1", 
+        name, description, updated_at,
+        related_databases: [{
+          template_uuid: related_template_uuid,
+          name, description, updated_at
+        }]
+      };
+      await importTemplateDatasetTest(template, Helper.DEF_CURR_USER);
+
+      template.name = "name";
+      await importTemplateDatasetTest(template, Helper.DEF_CURR_USER);
+    });
+
   });
 
   test("import chemin template", async () => {
@@ -875,9 +922,16 @@ describe("template and dataset", () => {
   });
 
   test("import rruff template", async () => {
+    let rruff_imalist_template_raw_data = fs.readFileSync(__dirname + '/test_data/rruff_imalist_template.json');
+    let imalist_template = JSON.parse(rruff_imalist_template_raw_data);
+    let ima_list_template, ima_list_dataset;
+    [ima_list_template, ima_list_dataset] = await importTemplateDatasetPersistTest(imalist_template, Helper.USER_2);
+
+    await Helper.testAndExtract(Helper.updatePermissionGroup, Helper.USER_2, ima_list_template.uuid, PERMISSION_VIEW, [Helper.DEF_CURR_USER]);
+    await Helper.testAndExtract(Helper.updatePermissionGroup, Helper.USER_2, ima_list_dataset.uuid, PERMISSION_VIEW, [Helper.DEF_CURR_USER]);
+
     let rawdata = fs.readFileSync(__dirname + '/test_data/rruff_sample_template.json');
     let old_template = JSON.parse(rawdata);
-  
     await importTemplateDatasetTest(old_template, Helper.DEF_CURR_USER);
   });
 
@@ -974,6 +1028,30 @@ describe("records", () => {
         records: [
           {record_uuid: "r1.1", database_uuid: related_template_uuid_1},
           {record_uuid: "r1.2", database_uuid: related_template_uuid_2}
+        ]
+      };
+      await importRecordsTest([record], Helper.DEF_CURR_USER);
+    });
+
+    test("shared related_records", async () => {
+      let template_uuid = "t1";
+      let shared_related_template_uuid = "organization";
+
+      let template = {
+        template_uuid, 
+        related_databases: [{
+          template_uuid: shared_related_template_uuid, 
+          name: shared_related_template_uuid
+        }]
+      };
+      await importTemplateDatasetPersistTest(template, Helper.DEF_CURR_USER);
+
+      let record = {
+        record_uuid: "r1",
+        database_uuid: template_uuid,
+        records: [
+          {record_uuid: "r1.1", database_uuid: shared_related_template_uuid},
+          {record_uuid: "r1.2", database_uuid: shared_related_template_uuid}
         ]
       };
       await importRecordsTest([record], Helper.DEF_CURR_USER);
@@ -1175,6 +1253,49 @@ describe("records", () => {
       await importRecordsTest([record], Helper.DEF_CURR_USER);
     });
 
+    test("import records with links to records we only have view permissions to", async () => {
+      let name = "";
+      let description = "";
+      let updated_at = (new Date()).toISOString();
+
+      let related_template_uuid = "t1.1";
+      let related_template = {
+        template_uuid: related_template_uuid, 
+        name, description, updated_at
+      };
+      let new_related_template, new_related_dataset;
+      [new_related_template, new_related_dataset] = await importTemplateDatasetPersistTest(related_template, Helper.USER_2);
+      await Helper.testAndExtract(Helper.updatePermissionGroup, Helper.USER_2, new_related_template.uuid, PERMISSION_VIEW, [Helper.DEF_CURR_USER]);
+      await Helper.testAndExtract(Helper.updatePermissionGroup, Helper.USER_2, new_related_dataset.uuid, PERMISSION_VIEW, [Helper.DEF_CURR_USER]);
+
+      let related_record = {
+        record_uuid: "r1.1", 
+        database_uuid: related_template_uuid
+      };
+      // TODO: get the record out of this test, publish it, give view permissions to it, and then import a parent record linking it
+      await importRecordsPersistTest([related_record], Helper.USER_2);
+
+      let template_uuid = "t1";
+      let template = {
+        template_uuid: template_uuid, 
+        name, description, updated_at,
+        related_databases: [{
+          template_uuid: related_template_uuid,
+          name, description, updated_at
+        }]
+      };
+      await importTemplateDatasetPersistTest(template, Helper.DEF_CURR_USER);
+
+      let record = {
+        record_uuid: "r1",
+        database_uuid: template_uuid,
+        records: [related_record]
+      };
+
+      await importRecordsPersistTest([record], Helper.DEF_CURR_USER);
+
+    });
+
   });
 
   test("with Chemin data", async () => {
@@ -1190,6 +1311,7 @@ describe("records", () => {
     await importRecordsTest(old_records, Helper.DEF_CURR_USER);
   });
 
+  // TODO: the user should only have VIEW access to the ima-list template, dataset and record
   test("with rruff data", async () => {
 
     let raw_template = fs.readFileSync(__dirname + '/test_data/rruff_sample_template.json');
