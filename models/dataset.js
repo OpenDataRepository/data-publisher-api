@@ -224,6 +224,11 @@ async function validateAndCreateOrUpdateRecurser(input_dataset, template, user, 
     }
   }
 
+  let old_system_uuid = await LegacyUuidToNewUuidMapperModel.get_old_uuid_from_new(uuid);
+  if(old_system_uuid) {
+    new_dataset.old_system_uuid = old_system_uuid;
+  }
+
   // Need to determine if this draft is any different from the persisted one.
   let changes = false;
 
@@ -948,6 +953,7 @@ async function importDatasetForTemplate(template, user, session, updated_at) {
 
   let dataset = {
     uuid: dataset_uuid,
+    old_system_uuid: old_template_uuid,
     template_id: new_template._id,
     updated_at, 
     public_date: new_template.public_date,

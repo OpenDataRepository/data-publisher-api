@@ -348,6 +348,11 @@ async function validateAndCreateOrUpdateRecurser(input_record, dataset, template
     new_record.public_date = new Date(input_record.public_date);
   }
 
+  let old_system_uuid = await LegacyUuidToNewUuidMapperModel.get_old_uuid_from_new(uuid);
+  if(old_system_uuid) {
+    new_record.old_system_uuid = old_system_uuid;
+  }
+
   new_record.fields = createRecordFieldsFromInputRecordAndTemplate(input_record.fields, template.fields);
 
   // Need to determine if this draft is any different from the persisted one.
@@ -1037,6 +1042,7 @@ async function importRecordRecursor(input_record, dataset, template, user, updat
   // Build object to create/update
   let new_record = {
     uuid: new_record_uuid,
+    old_system_uuid: old_record_uuid,
     dataset_uuid: new_dataset_uuid,
     updated_at,
     related_records: []

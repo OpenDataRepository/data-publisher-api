@@ -381,17 +381,15 @@ const testOldAndNewRecordEqual = (old_record, new_record, uuid_mapper) => {
     testOldAndNewFieldEqual(old_field, new_record_field_map[old_field.name], uuid_mapper);
   }
 
-  // TODO: I think I need to create a map. I can't sort by name property. Some records have the same name
-  // But how do I create a map? I should probably have a link from the new record to the old record uuid
-  // And do the same for templates and datasets and such
-  for(let related_record of old_record.records) {
-    related_record.name = related_record.record_name;
+  let old_uuid_to_new_record_map = {};
+  for(let related_record of new_record.related_records) {
+    old_uuid_to_new_record_map[related_record.old_system_uuid] = related_record;
   }
-  old_record.related_records.sort(Helper.sortArrayByNameProperty);
-  new_record.related_records.sort(Helper.sortArrayByNameProperty);
 
-  for(let i = 0; i < old_record.related_records.length; i++) {
-    testOldAndNewRecordEqual(old_record.related_records[i], new_record.related_records[i], uuid_mapper)
+  for(let old_related_record of old_record.related_records) {
+    let new_related_record = old_uuid_to_new_record_map[old_related_record.uuid];
+    expect(new_related_record).toBeTruthy();
+    testOldAndNewRecordEqual(old_related_record, old_uuid_to_new_record_map[old_related_record.uuid], uuid_mapper)
   }
 }
 
@@ -1311,7 +1309,11 @@ describe("records", () => {
     await importRecordsTest(old_records, Helper.DEF_CURR_USER);
   });
 
-  // TODO: the user should only have VIEW access to the ima-list template, dataset and record
+  // TODO: the user should only have VIEW access to the ima-list template, dataset and records
+  // 1: import the below template/dataset the way I did it in the rruff template import test
+  // 2. import all of the imalist documents with user 2
+  // 3. Give user 1 view permissions to everything  
+  // 4. import everything else normally like below
   test("with rruff data", async () => {
 
     let raw_template = fs.readFileSync(__dirname + '/test_data/rruff_sample_template.json');

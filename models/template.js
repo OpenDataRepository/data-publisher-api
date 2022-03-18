@@ -264,13 +264,17 @@ function initializeNewDraftWithPropertiesSharedWithImport(input_template, uuid, 
   return output_template;
 }
 
-function initializeNewDraftWithProperties(input_template, uuid, updated_at) {
+async function initializeNewDraftWithProperties(input_template, uuid, updated_at) {
   let output_template = initializeNewDraftWithPropertiesSharedWithImport(input_template, uuid, updated_at);
   if (input_template.public_date) {
     if (!Date.parse(input_template.public_date)){
       throw new Util.InputError('template public_date property must be in valid date format');
     }
     output_template.public_date = new Date(input_template.public_date);
+  }
+  let old_system_uuid = await LegacyUuidToNewUuidMapperModel.get_old_uuid_from_new(uuid);
+  if(old_system_uuid) {
+    output_template.old_system_uuid = old_system_uuid;
   }
   return output_template;
 }
@@ -281,6 +285,7 @@ function initializeNewImportedDraftWithProperties(input_template, uuid, updated_
       input_template._database_metadata._public_date && Date.parse(input_template._database_metadata._public_date)) {
     output_template.public_date = new Date(input_template.public_date);
   }
+  output_template.old_system_uuid = input_template.template_uuid;
   return output_template;
 }
 
@@ -468,7 +473,7 @@ async function validateAndCreateOrUpdate(session, input_template, user, updated_
   let uuid = await getUuidFromCreateOrUpdate(input_template, user, session);
 
   // Populate template properties
-  let new_template = initializeNewDraftWithProperties(input_template, uuid, updated_at);
+  let new_template = await initializeNewDraftWithProperties(input_template, uuid, updated_at);
 
   // Need to determine if this draft is any different from the persisted one.
   let changes;

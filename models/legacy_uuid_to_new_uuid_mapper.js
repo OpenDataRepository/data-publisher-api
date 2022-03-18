@@ -45,6 +45,25 @@ exports.get_secondary_uuid_from_old = async (uuid, session) => {
   return document.secondary_uuid;
 }
 
+exports.get_old_uuid_from_new = async (uuid, session) => {
+  let cursor = await LegacyUuidToNewUuidMapper.find(
+    {new_uuid: uuid}, 
+    {session}
+  );
+  if (await cursor.hasNext()) {
+    return (await cursor.next()).old_uuid;
+  }
+  
+  cursor = await LegacyUuidToNewUuidMapper.find(
+    {secondary_uuid: uuid}, 
+    {session}
+  );
+  if (await cursor.hasNext()) {
+    return (await cursor.next()).old_uuid;
+  }
+  return null;
+}
+
 exports.create_new_uuid_for_old = async (old_uuid, session) => {
   let new_uuid = uuidv4();
   let response = await LegacyUuidToNewUuidMapper.insertOne(

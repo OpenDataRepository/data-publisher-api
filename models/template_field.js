@@ -281,6 +281,10 @@ async function initializeNewDraftWithProperties(input_field, uuid, updated_at) {
     }
     output_field.options = parseOptions(input_field.options, previous_options_uuids, new Set());
   }
+  let old_system_uuid = await LegacyUuidToNewUuidMapperModel.get_old_uuid_from_new(uuid);
+  if(old_system_uuid) {
+    output_field.old_system_uuid = old_system_uuid;
+  }
   return output_field;
 }
 
@@ -294,6 +298,7 @@ async function initializeNewImportedDraftWithProperties(input_field, uuid, updat
   if(input_field.radio_options) {
     output_field.options = await importRadioOptions(input_field.radio_options, session);
   }
+  output_field.old_system_uuid = input_field.template_field_uuid;
   return output_field;
 }
 
