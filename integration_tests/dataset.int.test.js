@@ -2088,8 +2088,6 @@ describe("publish (and get published", () => {
       expect(response.statusCode).toBe(400);
     });
 
-    // TODO: continue testing failure cases
-
   });
 
 });

@@ -420,11 +420,29 @@ const importRecordsTest = async (records, curr_user) => {
 const importRecordsPersistTest = async (records, curr_user) => {
 
   let record_uuids = await importRecordsTest(records, curr_user);
+  // remove duplciates
+  record_uuids = [...new Set(record_uuids)];
   let persisted_records = [];
   for(let record_uuid of record_uuids) {
     persisted_records.push(await Helper.recordPersistAndFetch(record_uuid, curr_user));
   }
   return persisted_records;
+}
+
+const extractRecordsWithDatabaseUuidFromRecord = (record, database_uuid, result_records) => {
+  if(record.database_uuid == database_uuid) {
+    result_records.push(record);
+  }
+  for(let related_record of record.records) {
+    extractRecordsWithDatabaseUuidFromRecord(related_record, database_uuid, result_records);
+  }
+}
+const extractRecordsWithDatabaseUuidfromRecords = (records, database_uuid) => {
+  let result_records = [];
+  for(let record of records) {
+    extractRecordsWithDatabaseUuidFromRecord(record, database_uuid, result_records);
+  }
+  return result_records
 }
 
 
@@ -1306,25 +1324,34 @@ describe("records", () => {
     let raw_records = fs.readFileSync(__dirname + '/test_data/chemin_data.json');
     let old_records = JSON.parse(raw_records).records;
 
-    await importRecordsTest(old_records, Helper.DEF_CURR_USER);
+    await importRecordsPersistTest(old_records, Helper.DEF_CURR_USER);
   });
 
-  // TODO: the user should only have VIEW access to the ima-list template, dataset and records
-  // 1: import the below template/dataset the way I did it in the rruff template import test
-  // 2. import all of the imalist documents with user 2
-  // 3. Give user 1 view permissions to everything  
-  // 4. import everything else normally like below
   test("with rruff data", async () => {
+    // The rruff data has an isLink, which is the imalist. In the new system, isLink means only view permissions
+    // So import the imalist with user 2, then give user 1 permissions, then import the rest with user 1
+
+    let rruff_imalist_template_raw_data = fs.readFileSync(__dirname + '/test_data/rruff_imalist_template.json');
+    let imalist_template = JSON.parse(rruff_imalist_template_raw_data);
+    let ima_list_template, ima_list_dataset;
+    [ima_list_template, ima_list_dataset] = await importTemplateDatasetPersistTest(imalist_template, Helper.USER_2);
+
+    await Helper.testAndExtract(Helper.updatePermissionGroup, Helper.USER_2, ima_list_template.uuid, PERMISSION_VIEW, [Helper.DEF_CURR_USER]);
+    await Helper.testAndExtract(Helper.updatePermissionGroup, Helper.USER_2, ima_list_dataset.uuid, PERMISSION_VIEW, [Helper.DEF_CURR_USER]);
 
     let raw_template = fs.readFileSync(__dirname + '/test_data/rruff_sample_template.json');
     let old_template = JSON.parse(raw_template);
-  
     await importTemplateDatasetPersistTest(old_template, Helper.DEF_CURR_USER);
 
+  
     let raw_records = fs.readFileSync(__dirname + '/test_data/rruff_samples.json');
     let old_records = JSON.parse(raw_records).records;
 
-    await importRecordsTest(old_records, Helper.DEF_CURR_USER);
+    // extract records with dabase_uuid f6a700e9d45f0884c1514ec6c538 (imalist) and import them with user 2 
+    let imalist_records = extractRecordsWithDatabaseUuidfromRecords(old_records, "f6a700e9d45f0884c1514ec6c538");
+    await importRecordsPersistTest(imalist_records, Helper.USER_2);
+
+    await importRecordsPersistTest(old_records, Helper.DEF_CURR_USER);
   });
 
   describe("failure", () => {
