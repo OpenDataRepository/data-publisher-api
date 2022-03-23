@@ -7,6 +7,7 @@ var datasetRouter = require('./dataset');
 var recordRouter = require('./record');
 var permissionGroupRouter = require('./permission_group');
 var importRouter = require('./importer');
+var fileRouter = require('./file');
 
 /* GET home page. */
 router.get('/', function(req, res, next) {
@@ -19,5 +20,6 @@ router.use('/dataset', datasetRouter);
 router.use('/record', recordRouter);
 router.use('/permission_group', permissionGroupRouter);
 router.use('/import', importRouter);
+router.use('/file', fileRouter);
 
 module.exports = router;
