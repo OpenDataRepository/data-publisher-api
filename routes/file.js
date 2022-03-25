@@ -4,7 +4,8 @@ const multer = require("multer");
 const controller = require('../controllers/fileController');
 const upload = multer({dest: controller.Upload_Destination});
 
-router.post('/:uuid', upload.single('file'), controller.uploadFile);
+router.post('/:uuid/direct', upload.single('file'), controller.uploadFileDirect);
+router.post('/:uuid/fromUrl', controller.uploadFileFromUrl);
 router.get('/:uuid', controller.getFile);
 
 module.exports = router;
