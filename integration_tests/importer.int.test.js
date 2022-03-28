@@ -621,25 +621,25 @@ describe("template", () => {
       await importTemplatePersistAndTest(template, Helper.DEF_CURR_USER);
     });
   
-    test("import template with real data", async () => {
-      let rawdata = fs.readFileSync(__dirname + '/test_data/template.txt');
-      let old_template = JSON.parse(rawdata);
+    // test("import template with real data", async () => {
+    //   let rawdata = fs.readFileSync(__dirname + '/test_data/template.txt');
+    //   let old_template = JSON.parse(rawdata);
     
-      let response = await importTemplate(old_template, Helper.DEF_CURR_USER);
-      expect(response.statusCode).toBe(200);
-      let uuid = response.body.new_uuid;
+    //   let response = await importTemplate(old_template, Helper.DEF_CURR_USER);
+    //   expect(response.statusCode).toBe(200);
+    //   let uuid = response.body.new_uuid;
     
-      let new_template = await Helper.templateDraftGetAndTest(uuid, Helper.DEF_CURR_USER);
+    //   let new_template = await Helper.templateDraftGetAndTest(uuid, Helper.DEF_CURR_USER);
     
-      testTemplatesEqual(old_template, new_template, {});
+    //   testTemplatesEqual(old_template, new_template, {});
     
-      // cleanseInputTemplate(old_template);
-      // expect(new_template).toMatchObject(old_template);
+    //   // cleanseInputTemplate(old_template);
+    //   // expect(new_template).toMatchObject(old_template);
     
-      // Helper.templateCleanseMetadata(new_template);
-      // let persisted_template = await Helper.templatePersistAndFetch(new_template.uuid, Helper.DEF_CURR_USER);
-      // expect(persisted_template).toMatchObject(new_template);
-    });
+    //   // Helper.templateCleanseMetadata(new_template);
+    //   // let persisted_template = await Helper.templatePersistAndFetch(new_template.uuid, Helper.DEF_CURR_USER);
+    //   // expect(persisted_template).toMatchObject(new_template);
+    // });
 
   });
 

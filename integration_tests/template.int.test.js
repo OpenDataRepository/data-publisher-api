@@ -613,6 +613,43 @@ describe("update (and get draft after an update)", () => {
 
     });
 
+    test("Circular dependencies not allowed", async () => {
+
+      // Create template with parent a and child b. Then edit b to point to a
+
+      let b = {
+        name: "b"
+      };
+
+      let a = { 
+        name: "a",
+        related_templates: [b]
+      };
+      a = await Helper.templateCreateAndTest(a, Helper.DEF_CURR_USER);
+      b = a.related_templates[0];
+
+      b.related_templates.push(a);
+      let response = await Helper.templateUpdate(a.uuid, a, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(400);
+
+      // Now do the same test but with subscribed templates
+      b = {
+        name: "b"
+      };
+      b = await Helper.templateCreatePersistTest(b, Helper.DEF_CURR_USER);
+
+      a = {
+        name: "a",
+        subscribed_templates: [b]
+      }
+      a = await Helper.templateCreatePersistTest(a, Helper.DEF_CURR_USER);
+
+      b.subscribed_templates = [a];
+      response = await Helper.templateUpdate(b.uuid, b, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(400);
+
+    });
+
   })
 
   describe("update after a persist: is draft different and thus created or not?", () => {

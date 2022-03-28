@@ -218,7 +218,7 @@ async function templateUUIDsThatReference(uuid, templateOrField) {
 
 async function createDraftFromLastPersisted(uuid, user, session) {
   let draft = await draftFetchOrCreate(session, uuid, user);
-  await validateAndCreateOrUpdate(session, draft, user, new Date());
+  await validateAndCreateOrUpdate(session, draft, user, new Date(), new Set());
 }
 
 async function createDraftFromLastPersistedWithSession(uuid, user) {
@@ -352,7 +352,7 @@ async function extractFieldsFromCreateOrUpdate(input_fields, user, session, upda
   return [return_fields, changes];
 }
 
-async function extractRelatedTemplatesFromCreateOrUpdate(input_related_templates, user, session, updated_at) {
+async function extractRelatedTemplatesFromCreateOrUpdate(input_related_templates, user, session, updated_at, ancestor_uuids) {
   let return_related_templates = [];
   let changes = false;
   if (input_related_templates === undefined) {
@@ -364,7 +364,7 @@ async function extractRelatedTemplatesFromCreateOrUpdate(input_related_templates
   for (let related_template of input_related_templates) {
     let related_template_uuid;
     try {
-      [changes, related_template_uuid] = await validateAndCreateOrUpdate(session, related_template, user, updated_at);
+      [changes, related_template_uuid] = await validateAndCreateOrUpdate(session, related_template, user, updated_at, ancestor_uuids);
     } catch(err) {
       if (err instanceof Util.NotFoundError) {
         throw new Util.InputError(err.message);
@@ -385,7 +385,22 @@ async function extractRelatedTemplatesFromCreateOrUpdate(input_related_templates
   return [return_related_templates, changes];
 }
 
-async function extractSubscribedTemplateFromCreateOrUpdate(input_subscribed_template, previous_subscribed_template_ids, seen_uuids) {
+function buildUuidSetForPublishedTemplate(template, uuidSet) {
+  uuidSet.add(template.uuid);
+  for(let related_template of template.related_templates) {
+    buildUuidSetForPublishedTemplate(related_template, uuidSet);
+  }
+  for(let subscribed_template of template.subscribed_templates) {
+    buildUuidSetForPublishedTemplate(subscribed_template, uuidSet);
+  }
+}
+function createUuidSetForPublishedTemplate(template) {
+  let uuidSet = new Set();
+  buildUuidSetForPublishedTemplate(template, uuidSet);
+  return uuidSet;
+}
+
+async function extractSubscribedTemplateFromCreateOrUpdate(input_subscribed_template, previous_subscribed_template_ids, seen_uuids, ancestor_uuids) {
   if(!Util.isObject(input_subscribed_template)) {
     throw new Util.InputError("Each entry in subscribed_templates must be an object");
   }
@@ -415,6 +430,17 @@ async function extractSubscribedTemplateFromCreateOrUpdate(input_subscribed_temp
     template with uuid ${subscribed_uuid} is subscribed twice`);
   }
   seen_uuids.add(subscribed_uuid);
+
+  // circulary dependencies are not permitted. 
+  // Use a helper function getting all uuids recursively for the subscribed template
+  // Do a set intersection to see if there are any overlapping
+  let subscribed_template = await persistedByIdWithJoins(subscribed_id);
+  let subscribed_template_id_set = createUuidSetForPublishedTemplate(subscribed_template);
+  let intersection = [...subscribed_template_id_set].filter(i => ancestor_uuids.has(i));
+  if(intersection.length > 0) {
+    throw new Util.InputError(`Circular reference ${intersection[0]} is not permitted.`);
+  }
+
   return subscribed_id;
 
 }
@@ -422,7 +448,7 @@ async function extractSubscribedTemplateFromCreateOrUpdate(input_subscribed_temp
 // Rules: can only subscribe to the latest version or maintain the version we were subscribing to. 
 // The output will of course just be that version of the persisted template fetched.
 // How will the input indicate if it wants to update? It will submit the latest persisted version of that template
-async function extractSubscribedTemplatesFromCreateOrUpdate(input_subscribed_templates, parent_uuid) {
+async function extractSubscribedTemplatesFromCreateOrUpdate(input_subscribed_templates, parent_uuid, ancestor_uuids) {
   let return_subscribed_templates = [];
   if (input_subscribed_templates === undefined) {
     return return_subscribed_templates;
@@ -449,7 +475,7 @@ async function extractSubscribedTemplatesFromCreateOrUpdate(input_subscribed_tem
   let seen_subscribed_uuids = new Set();
 
   for (let subscribed_template of input_subscribed_templates) {
-    let subscribed_template_id =  await extractSubscribedTemplateFromCreateOrUpdate(subscribed_template, previous_subscribed_ids, seen_subscribed_uuids);
+    let subscribed_template_id =  await extractSubscribedTemplateFromCreateOrUpdate(subscribed_template, previous_subscribed_ids, seen_subscribed_uuids, ancestor_uuids);
     // After validating and updating the related_template, replace the imbedded related_template with a uuid reference
     return_subscribed_templates.push(subscribed_template_id);
   }
@@ -463,7 +489,7 @@ async function extractSubscribedTemplatesFromCreateOrUpdate(input_subscribed_tem
 // Return:
 // 1. A boolean indicating true if there were changes from the last persisted.
 // 2. The uuid of the template created / updated
-async function validateAndCreateOrUpdate(session, input_template, user, updated_at) {
+async function validateAndCreateOrUpdate(session, input_template, user, updated_at, ancestor_uuids) {
 
   // Template must be an object
   if (!Util.isObject(input_template)) {
@@ -471,6 +497,11 @@ async function validateAndCreateOrUpdate(session, input_template, user, updated_
   }
 
   let uuid = await getUuidFromCreateOrUpdate(input_template, user, session);
+  if(ancestor_uuids.has(uuid)) {
+    throw new Util.InputError(`Cannot include circlular references in the template. Template ${uuid} is circular`);
+  } else {
+    ancestor_uuids.add(uuid);
+  }
 
   // Populate template properties
   let new_template = await initializeNewDraftWithProperties(input_template, uuid, updated_at);
@@ -481,10 +512,10 @@ async function validateAndCreateOrUpdate(session, input_template, user, updated_
   [new_template.fields, changes] = await extractFieldsFromCreateOrUpdate(input_template.fields, user, session, updated_at);
 
   let more_changes = false;
-  [new_template.related_templates, more_changes] = await extractRelatedTemplatesFromCreateOrUpdate(input_template.related_templates, user, session, updated_at);
+  [new_template.related_templates, more_changes] = await extractRelatedTemplatesFromCreateOrUpdate(input_template.related_templates, user, session, updated_at, ancestor_uuids);
   changes = changes || more_changes;
 
-  new_template.subscribed_templates = await extractSubscribedTemplatesFromCreateOrUpdate(input_template.subscribed_templates, uuid);
+  new_template.subscribed_templates = await extractSubscribedTemplatesFromCreateOrUpdate(input_template.subscribed_templates, uuid, ancestor_uuids);
   changes = changes || more_changes;
   
 
@@ -502,6 +533,7 @@ async function validateAndCreateOrUpdate(session, input_template, user, updated_
           throw err;
         }
       }
+      ancestor_uuids.delete(uuid);
       return [false, uuid];
     }
   }
@@ -519,6 +551,7 @@ async function validateAndCreateOrUpdate(session, input_template, user, updated_
   } 
 
   // If successfull, return the uuid of the created / updated template
+  ancestor_uuids.delete(uuid);
   return [true, uuid];
 
 }
@@ -1229,13 +1262,13 @@ async function importTemplate(session, template, user, updated_at) {
 // Wraps the actual request to create with a transaction
 exports.create = async function(template, user) {
   let inserted_uuid;
-  [_, inserted_uuid] = await SharedFunctions.executeWithTransaction(validateAndCreateOrUpdate, template, user, new Date());
+  [_, inserted_uuid] = await SharedFunctions.executeWithTransaction(validateAndCreateOrUpdate, template, user, new Date(), new Set());
   return inserted_uuid;
 }
 
 // Wraps the actual request to update with a transaction
 exports.update = async function(template, user) {
-  await SharedFunctions.executeWithTransaction(validateAndCreateOrUpdate, template, user, new Date());
+  await SharedFunctions.executeWithTransaction(validateAndCreateOrUpdate, template, user, new Date(), new Set());
 }
 
 // Wraps the actual request to get with a transaction
