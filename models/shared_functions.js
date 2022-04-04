@@ -3,7 +3,7 @@ const Util = require('../lib/util');
 const ObjectId = require('mongodb').ObjectId;
 
 // Fetches the draft with the given uuid. 
-// Does not look up fields or related_templates
+// Does not look up fields or related documents
 const draft = async (collection, uuid, session) => {
   let cursor = await collection.find(
     {uuid, 'persist_date': {'$exists': false}}, 

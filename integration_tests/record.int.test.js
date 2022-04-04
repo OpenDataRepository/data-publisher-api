@@ -1820,3 +1820,176 @@ test("full range of operations with big data", async () => {
   await Helper.recordPersistAndTest(record, Helper.DEF_CURR_USER);
 
 });
+
+describe("with files", () => {
+
+  beforeEach(async() => {
+    Helper.clearFilesAtPath(Helper.dynamicTestFilesPath);
+    Helper.clearFilesAtPath(Helper.uploadsDirectoryPath);
+  });
+  
+  afterAll(async () => {
+    Helper.clearFilesAtPath(Helper.dynamicTestFilesPath);
+    // TODO: when we start using new settings, I need to create different configurations for testing and execution
+    Helper.clearFilesAtPath(Helper.uploadsDirectoryPath);
+  });
+
+  const basicRecordSetup = async () => {
+    let template = {
+      name: "t",
+      fields: [{
+        name: "tf",
+        type: "file"
+      }]
+    };
+    template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
+
+    let dataset = {
+      template_id: template._id
+    };
+    dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
+
+    let record = {
+      dataset_uuid: dataset.uuid,
+      fields: [{
+        uuid: template.fields[0].uuid,
+        value: "new" 
+      }]
+    }
+    record = await Helper.recordCreateAndTest(record, Helper.DEF_CURR_USER);
+    let file_uuid = record.fields[0].value;
+
+    return [template, dataset, record, file_uuid];
+  };
+
+  const basicSetupAndTest = async () => {
+    let template, dataset, record, file_uuid;
+    [template, dataset, record, file_uuid] = await basicRecordSetup();
+
+    let file_name = "toUpload.txt";
+    let file_contents = "Hello World!";
+
+    Helper.createFile(file_name, file_contents);
+    
+    await Helper.testAndExtract(Helper.uploadFileDirect, file_uuid, file_name);
+
+    let newFileBuffer = await Helper.testAndExtract(Helper.getFile, file_uuid);
+    let newFileContents = newFileBuffer.toString();
+    expect(newFileContents).toEqual(file_contents);
+
+    return [template, dataset, record, file_uuid];
+  };
+
+  describe("success", () => {
+    test("basic create with a file and then fetch that file", async () => {
+      await basicSetupAndTest();
+    });
+
+    test("able to upload a different file to the same uuid", async () => {
+      let template, dataset, record, file_uuid;
+      [template, dataset, record, file_uuid] = await basicSetupAndTest();
+      
+      let file_name = "different.txt";
+      let file_contents = "Hello Mellon!";
+  
+      Helper.createFile(file_name, file_contents);
+
+      await Helper.testAndExtract(Helper.uploadFileDirect, file_uuid, file_name);
+
+      let newFileBuffer = await Helper.testAndExtract(Helper.getFile, file_uuid);
+      let newFileContents = newFileBuffer.toString();
+      expect(newFileContents).toEqual(file_contents);
+    });
+
+    test("same file for multiple versions of the record", async () => {
+      let template, dataset, record, file_uuid;
+      [template, dataset, record, file_uuid] = await basicSetupAndTest();
+
+      record = await Helper.recordPersistAndTest(record, Helper.DEF_CURR_USER);
+      
+      record = await Helper.recordDraftGetAndTest(record.uuid, Helper.DEF_CURR_USER);
+      record.public_date = (new Date()).toISOString();
+
+      record = await Helper.recordUpdatePersistTest(record, Helper.DEF_CURR_USER);
+      expect(record.fields[0].value).toEqual(file_uuid);
+
+    });
+
+    test("different versions of the record have different files", async () => {
+      let template, dataset, record, file_uuid;
+      [template, dataset, record, file_uuid] = await basicSetupAndTest();
+
+      record = await Helper.recordPersistAndTest(record, Helper.DEF_CURR_USER);
+
+      // Create a second record version with a new file
+      record = await Helper.recordDraftGetAndTest(record.uuid, Helper.DEF_CURR_USER);
+      record.fields[0].value = "new";
+      record = await Helper.recordUpdateAndTest(record, Helper.DEF_CURR_USER);
+      let file_uuid_2 = record.fields[0].value;
+
+      // Expect to get a new file_uuid for the new version
+      expect(file_uuid_2).not.toEqual(file_uuid);
+
+      // Create new file to upload to new uuid
+      let file_name_2 = "different.txt";
+      let file_contents = "One punch!";
+      Helper.createFile(file_name_2, file_contents);
+      await Helper.testAndExtract(Helper.uploadFileDirect, file_uuid_2, file_name_2);
+
+      // test that we can get the second file
+      let newFileBuffer = await Helper.testAndExtract(Helper.getFile, file_uuid_2);
+      let newFileContents = newFileBuffer.toString();
+      expect(newFileContents).toEqual(file_contents);
+
+      // Publish second record with second file
+      record = await Helper.recordPersistAndTest(record, Helper.DEF_CURR_USER);
+
+      // Can still get the old file with the old uuid
+      newFileBuffer = await Helper.testAndExtract(Helper.getFile, file_uuid);
+      newFileContents = newFileBuffer.toString();
+      expect(newFileContents).toEqual("Hello World!");
+
+    });
+
+  });
+
+  describe("failure", () => {
+
+    test("try to publish without file upload ", async () => {
+      let template, dataset, record, file_uuid;
+      [template, dataset, record, file_uuid] = await basicRecordSetup();
+
+      let response = await Helper.recordPersist(record, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(400);
+    });
+
+    test("try to publish during file upload ", async () => {
+      let template, dataset, record, file_uuid;
+      [template, dataset, record, file_uuid] = await basicRecordSetup();
+
+      let file_name = "toUpload.txt";
+      let file_contents = "Hello World!";
+  
+      Helper.createFile(file_name, file_contents);
+      
+      Helper.uploadFileDirect(file_uuid, file_name);
+
+      let response = await Helper.recordPersist(record, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(400);
+    });
+
+    test("try to attach a uuid that belongs to a different record + field", async () => {
+      let template, dataset, record, file_uuid;
+      [template, dataset, record, file_uuid] = await basicSetupAndTest();
+
+      let record_2 = Object.assign({}, record);
+      delete record_2._id;
+      delete record_2.uuid;
+
+      let response = await Helper.recordCreate(record_2, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(400);
+    });
+
+  });
+
+});

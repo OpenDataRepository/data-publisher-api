@@ -5,59 +5,68 @@ var { app, init: appInit } = require('../app');
 var finalhandler = require('finalhandler')
 var http = require('http')
 var serveStatic = require('serve-static')
+const MongoDB = require('../lib/mongoDB');
 
 var HelperClass = require('./common_test_operations')
 var Helper = new HelperClass(app);
 
-const uploadFileDirect = async (uuid, file) => {
-  return await request(app)
-    .post(`/file/${uuid}/direct`)
-    .attach('file', file);
-}
-const uploadFileFromUrl = async (uuid, url) => {
-  return await request(app)
-    .post(`/file/${uuid}/fromUrl`)
-    .send({url});
-}
-
-const getFile = async (uuid) => {
-  return await request(app)
-    .get(`/file/${uuid}`);
-}
-
-const dynamicTestFilesPath = __dirname + '/test_data/dynamic_files'
-const uploadsDirectoryPath = __dirname + "/../uploads"
-const clearFilesAtPath = (directory) => {
-  fs.readdir(directory, (err, files) => {
-    if (err) throw err;
-  
-    for (let file of files) {
-      fs.unlink(path.join(directory, file), err => {
-        if (err) throw err;
-      });
-    }
-  });
-};
+beforeAll(async () => {
+  await appInit();
+});
 
 beforeEach(async() => {
-  clearFilesAtPath(dynamicTestFilesPath);
-  clearFilesAtPath(uploadsDirectoryPath);
+  await Helper.clearDatabase();
+  Helper.clearFilesAtPath(Helper.dynamicTestFilesPath);
+  Helper.clearFilesAtPath(Helper.uploadsDirectoryPath);
 });
 
 afterAll(async () => {
-  clearFilesAtPath(dynamicTestFilesPath);
-  clearFilesAtPath(uploadsDirectoryPath);
+  Helper.clearFilesAtPath(Helper.dynamicTestFilesPath);
+  Helper.clearFilesAtPath(Helper.uploadsDirectoryPath);
+  await Helper.clearDatabase();
+  await MongoDB.close();
 });
 
+const basicRecordSetup = async () => {
+  let template = {
+    name: "t",
+    fields: [{
+      name: "tf",
+      type: "file"
+    }]
+  };
+  template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
+
+  let dataset = {
+    template_id: template._id
+  };
+  dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
+
+  let record = {
+    dataset_uuid: dataset.uuid,
+    fields: [{
+      uuid: template.fields[0].uuid,
+      value: "new" 
+    }]
+  }
+  record = await Helper.recordCreateAndTest(record, Helper.DEF_CURR_USER);
+  let file_uuid = record.fields[0].value;
+
+  return [template, dataset, record, file_uuid];
+};
+
 test("Upload a file directly", async () => {
-  let new_file_path = path.join(dynamicTestFilesPath, "toUpload.txt");
+  let file_name = "toUpload.txt";
+  let new_file_path = path.join(Helper.dynamicTestFilesPath, file_name);
   let originalFileContents = 'Hey there!';
   fs.writeFileSync(new_file_path, originalFileContents);
-  let uuid = "aUuid";
 
-  await Helper.testAndExtract(uploadFileDirect, uuid, new_file_path);
+  let uuid;
+  [_, _, _, uuid] = await basicRecordSetup();
 
-  let response = await getFile(uuid);
+  await Helper.testAndExtract(Helper.uploadFileDirect, uuid, file_name);
+
+  let response = await Helper.getFile(uuid);
   expect(response.statusCode).toBe(200);
   let newFileBuffer = response.body;
   let newFileContents = newFileBuffer.toString();
@@ -65,13 +74,15 @@ test("Upload a file directly", async () => {
 });
 
 test("Upload a file from url", async () => {
-  let new_file_path = path.join(dynamicTestFilesPath, "toUpload.txt");
+  let new_file_path = path.join(Helper.dynamicTestFilesPath, "toUpload.txt");
   let originalFileContents = 'Hey there!';
   fs.writeFileSync(new_file_path, originalFileContents);
-  let uuid = "aUuid";
+
+  let uuid;
+  [_, _, _, uuid] = await basicRecordSetup();
 
   // Serve up public/ftp folder
-  var serve = serveStatic(dynamicTestFilesPath);
+  var serve = serveStatic(Helper.dynamicTestFilesPath);
   // Create server
   var server = http.createServer(function onRequest (req, res) {
     serve(req, res, finalhandler(req, res))
@@ -80,11 +91,11 @@ test("Upload a file from url", async () => {
   server.listen(3000);
 
   let url = "http://localhost:3000/toUpload.txt"
-  let response = await uploadFileFromUrl(uuid, url);
+  let response = await Helper.uploadFileFromUrl(uuid, url);
   server.close();
   expect(response.statusCode).toBe(200);
 
-  response = await getFile(uuid);
+  response = await Helper.getFile(uuid);
   expect(response.statusCode).toBe(200);
   let newFileBuffer = response.body;
   let newFileContents = newFileBuffer.toString();

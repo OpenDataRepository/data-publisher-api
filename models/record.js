@@ -7,6 +7,7 @@ const DatasetModel = require('./dataset');
 const PermissionGroupModel = require('./permission_group');
 const SharedFunctions = require('./shared_functions');
 const LegacyUuidToNewUuidMapperModel = require('./legacy_uuid_to_new_uuid_mapper');
+const FileModel = require('./file');
 
 var Record;
 
@@ -39,6 +40,7 @@ function fieldsEqual(fields1, fields2) {
     if (field1.name != field2.name || field1.description != field2.description || field1.value != field2.value) {
       return false;
     }
+    // TODO: if it's a list of values, we need to compare all of the list, not just a single value
   }
   return true;
 }
@@ -128,7 +130,7 @@ async function draftDifferentFromLastPersisted(draft) {
   return false;
 }
 
-function createRecordFieldsFromTemplateFieldsAndMap(template_fields, record_field_map) {
+async function createRecordFieldsFromTemplateFieldsAndMap(template_fields, record_field_map, record_uuid, session) {
   let result_fields = [];
 
   for (let field of template_fields) {
@@ -139,7 +141,20 @@ function createRecordFieldsFromTemplateFieldsAndMap(template_fields, record_fiel
       description: field.description,
     };
     let record_field_data = record_field_map[field_uuid];
-    if(field.options) {
+    if(field.type && field.type == 'file') {
+      field_object.type = 'file';
+      if(record_field_data.value) {
+        if(record_field_data.value == 'new') {
+          field_object.value = await FileModel.getExistingDraftUuidOrCreateNew(record_uuid, field_uuid, session);
+        } else {
+          let file_uuid = record_field_data.value;
+          if(!await FileModel.existsWithParams(file_uuid, record_uuid, field_uuid, session)) {
+            throw new Util.InputError(`Record ${record_uuid} cannot attach file ${file_uuid} for field ${field_uuid}. Does not exist`);
+          }
+          field_object.value = file_uuid;
+        }
+      } 
+    } else if(field.options) {
       if(record_field_data && record_field_data.option_uuids) {
         field_object.values = TemplateFieldModel.optionUuidsToValues(field.options, record_field_data.option_uuids);
       } else {
@@ -150,14 +165,14 @@ function createRecordFieldsFromTemplateFieldsAndMap(template_fields, record_fiel
         field_object.value = record_field_data.value;
       }
     }
+
     result_fields.push(field_object);
   }
 
   return result_fields;
 }
 
-function createRecordFieldsFromInputRecordAndTemplate(record_fields, template_fields) {
-  // Fields are a bit more complicated
+async function createRecordFieldsFromInputRecordAndTemplate(record_fields, template_fields, record_uuid, session) {
   if(!record_fields) {
     record_fields = [];
   }
@@ -183,7 +198,7 @@ function createRecordFieldsFromInputRecordAndTemplate(record_fields, template_fi
     record_field_map[field.uuid] = record_field_data;
   }
 
-  return createRecordFieldsFromTemplateFieldsAndMap(template_fields, record_field_map);
+  return await createRecordFieldsFromTemplateFieldsAndMap(template_fields, record_field_map, record_uuid, session);
 }
 
 async function createRecordFieldsFromImportRecordAndTemplate(record_fields, template_fields) {
@@ -353,7 +368,7 @@ async function validateAndCreateOrUpdateRecurser(input_record, dataset, template
     new_record.old_system_uuid = old_system_uuid;
   }
 
-  new_record.fields = createRecordFieldsFromInputRecordAndTemplate(input_record.fields, template.fields);
+  new_record.fields = await createRecordFieldsFromInputRecordAndTemplate(input_record.fields, template.fields, uuid, session);
 
   // Need to determine if this draft is any different from the persisted one.
   let changes;
@@ -559,6 +574,12 @@ async function persistRecurser(uuid, dataset, template, user, session) {
   // This check should never fail, unless there is a bug in my code. Still, it doesn't hurt to be safe.
   if (record_draft.dataset_uuid != dataset.uuid) {
     throw new Error(`The record draft ${record_draft} does not reference the dataset required ${dataset.uuid}. Cannot persist.`);
+  }
+
+  for(let field of record_draft.fields) {
+    if(field.type == 'file') {
+      await FileModel.markPersisted(field.value);
+    }
   }
 
   var last_persisted_time = 0;
@@ -1157,6 +1178,11 @@ exports.draftDelete = async function(uuid, user) {
 
 exports.draftExisting = async function(uuid) {
   return (await SharedFunctions.draft(Record, uuid)) ? true : false;
+}
+
+exports.userHasPermissionsTo = async function(record_uuid, permissionLevel, user) {
+  let record = await SharedFunctions.latestDocument(Record, record_uuid);
+  return await PermissionGroupModel.has_permission(user, record.dataset_uuid, permissionLevel);
 }
 
 // Wraps the actual request to importDatasetsAndRecords with a transaction

@@ -1,4 +1,6 @@
 const request = require("supertest");
+const fs = require('fs');
+const path = require('path');
 const MongoDB = require('../lib/mongoDB');
 var { PERMISSION_ADMIN, PERMISSION_EDIT, PERMISSION_VIEW } = require('../models/permission_group');
 
@@ -19,6 +21,7 @@ module.exports = class Helper {
     await db.collection('records').deleteMany();
     await db.collection('permission_groups').deleteMany();
     await db.collection('legacy_uuid_to_new_uuid_mapper').deleteMany();
+    await db.collection('files').deleteMany();
   };
 
   sortArrayByNameProperty = (o1, o2) => {
@@ -627,6 +630,13 @@ module.exports = class Helper {
     if(before.public_date) {
       expect(after.public_date).toEqual(before.public_date);
     }
+    if(before.value) {
+      if(after.type == 'file' && before.value == 'new'){
+        ;
+      } else {
+        expect(after.value).toEqual(before.value);
+      }
+    }
     if(before.values) {
       expect(after.values.length).toBe(before.values.length);
       before.values.sort(Helper.sortArrayByUuidProperty);
@@ -687,6 +697,7 @@ module.exports = class Helper {
     
     let updated_record = await this.testAndExtract(this.recordDraftGet, record.uuid, curr_user);
     this.testRecordsEqual(record, updated_record);
+    return updated_record;
   };
   
   recordDelete = async (uuid, curr_user) => {
@@ -775,8 +786,8 @@ module.exports = class Helper {
   
   recordUpdatePersistTest = async (record, curr_user) => {
     await this.recordUpdateAndTest(record, curr_user);
-    let persisted_record = await this.recordPersistAndFetch(record.uuid, curr_user)
-    expect(persisted_record).toMatchObject(record);
+    let persisted_record = await this.recordPersistAndFetch(record.uuid, curr_user);
+    this.testRecordsEqual(record, persisted_record);
     return persisted_record;
   };
 
@@ -829,5 +840,43 @@ module.exports = class Helper {
       .set('Cookie', [`user=${current_user}`])
       .set('Accept', 'application/json');
   }
+
+  // files 
+
+  dynamicTestFilesPath = __dirname + '/test_data/dynamic_files'
+  uploadsDirectoryPath = __dirname + "/../uploads"
+
+  clearFilesAtPath = (directory) => {
+    fs.readdir(directory, (err, files) => {
+      if (err) throw err;
+    
+      for (let file of files) {
+        fs.unlink(path.join(directory, file), err => {
+          if (err) throw err;
+        });
+      }
+    });
+  };
+
+  createFile = (file_name, contents) => {
+    let new_file_path = path.join(this.dynamicTestFilesPath, file_name);
+    fs.writeFileSync(new_file_path, contents);
+  }
+
+  uploadFileDirect = async (uuid, file_name) => {
+    return await request(this.app)
+      .post(`/file/${uuid}/direct`)
+      .attach('file', path.join(this.dynamicTestFilesPath, file_name));
+  }
+  uploadFileFromUrl = async (uuid, url) => {
+    return await request(this.app)
+      .post(`/file/${uuid}/fromUrl`)
+      .send({url});
+  }
+  getFile = async (uuid) => {
+    return await request(this.app)
+      .get(`/file/${uuid}`);
+  }
+
 }
 

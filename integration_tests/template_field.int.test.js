@@ -336,7 +336,7 @@ describe("update (and get draft after an update)", () => {
   })
 
   describe("update after a persist: is draft different and thus created or not?", () => {
-    test("name, description, dates", async () => {
+    test("name, description, dates, type", async () => {
       let field = {
         name: "naruto",
         description: "ninja",
@@ -367,6 +367,14 @@ describe("update (and get draft after an update)", () => {
   
       // Test public_date
       field.public_date = (new Date()).toISOString();
+      await Helper.templateFieldUpdateAndTest(field, Helper.DEF_CURR_USER);
+      expect(await Helper.templateFieldDraftExistingAndTest(field.uuid)).toBe(true);
+  
+      await Helper.templateFieldDraftDeleteAndTest(field.uuid, Helper.DEF_CURR_USER);
+      expect(await Helper.templateFieldDraftExistingAndTest(field.uuid)).toBe(false);
+
+      // Test type
+      field.type = 'file';
       await Helper.templateFieldUpdateAndTest(field, Helper.DEF_CURR_USER);
       expect(await Helper.templateFieldDraftExistingAndTest(field.uuid)).toBe(true);
   

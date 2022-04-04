@@ -113,6 +113,7 @@ function optionsEqual(options1, options2) {
 function fieldEquals(field1, field2) {
   return field1.name == field2.name && 
           field1.description == field2.description && 
+          field1.type == field2.type && 
           Util.datesEqual(field1.public_date, field2.public_date) &&
           optionsEqual(field1.options, field2.options);
 }
@@ -272,6 +273,12 @@ async function initializeNewDraftWithProperties(input_field, uuid, updated_at) {
       throw new Util.InputError('template public_date property must be in valid date format');
     }
     output_field.public_date = new Date(input_field.public_date);
+  }
+  if(input_field.type && input_field.type == "file") {
+    if(input_field.options) {
+      throw new Util.InputError('Options are not supported for field type file');
+    }
+    output_field.type = "file";
   }
   if(input_field.options) {
     let latest_field = await SharedFunctions.latestDocument(TemplateField, uuid);
