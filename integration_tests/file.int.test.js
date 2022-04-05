@@ -55,6 +55,8 @@ const basicRecordSetup = async () => {
   return [template, dataset, record, file_uuid];
 };
 
+// TODO: add failure tests
+
 test("Upload a file directly", async () => {
   let file_name = "toUpload.txt";
   let new_file_path = path.join(Helper.dynamicTestFilesPath, file_name);
@@ -64,9 +66,9 @@ test("Upload a file directly", async () => {
   let uuid;
   [_, _, _, uuid] = await basicRecordSetup();
 
-  await Helper.testAndExtract(Helper.uploadFileDirect, uuid, file_name);
+  await Helper.testAndExtract(Helper.uploadFileDirect, uuid, file_name, Helper.DEF_CURR_USER);
 
-  let response = await Helper.getFile(uuid);
+  let response = await Helper.getFile(uuid, Helper.DEF_CURR_USER);
   expect(response.statusCode).toBe(200);
   let newFileBuffer = response.body;
   let newFileContents = newFileBuffer.toString();
@@ -91,11 +93,11 @@ test("Upload a file from url", async () => {
   server.listen(3000);
 
   let url = "http://localhost:3000/toUpload.txt"
-  let response = await Helper.uploadFileFromUrl(uuid, url);
+  let response = await Helper.uploadFileFromUrl(uuid, url, Helper.DEF_CURR_USER);
   server.close();
   expect(response.statusCode).toBe(200);
 
-  response = await Helper.getFile(uuid);
+  response = await Helper.getFile(uuid, Helper.DEF_CURR_USER);
   expect(response.statusCode).toBe(200);
   let newFileBuffer = response.body;
   let newFileContents = newFileBuffer.toString();

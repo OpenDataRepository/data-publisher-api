@@ -863,19 +863,22 @@ module.exports = class Helper {
     fs.writeFileSync(new_file_path, contents);
   }
 
-  uploadFileDirect = async (uuid, file_name) => {
+  uploadFileDirect = async (uuid, file_name, curr_user) => {
     return await request(this.app)
       .post(`/file/${uuid}/direct`)
+      .set('Cookie', [`user=${curr_user}`])
       .attach('file', path.join(this.dynamicTestFilesPath, file_name));
   }
-  uploadFileFromUrl = async (uuid, url) => {
+  uploadFileFromUrl = async (uuid, url, curr_user) => {
     return await request(this.app)
       .post(`/file/${uuid}/fromUrl`)
+      .set('Cookie', [`user=${curr_user}`])
       .send({url});
   }
-  getFile = async (uuid) => {
-    return await request(this.app)
-      .get(`/file/${uuid}`);
+  getFile = async (uuid, curr_user) => {
+    return await request(this.app, curr_user)
+      .get(`/file/${uuid}`)
+      .set('Cookie', [`user=${curr_user}`]);
   }
 
 }

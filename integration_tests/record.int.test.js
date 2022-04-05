@@ -1871,9 +1871,9 @@ describe("with files", () => {
 
     Helper.createFile(file_name, file_contents);
     
-    await Helper.testAndExtract(Helper.uploadFileDirect, file_uuid, file_name);
+    await Helper.testAndExtract(Helper.uploadFileDirect, file_uuid, file_name, Helper.DEF_CURR_USER);
 
-    let newFileBuffer = await Helper.testAndExtract(Helper.getFile, file_uuid);
+    let newFileBuffer = await Helper.testAndExtract(Helper.getFile, file_uuid, Helper.DEF_CURR_USER);
     let newFileContents = newFileBuffer.toString();
     expect(newFileContents).toEqual(file_contents);
 
@@ -1949,6 +1949,19 @@ describe("with files", () => {
       newFileContents = newFileBuffer.toString();
       expect(newFileContents).toEqual("Hello World!");
 
+    });
+
+    test("removing the reference to a file. the file should get deleted", async () => {
+      let template, dataset, record, file_uuid;
+      [template, dataset, record, file_uuid] = await basicSetupAndTest();
+      
+      record = await Helper.recordDraftGetAndTest(record.uuid, Helper.DEF_CURR_USER);
+      record.fields[0].value = "";
+
+      record = await Helper.recordUpdateAndTest(record, Helper.DEF_CURR_USER);
+
+      let response = await Helper.getFile(file_uuid, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(404);
     });
 
   });

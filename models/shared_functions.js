@@ -94,6 +94,9 @@ exports.draftDelete = async (collection, uuid) => {
 
 exports.userHasAccessToPersistedResource = async (collection, uuid, user, PermissionGroupModel, session) => {
   let latest_persisted = await latestPersisted(collection, uuid, session);
+  if(!latest_persisted) {
+    return false;
+  }
 
   // If public, then automatic yes
   if (latest_persisted.public_date && Util.compareTimeStamp((new Date).getTime(), latest_persisted.public_date)){

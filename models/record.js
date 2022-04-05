@@ -172,6 +172,38 @@ async function createRecordFieldsFromTemplateFieldsAndMap(template_fields, recor
   return result_fields;
 }
 
+async function deleteLostFiles(old_fields, new_fields, session) {
+  // First find the file uuids that have been lost
+  let old_file_uuids = new Set();
+  for(let field of old_fields) {
+    if(field.type && field.type == "file") {
+      old_file_uuids.add(field.value);
+    }
+  }
+  let new_file_uuids = new Set();
+  for(let field of new_fields) {
+    if(field.type && field.type == "file") {
+      new_file_uuids.add(field.value);
+    }
+  }
+
+  let lost_file_uuids = [...old_file_uuids].filter(x => !new_file_uuids.has(x));
+  
+  // For each lost file, try to delete it. Of course, if it hasn't been persisted, it won't work
+  for(let file_uuid of lost_file_uuids) {
+    try{
+      await FileModel.delete(file_uuid, session);
+    } catch(err) {
+      if(err instanceof Util.InputError || err instanceof Util.NotFoundError) {
+        ;
+      } else {
+        throw err;
+      }
+    }
+  }
+
+}
+
 async function createRecordFieldsFromInputRecordAndTemplate(record_fields, template_fields, record_uuid, session) {
   if(!record_fields) {
     record_fields = [];
@@ -198,7 +230,15 @@ async function createRecordFieldsFromInputRecordAndTemplate(record_fields, templ
     record_field_map[field.uuid] = record_field_data;
   }
 
-  return await createRecordFieldsFromTemplateFieldsAndMap(template_fields, record_field_map, record_uuid, session);
+  let result_fields = await createRecordFieldsFromTemplateFieldsAndMap(template_fields, record_field_map, record_uuid, session);
+
+  // Any file uuids that were in the old record fields but aren't anymore need to be deleted
+  let previous_record_draft = await SharedFunctions.draft(Record, record_uuid, session);
+  if(previous_record_draft) {
+    await deleteLostFiles(previous_record_draft.fields, result_fields, session);
+  }
+
+  return result_fields;
 }
 
 async function createRecordFieldsFromImportRecordAndTemplate(record_fields, template_fields) {

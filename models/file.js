@@ -1,4 +1,5 @@
 const fs = require('fs');
+const fsPromises = fs.promises;
 const path = require('path');
 const { v4: uuidv4} = require('uuid');
 
@@ -125,9 +126,22 @@ exports.markPersisted = async function(uuid, session) {
   } 
 }
 
-exports.delete = async function(uuid) {
-  let response = await File.delete(
-    {uuid}
+// At the moment, the user is not allowed to delete the file directly.
+// Only a record can request a delete if it loses the reference to a file
+exports.delete = async function(uuid, session) {
+  if(!(await SharedFunctions.exists(File, uuid))) {
+    throw new Util.NotFoundError(`Cannot delete file ${uuid}. Does not exist`);
+  }
+  let file_metadata = await SharedFunctions.latestDocument(File, uuid);
+  if(file_metadata.persisted) {
+    throw new Util.InputError(`Cannot delete file as the record it has been attached to has already been persisted.`);
+  }
+  
+  let file_path = path.join(Upload_Destination, uuid);
+  await fsPromises.unlink(file_path);
+  let response = await File.deleteMany(
+    {uuid},
+    {session}
   );
   if(response.deletedCount != 1) {
     throw new Error(`File.delete: Deleted: ${resonse.deletedCount}`);
