@@ -1,6 +1,8 @@
 const fs = require('fs');
+const fsPromises = fs.promises;
 const path = require('path');
 const http = require('http');
+const axios = require('axios');
 const Util = require('../lib/util');
 const SharedFunctions = require('../models/shared_functions');
 const FileModel = require('../models/file');
@@ -29,12 +31,16 @@ exports.verifyFileUpload = async function(req, res, next) {
   next();
 }
 
+// TODO: for both of the below functions, it would probably be a good idea to downoad to a different file first,
+// and then move that file to the correct location. That way we don't right half of a bad file and then delete it
+// Reference: https://stackoverflow.com/questions/11944932/how-to-download-a-file-with-node-js-without-using-third-party-libraries
+
 exports.uploadFileDirect = async function(req, res, next) {
   let uuid = req.params.uuid;
   
   const callback = async (session) => {
     await FileModel.markUploaded(uuid, session);
-    fs.renameSync(req.file.path, path.join(FileModel.Upload_Destination, uuid));
+    fs.renameSync(req.file.path, path.join(FileModel.uploadDestination(), uuid));
   }
   try {
     await SharedFunctions.executeWithTransaction(callback);
@@ -52,19 +58,81 @@ exports.uploadFileFromUrl = async function(req, res, next) {
       throw new Util.InputError(`Download url not provided`);
     }
 
-    let file_destination = path.join(FileModel.Upload_Destination, uuid);
-    var file = fs.createWriteStream(file_destination);
-    http.get(downloadUrl, function(response) {
-      if(response.statusCode != 200) {
-        throw new Util.InputError(`Request failed. Status Code: ${response.statusCode}`)
-      }
-      response.pipe(file);
-      // it would probably be better to do this in a transaction, but http.get and response.pipe are a bit challenging
-      FileModel.markUploaded(uuid)
-      .then(() => {
-        res.sendStatus(200);
+    let httpGetPromisified = async () => {
+      return new Promise((resolve, reject) => {
+        http.get(downloadUrl, function(response) {
+          if(response.statusCode != 200) {
+            reject(new Util.InputError(`Download from url failed. Status Code: ${response.statusCode}`));
+            return;
+          }
+          try {
+            let file_destination = path.join(FileModel.uploadDestination(), uuid);
+            var writeStream = fs.createWriteStream(file_destination);
+            response.pipe(writeStream);
+      
+            writeStream.on("finish", () => {
+              writeStream.close();
+              FileModel.markUploaded(uuid)
+              .then(() => {
+                resolve();
+              });
+            });
+          } catch(err) {
+            reject(err);
+          }
+        }).on('error', (err) => {
+          reject(err);
+        });
       });
-    });
+    };
+    // await httpGetPromisified();
+    // res.sendStatus(200);
+
+    let file_destination = path.join(FileModel.uploadDestination(), uuid);
+    var writeStream = fs.createWriteStream(file_destination);
+
+    // Solution from here: https://stackoverflow.com/questions/55374755/node-js-axios-download-file-stream-and-writefile
+    try {
+      await axios({
+        method: "get",
+        url: downloadUrl,
+        responseType: "stream"
+      }).then((response) => {
+  
+        if(response.status != 200) {
+          reject(new Util.InputError(`Download from url failed: ${err}`));
+        }
+        //ensure that the user can call `then()` only when the file has
+        //been downloaded entirely.
+  
+        return new Promise((resolve, reject) => {
+          response.data.pipe(writeStream);
+          let error = null;
+          writeStream.on('error', err => {
+            error = err;
+            writer.close();
+            reject(err);
+          });
+          writeStream.on('close', () => {
+            if (!error) {
+              resolve(true);
+            }
+            //no need to call the reject here, as it will have been called in the
+            //'error' stream;
+          });
+        });
+      });
+    } catch (err) {
+      await fsPromises.unlink(file_destination);
+      if(err.isAxiosError) {
+        throw new Util.InputError('Fetching the file from the specified url failed with message: ' + err.message);
+      } else {
+        throw err;
+      }
+    }
+    await FileModel.markUploaded(uuid);
+    res.sendStatus(200);    
+
   } catch(err) {
     next(err);
   }
@@ -75,20 +143,23 @@ exports.getFile = async function(req, res, next) {
   let user = req.cookies.user;
   try {
     if(!(await SharedFunctions.exists(FileModel.collection(), uuid))) {
-      throw new Util.NotFoundError(`Cannot upload file to uuid ${uuid}. Does not exist`);
+      throw new Util.NotFoundError(`File with uuid ${uuid} does not exist`);
     }
     let file_metadata = await SharedFunctions.latestDocument(FileModel.collection(), uuid);
     let record_uuid = file_metadata.record_uuid;
     if(await RecordModel.userHasPermissionsTo(record_uuid, PermissionGroupModel.PERMISSION_VIEW, user)) {
     } else if (file_metadata.published && await SharedFunctions.userHasAccessToPersistedResource(RecordModel.collection(), record_uuid, user, PermissionGroupModel.PERMISSION_VIEW)) {
     } else {
-      throw new Util.PermissionDeniedError(`You do not have the view permissions required to add a file to record ${file_metadata.record_uuid}`);
+      throw new Util.PermissionDeniedError(`You do not have the view permissions required to view a file attached to record ${file_metadata.record_uuid}`);
+    }
+    if(!file_metadata.uploaded) {
+      throw new Util.NotFoundError(`Uuid ${uuid} exists but no file for it has been updated.`);
     }
   } catch(err) {
     next(err);
   }
 
-  const file = path.join(FileModel.Upload_Destination, req.params.uuid);
+  const file = path.join(FileModel.uploadDestination(), req.params.uuid);
   res.sendFile(file);
 }
 

@@ -9,8 +9,7 @@ const SharedFunctions = require('./shared_functions');
 
 var File;
 
-const Upload_Destination = path.resolve("uploads/");
-exports.Upload_Destination = Upload_Destination;
+var Upload_Destination;
 
 // Returns a reference to the permission_groups Mongo Collection
 async function collection() {
@@ -26,9 +25,13 @@ async function collection() {
 exports.collection = function() {
   return File;
 }
+exports.uploadDestination = function() {
+  return Upload_Destination;
+}
 
 exports.init = async function() {
   File = await collection();
+  Upload_Destination = path.resolve(process.env.uploads_folder);
 }
 
 // Clear out the old file attached to this uuid so we can attach a new one

@@ -844,7 +844,7 @@ module.exports = class Helper {
   // files 
 
   dynamicTestFilesPath = __dirname + '/test_data/dynamic_files'
-  uploadsDirectoryPath = __dirname + "/../uploads"
+  uploadsDirectoryPath = __dirname + "/../uploads_testing"
 
   clearFilesAtPath = (directory) => {
     fs.readdir(directory, (err, files) => {
