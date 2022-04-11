@@ -9,7 +9,7 @@ const FileModel = require('../models/file');
 const RecordModel = require('../models/record');
 const PermissionGroupModel = require(`../models/permission_group`);
 
-// TODO: add file name. If something is a file, we should accept a file_name property. In record create/update
+// TODO: implement importing files. Will be challenging since the import data doesn't have all files on hand
 
 exports.verifyFileUpload = async function(req, res, next) {
   let uuid = req.params.uuid;
@@ -23,7 +23,7 @@ exports.verifyFileUpload = async function(req, res, next) {
       throw new Util.PermissionDeniedError(`You do not have the edit permissions required to add a file to record ${file_metadata.record_uuid}`);
     }
     if(file_metadata.persisted) {
-      throw new Util.InputError(`The named file has already been persisted and cannot be overwritten`);
+      throw new Util.InputError(`The provided file has already been persisted and cannot be overwritten`);
     }
   } catch (err) {
     next(err);
@@ -31,15 +31,21 @@ exports.verifyFileUpload = async function(req, res, next) {
   next();
 }
 
-// TODO: for both of the below functions, it would probably be a good idea to downoad to a different file first,
-// and then move that file to the correct location. That way we don't right half of a bad file and then delete it
-// Reference: https://stackoverflow.com/questions/11944932/how-to-download-a-file-with-node-js-without-using-third-party-libraries
+// Maybe I can just ignore this for now
+async function updateFileName(uuid, file_name) {
+  let file_metadata = await SharedFunctions.latestDocument(FileModel.collection(), uuid);
+  let record_uuid = file_metadata.record_uuid;
+  let field_uuid = file_metadata.field_uuid;
+
+  await RecordModel.updateFileName(record_uuid, field_uuid, uuid, file_name);
+}
 
 exports.uploadFileDirect = async function(req, res, next) {
   let uuid = req.params.uuid;
   
   const callback = async (session) => {
     await FileModel.markUploaded(uuid, session);
+    // await updateFileName(uuid, req.file.originalname);
     fs.renameSync(req.file.path, path.join(FileModel.uploadDestination(), uuid));
   }
   try {
@@ -49,6 +55,10 @@ exports.uploadFileDirect = async function(req, res, next) {
     next(err);
   }
 }
+
+// TODO: maybe at some point it would be a good idea to downoad to a different file first,
+// and then move that file to the correct location. That way we don't write half of a bad file and then delete it
+// Reference: https://stackoverflow.com/questions/11944932/how-to-download-a-file-with-node-js-without-using-third-party-libraries
 
 exports.uploadFileFromUrl = async function(req, res, next) {
   try {

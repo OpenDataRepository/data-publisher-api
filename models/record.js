@@ -37,7 +37,8 @@ function fieldsEqual(fields1, fields2) {
   for(let i = 0; i < fields1.length; i++) {
     let field1 = fields1[i];
     let field2 = fields2[i];
-    if (field1.name != field2.name || field1.description != field2.description || field1.value != field2.value) {
+    if (field1.name != field2.name || field1.description != field2.description || field1.value != field2.value
+      || field1.type != field2.type || field1.file_name != field2.file_name) {
       return false;
     }
     // TODO: if it's a list of values, we need to compare all of the list, not just a single value
@@ -154,6 +155,9 @@ async function createRecordFieldsFromTemplateFieldsAndMap(template_fields, recor
           field_object.value = file_uuid;
         }
       } 
+      if(record_field_data.file_name) {
+        field_object.file_name = record_field_data.file_name;
+      }
     } else if(field.options) {
       if(record_field_data && record_field_data.option_uuids) {
         field_object.values = TemplateFieldModel.optionUuidsToValues(field.options, record_field_data.option_uuids);
@@ -224,6 +228,9 @@ async function createRecordFieldsFromInputRecordAndTemplate(record_fields, templ
       throw new Util.InputError(`A record can only supply a single value for each field`);
     }
     let record_field_data = {value: field.value};
+    if(field.file_name) {
+      record_field_data.file_name = field.file_name
+    }
     if(field.values) {
       record_field_data.option_uuids = field.values.map(obj => obj.uuid);
     }
@@ -1223,6 +1230,21 @@ exports.draftExisting = async function(uuid) {
 exports.userHasPermissionsTo = async function(record_uuid, permissionLevel, user) {
   let record = await SharedFunctions.latestDocument(Record, record_uuid);
   return await PermissionGroupModel.has_permission(user, record.dataset_uuid, permissionLevel);
+}
+
+// Just ignore this for now
+exports.updateFileName = async function(record_uuid, field_uuid, file_uuid, file_name) {
+  // I can update the whole record. Just fetch the record, find the given field_uuid, update only change the file_name
+  // and voila
+  // The catch with this method is that if the user has different permissions, they will alter other parts of the record
+
+  // Another method is just to fetch the fields and update those only. In fact, that is probably better. But the updated_at also needs to be updated
+
+  // But that won't work if there is no current draft. So it really does need to be a full update
+  // Ugh, but a full update is so ugly if we only want to change the file name. 
+
+
+
 }
 
 // Wraps the actual request to importDatasetsAndRecords with a transaction

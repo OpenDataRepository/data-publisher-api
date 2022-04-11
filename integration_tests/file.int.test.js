@@ -82,77 +82,81 @@ const basicFileSetup = () => {
   return [file_name, originalFileContents]
 };
 
-test("Upload a file directly (and fetch it)", async () => {
-  let uuid;
-  [_, _, _, uuid] = await basicRecordSetup();
+describe("success", () => {
 
-  let file_name, originalFileContents 
-  [file_name, originalFileContents] = basicFileSetup();
+  test("Upload a file directly (and fetch it)", async () => {
+    let uuid;
+    [_, _, _, uuid] = await basicRecordSetup();
+  
+    let file_name, originalFileContents 
+    [file_name, originalFileContents] = basicFileSetup();
+  
+    await Helper.testAndExtract(Helper.uploadFileDirect, uuid, file_name, Helper.DEF_CURR_USER);
+  
+    let response = await Helper.getFile(uuid, Helper.DEF_CURR_USER);
+    expect(response.statusCode).toBe(200);
+    let newFileBuffer = response.body;
+    let newFileContents = newFileBuffer.toString();
+    expect(newFileContents).toEqual(originalFileContents);
+  });
+  
+  test("Upload a large file directly (and fetch it)", async () => {
+    let uuid;
+    [_, _, _, uuid] = await basicRecordSetup();
+  
+    let file_name = "someFile.txt";
+    let old_file_path = __dirname + '/test_data/rruff_samples.json'
+    let new_file_path = path.join(Helper.dynamicTestFilesPath, file_name);
+    await fsPromises.copyFile(old_file_path, new_file_path);
+    let raw_data = fs.readFileSync(new_file_path);
+  
+    await Helper.testAndExtract(Helper.uploadFileDirect, uuid, file_name, Helper.DEF_CURR_USER);
+  
+    let response = await Helper.getFile(uuid, Helper.DEF_CURR_USER);
+    expect(response.statusCode).toBe(200);
+    let newFileBuffer = response.body;
+    expect(newFileBuffer).toEqual(raw_data);
+  });
+  
+  // If tests start failing with 404 errors, it could be because we need to runInBand. Or, they all are using the same file name
+  test("Upload a file from url (and fetch it)", async () => {
+    let file_name, originalFileContents 
+    [file_name, originalFileContents] = basicFileSetup();
+  
+    let uuid;
+    [_, _, _, uuid] = await basicRecordSetup();
+  
+    let url = serverUrl + file_name;
+    let response = await Helper.uploadFileFromUrl(uuid, url, Helper.DEF_CURR_USER);
+    expect(response.statusCode).toBe(200);
+  
+    response = await Helper.getFile(uuid, Helper.DEF_CURR_USER);
+    expect(response.statusCode).toBe(200);
+    let newFileBuffer = response.body;
+    let newFileContents = newFileBuffer.toString();
+    expect(newFileContents).toEqual(originalFileContents);
+  });
+  
+  test("Upload a large file from url (and fetch it)", async () => {
+    let uuid;
+    [_, _, _, uuid] = await basicRecordSetup();
+  
+    let file_name = "toUpload.txt";
+    let old_file_path = __dirname + '/test_data/rruff_samples.json'
+    let new_file_path = path.join(Helper.dynamicTestFilesPath, file_name);
+    await fsPromises.copyFile(old_file_path, new_file_path);
+    let raw_data = fs.readFileSync(new_file_path);
+  
+    let url = serverUrl + file_name;
+    let response = await Helper.uploadFileFromUrl(uuid, url, Helper.DEF_CURR_USER);
+    expect(response.statusCode).toBe(200);
+  
+    response = await Helper.getFile(uuid, Helper.DEF_CURR_USER);
+    expect(response.statusCode).toBe(200);
+    let newFileBuffer = response.body;
+    expect(newFileBuffer).toEqual(raw_data);
+  });
 
-  await Helper.testAndExtract(Helper.uploadFileDirect, uuid, file_name, Helper.DEF_CURR_USER);
-
-  let response = await Helper.getFile(uuid, Helper.DEF_CURR_USER);
-  expect(response.statusCode).toBe(200);
-  let newFileBuffer = response.body;
-  let newFileContents = newFileBuffer.toString();
-  expect(newFileContents).toEqual(originalFileContents);
-});
-
-test("Upload a large file directly (and fetch it)", async () => {
-  let uuid;
-  [_, _, _, uuid] = await basicRecordSetup();
-
-  let file_name = "toUpload.txt";
-  let old_file_path = __dirname + '/test_data/rruff_samples.json'
-  let new_file_path = path.join(Helper.dynamicTestFilesPath, file_name);
-  await fsPromises.copyFile(old_file_path, new_file_path);
-  let raw_data = fs.readFileSync(new_file_path);
-
-  await Helper.testAndExtract(Helper.uploadFileDirect, uuid, file_name, Helper.DEF_CURR_USER);
-
-  let response = await Helper.getFile(uuid, Helper.DEF_CURR_USER);
-  expect(response.statusCode).toBe(200);
-  let newFileBuffer = response.body;
-  expect(newFileBuffer).toEqual(raw_data);
-});
-
-test("Upload a file from url (and fetch it)", async () => {
-  let file_name, originalFileContents 
-  [file_name, originalFileContents] = basicFileSetup();
-
-  let uuid;
-  [_, _, _, uuid] = await basicRecordSetup();
-
-  let url = serverUrl + file_name;
-  let response = await Helper.uploadFileFromUrl(uuid, url, Helper.DEF_CURR_USER);
-  expect(response.statusCode).toBe(200);
-
-  response = await Helper.getFile(uuid, Helper.DEF_CURR_USER);
-  expect(response.statusCode).toBe(200);
-  let newFileBuffer = response.body;
-  let newFileContents = newFileBuffer.toString();
-  expect(newFileContents).toEqual(originalFileContents);
-});
-
-test("Upload a large file from url (and fetch it)", async () => {
-  let uuid;
-  [_, _, _, uuid] = await basicRecordSetup();
-
-  let file_name = "toUpload.txt";
-  // TODO: work on fixing this. I don't think my download is working with large files
-  let old_file_path = __dirname + '/test_data/rruff_samples.json'
-  let new_file_path = path.join(Helper.dynamicTestFilesPath, file_name);
-  await fsPromises.copyFile(old_file_path, new_file_path);
-  let raw_data = fs.readFileSync(new_file_path);
-
-  let url = serverUrl + file_name;
-  let response = await Helper.uploadFileFromUrl(uuid, url, Helper.DEF_CURR_USER);
-  expect(response.statusCode).toBe(200);
-
-  response = await Helper.getFile(uuid, Helper.DEF_CURR_USER);
-  expect(response.statusCode).toBe(200);
-  let newFileBuffer = response.body;
-  expect(newFileBuffer).toEqual(raw_data);
 });
 
 describe("failure", () => {

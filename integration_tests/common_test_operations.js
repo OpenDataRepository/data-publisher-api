@@ -630,11 +630,18 @@ module.exports = class Helper {
     if(before.public_date) {
       expect(after.public_date).toEqual(before.public_date);
     }
+    if(before.type) {
+      expect(after.type).toEqual(before.type);
+    }
     if(before.value) {
+      // must be after.type because the type is stored in the template, not the record
       if(after.type == 'file' && before.value == 'new'){
         ;
       } else {
         expect(after.value).toEqual(before.value);
+      }
+      if(after.type == 'file') {
+        expect(after.file_name).toEqual(before.file_name);
       }
     }
     if(before.values) {

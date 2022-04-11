@@ -1830,7 +1830,6 @@ describe("with files", () => {
   
   afterAll(async () => {
     Helper.clearFilesAtPath(Helper.dynamicTestFilesPath);
-    // TODO: when we start using new settings, I need to create different configurations for testing and execution
     Helper.clearFilesAtPath(Helper.uploadsDirectoryPath);
   });
 
@@ -1853,7 +1852,8 @@ describe("with files", () => {
       dataset_uuid: dataset.uuid,
       fields: [{
         uuid: template.fields[0].uuid,
-        value: "new" 
+        value: "new",
+        file_name: "banana"
       }]
     }
     record = await Helper.recordCreateAndTest(record, Helper.DEF_CURR_USER);
@@ -1894,9 +1894,9 @@ describe("with files", () => {
   
       Helper.createFile(file_name, file_contents);
 
-      await Helper.testAndExtract(Helper.uploadFileDirect, file_uuid, file_name);
+      await Helper.testAndExtract(Helper.uploadFileDirect, file_uuid, file_name, Helper.DEF_CURR_USER);
 
-      let newFileBuffer = await Helper.testAndExtract(Helper.getFile, file_uuid);
+      let newFileBuffer = await Helper.testAndExtract(Helper.getFile, file_uuid, Helper.DEF_CURR_USER);
       let newFileContents = newFileBuffer.toString();
       expect(newFileContents).toEqual(file_contents);
     });
@@ -1934,10 +1934,10 @@ describe("with files", () => {
       let file_name_2 = "different.txt";
       let file_contents = "One punch!";
       Helper.createFile(file_name_2, file_contents);
-      await Helper.testAndExtract(Helper.uploadFileDirect, file_uuid_2, file_name_2);
+      await Helper.testAndExtract(Helper.uploadFileDirect, file_uuid_2, file_name_2, Helper.DEF_CURR_USER);
 
       // test that we can get the second file
-      let newFileBuffer = await Helper.testAndExtract(Helper.getFile, file_uuid_2);
+      let newFileBuffer = await Helper.testAndExtract(Helper.getFile, file_uuid_2, Helper.DEF_CURR_USER);
       let newFileContents = newFileBuffer.toString();
       expect(newFileContents).toEqual(file_contents);
 
@@ -1945,7 +1945,7 @@ describe("with files", () => {
       record = await Helper.recordPersistAndTest(record, Helper.DEF_CURR_USER);
 
       // Can still get the old file with the old uuid
-      newFileBuffer = await Helper.testAndExtract(Helper.getFile, file_uuid);
+      newFileBuffer = await Helper.testAndExtract(Helper.getFile, file_uuid, Helper.DEF_CURR_USER);
       newFileContents = newFileBuffer.toString();
       expect(newFileContents).toEqual("Hello World!");
 
@@ -1962,6 +1962,18 @@ describe("with files", () => {
 
       let response = await Helper.getFile(file_uuid, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(404);
+    });
+
+    test("change file name", async () => {
+      let template, dataset, record, file_uuid;
+      [template, dataset, record, file_uuid] = await basicSetupAndTest();
+
+      record = await Helper.recordPersistAndTest(record, Helper.DEF_CURR_USER);
+      
+      record = await Helper.recordDraftGetAndTest(record.uuid, Helper.DEF_CURR_USER);
+      record.fields[0].file_name = "waffle";
+
+      record = await Helper.recordUpdatePersistTest(record, Helper.DEF_CURR_USER);
     });
 
   });
