@@ -1853,12 +1853,14 @@ describe("with files", () => {
       dataset_uuid: dataset.uuid,
       fields: [{
         uuid: template.fields[0].uuid,
-        value: "new",
-        file_name: "banana"
+        file: {
+          uuid: "new",
+          name: "banana"
+        }
       }]
     }
     record = await Helper.recordCreateAndTest(record, Helper.DEF_CURR_USER);
-    let file_uuid = record.fields[0].value;
+    let file_uuid = record.fields[0].file.uuid;
 
     return [template, dataset, record, file_uuid];
   };
@@ -1896,7 +1898,7 @@ describe("with files", () => {
       record.public_date = (new Date()).toISOString();
 
       record = await Helper.recordUpdatePersistTest(record, Helper.DEF_CURR_USER);
-      expect(record.fields[0].value).toEqual(file_uuid);
+      expect(record.fields[0].file.uuid).toEqual(file_uuid);
 
     });
 
@@ -1908,9 +1910,9 @@ describe("with files", () => {
 
       // Create a second record version with a new file
       record = await Helper.recordDraftGetAndTest(record.uuid, Helper.DEF_CURR_USER);
-      record.fields[0].value = "new";
+      record.fields[0].file.uuid = "new";
       record = await Helper.recordUpdateAndTest(record, Helper.DEF_CURR_USER);
-      let file_uuid_2 = record.fields[0].value;
+      let file_uuid_2 = record.fields[0].file.uuid;
 
       // Expect to get a new file_uuid for the new version
       expect(file_uuid_2).not.toEqual(file_uuid);
@@ -1941,7 +1943,7 @@ describe("with files", () => {
       [template, dataset, record, file_uuid] = await basicSetupAndTest();
       
       record = await Helper.recordDraftGetAndTest(record.uuid, Helper.DEF_CURR_USER);
-      record.fields[0].value = "";
+      delete record.fields[0].file;
 
       record = await Helper.recordUpdateAndTest(record, Helper.DEF_CURR_USER);
 
@@ -1956,7 +1958,7 @@ describe("with files", () => {
       record = await Helper.recordPersistAndTest(record, Helper.DEF_CURR_USER);
       
       record = await Helper.recordDraftGetAndTest(record.uuid, Helper.DEF_CURR_USER);
-      record.fields[0].file_name = "waffle";
+      record.fields[0].file.name = "waffle";
 
       record = await Helper.recordUpdatePersistTest(record, Helper.DEF_CURR_USER);
     });

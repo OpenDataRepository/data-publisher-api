@@ -42,6 +42,13 @@ function fieldsEqual(fields1, fields2) {
       || field1.type != field2.type || field1.file_name != field2.file_name) {
       return false;
     }
+    if(field1.type == FieldTypes.File) {
+      let file1 = field1.file;
+      let file2 = field2.file;
+      if(file1.uuid != file2.uuid || file1.name != file2.name) {
+        return false;
+      } 
+    }
     // TODO: if it's a list of values, we need to compare all of the list, not just a single value
   }
   return true;
@@ -145,29 +152,35 @@ async function createRecordFieldsFromTemplateFieldsAndMap(template_fields, recor
     let record_field_data = record_field_map[field_uuid];
     if(field.type && field.type == TemplateFieldModel.FieldTypes.File) {
       field_object.type = TemplateFieldModel.FieldTypes.File;
-      if(record_field_data && record_field_data.value) {
-        if(record_field_data.value == 'new') {
+      if(record_field_data && record_field_data.file) {
+        let input_file_object = record_field_data.file;
+        let output_file_object = {};
+        field_object.file = output_file_object;
+        if(!Util.isObject(input_file_object)) {
+          throw new Util.InputError(`File supplied in record field must be an object`);
+        }
+        if(input_file_object.uuid == 'new') {
           // newFile should only ever be called right here, and with the transaction session
           // Therefore, if record changes fail, file changes should be deleted
           // This works for import as well, since import also needs to upload the files separately (since they can be huge)
-          field_object.value = await FileModel.newFile(record_uuid, field_uuid, session);
+          output_file_object.uuid = await FileModel.newFile(record_uuid, field_uuid, session);
           // Next 2 if cases refer to import
-          if(record_field_data.import_url) {
-            field_object.import_url = record_field_data.import_url;
+          if(input_file_object.import_url) {
+            output_file_object.import_url = record_field_data.import_url;
           }
-          if(record_field_data.import_uuid) {
-            await LegacyUuidToNewUuidMapperModel.create_document_with_old_and_new(record_field_data.import_uuid, field_object.value, session);
+          if(input_file_object.import_uuid) {
+            await LegacyUuidToNewUuidMapperModel.create_document_with_old_and_new(input_file_object.import_uuid, field_object.value, session);
           }
         } else {
-          let file_uuid = record_field_data.value;
+          let file_uuid = input_file_object.uuid;
           if(!await FileModel.existsWithParams(file_uuid, record_uuid, field_uuid, session)) {
             throw new Util.InputError(`Record ${record_uuid} cannot attach file ${file_uuid} for field ${field_uuid}. 
             Either this file does not exist or it belongs to a different record+field.`);
           }
-          field_object.value = file_uuid;
+          output_file_object.uuid = file_uuid;
         }
-        if(record_field_data.file_name) {
-          field_object.file_name = record_field_data.file_name;
+        if(input_file_object.name) {
+          output_file_object.name = input_file_object.name;
         }
       } 
     } else if(field.options) {
@@ -193,14 +206,14 @@ async function deleteLostFiles(old_fields, new_fields, session) {
   // First find the file uuids that have been lost
   let old_file_uuids = new Set();
   for(let field of old_fields) {
-    if(field.type && field.type == FieldTypes.File) {
-      old_file_uuids.add(field.value);
+    if(field.type && field.type == FieldTypes.File && field.file) {
+      old_file_uuids.add(field.file.uuid);
     }
   }
   let new_file_uuids = new Set();
   for(let field of new_fields) {
-    if(field.type && field.type == FieldTypes.File) {
-      new_file_uuids.add(field.value);
+    if(field.type && field.type == FieldTypes.File && field.file) {
+      new_file_uuids.add(field.file.uuid);
     }
   }
 
@@ -241,9 +254,12 @@ async function createRecordFieldsFromInputRecordAndTemplate(record_fields, templ
     if (record_field_map[field.uuid]) {
       throw new Util.InputError(`A record can only supply a single value for each field`);
     }
-    let record_field_data = {value: field.value};
-    if(field.file_name) {
-      record_field_data.file_name = field.file_name
+    let record_field_data = {};
+    if(field.value) {
+      record_field_data.value = field.value;
+    }
+    if(field.file) {
+      record_field_data.file = field.file;
     }
     if(field.values) {
       record_field_data.option_uuids = field.values.map(obj => obj.uuid);
@@ -291,17 +307,20 @@ async function createRecordFieldsFromImportRecordAndTemplate(record_fields, temp
     }
     let record_field_data = {value: field.value};
     if(field.files && field.files.length == 1) {
-      let file = field.files[0];
-      let old_file_uuid = file.file_uuid;
+      let input_file = field.files[0];
+      let output_file = {};
+      record_field_data.file = output_file;
+
+      let old_file_uuid = input_file.file_uuid;
       let new_file_uuid = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(old_file_uuid, session);
       if(new_file_uuid) {
-        record_field_data.value = new_file_uuid;
+        output_file.uuid = new_file_uuid;
       } else {
-        record_field_data.value = "new";
-        record_field_data.import_uuid = old_file_uuid;
+        output_file.uuid = "new";
+        output_file.import_uuid = old_file_uuid;
       }
-      record_field_data.import_url = file.href;
-      record_field_data.file_name = file.original_name;
+      output_file.import_url = input_file.href;
+      output_file.name = input_file.original_name;
     } 
     if(field.value && Array.isArray(field.value)) {
       record_field_data.option_uuids = 

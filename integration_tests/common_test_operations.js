@@ -637,15 +637,15 @@ module.exports = class Helper {
     if(before.type) {
       expect(after.type).toEqual(before.type);
     }
-    if(before.value) {
+    if(before.file) {
       // must be after.type because the type is stored in the template, not the record
-      if(after.type == FieldTypes.File && before.value == 'new'){
+      if(after.type == FieldTypes.File && before.file.uuid == 'new'){
         ;
       } else {
-        expect(after.value).toEqual(before.value);
+        expect(after.file.uuid).toEqual(before.file.uuid);
       }
       if(after.type == FieldTypes.File) {
-        expect(after.file_name).toEqual(before.file_name);
+        expect(after.file.name).toEqual(before.file.name);
       }
     }
     if(before.values) {
