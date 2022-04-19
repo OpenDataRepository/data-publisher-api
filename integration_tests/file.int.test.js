@@ -3,10 +3,8 @@ const fs = require('fs');
 const fsPromises = fs.promises;
 const path = require('path');
 var { app, init: appInit } = require('../app');
-var finalhandler = require('finalhandler')
-var http = require('http')
-var serveStatic = require('serve-static')
 const MongoDB = require('../lib/mongoDB');
+const FieldTypes = require('../models/template_field').FieldTypes;
 
 var HelperClass = require('./common_test_operations')
 var Helper = new HelperClass(app);
@@ -14,22 +12,9 @@ var Helper = new HelperClass(app);
 var server;
 var serverUrl;
 
-const basicServerSetup = () => {
-  // Serve up public/ftp folder
-  var serve = serveStatic(Helper.dynamicTestFilesPath);
-  // Create server
-  server = http.createServer(function onRequest (req, res) {
-  serve(req, res, finalhandler(req, res))
-  });
-  // Listen
-  server.listen(3000);
-
-  serverUrl = "http://localhost:3000/";
-}
-
 beforeAll(async () => {
   await appInit();
-  basicServerSetup();
+  [server, serverUrl] = Helper.basicServerSetup();
 });
 
 beforeEach(async() => {
@@ -51,7 +36,7 @@ const basicRecordSetup = async () => {
     name: "t",
     fields: [{
       name: "tf",
-      type: "file"
+      type: FieldTypes.File
     }]
   };
   template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);

@@ -9,7 +9,6 @@ const FileModel = require('../models/file');
 const RecordModel = require('../models/record');
 const PermissionGroupModel = require(`../models/permission_group`);
 
-// TODO: implement importing files. Will be challenging since the import data doesn't have all files on hand
 
 exports.verifyFileUpload = async function(req, res, next) {
   let uuid = req.params.uuid;
@@ -21,6 +20,9 @@ exports.verifyFileUpload = async function(req, res, next) {
     let file_metadata = await SharedFunctions.latestDocument(FileModel.collection(), uuid);
     if(!(await RecordModel.userHasPermissionsTo(file_metadata.record_uuid, PermissionGroupModel.PERMISSION_EDIT, user))) {
       throw new Util.PermissionDeniedError(`You do not have the edit permissions required to add a file to record ${file_metadata.record_uuid}`);
+    }
+    if(file_metadata.uploaded) {
+      throw new Util.InputError(`A file has already been uploaded for the given uuid and cannot be replaced.`);
     }
     if(file_metadata.persisted) {
       throw new Util.InputError(`The provided file has already been persisted and cannot be overwritten`);

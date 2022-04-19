@@ -34,35 +34,8 @@ exports.init = async function() {
   Upload_Destination = path.resolve(process.env.uploads_folder);
 }
 
-// Clear out the old file attached to this uuid so we can attach a new one
-const repurposeExistingDraft = async function(record_uuid, template_field_uuid, session) {
-  let draft = await File.findOne(
-    {record_uuid, template_field_uuid, persisted: false},
-    {session}
-  );
-  if(!draft) {
-    return null;
-  }
-  let uuid = draft.uuid;
 
-  // Delete existing file in file system
-  let file_path = path.join(Upload_Destination, uuid);
-  await fs.unlink(file_path);
-
-  // Mark unuploaded
-  let response = await File.updateOne(
-    {uuid}, 
-    {$set: {uploaded: false}},
-    {session}
-  );
-  if (response.modifiedCount != 1) {
-    throw new Error(`File.markUploaded: Modified: ${response.modifiedCount}.`);
-  } 
-
-  return uuid;
-}
-
-const newFile = async function(record_uuid, template_field_uuid, session) {
+exports.newFile = async function(record_uuid, template_field_uuid, session) {
   let uuid = uuidv4();
   let fileObject = {
     uuid,
@@ -81,17 +54,6 @@ const newFile = async function(record_uuid, template_field_uuid, session) {
   } 
 
   return uuid;
-}
-
-// creates a newFile if a draft doesn't already exist for this record+field.
-// If a record does exist, it will change uploaded to false, delete the file, and return that uuid
-exports.getExistingDraftUuidOrCreateNew = async function(record_uuid, template_field_uuid, session) {
-  let file_uuid = await repurposeExistingDraft(record_uuid, template_field_uuid, session);
-  if(file_uuid) {
-    return file_uuid;
-  }
-  file_uuid = await newFile(record_uuid, template_field_uuid, session);
-  return file_uuid;
 }
 
 exports.markUploaded = async function(uuid, session) {

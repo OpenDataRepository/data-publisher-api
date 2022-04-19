@@ -2,6 +2,7 @@ const request = require("supertest");
 const MongoDB = require('../lib/mongoDB');
 var { app, init: appInit } = require('../app');
 var { PERMISSION_ADMIN, PERMISSION_EDIT, PERMISSION_VIEW } = require('../models/permission_group');
+const FieldTypes = require('../models/template_field').FieldTypes;
 var HelperClass = require('./common_test_operations')
 var Helper = new HelperClass(app);
 
@@ -24,6 +25,7 @@ describe("create (and get draft after a create)", () => {
       let data = {
         name: "field",
         description: "",
+        type: FieldTypes.File,
         public_date: (new Date()).toISOString(),
       };
       let uuid = await Helper.templateFieldCreateAndTest(data, Helper.DEF_CURR_USER);
@@ -128,6 +130,15 @@ describe("create (and get draft after a create)", () => {
         name: "field",
         description: "",
         public_date: "invalid date",
+      };
+      await failureTest(data, 400);
+    })
+
+    test("type must be supported", async () => {
+      let data = {
+        name: "field",
+        description: "",
+        type: "other",
       };
       await failureTest(data, 400);
     })
@@ -374,7 +385,7 @@ describe("update (and get draft after an update)", () => {
       expect(await Helper.templateFieldDraftExistingAndTest(field.uuid)).toBe(false);
 
       // Test type
-      field.type = 'file';
+      field.type = FieldTypes.File;
       await Helper.templateFieldUpdateAndTest(field, Helper.DEF_CURR_USER);
       expect(await Helper.templateFieldDraftExistingAndTest(field.uuid)).toBe(true);
   

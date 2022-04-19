@@ -1,8 +1,12 @@
 const request = require("supertest");
 const fs = require('fs');
 const path = require('path');
+var finalhandler = require('finalhandler')
+var http = require('http')
+var serveStatic = require('serve-static')
 const MongoDB = require('../lib/mongoDB');
 var { PERMISSION_ADMIN, PERMISSION_EDIT, PERMISSION_VIEW } = require('../models/permission_group');
+const FieldTypes = require('../models/template_field').FieldTypes;
 
 module.exports = class Helper {
   constructor(app) {
@@ -635,12 +639,12 @@ module.exports = class Helper {
     }
     if(before.value) {
       // must be after.type because the type is stored in the template, not the record
-      if(after.type == 'file' && before.value == 'new'){
+      if(after.type == FieldTypes.File && before.value == 'new'){
         ;
       } else {
         expect(after.value).toEqual(before.value);
       }
-      if(after.type == 'file') {
+      if(after.type == FieldTypes.File) {
         expect(after.file_name).toEqual(before.file_name);
       }
     }
@@ -886,6 +890,22 @@ module.exports = class Helper {
     return await request(this.app, curr_user)
       .get(`/file/${uuid}`)
       .set('Cookie', [`user=${curr_user}`]);
+  }
+
+  // serving files
+
+  basicServerSetup = () => {
+    // Serve up public/ftp folder
+    var serve = serveStatic(this.dynamicTestFilesPath);
+    // Create server
+    let server = http.createServer(function onRequest (req, res) {
+    serve(req, res, finalhandler(req, res))
+    });
+    // Listen
+    server.listen(3000);
+  
+    let serverUrl = "http://localhost:3000/";
+    return [server, serverUrl];
   }
 
 }

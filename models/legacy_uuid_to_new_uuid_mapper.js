@@ -64,8 +64,7 @@ exports.get_old_uuid_from_new = async (uuid, session) => {
   return null;
 }
 
-exports.create_new_uuid_for_old = async (old_uuid, session) => {
-  let new_uuid = uuidv4();
+const create_document_with_old_and_new = async (old_uuid, new_uuid, session) => {
   let response = await LegacyUuidToNewUuidMapper.insertOne(
     {old_uuid, new_uuid},
     {session}
@@ -73,6 +72,12 @@ exports.create_new_uuid_for_old = async (old_uuid, session) => {
   if (response.insertedCount != 1) {
     throw new Error(`LegacyUuidToNewUuidMapper.createNewUuidForOld: should be 1 inserted document. Instead: ${response.insertedCount}`);
   }
+};
+exports.create_document_with_old_and_new = create_document_with_old_and_new;
+
+exports.create_new_uuid_for_old = async (old_uuid, session) => {
+  let new_uuid = uuidv4();
+  await create_document_with_old_and_new(old_uuid, new_uuid, session);
   return new_uuid;
 }
 

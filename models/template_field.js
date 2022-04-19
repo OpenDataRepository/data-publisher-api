@@ -5,6 +5,11 @@ const PermissionGroupModel = require('./permission_group');
 const SharedFunctions = require('./shared_functions');
 const LegacyUuidToNewUuidMapperModel = require('./legacy_uuid_to_new_uuid_mapper');
 
+const FieldTypes = Object.freeze({
+  File: "File"
+});
+exports.FieldTypes = FieldTypes;
+
 var TemplateField;
 
 async function collection() {
@@ -292,6 +297,12 @@ async function initializeNewDraftWithProperties(input_field, uuid, updated_at) {
   if(old_system_uuid) {
     output_field.old_system_uuid = old_system_uuid;
   }
+  if (input_field.type) {
+    if(!FieldTypes.hasOwnProperty(input_field.type)) {
+      throw new Util.InputError(`Field type supplied invalid: ${input_field.type}`);
+    }
+    output_field.type = input_field.type;
+  }
   return output_field;
 }
 
@@ -306,6 +317,10 @@ async function initializeNewImportedDraftWithProperties(input_field, uuid, updat
     output_field.options = await importRadioOptions(input_field.radio_options, session);
   }
   output_field.old_system_uuid = input_field.template_field_uuid;
+  let type = input_field.fieldtype;
+  if (type && FieldTypes.hasOwnProperty(type)) {
+    output_field.type = type;
+  }
   return output_field;
 }
 

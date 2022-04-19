@@ -4,6 +4,7 @@ var { app, init: appInit } = require('../app');
 var HelperClass = require('./common_test_operations')
 var Helper = new HelperClass(app);
 var { PERMISSION_ADMIN, PERMISSION_EDIT, PERMISSION_VIEW } = require('../models/permission_group');
+const FieldTypes = require('../models/template_field').FieldTypes;
 
 beforeAll(async () => {
   await appInit();
@@ -1838,7 +1839,7 @@ describe("with files", () => {
       name: "t",
       fields: [{
         name: "tf",
-        type: "file"
+        type: FieldTypes.File
       }]
     };
     template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
@@ -1883,22 +1884,6 @@ describe("with files", () => {
   describe("success", () => {
     test("basic create with a file and then fetch that file", async () => {
       await basicSetupAndTest();
-    });
-
-    test("able to upload a different file to the same uuid", async () => {
-      let template, dataset, record, file_uuid;
-      [template, dataset, record, file_uuid] = await basicSetupAndTest();
-      
-      let file_name = "different.txt";
-      let file_contents = "Hello Mellon!";
-  
-      Helper.createFile(file_name, file_contents);
-
-      await Helper.testAndExtract(Helper.uploadFileDirect, file_uuid, file_name, Helper.DEF_CURR_USER);
-
-      let newFileBuffer = await Helper.testAndExtract(Helper.getFile, file_uuid, Helper.DEF_CURR_USER);
-      let newFileContents = newFileBuffer.toString();
-      expect(newFileContents).toEqual(file_contents);
     });
 
     test("same file for multiple versions of the record", async () => {
@@ -2014,6 +1999,20 @@ describe("with files", () => {
       let response = await Helper.recordCreate(record_2, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
     });
+
+    test("try to upload a different file to the same uuid", async () => {
+      let template, dataset, record, file_uuid;
+      [template, dataset, record, file_uuid] = await basicSetupAndTest();
+      
+      let file_name = "different.txt";
+      let file_contents = "Hello Mellon!";
+  
+      Helper.createFile(file_name, file_contents);
+
+      let response = await Helper.uploadFileDirect(file_uuid, file_name, Helper.DEF_CURR_USER);
+      expect(response.statusCode).toBe(400);
+    });
+
 
   });
 

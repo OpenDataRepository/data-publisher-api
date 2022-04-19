@@ -8,6 +8,7 @@ const PermissionGroupModel = require('./permission_group');
 const SharedFunctions = require('./shared_functions');
 const LegacyUuidToNewUuidMapperModel = require('./legacy_uuid_to_new_uuid_mapper');
 const FileModel = require('./file');
+const FieldTypes = TemplateFieldModel.FieldTypes;
 
 var Record;
 
@@ -142,22 +143,33 @@ async function createRecordFieldsFromTemplateFieldsAndMap(template_fields, recor
       description: field.description,
     };
     let record_field_data = record_field_map[field_uuid];
-    if(field.type && field.type == 'file') {
-      field_object.type = 'file';
-      if(record_field_data.value) {
+    if(field.type && field.type == TemplateFieldModel.FieldTypes.File) {
+      field_object.type = TemplateFieldModel.FieldTypes.File;
+      if(record_field_data && record_field_data.value) {
         if(record_field_data.value == 'new') {
-          field_object.value = await FileModel.getExistingDraftUuidOrCreateNew(record_uuid, field_uuid, session);
+          // newFile should only ever be called right here, and with the transaction session
+          // Therefore, if record changes fail, file changes should be deleted
+          // This works for import as well, since import also needs to upload the files separately (since they can be huge)
+          field_object.value = await FileModel.newFile(record_uuid, field_uuid, session);
+          // Next 2 if cases refer to import
+          if(record_field_data.import_url) {
+            field_object.import_url = record_field_data.import_url;
+          }
+          if(record_field_data.import_uuid) {
+            await LegacyUuidToNewUuidMapperModel.create_document_with_old_and_new(record_field_data.import_uuid, field_object.value, session);
+          }
         } else {
           let file_uuid = record_field_data.value;
           if(!await FileModel.existsWithParams(file_uuid, record_uuid, field_uuid, session)) {
-            throw new Util.InputError(`Record ${record_uuid} cannot attach file ${file_uuid} for field ${field_uuid}. Does not exist`);
+            throw new Util.InputError(`Record ${record_uuid} cannot attach file ${file_uuid} for field ${field_uuid}. 
+            Either this file does not exist or it belongs to a different record+field.`);
           }
           field_object.value = file_uuid;
         }
+        if(record_field_data.file_name) {
+          field_object.file_name = record_field_data.file_name;
+        }
       } 
-      if(record_field_data.file_name) {
-        field_object.file_name = record_field_data.file_name;
-      }
     } else if(field.options) {
       if(record_field_data && record_field_data.option_uuids) {
         field_object.values = TemplateFieldModel.optionUuidsToValues(field.options, record_field_data.option_uuids);
@@ -176,21 +188,23 @@ async function createRecordFieldsFromTemplateFieldsAndMap(template_fields, recor
   return result_fields;
 }
 
+// TODO: files should also be deleted if the record_draft containing them is deleted
 async function deleteLostFiles(old_fields, new_fields, session) {
   // First find the file uuids that have been lost
   let old_file_uuids = new Set();
   for(let field of old_fields) {
-    if(field.type && field.type == "file") {
+    if(field.type && field.type == FieldTypes.File) {
       old_file_uuids.add(field.value);
     }
   }
   let new_file_uuids = new Set();
   for(let field of new_fields) {
-    if(field.type && field.type == "file") {
+    if(field.type && field.type == FieldTypes.File) {
       new_file_uuids.add(field.value);
     }
   }
 
+  // set difference
   let lost_file_uuids = [...old_file_uuids].filter(x => !new_file_uuids.has(x));
   
   // For each lost file, try to delete it. Of course, if it hasn't been persisted, it won't work
@@ -248,7 +262,9 @@ async function createRecordFieldsFromInputRecordAndTemplate(record_fields, templ
   return result_fields;
 }
 
-async function createRecordFieldsFromImportRecordAndTemplate(record_fields, template_fields) {
+// For each field, converts import record to the format of a normal input record, 
+// then calls a function which creates a new record from field + record
+async function createRecordFieldsFromImportRecordAndTemplate(record_fields, template_fields, record_uuid, session) {
   // Fields are a bit more complicated
   if(!record_fields) {
     record_fields = [];
@@ -269,11 +285,24 @@ async function createRecordFieldsFromImportRecordAndTemplate(record_fields, temp
     if(!old_field_uuid) {
       throw new Util.InputError(`Each field in the record must supply a field_uuid/template_field_uuid`);
     }
-    let field_uuid = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(old_field_uuid);
+    let field_uuid = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(old_field_uuid, session);
     if (record_field_map[field_uuid]) {
       throw new Util.InputError(`A record can only supply a single value for each field`);
     }
     let record_field_data = {value: field.value};
+    if(field.files && field.files.length == 1) {
+      let file = field.files[0];
+      let old_file_uuid = file.file_uuid;
+      let new_file_uuid = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(old_file_uuid, session);
+      if(new_file_uuid) {
+        record_field_data.value = new_file_uuid;
+      } else {
+        record_field_data.value = "new";
+        record_field_data.import_uuid = old_file_uuid;
+      }
+      record_field_data.import_url = file.href;
+      record_field_data.file_name = file.original_name;
+    } 
     if(field.value && Array.isArray(field.value)) {
       record_field_data.option_uuids = 
         await Promise.all(
@@ -285,10 +314,13 @@ async function createRecordFieldsFromImportRecordAndTemplate(record_fields, temp
     record_field_map[field_uuid] = record_field_data;
   }
 
-  return await createRecordFieldsFromTemplateFieldsAndMap(template_fields, record_field_map);
+  // TODO: call deleteLostFiles with imported files that are deleted
+
+  return await createRecordFieldsFromTemplateFieldsAndMap(template_fields, record_field_map, record_uuid, session);
 }
 
-async function extractRelatedRecordsFromCreateOrUpdate(input_related_records, related_datasets, template, user, session, updated_at) {
+// TODO: the number of parameters is getting out of hand. Can I make something object-oriented, so I don't hve to pass the session and user all the way through?
+async function extractRelatedRecordsFromCreateOrUpdate(input_related_records, related_datasets, template, user, session, updated_at, seen_uuids) {
   let return_records = [];
   let changes = false;
   // Recurse into related_records
@@ -327,7 +359,7 @@ async function extractRelatedRecordsFromCreateOrUpdate(input_related_records, re
     let related_template = related_template_map[related_dataset.template_id];
     try {
       let new_changes;
-      [new_changes, related_record] = await validateAndCreateOrUpdateRecurser(related_record, related_dataset, related_template, user, session, updated_at);
+      [new_changes, related_record] = await validateAndCreateOrUpdateRecurser(related_record, related_dataset, related_template, user, session, updated_at, seen_uuids);
       changes = changes || new_changes;
     } catch(err) {
       if (err instanceof Util.NotFoundError) {
@@ -350,7 +382,7 @@ async function extractRelatedRecordsFromCreateOrUpdate(input_related_records, re
 }
 
 // A recursive helper for validateAndCreateOrUpdate.
-async function validateAndCreateOrUpdateRecurser(input_record, dataset, template, user, session, updated_at) {
+async function validateAndCreateOrUpdateRecurser(input_record, dataset, template, user, session, updated_at, seen_uuids) {
 
   // Record must be an object or valid uuid
   if (!Util.isObject(input_record)) {
@@ -382,6 +414,13 @@ async function validateAndCreateOrUpdateRecurser(input_record, dataset, template
     throw new Util.PermissionDeniedError(`Do not have edit permissions required to create/update records in dataset ${dataset.uuid}`);
   }
 
+  // each record only updates once per update, even if it shows up multiple times in the json input
+  if(seen_uuids.has(uuid)) {
+    return [false, uuid];
+  } else {
+    seen_uuids.add(uuid);
+  }
+  
   // Make sure no record switches datasets
   let latest_persisted_record = await SharedFunctions.latestPersisted(Record, uuid, session);
   if (latest_persisted_record) {
@@ -420,7 +459,7 @@ async function validateAndCreateOrUpdateRecurser(input_record, dataset, template
   // Need to determine if this draft is any different from the persisted one.
   let changes;
 
-  [new_record.related_records, changes] = await extractRelatedRecordsFromCreateOrUpdate(input_record.related_records, dataset.related_datasets, template, user, session, updated_at);
+  [new_record.related_records, changes] = await extractRelatedRecordsFromCreateOrUpdate(input_record.related_records, dataset.related_datasets, template, user, session, updated_at, seen_uuids);
 
   // If this draft is identical to the latest persisted, delete it.
   // The reason to do so is so when a change is submitted, we won't create drafts of sub-records.
@@ -484,7 +523,7 @@ async function validateAndCreateOrUpdate(session, record, user) {
 
   let updated_at = new Date();
 
-  return await validateAndCreateOrUpdateRecurser(record, dataset, template, user, session, updated_at);
+  return await validateAndCreateOrUpdateRecurser(record, dataset, template, user, session, updated_at, new Set());
 
 }
 
@@ -624,7 +663,8 @@ async function persistRecurser(uuid, dataset, template, user, session) {
   }
 
   for(let field of record_draft.fields) {
-    if(field.type == 'file') {
+    if(field.type == TemplateFieldModel.FieldTypes.File && field.value) {
+      delete field.import_url;  // Import_url is only for the initial import. It shouldn't be persisted
       await FileModel.markPersisted(field.value);
     }
   }
@@ -640,7 +680,7 @@ async function persistRecurser(uuid, dataset, template, user, session) {
   let persist_time = new Date();
   let response = await Record.updateOne(
     {"_id": record_draft._id},
-    {'$set': {'updated_at': persist_time, 'persist_date': persist_time, related_records, 'dataset_id': dataset._id}},
+    {'$set': {'updated_at': persist_time, 'persist_date': persist_time, fields: record_draft.fields, related_records, 'dataset_id': dataset._id}},
     {session}
   )
   if (response.modifiedCount != 1) {
@@ -1023,7 +1063,7 @@ async function importDatasetsAndRecords(session, records, user) {
   return result_uuids;
 }
 
-async function importRelatedRecordsFromRecord(input_record, dataset, template, user, updated_at, session) {
+async function importRelatedRecordsFromRecord(input_record, dataset, template, user, updated_at, session, seen_uuids) {
   if(!input_record.records) {
     return [];
   }
@@ -1054,7 +1094,7 @@ async function importRelatedRecordsFromRecord(input_record, dataset, template, u
     }
     let related_template = related_template_map[related_dataset.template_id];
     try {
-      related_record = await importRecordRecursor(related_record, related_dataset, related_template, user, updated_at, session);
+      related_record = await importRecordRecursor(related_record, related_dataset, related_template, user, updated_at, session, seen_uuids);
     } catch(err) {
       if (err instanceof Util.NotFoundError) {
         throw new Util.InputError(err.message);
@@ -1075,7 +1115,8 @@ async function importRelatedRecordsFromRecord(input_record, dataset, template, u
   return result_records;
 }
 
-async function importRecordRecursor(input_record, dataset, template, user, updated_at, session) {
+async function importRecordRecursor(input_record, dataset, template, user, updated_at, session, seen_uuids) {
+
   if(!Util.isObject(input_record)) {
     throw new Util.InputError('Record to import must be a json object.');
   }
@@ -1107,6 +1148,13 @@ async function importRecordRecursor(input_record, dataset, template, user, updat
     new_record_uuid = await LegacyUuidToNewUuidMapperModel.create_new_uuid_for_old(old_record_uuid, session);
   }
 
+  // each record only updates once per update, even if it shows up multiple times in the json input
+  if(seen_uuids.has(new_record_uuid)) {
+    return new_record_uuid;
+  } else {
+    seen_uuids.add(new_record_uuid);
+  }
+
   // Build object to create/update
   let new_record = {
     uuid: new_record_uuid,
@@ -1121,9 +1169,9 @@ async function importRecordRecursor(input_record, dataset, template, user, updat
     new_record.public_date = new Date(input_record._record_metadata._public_date);
   }
 
-  new_record.fields = await createRecordFieldsFromImportRecordAndTemplate(input_record.fields, template.fields);
+  new_record.fields = await createRecordFieldsFromImportRecordAndTemplate(input_record.fields, template.fields, new_record_uuid, session);
 
-  new_record.related_records = await importRelatedRecordsFromRecord(input_record, dataset, template, user, updated_at, session)
+  new_record.related_records = await importRelatedRecordsFromRecord(input_record, dataset, template, user, updated_at, session, seen_uuids)
 
   // If a draft of this record already exists: overwrite it, using it's same uuid
   // If a draft of this record doesn't exist: create a new draft
@@ -1141,7 +1189,7 @@ async function importRecordRecursor(input_record, dataset, template, user, updat
   return new_record_uuid;
 }
 
-async function importRecord(record, user, session, updated_at) {
+async function importRecord(record, user, session, updated_at, seen_uuids) {
   if(!Util.isObject(record)) {
     throw new Util.InputError('Record to import must be a json object.');
   }
@@ -1163,7 +1211,7 @@ async function importRecord(record, user, session, updated_at) {
 
   let template = await TemplateModel.persistedByIdWithoutPermissions(dataset.template_id);
 
-  return importRecordRecursor(record, dataset, template, user, updated_at, session);
+  return importRecordRecursor(record, dataset, template, user, updated_at, session, seen_uuids);
 }
 
 async function importRecords(session, records, user) {
@@ -1173,9 +1221,11 @@ async function importRecords(session, records, user) {
 
   let updated_at = new Date();
 
+  let seen_uuids = new Set();
+
   let result_uuids = [];
   for(let record of records) {
-    result_uuids.push(await importRecord(record, user, session, updated_at));
+    result_uuids.push(await importRecord(record, user, session, updated_at, seen_uuids));
   }
   return result_uuids;
 }
