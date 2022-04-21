@@ -137,7 +137,9 @@ exports.uploadFileFromUrl = async function(req, res, next) {
     } catch (err) {
       await fsPromises.unlink(file_destination);
       if(err.isAxiosError) {
-        throw new Util.InputError('Fetching the file from the specified url failed with message: ' + err.message);
+        throw new Util.InputError(`Fetching the file from the given url failed with the given message:
+        URL: ${downloadUrl}
+        Message: ${err.message}`);
       } else {
         throw err;
       }

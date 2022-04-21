@@ -330,11 +330,22 @@ const importRecords = async (records, curr_user) => {
 
 const uploadFilesForRecordRecursor = async(record, user, promise_list, uploaded_uuids) => {
   for(let field of record.fields) {
-    if(field.import_url) {
-      let uuid = field.value;
+    if(field.file && field.file.import_url) {
+      let uuid = field.file.uuid;
       if(!uploaded_uuids.has(uuid)) {
-        promise_list.push(Helper.uploadFileFromUrl(uuid, field.import_url, user));
+        promise_list.push(Helper.uploadFileFromUrl(uuid, field.file.import_url, user));
         uploaded_uuids.add(uuid);
+      }
+    }
+    if(field.images) {
+      for(let image of field.images) {
+        if(image.import_url) {
+          let uuid = image.uuid;
+          if(!uploaded_uuids.has(uuid)) {
+            promise_list.push(Helper.uploadFileFromUrl(uuid, image.import_url, user));
+            uploaded_uuids.add(uuid);
+          }
+        }
       }
     }
   }
@@ -1193,12 +1204,58 @@ describe("records", () => {
         await importRecordsPersistTest([record], Helper.DEF_CURR_USER);
       });
 
+      test("record includes a couple image urls", async () => {
+
+        let image_1_name = "image1.txt";
+        let image_1_contents = "some interesting contents";
+        Helper.createFile(image_1_name, image_1_contents);
+        let image_2_name = "image2.txt";
+        let image_2_contents = "shadow clone jiutsu!";
+        Helper.createFile(image_2_name, image_2_contents);
+  
+        let template_uuid = "t1";
+        let field_uuid = "t1f1";
+  
+        let template = {
+          template_uuid, 
+          name: "naruto", 
+          description: "awesome", 
+          updated_at: (new Date()).toISOString(),
+          fields: [{
+            template_field_uuid: field_uuid,
+            fieldtype: "File"
+          }]
+        };
+        await importTemplateDatasetPersistTest(template, Helper.DEF_CURR_USER);
+  
+        let record = {
+          record_uuid: "r1",
+          database_uuid: template_uuid,
+          fields: [{
+            field_uuid: field_uuid,
+            files: [
+              {
+                file_uuid: "somerandomuuid",
+                original_name: "waffle",
+                href: serverUrl + image_1_name
+              },
+              {
+                file_uuid: "narutouuid",
+                original_name: "supersecretjiutsu",
+                href: serverUrl + image_2_name
+              }
+            ]
+          }]
+        };
+        await importRecordsPersistTest([record], Helper.DEF_CURR_USER);
+  
+      });
+
        // TODO: maybe at some point add a test for multiple import
     });
 
   });
 
-  // TODO: Implement images
   // TODO: Implement import with images and fix these tests
   // TODO: implement field types and add tests for normal workflow
   // TODO: implement field types and tests for import
@@ -1219,6 +1276,8 @@ describe("records", () => {
     await importRecordsTest(old_records, Helper.DEF_CURR_USER, false);
   });
 
+  // TODO: this test is failing because there is a link in the data I don't have read permissions to:
+  // https://delta.odr.io/app_dev.php/view/downloadimage/158
   test("with rruff data", async () => {
     // The rruff data has an isLink, which is the imalist. In the new system, isLink means only view permissions
     // So import the imalist with user 2, then give user 1 permissions, then import the rest with user 1
@@ -1239,11 +1298,14 @@ describe("records", () => {
     let raw_records = fs.readFileSync(__dirname + '/test_data/rruff_samples.json');
     let old_records = JSON.parse(raw_records).records;
 
-    // 42 records. 143 MB. Can do the whole test at once, no problem
-    let records_to_test = old_records;
+    // 42 records. 143 MB without images. Can do the whole test at once, no problem
+    // How much with images?
+    // Only 16 total files for the first record. Let me try that
+    let records_to_test = old_records.slice(0,20);
     let imalist_records = extractRecordsWithDatabaseUuidfromRecords(records_to_test, "f6a700e9d45f0884c1514ec6c538");
     await importRecordsPersistTest(imalist_records, Helper.USER_2);
     await importRecordsPersistTest(records_to_test, Helper.DEF_CURR_USER);
+    console.log('Check total MB of files')
   });
 
   describe("failure", () => {

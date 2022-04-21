@@ -1963,6 +1963,62 @@ describe("with files", () => {
       record = await Helper.recordUpdatePersistTest(record, Helper.DEF_CURR_USER);
     });
 
+    test("images", async () => {
+      let template = {
+        name: "t",
+        fields: [{
+          name: "tf",
+          type: FieldTypes.Image
+        }]
+      };
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
+  
+      let dataset = {
+        template_id: template._id
+      };
+      dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
+  
+      let record = {
+        dataset_uuid: dataset.uuid,
+        fields: [{
+          uuid: template.fields[0].uuid,
+          images: [
+            {
+              uuid: "new",
+              name: "banana"
+            },
+            {
+              uuid: "new",
+              name: "apple"
+            }
+          ]
+        }]
+      }
+      record = await Helper.recordCreateAndTest(record, Helper.DEF_CURR_USER);
+      let image_1_uuid = record.fields[0].images[0].uuid;
+      let image_2_uuid = record.fields[0].images[1].uuid;
+      
+      let image_1_name = "image1.txt";
+      let image_1_contents = "Hello World!";
+      let image_2_name = "image2.txt";
+      let image_2_contents = "Waffle!";
+  
+      Helper.createFile(image_1_name, image_1_contents);
+      Helper.createFile(image_2_name, image_2_contents);
+      
+      await Helper.testAndExtract(Helper.uploadFileDirect, image_1_uuid, image_1_name, Helper.DEF_CURR_USER);
+      await Helper.testAndExtract(Helper.uploadFileDirect, image_2_uuid, image_2_name, Helper.DEF_CURR_USER);
+  
+      let newFileBuffer = await Helper.testAndExtract(Helper.getFile, image_1_uuid, Helper.DEF_CURR_USER);
+      let newFileContents = newFileBuffer.toString();
+      expect(newFileContents).toEqual(image_1_contents);
+      newFileBuffer = await Helper.testAndExtract(Helper.getFile, image_2_uuid, Helper.DEF_CURR_USER);
+      newFileContents = newFileBuffer.toString();
+      expect(newFileContents).toEqual(image_2_contents);
+
+      await Helper.recordPersistAndTest(record, Helper.DEF_CURR_USER);
+    });
+
   });
 
   describe("failure", () => {
@@ -2014,7 +2070,6 @@ describe("with files", () => {
       let response = await Helper.uploadFileDirect(file_uuid, file_name, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
     });
-
 
   });
 

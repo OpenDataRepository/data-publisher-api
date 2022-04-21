@@ -35,6 +35,8 @@ function fieldsEqual(fields1, fields2) {
   if(fields1.length != fields2.length) {
     return false;
   }
+  // TODO: I think fields should be sorted somehow? I don't think we preserve ordering
+  // Also sort images
   for(let i = 0; i < fields1.length; i++) {
     let field1 = fields1[i];
     let field2 = fields2[i];
@@ -48,7 +50,22 @@ function fieldsEqual(fields1, fields2) {
       if(file1.uuid != file2.uuid || file1.name != file2.name) {
         return false;
       } 
+    } else if(field1.type == FieldTypes.Image) {
+      if(!Array.isArray(field1.images) || !Array.isArray(field2.images)) {
+        throw new Error(`fieldsEqual: did not provide 2 valid image arrays`);
+      }
+      if(field1.images.length != field2.images.length) {
+        return false;
+      }
+      for(let j = 0; j < field1.images.length; j++) {
+        let image1 = field1.images[i];
+        let image2 = field2.images[i];
+        if(image1.uuid != image2.uuid || image1.name != image2.name) {
+          return false;
+        } 
+      }
     }
+
     // TODO: if it's a list of values, we need to compare all of the list, not just a single value
   }
   return true;
@@ -139,6 +156,37 @@ async function draftDifferentFromLastPersisted(draft) {
   return false;
 }
 
+async function createOutputFileFromInputFile(input_file, record_uuid, field_uuid, session) {
+  let output_file = {};
+  if(!Util.isObject(input_file)) {
+    throw new Util.InputError(`Each file/image supplied in record field must be an object`);
+  }
+  if(input_file.uuid == 'new') {
+    // newFile should only ever be called right here, and with the transaction session
+    // Therefore, if record changes fail, file changes should be deleted
+    // This works for import as well, since import also needs to upload the files separately (since they can be huge)
+    output_file.uuid = await FileModel.newFile(record_uuid, field_uuid, session);
+    // Next 2 if cases refer to import
+    if(input_file.import_url) {
+      output_file.import_url = input_file.import_url;
+    }
+    if(input_file.import_uuid) {
+      await LegacyUuidToNewUuidMapperModel.create_document_with_old_and_new(input_file.import_uuid, output_file.uuid, session);
+    }
+  } else {
+    let file_uuid = input_file.uuid;
+    if(!await FileModel.existsWithParams(file_uuid, record_uuid, field_uuid, session)) {
+      throw new Util.InputError(`Record ${record_uuid} cannot attach file/image ${file_uuid} for field ${field_uuid}. 
+      Either this file/image does not exist or it belongs to a different record+field.`);
+    }
+    output_file.uuid = file_uuid;
+  }
+  if(input_file.name) {
+    output_file.name = input_file.name;
+  }
+  return output_file;
+}
+
 async function createRecordFieldsFromTemplateFieldsAndMap(template_fields, record_field_map, record_uuid, session) {
   let result_fields = [];
 
@@ -152,35 +200,32 @@ async function createRecordFieldsFromTemplateFieldsAndMap(template_fields, recor
     let record_field_data = record_field_map[field_uuid];
     if(field.type && field.type == TemplateFieldModel.FieldTypes.File) {
       field_object.type = TemplateFieldModel.FieldTypes.File;
-      if(record_field_data && record_field_data.file) {
-        let input_file_object = record_field_data.file;
-        let output_file_object = {};
-        field_object.file = output_file_object;
-        if(!Util.isObject(input_file_object)) {
-          throw new Util.InputError(`File supplied in record field must be an object`);
+      if(record_field_data) {
+        // Convert import format to standard format
+        if(!record_field_data.file && record_field_data.files && record_field_data.files.length > 0) {
+          record_field_data.file = record_field_data.files[0];
         }
-        if(input_file_object.uuid == 'new') {
-          // newFile should only ever be called right here, and with the transaction session
-          // Therefore, if record changes fail, file changes should be deleted
-          // This works for import as well, since import also needs to upload the files separately (since they can be huge)
-          output_file_object.uuid = await FileModel.newFile(record_uuid, field_uuid, session);
-          // Next 2 if cases refer to import
-          if(input_file_object.import_url) {
-            output_file_object.import_url = record_field_data.import_url;
-          }
-          if(input_file_object.import_uuid) {
-            await LegacyUuidToNewUuidMapperModel.create_document_with_old_and_new(input_file_object.import_uuid, field_object.value, session);
-          }
-        } else {
-          let file_uuid = input_file_object.uuid;
-          if(!await FileModel.existsWithParams(file_uuid, record_uuid, field_uuid, session)) {
-            throw new Util.InputError(`Record ${record_uuid} cannot attach file ${file_uuid} for field ${field_uuid}. 
-            Either this file does not exist or it belongs to a different record+field.`);
-          }
-          output_file_object.uuid = file_uuid;
+        if(record_field_data.file) {
+          field_object.file = await createOutputFileFromInputFile(record_field_data.file, record_uuid, field_uuid, session);
         }
-        if(input_file_object.name) {
-          output_file_object.name = input_file_object.name;
+      } 
+    } else if(field.type && field.type == TemplateFieldModel.FieldTypes.Image) {
+      field_object.type = TemplateFieldModel.FieldTypes.Image;
+      if(record_field_data) {
+        // Convert import format to standard format
+        if(!record_field_data.images && record_field_data.files) {
+          record_field_data.images = record_field_data.files;
+        }
+        if(record_field_data.images) {
+          let input_images = record_field_data.images;
+          if(!Array.isArray(input_images)) {
+            throw new Util.InputError(`images property in record field must be an array`);
+          }
+          let output_images = [];
+          field_object.images = output_images;
+          for(let input_image of input_images) {
+            output_images.push(await createOutputFileFromInputFile(input_image, record_uuid, field_uuid, session));
+          }
         }
       } 
     } else if(field.options) {
@@ -201,7 +246,7 @@ async function createRecordFieldsFromTemplateFieldsAndMap(template_fields, recor
   return result_fields;
 }
 
-// TODO: files should also be deleted if the record_draft containing them is deleted
+// TODO: files should also be deleted if the record_draft containing them is deleted. Call this in draft delete
 async function deleteLostFiles(old_fields, new_fields, session) {
   // First find the file uuids that have been lost
   let old_file_uuids = new Set();
@@ -209,11 +254,21 @@ async function deleteLostFiles(old_fields, new_fields, session) {
     if(field.type && field.type == FieldTypes.File && field.file) {
       old_file_uuids.add(field.file.uuid);
     }
+    if(field.type && field.type == FieldTypes.Image && field.images) {
+      for(let image of field.images) {
+        old_file_uuids.add(image.uuid);
+      }
+    }
   }
   let new_file_uuids = new Set();
   for(let field of new_fields) {
     if(field.type && field.type == FieldTypes.File && field.file) {
       new_file_uuids.add(field.file.uuid);
+    }
+    if(field.type && field.type == FieldTypes.Image && field.images) {
+      for(let image of field.images) {
+        old_file_uuids.add(image.uuid);
+      }
     }
   }
 
@@ -261,6 +316,9 @@ async function createRecordFieldsFromInputRecordAndTemplate(record_fields, templ
     if(field.file) {
       record_field_data.file = field.file;
     }
+    if(field.images) {
+      record_field_data.images = field.images;
+    }
     if(field.values) {
       record_field_data.option_uuids = field.values.map(obj => obj.uuid);
     }
@@ -306,21 +364,26 @@ async function createRecordFieldsFromImportRecordAndTemplate(record_fields, temp
       throw new Util.InputError(`A record can only supply a single value for each field`);
     }
     let record_field_data = {value: field.value};
-    if(field.files && field.files.length == 1) {
-      let input_file = field.files[0];
-      let output_file = {};
-      record_field_data.file = output_file;
-
-      let old_file_uuid = input_file.file_uuid;
-      let new_file_uuid = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(old_file_uuid, session);
-      if(new_file_uuid) {
-        output_file.uuid = new_file_uuid;
-      } else {
-        output_file.uuid = "new";
-        output_file.import_uuid = old_file_uuid;
+    // TODO: what to do about this. If it's a file, I want it to return a single file
+    // But if it's type Image, I want to return an array of length 1
+    // Problem is I don't know the type until I get to the next phase
+    // Probably the best solution is just to handle it as an array and make the next phase smarter
+    if(field.files) {
+      record_field_data.files = [];
+      for(let input_file of field.files) {
+        let output_file = {};
+        let old_file_uuid = input_file.file_uuid;
+        let new_file_uuid = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(old_file_uuid, session);
+        if(new_file_uuid) {
+          output_file.uuid = new_file_uuid;
+        } else {
+          output_file.uuid = "new";
+          output_file.import_uuid = old_file_uuid;
+        }
+        output_file.import_url = input_file.href;
+        output_file.name = input_file.original_name;
+        record_field_data.files.push(output_file);
       }
-      output_file.import_url = input_file.href;
-      output_file.name = input_file.original_name;
     } 
     if(field.value && Array.isArray(field.value)) {
       record_field_data.option_uuids = 
@@ -682,9 +745,17 @@ async function persistRecurser(uuid, dataset, template, user, session) {
   }
 
   for(let field of record_draft.fields) {
-    if(field.type == TemplateFieldModel.FieldTypes.File && field.value) {
-      delete field.import_url;  // Import_url is only for the initial import. It shouldn't be persisted
-      await FileModel.markPersisted(field.value);
+    if(field.type == TemplateFieldModel.FieldTypes.File && field.file && field.file.uuid) {
+      delete field.file.import_url;  // Import_url is only for the initial import. It shouldn't be persisted
+      await FileModel.markPersisted(field.file.uuid);
+    }
+    if(field.type == TemplateFieldModel.FieldTypes.Image && field.images) {
+      for(let image of field.images) {
+        if(image.uuid) {
+          delete image.import_url;
+          await FileModel.markPersisted(image.uuid);
+        }
+      }
     }
   }
 

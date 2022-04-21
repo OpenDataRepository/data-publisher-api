@@ -6,7 +6,8 @@ const SharedFunctions = require('./shared_functions');
 const LegacyUuidToNewUuidMapperModel = require('./legacy_uuid_to_new_uuid_mapper');
 
 const FieldTypes = Object.freeze({
-  File: "File"
+  File: "File",
+  Image: "Image"
 });
 exports.FieldTypes = FieldTypes;
 

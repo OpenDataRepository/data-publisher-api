@@ -50,11 +50,13 @@ const basicRecordSetup = async () => {
     dataset_uuid: dataset.uuid,
     fields: [{
       uuid: template.fields[0].uuid,
-      value: "new" 
+      file: {
+        uuid: "new" 
+      }
     }]
   }
   record = await Helper.recordCreateAndTest(record, Helper.DEF_CURR_USER);
-  let file_uuid = record.fields[0].value;
+  let file_uuid = record.fields[0].file.uuid;
 
   return [template, dataset, record, file_uuid];
 };
