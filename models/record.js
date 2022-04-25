@@ -35,14 +35,24 @@ function fieldsEqual(fields1, fields2) {
   if(fields1.length != fields2.length) {
     return false;
   }
-  // TODO: I think fields should be sorted somehow? I don't think we preserve ordering
-  // Also sort images
+
+  // Don't need to check fields changing order because the record always preserves the field order of the template fields
   for(let i = 0; i < fields1.length; i++) {
     let field1 = fields1[i];
     let field2 = fields2[i];
-    if (field1.name != field2.name || field1.description != field2.description || field1.value != field2.value
-      || field1.type != field2.type || field1.file_name != field2.file_name) {
+    if (field1.name != field2.name || field1.description != field2.description || field1.type != field2.type) {
       return false;
+    }
+    const sortArrayByUuidProperty = (o1, o2) => {
+      let n1 = o1.uuid;
+      let n2 = o2.uuid;
+      if(n1 < n2) {
+        return -1;
+      }
+      if(n1 > n2) {
+        return 1;
+      }
+      return 0;
     }
     if(field1.type == FieldTypes.File) {
       let file1 = field1.file;
@@ -57,6 +67,8 @@ function fieldsEqual(fields1, fields2) {
       if(field1.images.length != field2.images.length) {
         return false;
       }
+      field1.images.sort(sortArrayByUuidProperty);
+      field2.images.sort(sortArrayByUuidProperty);
       for(let j = 0; j < field1.images.length; j++) {
         let image1 = field1.images[i];
         let image2 = field2.images[i];
@@ -64,9 +76,23 @@ function fieldsEqual(fields1, fields2) {
           return false;
         } 
       }
+    } else if (field1.values) {
+      if(field1.values.length != field2.values.length) {
+        return false;
+      }
+      field1.values.sort(sortArrayByUuidProperty);
+      field2.values.sort(sortArrayByUuidProperty);
+      for(let j = 0; j < field1.values.length; j++) {
+        if(field1.values[j].uuid != field2.values[j].uuid) {
+          return false;
+        } 
+      }
+    } else {
+      if(field1.value != field2.value) {
+        return false;
+      }
     }
 
-    // TODO: if it's a list of values, we need to compare all of the list, not just a single value
   }
   return true;
 }
@@ -246,7 +272,40 @@ async function createRecordFieldsFromTemplateFieldsAndMap(template_fields, recor
   return result_fields;
 }
 
-// TODO: files should also be deleted if the record_draft containing them is deleted. Call this in draft delete
+async function deleteDraftFiles(draft) {
+  let file_uuids = [];
+  for(let field of draft.fields) {
+    if(field.file) {
+      file_uuids.push(field.file.uuid);
+    }
+    if(field.images) {
+      for(let image of field.images) {
+        file_uuids.push(image.uuid);
+      }
+    }
+  }
+  try {
+    await deleteFilesWithUUids(file_uuids);
+  } catch(err) {
+    console.log(`deleteDraftFiles: failed with err: ${err}`);
+  }
+}
+
+// For each lost file, try to delete it. Of course, if it hasn't been persisted, it won't work
+async function deleteFilesWithUUids(file_uuids, session) {
+  for(let file_uuid of file_uuids) {
+    try{
+      await FileModel.delete(file_uuid, session);
+    } catch(err) {
+      if(err instanceof Util.InputError || err instanceof Util.NotFoundError) {
+        ;
+      } else {
+        throw err;
+      }
+    }
+  }
+}
+
 async function deleteLostFiles(old_fields, new_fields, session) {
   // First find the file uuids that have been lost
   let old_file_uuids = new Set();
@@ -275,18 +334,8 @@ async function deleteLostFiles(old_fields, new_fields, session) {
   // set difference
   let lost_file_uuids = [...old_file_uuids].filter(x => !new_file_uuids.has(x));
   
-  // For each lost file, try to delete it. Of course, if it hasn't been persisted, it won't work
-  for(let file_uuid of lost_file_uuids) {
-    try{
-      await FileModel.delete(file_uuid, session);
-    } catch(err) {
-      if(err instanceof Util.InputError || err instanceof Util.NotFoundError) {
-        ;
-      } else {
-        throw err;
-      }
-    }
-  }
+  // then delete them
+  await deleteFilesWithUUids(lost_file_uuids, session);
 
 }
 
@@ -364,10 +413,6 @@ async function createRecordFieldsFromImportRecordAndTemplate(record_fields, temp
       throw new Util.InputError(`A record can only supply a single value for each field`);
     }
     let record_field_data = {value: field.value};
-    // TODO: what to do about this. If it's a file, I want it to return a single file
-    // But if it's type Image, I want to return an array of length 1
-    // Problem is I don't know the type until I get to the next phase
-    // Probably the best solution is just to handle it as an array and make the next phase smarter
     if(field.files) {
       record_field_data.files = [];
       for(let input_file of field.files) {
@@ -1361,6 +1406,8 @@ exports.draftDelete = async function(uuid, user) {
   }
 
   await SharedFunctions.draftDelete(Record, uuid);
+
+  await deleteDraftFiles(draft);
 }
 
 exports.draftExisting = async function(uuid) {

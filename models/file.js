@@ -102,8 +102,10 @@ exports.delete = async function(uuid, session) {
     throw new Util.InputError(`Cannot delete file as the record it has been attached to has already been persisted.`);
   }
   
-  let file_path = path.join(Upload_Destination, uuid);
-  await fsPromises.unlink(file_path);
+  if(file_metadata.uploaded) {
+    let file_path = path.join(Upload_Destination, uuid);
+    await fsPromises.unlink(file_path);
+  }
   let response = await File.deleteMany(
     {uuid},
     {session}

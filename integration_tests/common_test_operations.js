@@ -650,8 +650,8 @@ module.exports = class Helper {
     }
     if(before.values) {
       expect(after.values.length).toBe(before.values.length);
-      before.values.sort(Helper.sortArrayByUuidProperty);
-      after.values.sort(Helper.sortArrayByUuidProperty);
+      before.values.sort(this.sortArrayByNameProperty);
+      after.values.sort(this.sortArrayByNameProperty);
       for(let i = 0; i < before.values.length; i++) {
         expect(before.values[i].uuid).toEqual(after.values[i].uuid);
       }
@@ -667,16 +667,16 @@ module.exports = class Helper {
     }
     if(before.fields) {
       expect(after.fields.length).toBe(before.fields.length);
-      before.fields.sort(Helper.sortArrayByNameProperty);
-      after.fields.sort(Helper.sortArrayByNameProperty);
+      before.fields.sort(this.sortArrayByNameProperty);
+      after.fields.sort(this.sortArrayByNameProperty);
       for(let i = 0; i < before.fields.length; i++) {
         this.testRecordFieldsEqual(before.fields[i], after.fields[i]);
       }
     }
     if(before.related_records) {
       expect(after.related_records.length).toBe(before.related_records.length);
-      before.related_records.sort(Helper.sortArrayByNameProperty);
-      after.related_records.sort(Helper.sortArrayByNameProperty);
+      before.related_records.sort(this.sortArrayByNameProperty);
+      after.related_records.sort(this.sortArrayByNameProperty);
       for(let i = 0; i < before.related_records.length; i++) {
         this.testRecordsEqual(before.related_records[i], after.related_records[i]);
       }
@@ -687,9 +687,7 @@ module.exports = class Helper {
     let response = await this.recordCreate(input_record, curr_user);
     expect(response.statusCode).toBe(200);
     let uuid = response.body.inserted_uuid;
-  
-    input_record.uuid = uuid;
-    
+      
     let created_record = await this.recordDraftGetAndTest(uuid, curr_user);
     this.testRecordsEqual(input_record, created_record);
     return created_record;

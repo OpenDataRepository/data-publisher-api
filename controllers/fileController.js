@@ -167,7 +167,7 @@ exports.getFile = async function(req, res, next) {
       throw new Util.PermissionDeniedError(`You do not have the view permissions required to view a file attached to record ${file_metadata.record_uuid}`);
     }
     if(!file_metadata.uploaded) {
-      throw new Util.NotFoundError(`Uuid ${uuid} exists but no file for it has been updated.`);
+      throw new Util.NotFoundError(`Uuid ${uuid} exists but no file for it has been uploaded.`);
     }
   } catch(err) {
     next(err);

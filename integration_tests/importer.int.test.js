@@ -234,7 +234,6 @@ const compareOldAndNewDatabaseAndRecord = async (old_record_and_database, new_da
       return false;
     }
   }
-  // TODO: probably need to sort this if this is actually gonna work
   for(let i = 0; i < old_record_and_database.records.length; i++) {
     if(!compareOldAndNewDatabaseAndRecord(old_record_and_database.records[i], new_dataset.related_datasets[i], new_record.related_records[i], uuid_mapper)) {
       return false;
@@ -1068,7 +1067,6 @@ describe("records", () => {
         record_uuid: "r1.1", 
         database_uuid: related_template_uuid
       };
-      // TODO: get the record out of this test, publish it, give view permissions to it, and then import a parent record linking it
       await importRecordsPersistTest([related_record], Helper.USER_2);
 
       let template_uuid = "t1";
@@ -1251,14 +1249,11 @@ describe("records", () => {
   
       });
 
-       // TODO: maybe at some point add a test for multiple import
     });
 
   });
 
   // TODO: Implement import with images and fix these tests
-  // TODO: implement field types and add tests for normal workflow
-  // TODO: implement field types and tests for import
 
 
   // TODO: at some point, once the links in chemin work better, make this an importRecordsPersistTest

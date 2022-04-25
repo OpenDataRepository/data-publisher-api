@@ -916,6 +916,55 @@ describe("update", () => {
       await Helper.recordUpdateAndTest(record, Helper.DEF_CURR_USER);
     });
 
+    test("changing options", async () => {
+
+      let field = {
+        name: "f1",
+        options: [
+          {
+            name: "naruto"
+          },
+          {
+            name: "sakura"
+          },
+          {
+            name: "sasuke"
+          }
+        ]
+      };
+      let template = {
+        "name":"t1",
+        "fields":[field]
+      };
+      template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
+
+      field.uuid = template.fields[0].uuid;
+      field.options = template.fields[0].options;
+
+      let dataset = {
+        template_id: template._id
+      };
+      dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
+
+      let options_uuids = [template.fields[0].options[0].uuid, template.fields[0].options[1].uuid, template.fields[0].options[2].uuid]
+      field.values = [{uuid: options_uuids[0]}, {uuid: options_uuids[1]}];
+      delete field.options;
+
+      let record = {
+        dataset_uuid: dataset.uuid,
+        fields: [field]
+      };
+      record = await Helper.recordCreatePersistTest(record, Helper.DEF_CURR_USER);
+      expect(record.fields[0].values[0]).toEqual({uuid: options_uuids[0], name: "naruto"});
+      expect(record.fields[0].values[1]).toEqual({uuid: options_uuids[1], name: "sakura"});
+
+      record.fields[0].values[1].uuid = options_uuids[2];
+      record = await Helper.recordUpdateAndTest(record, Helper.DEF_CURR_USER);
+      expect(record.fields[0].values[0]).toEqual({uuid: options_uuids[0], name: "naruto"});
+      expect(record.fields[0].values[1]).toEqual({uuid: options_uuids[2], name: "sasuke"});
+      expect(await Helper.recordDraftExisting(record.uuid)).toBeTruthy();
+    });
+
   });
 
   describe("Failure cases", () => {
@@ -1111,6 +1160,8 @@ describe("update", () => {
       expect(await Helper.recordDraftExisting(record.related_records[0].uuid)).toBeFalsy();
     });
 
+    // Don't need to test fields changing order because the record always preserves the field order of the templates
+
   });
 
 });
@@ -1147,6 +1198,7 @@ describe("delete", () => {
     let response = await Helper.recordDelete(record.uuid, Helper.USER_2);
     expect(response.statusCode).toBe(401);
   });
+
 });
 
 describe("persist (and get persisted)", () => {
@@ -2070,6 +2122,78 @@ describe("with files", () => {
       let response = await Helper.uploadFileDirect(file_uuid, file_name, Helper.DEF_CURR_USER);
       expect(response.statusCode).toBe(400);
     });
+
+  });
+
+  test("delete a record with files linked", async () => {
+    let template = {
+      name: "t",
+      fields: [
+        {
+          name: "file",
+          type: FieldTypes.File
+        },
+        {
+          name: "images",
+          type: FieldTypes.Image
+        }
+
+      ]
+    };
+    template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
+
+    let dataset = {
+      template_id: template._id
+    };
+    dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
+
+    let record = {
+      dataset_uuid: dataset.uuid,
+      fields: [
+        {
+          uuid: template.fields[0].uuid,
+          file: {uuid: "new", name: "afile"}
+        },
+        {
+          uuid: template.fields[1].uuid,
+          images: [
+            {uuid: "new", name: "image1"},
+            {uuid: "new", name: "image2"}
+          ]
+        }
+      ]
+    };
+
+    // Delete the record before uploading an actual file. All files should also be deleted.
+    let created_record = await Helper.recordCreateAndTest(record, Helper.DEF_CURR_USER);
+    await Helper.testAndExtract(Helper.recordDelete, created_record.uuid, Helper.DEF_CURR_USER);
+    let response = await Helper.getFile(created_record.fields[0].file.uuid, Helper.DEF_CURR_USER);
+    expect(response.statusCode).toBe(404);
+    response = await Helper.getFile(created_record.fields[1].images[0].uuid, Helper.DEF_CURR_USER);
+    expect(response.statusCode).toBe(404);
+    response = await Helper.getFile(created_record.fields[1].images[1].uuid, Helper.DEF_CURR_USER);
+    expect(response.statusCode).toBe(404);
+
+    // Delete the record after uploading an actual file. All files should also be deleted.
+    created_record = await Helper.recordCreateAndTest(record, Helper.DEF_CURR_USER);
+    let file_uuid = created_record.fields[0].file.uuid;
+    let image_uuid_1 = created_record.fields[1].images[0].uuid;
+    let image_uuid_2 = created_record.fields[1].images[1].uuid;
+
+    let file_name = "toUpload.txt";
+    let file_contents = "Hello World!";
+    Helper.createFile(file_name, file_contents);
+    await Helper.testAndExtract(Helper.uploadFileDirect, file_uuid, file_name, Helper.DEF_CURR_USER);
+    await Helper.testAndExtract(Helper.uploadFileDirect, image_uuid_1, file_name, Helper.DEF_CURR_USER);
+    await Helper.testAndExtract(Helper.uploadFileDirect, image_uuid_2, file_name, Helper.DEF_CURR_USER);
+
+    await Helper.testAndExtract(Helper.recordDelete, created_record.uuid, Helper.DEF_CURR_USER);
+    response = await Helper.getFile(file_uuid, Helper.DEF_CURR_USER);
+    expect(response.statusCode).toBe(404);
+    response = await Helper.getFile(image_uuid_1, Helper.DEF_CURR_USER);
+    expect(response.statusCode).toBe(404);
+    response = await Helper.getFile(image_uuid_2, Helper.DEF_CURR_USER);
+    expect(response.statusCode).toBe(404);
 
   });
 
