@@ -269,6 +269,12 @@ async function createRecordFieldsFromTemplateFieldsAndMap(template_fields, recor
     result_fields.push(field_object);
   }
 
+  // Any file uuids that were in the old record fields but aren't anymore need to be deleted
+  let previous_record_draft = await SharedFunctions.draft(Record, record_uuid, session);
+  if(previous_record_draft) {
+    await deleteLostFiles(previous_record_draft.fields, result_fields, session);
+  }
+
   return result_fields;
 }
 
@@ -376,12 +382,6 @@ async function createRecordFieldsFromInputRecordAndTemplate(record_fields, templ
 
   let result_fields = await createRecordFieldsFromTemplateFieldsAndMap(template_fields, record_field_map, record_uuid, session);
 
-  // Any file uuids that were in the old record fields but aren't anymore need to be deleted
-  let previous_record_draft = await SharedFunctions.draft(Record, record_uuid, session);
-  if(previous_record_draft) {
-    await deleteLostFiles(previous_record_draft.fields, result_fields, session);
-  }
-
   return result_fields;
 }
 
@@ -440,8 +440,6 @@ async function createRecordFieldsFromImportRecordAndTemplate(record_fields, temp
     }
     record_field_map[field_uuid] = record_field_data;
   }
-
-  // TODO: call deleteLostFiles with imported files that are deleted
 
   return await createRecordFieldsFromTemplateFieldsAndMap(template_fields, record_field_map, record_uuid, session);
 }
