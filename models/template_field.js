@@ -617,7 +617,7 @@ exports.duplicate = async function(field, user, session) {
     field, 
     {session}
   );
-  if (response.insertedCount != 1) {
+  if (!response.acknowledged) {
     throw new Error(`TemplateField.duplicate: Failed to insert duplicate of ${field.uuid}`);
   } 
   return field.uuid;

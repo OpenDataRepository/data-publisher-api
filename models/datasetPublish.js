@@ -55,8 +55,8 @@ exports.publish = async function(dataset_uuid, name, user) {
   }
 
   let response = await DatasetPublishedVersions.insertOne({dataset_uuid, name, time: new Date()});
-  if(response.insertedCount != 1) {
-    throw new Error(`datasetPublish.publish: Inserted: ${response.insertedCount}.`);
+  if(!response.acknowledged) {
+    throw new Error(`datasetPublish.publish: Inserting failed.`);
   }
 
 }

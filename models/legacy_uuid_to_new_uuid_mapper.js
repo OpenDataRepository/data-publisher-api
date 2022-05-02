@@ -69,8 +69,8 @@ const create_document_with_old_and_new = async (old_uuid, new_uuid, session) => 
     {old_uuid, new_uuid},
     {session}
   )
-  if (response.insertedCount != 1) {
-    throw new Error(`LegacyUuidToNewUuidMapper.createNewUuidForOld: should be 1 inserted document. Instead: ${response.insertedCount}`);
+  if (!response.acknowledged) {
+    throw new Error(`LegacyUuidToNewUuidMapper.createNewUuidForOld: Insert failed`);
   }
 };
 exports.create_document_with_old_and_new = create_document_with_old_and_new;

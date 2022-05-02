@@ -52,7 +52,7 @@ async function create_permission(uuid, category, users, session) {
     },
     { session }
   );
-  if (response.insertedCount != 1) {
+  if (!response.acknowledged) {
     throw `PermissionGroup.create_permission: Failed to insert uuid ${uuid}`;
   } 
 }
@@ -98,7 +98,7 @@ async function replace_permissions(current_user, uuid, category, users, session)
     {$set: {users}}, 
     {session}
   );
-  if (!response.result.ok) {
+  if (!response.acknowledged) {
     throw new Error(`PermissionGroup.replace_permission: Failed to update ${uuid}.`);
   } 
 }

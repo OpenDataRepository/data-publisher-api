@@ -1253,10 +1253,7 @@ describe("records", () => {
 
   });
 
-  // TODO: Implement import with images and fix these tests
-
-
-  // TODO: at some point, once the links in chemin work better, make this an importRecordsPersistTest
+  // TODO: at some point, once the links in chemin work / are valid, make this an importRecordsPersistTest
   test("with Chemin data", async () => {
 
     let raw_template = fs.readFileSync(__dirname + '/test_data/chemin_template.json');
@@ -1271,8 +1268,6 @@ describe("records", () => {
     await importRecordsTest(old_records, Helper.DEF_CURR_USER, false);
   });
 
-  // TODO: this test is failing because there is a link in the data I don't have read permissions to:
-  // https://delta.odr.io/app_dev.php/view/downloadimage/158
   test("with rruff data", async () => {
     // The rruff data has an isLink, which is the imalist. In the new system, isLink means only view permissions
     // So import the imalist with user 2, then give user 1 permissions, then import the rest with user 1

@@ -1122,7 +1122,7 @@ async function duplicateRecursor(template, user, session) {
     template, 
     {session}
   );
-  if (response.insertedCount != 1) {
+  if (!response.acknowledged) {
     throw new Error(`Template.duplicate: Failed to insert duplicate of ${template.uuid}`);
   }
   

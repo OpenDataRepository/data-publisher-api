@@ -718,8 +718,8 @@ async function duplicateRecursor(original_dataset, original_group_uuid, new_grou
     new_dataset, 
     {session}
   );
-  if (response.insertedCount != 1) {
-    throw new Error(`Dataset.duplicateRecursor: Inserted: ${response.insertedCount}.`);
+  if (!response.acknowledged) {
+    throw new Error(`Dataset.duplicateRecursor: Inserting failed`);
   } 
   await PermissionGroupModel.initialize_permissions_for(user, new_dataset.uuid, session);
 
@@ -748,8 +748,8 @@ async function createMissingDatasetForImport(template, user, updated_at, session
   }
 
   let response = await Dataset.insertOne(dataset, {session});
-  if (response.insertedCount != 1) {
-    throw new Error(`Dataset.importDatasetFromCombinedRecursor: Inserted: ${response.insertedCount}`);
+  if (!response.acknowledged) {
+    throw new Error(`Dataset.importDatasetFromCombinedRecursor: Inserting failed`);
   } 
 
   return uuid;

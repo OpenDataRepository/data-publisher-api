@@ -49,7 +49,7 @@ exports.newFile = async function(record_uuid, template_field_uuid, session) {
     fileObject,
     { session }
   );
-  if (response.insertedCount != 1) {
+  if (!response.acknowledged) {
     throw new Error(`File.newFile: Failed to insert uuid ${uuid}`);
   } 
 
