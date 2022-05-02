@@ -900,9 +900,9 @@ module.exports = class Helper {
     serve(req, res, finalhandler(req, res))
     });
     // Listen
-    server.listen(3000);
+    server.listen(0);
   
-    let serverUrl = "http://localhost:3000/";
+    let serverUrl = "http://localhost:" + server.address().port + "/";
     return [server, serverUrl];
   }
 

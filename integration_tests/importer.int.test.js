@@ -1293,10 +1293,8 @@ describe("records", () => {
     let raw_records = fs.readFileSync(__dirname + '/test_data/rruff_samples.json');
     let old_records = JSON.parse(raw_records).records;
 
-    // 42 records. 143 MB without images. Can do the whole test at once, no problem
-    // How much with images?
-    // Only 16 total files for the first record. Let me try that
-    let records_to_test = old_records.slice(0,20);
+    // 42 records. 169 MB with files and images. Can do the whole test at once, no problem
+    let records_to_test = old_records;
     let imalist_records = extractRecordsWithDatabaseUuidfromRecords(records_to_test, "f6a700e9d45f0884c1514ec6c538");
     await importRecordsPersistTest(imalist_records, Helper.USER_2);
     await importRecordsPersistTest(records_to_test, Helper.DEF_CURR_USER);
