@@ -2,8 +2,7 @@ const request = require("supertest");
 const fs = require('fs');
 const fsPromises = fs.promises;
 const path = require('path');
-var { app, init: appInit } = require('../app');
-const MongoDB = require('../lib/mongoDB');
+var { app, init: appInit, close: appClose } = require('../app');
 const FieldTypes = require('../models/template_field').FieldTypes;
 
 var HelperClass = require('./common_test_operations')
@@ -28,7 +27,7 @@ afterAll(async () => {
   Helper.clearFilesAtPath(Helper.dynamicTestFilesPath);
   Helper.clearFilesAtPath(Helper.uploadsDirectoryPath);
   await Helper.clearDatabase();
-  await MongoDB.close();
+  await appClose();
 });
 
 const basicRecordSetup = async () => {

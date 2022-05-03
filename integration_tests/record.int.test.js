@@ -1,6 +1,5 @@
 const request = require("supertest");
-const MongoDB = require('../lib/mongoDB');
-var { app, init: appInit } = require('../app');
+var { app, init: appInit, close: appClose } = require('../app');
 var HelperClass = require('./common_test_operations')
 var Helper = new HelperClass(app);
 var { PERMISSION_ADMIN, PERMISSION_EDIT, PERMISSION_VIEW } = require('../models/permission_group');
@@ -16,7 +15,7 @@ beforeEach(async() => {
 
 afterAll(async () => {
   await Helper.clearDatabase();
-  await MongoDB.close();
+  await appClose();
 });
 
 describe("create (and get draft)", () => {

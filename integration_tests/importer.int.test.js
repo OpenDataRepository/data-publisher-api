@@ -1,7 +1,6 @@
 const request = require("supertest");
 const fs = require('fs');
-const MongoDB = require('../lib/mongoDB');
-var { app, init: appInit } = require('../app');
+var { app, init: appInit, close: appClose } = require('../app');
 var { PERMISSION_ADMIN, PERMISSION_EDIT, PERMISSION_VIEW } = require('../models/permission_group');
 var HelperClass = require('./common_test_operations');
 var Helper = new HelperClass(app);
@@ -21,7 +20,7 @@ afterAll(async () => {
   Helper.clearFilesAtPath(Helper.dynamicTestFilesPath);
   Helper.clearFilesAtPath(Helper.uploadsDirectoryPath);
   await Helper.clearDatabase();
-  await MongoDB.close();
+  await appClose();
 });
 
 const importTemplate = async (template, curr_user) => {
