@@ -36,3 +36,25 @@ exports.logout = function(req, res, next) {
   req.logout();
   res.sendStatus(200);
 };
+
+exports.delete = async function(req, res, next) {
+  try{
+    if(!req.isAuthenticated()) {
+      throw new Util.InputError(`Must be logged in to delete account`);
+    }
+    // this should be the same as req.isAuthenticated(), but just put it here for safety.
+    if(!req.user) {
+      throw new Util.InputError(`Must be logged in to delete account`);
+    }
+    if(!req.body.password) {
+      throw new Util.InputError(`Must provide password to delete account.`);
+    }
+    if(!(await bcrypt.compare(req.body.password, req.user.password))) {
+      throw new Util.InputError(`Password incorrect.`);
+    }
+    await User.delete(req.user._id);
+    res.sendStatus(200);
+  } catch(err) {
+    next(err);
+  }
+};

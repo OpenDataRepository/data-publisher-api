@@ -45,3 +45,13 @@ exports.getBy_id = async function(_id) {
   _id = SharedFunctions.convertToMongoId(_id);
   return await User.findOne({_id});
 }
+
+exports.delete = async function(_id) {
+  _id = SharedFunctions.convertToMongoId(_id);
+  let response = await User.deleteMany(
+    {_id}
+  );
+  if(response.deletedCount != 1) {
+    throw new Error(`Deleted ${response.deletedCount} accounts with _id: ${_id}`);
+  }
+}

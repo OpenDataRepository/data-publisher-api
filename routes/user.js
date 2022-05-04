@@ -6,7 +6,7 @@ router.post('/register', userController.register);
 router.post('/login', userController.login);
 router.post('/logout', userController.logout);
 
-// TODO: add update and delete
+router.post('/delete', userController.delete);
 
 router.get('/test-protected-route', (req, res, next) => {
   if (req.isAuthenticated()) {

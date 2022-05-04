@@ -26,6 +26,9 @@ module.exports = class Helper {
     await db.collection('permission_groups').deleteMany();
     await db.collection('legacy_uuid_to_new_uuid_mapper').deleteMany();
     await db.collection('files').deleteMany();
+
+    await db.collection('users').deleteMany();
+    await db.collection('sessions').deleteMany();
   };
 
   sortArrayByNameProperty = (o1, o2) => {

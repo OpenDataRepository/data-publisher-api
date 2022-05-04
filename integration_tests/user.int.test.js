@@ -46,6 +46,12 @@ const logout = async () => {
     .post(`/user/logout`);;
 }
 
+const userDelete = async (password) => {
+  return await agent
+    .post(`/user/delete`)
+    .send({password})
+}
+
 describe("normal login process", () => {
 
   test("Before logging in, can access the test unprotected route, but not the protected one", async () => {
@@ -79,12 +85,41 @@ describe("normal login process", () => {
 
 });
 
+// TODO: change username to email. 
+// TODO: confirm the email
+// TODO: add function to change password
+// TODO: add function to change other properties, like full name
+// TODO: add function to change email
+
+// TODO: eventually add constraints on the mongodb itself
 describe("modifying users", () => {
 
   test("username must be unique", async () => {
-    await Helper.testAndExtract(register, "naruto", "waffle");
+    await Helper.testAndExtract(register, "caleb", "waffle");
 
-    let response = await register("naruto", "waffle");
+    let response = await register("caleb", "waffle");
+    expect(response.statusCode).toBe(400);
+  });
+
+});
+
+describe("delete", () => {
+
+  test("normal", async () => {
+    await Helper.testAndExtract(register, "caleb", "waffle");
+    await Helper.testAndExtract(login, "caleb", "waffle");
+    await Helper.testAndExtract(userDelete, "waffle");
+  });
+
+  test("must be logged in", async () => {
+    let response = await userDelete();
+    expect(response.statusCode).toBe(400);
+  });
+
+  test("must provide correct password", async () => {
+    await Helper.testAndExtract(register, "caleb", "waffle");
+    await Helper.testAndExtract(login, "caleb", "waffle");
+    let response = await userDelete("wrong password");
     expect(response.statusCode).toBe(400);
   });
 
