@@ -3,15 +3,13 @@ const logger = require('morgan');
 const cookieParser = require("cookie-parser");
 const session = require('express-session');
 var passport = require('passport');
-const bcrypt = require ("bcryptjs");
-var LocalStrategy = require('passport-local').Strategy;
 const MongoStore = require('connect-mongo');
 const Util = require('./lib/util');
 require('dotenv').config();
 const init = require('./lib/init');
 const MongoDB = require('./lib/mongoDB');
-const User = require('./models/user');
 var indexRouter = require('./routes/index');
+const PassportImplementation = require('./lib/passport_implementation');
 
 var app = express();
 
@@ -27,36 +25,13 @@ app.use(cookieParser());
  * object.  The user object is then serialized with `passport.serializeUser()` and added to the 
  * `req.session.passport` object. 
  */
- passport.use(new LocalStrategy(
-  function(username, password, cb) {
-      User.getByUsername(username)
-          .then((user) => {
-              if (!user) { 
-                return cb(null, false) 
-              }
-
-              bcrypt.compare(password, user.password, (err, res) => {
-                if (res) {
-                  // passwords match! log user in
-                  return cb(null, user)
-                } else {
-                  // passwords do not match!
-                  return cb(null, false, { message: "Incorrect password" })
-                }
-              })
-          })
-          .catch((err) => {   
-              cb(err);
-          });
-}));
+passport.use(PassportImplementation.LocalStrategy);
 
 /**
  * This function is used in conjunction with the `passport.authenticate()` method.  See comments in
  * `passport.use()` above ^^ for explanation
  */
- passport.serializeUser(function(user, cb) {
-  cb(null, user._id.toString());
-});
+passport.serializeUser(PassportImplementation.serializeUser);
 /**
 * This function is used in conjunction with the `app.use(passport.session())` middleware defined below.
 * Scroll down and read the comments in the PASSPORT AUTHENTICATION section to learn how this works.
@@ -64,15 +39,7 @@ app.use(cookieParser());
 * In summary, this method is "set" on the passport object and is passed the user ID stored in the `req.session.passport`
 * object later on.
 */
-passport.deserializeUser(function(id, cb) {
-  User.getBy_id(id)
-  .then(user => {
-    cb(null, user);
-  })
-  .catch(err => {
-    return cb(err); 
-  })
-});
+passport.deserializeUser(PassportImplementation.deserializeUser);
 
 /**
  * -------------- SESSION SETUP ----------------
@@ -107,6 +74,7 @@ const sessionStore = MongoStore.create({ mongoUrl: process.env.DB, collection: '
 const second = 1000;
 const minute = second * 60;
 const hour = minute * 60;
+const day = hour * 24;
 app.use(session({
   // TODO: figure out this secret thing and do it properly with process.env.SECRET
   //secret: process.env.SECRET,
@@ -115,7 +83,7 @@ app.use(session({
   saveUninitialized: true,
   store: sessionStore,
   cookie: {
-    maxAge: hour
+    maxAge: day
   }
 }));
 

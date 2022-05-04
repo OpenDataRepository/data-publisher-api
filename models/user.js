@@ -1,5 +1,6 @@
 const MongoDB = require('../lib/mongoDB');
 const SharedFunctions = require('./shared_functions');
+const Util = require('../lib/util');
 
 var User;
 
@@ -24,7 +25,7 @@ exports.init = async function() {
 exports.create = async function(username, password) {
   let existing = await User.findOne({username});
   if(existing) {
-    throw new Error('Username already exists');
+    throw new Util.InputError('Username already exists');
   }
   let response = await User.insertOne(
     {username, password}

@@ -82,9 +82,9 @@ describe("normal login process", () => {
 describe("modifying users", () => {
 
   test("username must be unique", async () => {
-    await Helper.testAndExtract(register, "caleb", "waffle");
+    await Helper.testAndExtract(register, "naruto", "waffle");
 
-    let response = await register("caleb", "waffle");
+    let response = await register("naruto", "waffle");
     expect(response.statusCode).toBe(400);
   });
 
