@@ -14,6 +14,7 @@ module.exports = class Helper {
   };
 
   VALID_UUID = "47356e57-eec2-431b-8059-f61d5f9a6bc6";
+  VALID_EMAIL = "a@a.com"
   DEF_CURR_USER = 'caleb';
   USER_2 = 'naruto';
 

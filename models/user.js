@@ -22,22 +22,22 @@ exports.init = async function() {
   User = await collection();
 }
 
-exports.create = async function(username, password) {
-  let existing = await User.findOne({username});
+exports.create = async function(email, password) {
+  let existing = await User.findOne({email});
   if(existing) {
-    throw new Util.InputError('Username already exists');
+    throw new Util.InputError('email already exists');
   }
   let response = await User.insertOne(
-    {username, password}
+    {email, password}
   );
   if (!response.acknowledged) {
-    throw new Error(`User.create: Failed to insert user with username: ${username} and password: ${password}`);
+    throw new Error(`User.create: Failed to insert user with email: ${email} and password: ${password}`);
   }
 }
 
-exports.getByUsername = async function(username) {
+exports.getByEmail = async function(email) {
   return await User.findOne(
-    {username}
+    {email}
   );
 }
 

@@ -29,16 +29,16 @@ const get_test_protected_route = async () => {
     .get(`/user/test-protected-route`);
 };
 
-const register = async (username, password) => {
+const register = async (email, password) => {
   return await agent
     .post(`/user/register`)
-    .send({username, password});
+    .send({email, password});
 }
 
-const login = async (username, password) => {
+const login = async (email, password) => {
   return await agent
     .post(`/user/login`)
-    .send({username, password});
+    .send({email, password});
 }
 
 const logout = async () => {
@@ -64,13 +64,13 @@ describe("normal login process", () => {
 
   test("After logging in, can access the protected route", async () => {
     // register
-    await Helper.testAndExtract(register, "caleb", "waffle");
+    await Helper.testAndExtract(register, Helper.VALID_EMAIL, "waffle");
 
     let response = await get_test_protected_route();
     expect(response.statusCode).toBe(401);
 
     // login and get the cookie back
-    await Helper.testAndExtract(login, "caleb", "waffle");
+    await Helper.testAndExtract(login, Helper.VALID_EMAIL, "waffle");
 
     // get protected route (with session cookie)
     await Helper.testAndExtract(get_test_protected_route);
@@ -85,19 +85,25 @@ describe("normal login process", () => {
 
 });
 
-// TODO: change username to email. 
 // TODO: confirm the email
 // TODO: add function to change password
 // TODO: add function to change other properties, like full name
 // TODO: add function to change email
 
 // TODO: eventually add constraints on the mongodb itself
-describe("modifying users", () => {
+describe("register", () => {
 
-  test("username must be unique", async () => {
-    await Helper.testAndExtract(register, "caleb", "waffle");
+  test("email must be in valid email format", async () => {
+    await register("caleb", "waffle");
 
     let response = await register("caleb", "waffle");
+    expect(response.statusCode).toBe(400);
+  });
+
+  test("email must be unique", async () => {
+    await Helper.testAndExtract(register, Helper.VALID_EMAIL, "waffle");
+
+    let response = await register(Helper.VALID_EMAIL, "waffle");
     expect(response.statusCode).toBe(400);
   });
 
@@ -106,8 +112,8 @@ describe("modifying users", () => {
 describe("delete", () => {
 
   test("normal", async () => {
-    await Helper.testAndExtract(register, "caleb", "waffle");
-    await Helper.testAndExtract(login, "caleb", "waffle");
+    await Helper.testAndExtract(register, Helper.VALID_EMAIL, "waffle");
+    await Helper.testAndExtract(login, Helper.VALID_EMAIL, "waffle");
     await Helper.testAndExtract(userDelete, "waffle");
   });
 
@@ -117,8 +123,8 @@ describe("delete", () => {
   });
 
   test("must provide correct password", async () => {
-    await Helper.testAndExtract(register, "caleb", "waffle");
-    await Helper.testAndExtract(login, "caleb", "waffle");
+    await Helper.testAndExtract(register, Helper.VALID_EMAIL, "waffle");
+    await Helper.testAndExtract(login, Helper.VALID_EMAIL, "waffle");
     let response = await userDelete("wrong password");
     expect(response.statusCode).toBe(400);
   });
