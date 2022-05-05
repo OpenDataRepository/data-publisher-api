@@ -55,3 +55,26 @@ exports.delete = async function(_id) {
     throw new Error(`Deleted ${response.deletedCount} accounts with _id: ${_id}`);
   }
 }
+
+exports.update = async function(_id, input_update_properties) {
+  _id = SharedFunctions.convertToMongoId(_id);
+  let filtered_update_properties = {};
+  if(input_update_properties.first_name) {
+    filtered_update_properties.first_name = input_update_properties.first_name;
+  }
+  if(input_update_properties.last_name) {
+    filtered_update_properties.last_name = input_update_properties.last_name;
+  }
+  if(input_update_properties.password) {
+    filtered_update_properties.password = input_update_properties.password;
+  }
+  let response = await User.updateOne(
+    {_id},
+    {
+      $set: input_update_properties
+    }
+  );
+  if(response.matchedCount != 1) {
+    throw new Error(`Updated: matched ${response.matchedCount} accounts with _id: ${_id}`);
+  }
+}
