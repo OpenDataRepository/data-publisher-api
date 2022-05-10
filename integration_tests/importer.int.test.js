@@ -5,6 +5,7 @@ var { PERMISSION_ADMIN, PERMISSION_EDIT, PERMISSION_VIEW } = require('../models/
 var HelperClass = require('./common_test_operations');
 var Helper = new HelperClass(app);
 
+var agent1;
 
 beforeAll(async () => {
   await appInit();
@@ -14,6 +15,7 @@ beforeAll(async () => {
 
 beforeEach(async() => {
   await Helper.clearDatabase();
+  agent1 = await Helper.createAgentRegisterLogin(Helper.DEF_EMAIL, Helper.DEF_PASSWORD);
 });
 
 afterAll(async () => {
@@ -23,13 +25,13 @@ afterAll(async () => {
   await appClose();
 });
 
-const importTemplate = async (template, curr_user) => {
-  return await request(app)
-    .post(`/import/template/`)
-    .set('Cookie', [`user=${curr_user}`])
-    .send(template)
-    .set('Accept', 'application/json');
-}
+// const importTemplate = async (template, curr_user) => {
+//   return await request(app)
+//     .post(`/import/template/`)
+//     .set('Cookie', [`user=${curr_user}`])
+//     .send(template)
+//     .set('Accept', 'application/json');
+// }
 
 const cleanseInputTemplateField = (field) => {
   delete field.internal_id;
@@ -109,50 +111,42 @@ const testTemplatesEqual = (before, after, uuid_mapper) => {
   }
 }
 
-const importTemplatePersistAndTest = async (template, curr_user) => {
-  let response = await importTemplate(template, curr_user);
-  expect(response.statusCode).toBe(200);
-  let uuid = response.body.new_uuid;
+// const importTemplatePersistAndTest = async (template, curr_user) => {
+//   let response = await importTemplate(template, curr_user);
+//   expect(response.statusCode).toBe(200);
+//   let uuid = response.body.new_uuid;
 
-  let new_template = await Helper.templateDraftGetAndTest(uuid, curr_user);
-  testTemplatesEqual(template, new_template, {});
+//   let new_template = await Helper.templateDraftGetAndTest(uuid, curr_user);
+//   testTemplatesEqual(template, new_template, {});
 
-  return await Helper.templatePersistAndFetch(uuid, curr_user);
-}
+//   return await Helper.templatePersistAndFetch(uuid, curr_user);
+// }
 
-const importTemplateDataset = async (template, curr_user) => {
-  return await request(app)
-    .post(`/import/template_with_dataset/`)
-    .set('Cookie', [`user=${curr_user}`])
-    .send(template)
-    .set('Accept', 'application/json');
-}
-
-const importTemplateDatasetTest = async (template, curr_user) => {
-  let response = await importTemplateDataset(template, curr_user);
+const importTemplateDatasetTest = async (template) => {
+  let response = await Helper.importTemplateDataset(template);
   expect(response.statusCode).toBe(200);
   let template_uuid = response.body.template_uuid;
   let dataset_uuid = response.body.dataset_uuid;
-  let new_template = await Helper.templateLatestPersistedAndTest(template_uuid, curr_user);
-  let new_dataset = await Helper.datasetDraftGetAndTest(dataset_uuid, curr_user);
+  let new_template = await Helper.templateLatestPersistedAndTest(template_uuid);
+  let new_dataset = await Helper.datasetDraftGetAndTest(dataset_uuid);
   testTemplatesEqual(template, new_template, {});
   return [new_template, new_dataset];
 }
 
-const importTemplateDatasetPersistTest = async (template, curr_user) => {
+const importTemplateDatasetPersistTest = async (template) => {
   let new_template, dataset_draft;
-  [new_template, dataset_draft] = await importTemplateDatasetTest(template, curr_user);
-  let new_dataset = await Helper.datasetPersistAndFetch(dataset_draft.uuid, curr_user);
+  [new_template, dataset_draft] = await importTemplateDatasetTest(template);
+  let new_dataset = await Helper.datasetPersistAndFetch(dataset_draft.uuid);
   return [new_template, new_dataset];
 }
 
-const importCombinedDatasetsAndRecords = async (datasets_and_records, curr_user) => {
-  return await request(app)
-    .post(`/import/datasets_and_records/`)
-    .set('Cookie', [`user=${curr_user}`])
-    .send({records: datasets_and_records})
-    .set('Accept', 'application/json');
-}
+// const importCombinedDatasetsAndRecords = async (datasets_and_records, curr_user) => {
+//   return await request(app)
+//     .post(`/import/datasets_and_records/`)
+//     .set('Cookie', [`user=${curr_user}`])
+//     .send({records: datasets_and_records})
+//     .set('Accept', 'application/json');
+// }
 
 const recordfieldsEqual = (old_field, new_field, uuid_mapper) => {
   if(old_field.template_field_uuid in uuid_mapper) {
@@ -242,27 +236,27 @@ const compareOldAndNewDatabaseAndRecord = async (old_record_and_database, new_da
   return true;
 }
 
-const importDatasetsRecordsTest = async (datasets_and_records, curr_user) => {
-  let uuid_mapper = {};
-  let response = await importCombinedDatasetsAndRecords(datasets_and_records, curr_user);
-  expect(response.statusCode).toBe(200);
-  let record_uuids = response.body.record_uuids;
-  expect(record_uuids.length).toBe(datasets_and_records.length);
-  for(let i = 0; i < datasets_and_records.length; i++) {
+// const importDatasetsRecordsTest = async (datasets_and_records, curr_user) => {
+//   let uuid_mapper = {};
+//   let response = await importCombinedDatasetsAndRecords(datasets_and_records, curr_user);
+//   expect(response.statusCode).toBe(200);
+//   let record_uuids = response.body.record_uuids;
+//   expect(record_uuids.length).toBe(datasets_and_records.length);
+//   for(let i = 0; i < datasets_and_records.length; i++) {
 
-    let new_record_uuid = record_uuids[i];
-    let response = await Helper.recordDraftGet(new_record_uuid, curr_user);
-    expect(response.statusCode).toBe(200);
-    let new_record = response.body;
-    let new_dataset_uuid = new_record.dataset_uuid;
-    response = await Helper.datasetLatestPersisted(new_dataset_uuid, curr_user);
-    expect(response.statusCode).toBe(200);
-    let new_dataset = response.body;
-    let old_record_and_database = datasets_and_records[i];
+//     let new_record_uuid = record_uuids[i];
+//     let response = await Helper.recordDraftGet(new_record_uuid, curr_user);
+//     expect(response.statusCode).toBe(200);
+//     let new_record = response.body;
+//     let new_dataset_uuid = new_record.dataset_uuid;
+//     response = await Helper.datasetLatestPersisted(new_dataset_uuid, curr_user);
+//     expect(response.statusCode).toBe(200);
+//     let new_dataset = response.body;
+//     let old_record_and_database = datasets_and_records[i];
 
-    compareOldAndNewDatabaseAndRecord(old_record_and_database, new_dataset, new_record, uuid_mapper);
-  }
-}
+//     compareOldAndNewDatabaseAndRecord(old_record_and_database, new_dataset, new_record, uuid_mapper);
+//   }
+// }
 
 const sanitizeInputDatasetsAndRecords = (input_datasets_and_records) => {
   let output_datasets_and_records = [];
@@ -318,20 +312,12 @@ const reformatInputRecord = (input_record) => {
   }
 }
 
-const importRecords = async (records, curr_user) => {
-  return await request(app)
-    .post(`/import/records/`)
-    .set('Cookie', [`user=${curr_user}`])
-    .send({records})
-    .set('Accept', 'application/json');
-}
-
-const uploadFilesForRecordRecursor = async(record, user, promise_list, uploaded_uuids) => {
+const uploadFilesForRecordRecursor = async(record, promise_list, uploaded_uuids) => {
   for(let field of record.fields) {
     if(field.file && field.file.import_url) {
       let uuid = field.file.uuid;
       if(!uploaded_uuids.has(uuid)) {
-        promise_list.push(Helper.uploadFileFromUrl(uuid, field.file.import_url, user));
+        promise_list.push(Helper.uploadFileFromUrl(uuid, field.file.import_url));
         uploaded_uuids.add(uuid);
       }
     }
@@ -340,7 +326,7 @@ const uploadFilesForRecordRecursor = async(record, user, promise_list, uploaded_
         if(image.import_url) {
           let uuid = image.uuid;
           if(!uploaded_uuids.has(uuid)) {
-            promise_list.push(Helper.uploadFileFromUrl(uuid, image.import_url, user));
+            promise_list.push(Helper.uploadFileFromUrl(uuid, image.import_url));
             uploaded_uuids.add(uuid);
           }
         }
@@ -348,17 +334,17 @@ const uploadFilesForRecordRecursor = async(record, user, promise_list, uploaded_
     }
   }
   for(let related_record of record.related_records) {
-    uploadFilesForRecordRecursor(related_record, user, promise_list, uploaded_uuids);
+    uploadFilesForRecordRecursor(related_record, promise_list, uploaded_uuids);
   }
 };
 
-const uploadFilesForRecord = async (record, user, uploaded_uuids) => {
+const uploadFilesForRecord = async (record, uploaded_uuids) => {
   // Create a giant list of all promises from all files and then wait for them all
 
   let promises = [];
 
   // Upload all files in this record. uploaded_uuids is the files already uploaded. Don't do it twice!
-  uploadFilesForRecordRecursor(record, user, promises, uploaded_uuids);
+  uploadFilesForRecordRecursor(record, promises, uploaded_uuids);
 
   return await Promise.all(promises);
 }
@@ -440,10 +426,10 @@ const testOldAndNewRecordEqual = (old_record, new_record, uuid_mapper) => {
   }
 }
 
-const importRecordsTest = async (records, curr_user, testUploads) => {
+const importRecordsTest = async (records, testUploads) => {
 
   let uuid_mapper = {};
-  let response = await importRecords(records, curr_user);
+  let response = await Helper.importRecords(records);
   expect(response.statusCode).toBe(200);
   let record_uuids = response.body.record_uuids;
   expect(record_uuids.length).toBe(records.length);
@@ -456,10 +442,10 @@ const importRecordsTest = async (records, curr_user, testUploads) => {
   for(let i = 0; i < records.length; i++) {
 
     let new_record_uuid = record_uuids[i];
-    let new_record = await Helper.recordDraftGetAndTest(new_record_uuid, curr_user);
+    let new_record = await Helper.recordDraftGetAndTest(new_record_uuid);
     let old_record = records[i];
 
-    let promiseValues = await uploadFilesForRecord(new_record, curr_user, uploaded_uuids);
+    let promiseValues = await uploadFilesForRecord(new_record, uploaded_uuids);
     if(testUploads) {
       for(let value of promiseValues) {
         if(value.statusCode != 200) {
@@ -475,14 +461,14 @@ const importRecordsTest = async (records, curr_user, testUploads) => {
   return record_uuids;
 }
 
-const importRecordsPersistTest = async (records, curr_user) => {
+const importRecordsPersistTest = async (records) => {
 
-  let record_uuids = await importRecordsTest(records, curr_user, true);
+  let record_uuids = await importRecordsTest(records, true);
   // remove duplciates
   record_uuids = [...new Set(record_uuids)];
   let persisted_records = [];
   for(let record_uuid of record_uuids) {
-    persisted_records.push(await Helper.recordPersistAndFetch(record_uuid, curr_user));
+    persisted_records.push(await Helper.recordPersistAndFetch(record_uuid));
   }
   return persisted_records;
 }
@@ -516,7 +502,7 @@ describe("template and dataset", () => {
         fields: [],
         related_databases: []
       };
-      await importTemplateDatasetTest(template, Helper.DEF_CURR_USER);
+      await importTemplateDatasetTest(template);
     });
   
     test("includes fields and related databases 1 level deep", async () => {
@@ -535,7 +521,7 @@ describe("template and dataset", () => {
           name, description, updated_at
         }]
       };
-      await importTemplateDatasetTest(template, Helper.DEF_CURR_USER);
+      await importTemplateDatasetTest(template);
     });
 
     test("multiple fields and related databases", async () => {
@@ -556,7 +542,7 @@ describe("template and dataset", () => {
           {template_uuid: related_template_uuid_2, name: related_template_uuid_2}
         ]
       };
-      await importTemplateDatasetTest(template, Helper.DEF_CURR_USER);
+      await importTemplateDatasetTest(template);
     });
   
     test("includes fields and related databases 2 levels deed", async () => {
@@ -583,7 +569,7 @@ describe("template and dataset", () => {
           }]
         }]
       };
-      await importTemplateDatasetTest(template, Helper.DEF_CURR_USER);
+      await importTemplateDatasetTest(template);
     });
   
     test("can import same template/dataset and field a second time as long as you have edit permissions", async () => {
@@ -603,14 +589,14 @@ describe("template and dataset", () => {
       // Import first time
 
       let template_1, dataset_1;
-      [template_1, dataset_1] = await importTemplateDatasetTest(template, Helper.DEF_CURR_USER);
+      [template_1, dataset_1] = await importTemplateDatasetTest(template);
   
       // Import second time
 
       template.description = "new description";
     
       let template_2, dataset_2;
-      [template_2, dataset_2] = await importTemplateDatasetTest(template, Helper.DEF_CURR_USER);
+      [template_2, dataset_2] = await importTemplateDatasetTest(template);
 
       expect(template_2.uuid).toEqual(template_1.uuid);
       expect(dataset_2.uuid).toEqual(dataset_1.uuid);
@@ -634,7 +620,7 @@ describe("template and dataset", () => {
           }
         ]
       };
-      await importTemplateDatasetTest(template, Helper.DEF_CURR_USER);
+      await importTemplateDatasetTest(template);
 
       template = {
         template_uuid, 
@@ -655,7 +641,7 @@ describe("template and dataset", () => {
           }
         ]
       };
-      await importTemplateDatasetTest(template, Helper.DEF_CURR_USER);
+      await importTemplateDatasetTest(template);
     });
 
     test("includes subscribed template", async () => {
@@ -671,10 +657,10 @@ describe("template and dataset", () => {
           name, description, updated_at
         }]
       };
-      await importTemplateDatasetTest(template, Helper.DEF_CURR_USER);
+      await importTemplateDatasetTest(template);
 
       template.name = "name";
-      await importTemplateDatasetTest(template, Helper.DEF_CURR_USER);
+      await importTemplateDatasetTest(template);
     });
 
     test("import template with link to an isLink template, aka we don't have edit permissions to it", async () => {
@@ -687,10 +673,13 @@ describe("template and dataset", () => {
         template_uuid: related_template_uuid, 
         name, description, updated_at
       };
+
+      await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+
       let new_related_template, new_related_dataset;
-      [new_related_template, new_related_dataset] = await importTemplateDatasetPersistTest(related_template, Helper.USER_2);
-      await Helper.testAndExtract(Helper.updatePermissionGroup, Helper.USER_2, new_related_template.uuid, PERMISSION_VIEW, [Helper.DEF_CURR_USER]);
-      await Helper.testAndExtract(Helper.updatePermissionGroup, Helper.USER_2, new_related_dataset.uuid, PERMISSION_VIEW, [Helper.DEF_CURR_USER]);
+      [new_related_template, new_related_dataset] = await importTemplateDatasetPersistTest(related_template);
+      await Helper.testAndExtract(Helper.updatePermissionGroup, new_related_template.uuid, PERMISSION_VIEW, [Helper.DEF_EMAIL]);
+      await Helper.testAndExtract(Helper.updatePermissionGroup, new_related_dataset.uuid, PERMISSION_VIEW, [Helper.DEF_EMAIL]);
 
       let template = {
         template_uuid: "t1", 
@@ -700,10 +689,13 @@ describe("template and dataset", () => {
           name, description, updated_at
         }]
       };
-      await importTemplateDatasetTest(template, Helper.DEF_CURR_USER);
+
+      await Helper.setAgent(agent1);
+
+      await importTemplateDatasetTest(template);
 
       template.name = "name";
-      await importTemplateDatasetTest(template, Helper.DEF_CURR_USER);
+      await importTemplateDatasetTest(template);
     });
 
   });
@@ -712,21 +704,26 @@ describe("template and dataset", () => {
     let rawdata = fs.readFileSync(__dirname + '/test_data/chemin_template.json');
     let old_template = JSON.parse(rawdata);
   
-    await importTemplateDatasetTest(old_template, Helper.DEF_CURR_USER);
+    await importTemplateDatasetTest(old_template);
   });
 
   test("import rruff template", async () => {
     let rruff_imalist_template_raw_data = fs.readFileSync(__dirname + '/test_data/rruff_imalist_template.json');
     let imalist_template = JSON.parse(rruff_imalist_template_raw_data);
     let ima_list_template, ima_list_dataset;
-    [ima_list_template, ima_list_dataset] = await importTemplateDatasetPersistTest(imalist_template, Helper.USER_2);
 
-    await Helper.testAndExtract(Helper.updatePermissionGroup, Helper.USER_2, ima_list_template.uuid, PERMISSION_VIEW, [Helper.DEF_CURR_USER]);
-    await Helper.testAndExtract(Helper.updatePermissionGroup, Helper.USER_2, ima_list_dataset.uuid, PERMISSION_VIEW, [Helper.DEF_CURR_USER]);
+    await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+
+    [ima_list_template, ima_list_dataset] = await importTemplateDatasetPersistTest(imalist_template);
+
+    await Helper.testAndExtract(Helper.updatePermissionGroup, ima_list_template.uuid, PERMISSION_VIEW, [Helper.DEF_EMAIL]);
+    await Helper.testAndExtract(Helper.updatePermissionGroup, ima_list_dataset.uuid, PERMISSION_VIEW, [Helper.DEF_EMAIL]);
+
+    await Helper.setAgent(agent1);
 
     let rawdata = fs.readFileSync(__dirname + '/test_data/rruff_sample_template.json');
     let old_template = JSON.parse(rawdata);
-    await importTemplateDatasetTest(old_template, Helper.DEF_CURR_USER);
+    await importTemplateDatasetTest(old_template);
   });
 
 });
@@ -746,7 +743,7 @@ describe("records", () => {
         related_databases: []
       };
 
-      await importTemplateDatasetPersistTest(template, Helper.DEF_CURR_USER);
+      await importTemplateDatasetPersistTest(template);
 
       let record = {
         record_uuid: "r1",
@@ -754,7 +751,7 @@ describe("records", () => {
         fields: [],
         records: []
       };
-      await importRecordsTest([record], Helper.DEF_CURR_USER);
+      await importRecordsTest([record]);
     });
 
     test("one field and one related record", async () => {
@@ -775,7 +772,7 @@ describe("records", () => {
           name: "sasuke"
         }]
       };
-      await importTemplateDatasetPersistTest(template, Helper.DEF_CURR_USER);
+      await importTemplateDatasetPersistTest(template);
 
       let record = {
         record_uuid: "r1",
@@ -789,7 +786,7 @@ describe("records", () => {
           database_uuid: related_template_uuid
         }]
       };
-      await importRecordsTest([record], Helper.DEF_CURR_USER);
+      await importRecordsTest([record]);
     });
 
     test("multiple fields and multiple related records", async () => {
@@ -810,7 +807,7 @@ describe("records", () => {
           {template_uuid: related_template_uuid_2, name: related_template_uuid_2}
         ]
       };
-      await importTemplateDatasetPersistTest(template, Helper.DEF_CURR_USER);
+      await importTemplateDatasetPersistTest(template);
 
       let record = {
         record_uuid: "r1",
@@ -824,7 +821,7 @@ describe("records", () => {
           {record_uuid: "r1.2", database_uuid: related_template_uuid_2}
         ]
       };
-      await importRecordsTest([record], Helper.DEF_CURR_USER);
+      await importRecordsTest([record]);
     });
 
     test("shared related_records", async () => {
@@ -838,7 +835,7 @@ describe("records", () => {
           name: shared_related_template_uuid
         }]
       };
-      await importTemplateDatasetPersistTest(template, Helper.DEF_CURR_USER);
+      await importTemplateDatasetPersistTest(template);
 
       let record = {
         record_uuid: "r1",
@@ -848,7 +845,7 @@ describe("records", () => {
           {record_uuid: "r1.2", database_uuid: shared_related_template_uuid}
         ]
       };
-      await importRecordsTest([record], Helper.DEF_CURR_USER);
+      await importRecordsTest([record]);
     });
 
     test("related records going 2 levels deep", async () => {
@@ -865,7 +862,7 @@ describe("records", () => {
           }]
         }]
       };
-      await importTemplateDatasetPersistTest(template, Helper.DEF_CURR_USER);
+      await importTemplateDatasetPersistTest(template);
 
       let record = {
         record_uuid: "r1",
@@ -879,7 +876,7 @@ describe("records", () => {
           }]
         }]
       };
-      await importRecordsTest([record], Helper.DEF_CURR_USER);
+      await importRecordsTest([record]);
     });
 
     test("field has options to pick from. Can pick nested or non-nested option, or both, or none", async () => {
@@ -908,7 +905,7 @@ describe("records", () => {
           }
         ]
       };
-      await importTemplateDatasetPersistTest(template, Helper.DEF_CURR_USER);
+      await importTemplateDatasetPersistTest(template);
 
       let record = {
         record_uuid: "r1",
@@ -918,7 +915,7 @@ describe("records", () => {
           value: [{name: option_uuid_1, template_radio_option_uuid: option_uuid_1}]
         }]
       };
-      await importRecordsTest([record], Helper.DEF_CURR_USER);
+      await importRecordsTest([record]);
 
       record = {
         record_uuid: "r1",
@@ -928,7 +925,7 @@ describe("records", () => {
           value: [{name: option_uuid_2, template_radio_option_uuid: option_uuid_2}]
         }]
       };
-      await importRecordsTest([record], Helper.DEF_CURR_USER);
+      await importRecordsTest([record]);
 
       record = {
         record_uuid: "r1",
@@ -941,7 +938,7 @@ describe("records", () => {
           ]
         }]
       };
-      await importRecordsTest([record], Helper.DEF_CURR_USER);
+      await importRecordsTest([record]);
 
       record = {
         record_uuid: "r1",
@@ -950,7 +947,7 @@ describe("records", () => {
           field_uuid: field_uuid
         }]
       };
-      await importRecordsTest([record], Helper.DEF_CURR_USER);
+      await importRecordsTest([record]);
     });
 
     test("import multiple records at once", async () => {
@@ -963,7 +960,7 @@ describe("records", () => {
         fields: [],
         related_databases: []
       };
-      await importTemplateDatasetPersistTest(template, Helper.DEF_CURR_USER);
+      await importTemplateDatasetPersistTest(template);
 
       let records = [
         {
@@ -979,7 +976,7 @@ describe("records", () => {
           records: []
         } 
       ];
-      await importRecordsTest(records, Helper.DEF_CURR_USER);
+      await importRecordsTest(records);
     });
 
     test("If dataset/record doesn't supply a related_dataset for a related_template, we provide one", async () => {
@@ -1000,7 +997,7 @@ describe("records", () => {
           name: "sasuke"
         }]
       };
-      await importTemplateDatasetPersistTest(template, Helper.DEF_CURR_USER);
+      await importTemplateDatasetPersistTest(template);
 
       let record = {
         record_uuid: "r1",
@@ -1013,7 +1010,7 @@ describe("records", () => {
         ],
         records: []
       };
-      await importRecordsTest([record], Helper.DEF_CURR_USER);
+      await importRecordsTest([record]);
     });
 
     test("includes subscribed template", async () => {
@@ -1033,7 +1030,7 @@ describe("records", () => {
           name, description, updated_at
         }]
       };
-      await importTemplateDatasetPersistTest(template, Helper.DEF_CURR_USER);
+      await importTemplateDatasetPersistTest(template);
 
       let record = {
         record_uuid: "r1",
@@ -1044,7 +1041,7 @@ describe("records", () => {
           records: []
         }]
       };
-      await importRecordsTest([record], Helper.DEF_CURR_USER);
+      await importRecordsTest([record]);
     });
 
     test("import records with links to records we only have view permissions to", async () => {
@@ -1057,16 +1054,21 @@ describe("records", () => {
         template_uuid: related_template_uuid, 
         name, description, updated_at
       };
+
+      await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+
       let new_related_template, new_related_dataset;
-      [new_related_template, new_related_dataset] = await importTemplateDatasetPersistTest(related_template, Helper.USER_2);
-      await Helper.testAndExtract(Helper.updatePermissionGroup, Helper.USER_2, new_related_template.uuid, PERMISSION_VIEW, [Helper.DEF_CURR_USER]);
-      await Helper.testAndExtract(Helper.updatePermissionGroup, Helper.USER_2, new_related_dataset.uuid, PERMISSION_VIEW, [Helper.DEF_CURR_USER]);
+      [new_related_template, new_related_dataset] = await importTemplateDatasetPersistTest(related_template);
+      await Helper.testAndExtract(Helper.updatePermissionGroup, new_related_template.uuid, PERMISSION_VIEW, [Helper.DEF_EMAIL]);
+      await Helper.testAndExtract(Helper.updatePermissionGroup, new_related_dataset.uuid, PERMISSION_VIEW, [Helper.DEF_EMAIL]);
 
       let related_record = {
         record_uuid: "r1.1", 
         database_uuid: related_template_uuid
       };
-      await importRecordsPersistTest([related_record], Helper.USER_2);
+      await importRecordsPersistTest([related_record]);
+
+      await Helper.setAgent(agent1);
 
       let template_uuid = "t1";
       let template = {
@@ -1077,7 +1079,7 @@ describe("records", () => {
           name, description, updated_at
         }]
       };
-      await importTemplateDatasetPersistTest(template, Helper.DEF_CURR_USER);
+      await importTemplateDatasetPersistTest(template);
 
       let record = {
         record_uuid: "r1",
@@ -1085,7 +1087,7 @@ describe("records", () => {
         records: [related_record]
       };
 
-      await importRecordsPersistTest([record], Helper.DEF_CURR_USER);
+      await importRecordsPersistTest([record]);
 
     });
 
@@ -1120,7 +1122,7 @@ describe("records", () => {
             fieldtype: "File"
           }]
         };
-        await importTemplateDatasetPersistTest(template, Helper.DEF_CURR_USER);
+        await importTemplateDatasetPersistTest(template);
   
         let record = {
           record_uuid: "r1",
@@ -1134,7 +1136,7 @@ describe("records", () => {
             }]
           }]
         };
-        await importRecordsPersistTest([record], Helper.DEF_CURR_USER);
+        await importRecordsPersistTest([record]);
   
       });
   
@@ -1168,7 +1170,7 @@ describe("records", () => {
             }
           ]
         }
-        await importTemplateDatasetPersistTest(template, Helper.DEF_CURR_USER);
+        await importTemplateDatasetPersistTest(template);
   
         let recordA = {
           record_uuid: "ra",
@@ -1198,7 +1200,7 @@ describe("records", () => {
             }
           ]
         };
-        await importRecordsPersistTest([record], Helper.DEF_CURR_USER);
+        await importRecordsPersistTest([record]);
       });
 
       test("record includes a couple image urls", async () => {
@@ -1223,7 +1225,7 @@ describe("records", () => {
             fieldtype: "File"
           }]
         };
-        await importTemplateDatasetPersistTest(template, Helper.DEF_CURR_USER);
+        await importTemplateDatasetPersistTest(template);
   
         let record = {
           record_uuid: "r1",
@@ -1244,7 +1246,7 @@ describe("records", () => {
             ]
           }]
         };
-        await importRecordsPersistTest([record], Helper.DEF_CURR_USER);
+        await importRecordsPersistTest([record]);
   
       });
 
@@ -1258,30 +1260,34 @@ describe("records", () => {
     let raw_template = fs.readFileSync(__dirname + '/test_data/chemin_template.json');
     let old_template = JSON.parse(raw_template);
   
-    await importTemplateDatasetPersistTest(old_template, Helper.DEF_CURR_USER);
+    await importTemplateDatasetPersistTest(old_template);
 
     let raw_records = fs.readFileSync(__dirname + '/test_data/chemin_data.json');
     let old_records = JSON.parse(raw_records).records;
 
     // We can't test persisting this also because the download links don't work
-    await importRecordsTest(old_records, Helper.DEF_CURR_USER, false);
+    await importRecordsTest(old_records, false);
   });
 
   test("with rruff data", async () => {
     // The rruff data has an isLink, which is the imalist. In the new system, isLink means only view permissions
     // So import the imalist with user 2, then give user 1 permissions, then import the rest with user 1
 
+    let agent2 = await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+
     let rruff_imalist_template_raw_data = fs.readFileSync(__dirname + '/test_data/rruff_imalist_template.json');
     let imalist_template = JSON.parse(rruff_imalist_template_raw_data);
     let ima_list_template, ima_list_dataset;
-    [ima_list_template, ima_list_dataset] = await importTemplateDatasetPersistTest(imalist_template, Helper.USER_2);
+    [ima_list_template, ima_list_dataset] = await importTemplateDatasetPersistTest(imalist_template);
 
-    await Helper.testAndExtract(Helper.updatePermissionGroup, Helper.USER_2, ima_list_template.uuid, PERMISSION_VIEW, [Helper.DEF_CURR_USER]);
-    await Helper.testAndExtract(Helper.updatePermissionGroup, Helper.USER_2, ima_list_dataset.uuid, PERMISSION_VIEW, [Helper.DEF_CURR_USER]);
+    await Helper.testAndExtract(Helper.updatePermissionGroup, ima_list_template.uuid, PERMISSION_VIEW, [Helper.DEF_EMAIL]);
+    await Helper.testAndExtract(Helper.updatePermissionGroup, ima_list_dataset.uuid, PERMISSION_VIEW, [Helper.DEF_EMAIL]);
+
+    await Helper.setAgent(agent1);
 
     let raw_template = fs.readFileSync(__dirname + '/test_data/rruff_sample_template.json');
     let old_template = JSON.parse(raw_template);
-    await importTemplateDatasetPersistTest(old_template, Helper.DEF_CURR_USER);
+    await importTemplateDatasetPersistTest(old_template);
 
   
     let raw_records = fs.readFileSync(__dirname + '/test_data/rruff_samples.json');
@@ -1290,21 +1296,24 @@ describe("records", () => {
     // 42 records. 169 MB with files and images. Can do the whole test at once, no problem
     let records_to_test = old_records;
     let imalist_records = extractRecordsWithDatabaseUuidfromRecords(records_to_test, "f6a700e9d45f0884c1514ec6c538");
-    await importRecordsPersistTest(imalist_records, Helper.USER_2);
-    await importRecordsPersistTest(records_to_test, Helper.DEF_CURR_USER);
-    console.log('Check total MB of files')
+
+    await Helper.setAgent(agent2);
+    await importRecordsPersistTest(imalist_records);
+
+    await Helper.setAgent(agent1);
+    await importRecordsPersistTest(records_to_test);
   });
 
   describe("failure", () => {
 
-    const failureTest = async (records, curr_user, responseCode) => {
-      let response = await importRecords(records, curr_user);
+    const failureTest = async (records, responseCode) => {
+      let response = await Helper.importRecords(records);
       expect(response.statusCode).toBe(responseCode);
     };
 
     test("Input must be a list", async () => {
       let records = {};
-      await failureTest(records, Helper.DEF_CURR_USER, 400);
+      await failureTest(records, 400);
     });
 
     test("Record must include a database_uuid and a record_uuid, which are strings", async () => {
@@ -1317,21 +1326,21 @@ describe("records", () => {
         fields: [],
         related_databases: []
       };
-      await importTemplateDatasetPersistTest(template, Helper.DEF_CURR_USER);
+      await importTemplateDatasetPersistTest(template);
 
       let record = {
         database_uuid: template_uuid,
         fields: [],
         records: []
       };
-      await failureTest([record], Helper.DEF_CURR_USER, 400);
+      await failureTest([record], 400);
 
       record = {
         record_uuid: "r1",
         fields: [],
         records: []
       };
-      await failureTest([record], Helper.DEF_CURR_USER, 400);
+      await failureTest([record], 400);
 
     });
 
@@ -1344,7 +1353,7 @@ describe("records", () => {
         fields: [],
         records: []
       };
-      await failureTest([record], Helper.DEF_CURR_USER, 400);
+      await failureTest([record], 400);
     });
 
     test("Database/record format must match the format of the template", async () => {
@@ -1365,7 +1374,7 @@ describe("records", () => {
           name: "sasuke"
         }]
       };
-      await importTemplateDatasetPersistTest(template, Helper.DEF_CURR_USER);
+      await importTemplateDatasetPersistTest(template);
 
       let record = {
         record_uuid: "r1",
@@ -1385,7 +1394,7 @@ describe("records", () => {
           database_uuid: related_template_uuid
         }]
       };
-      await failureTest([record], Helper.DEF_CURR_USER, 400);
+      await failureTest([record], 400);
 
       record = {
         record_uuid: "r1",
@@ -1407,7 +1416,7 @@ describe("records", () => {
           }
         ]
       };
-      await failureTest([record], Helper.DEF_CURR_USER, 400);
+      await failureTest([record], 400);
     });
 
     test("field has options to pick from. Option picked must be valid", async () => {
@@ -1436,7 +1445,7 @@ describe("records", () => {
           }
         ]
       };
-      await importTemplateDatasetPersistTest(template, Helper.DEF_CURR_USER);
+      await importTemplateDatasetPersistTest(template);
 
       let record = {
         record_uuid: "r1",
@@ -1446,7 +1455,7 @@ describe("records", () => {
           value: [{template_radio_option_uuid: "invalid"}]
         }]
       };
-      await failureTest([record], Helper.DEF_CURR_USER, 400);
+      await failureTest([record], 400);
 
       record = {
         record_uuid: "r1",
@@ -1456,7 +1465,7 @@ describe("records", () => {
           value: [{template_radio_option_uuid: option_uuid_2}, {template_radio_option_uuid: "invalid"}]
         }]
       };
-      await failureTest([record], Helper.DEF_CURR_USER, 400);
+      await failureTest([record], 400);
     });
 
   });

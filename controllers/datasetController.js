@@ -5,7 +5,7 @@ const Util = require('../lib/util');
 
 exports.draft_get = async function(req, res, next) {
   try {
-    let dataset = await DatasetModel.draftGet(req.params.uuid, req.cookies.user);
+    let dataset = await DatasetModel.draftGet(req.params.uuid, req.user._id);
     if(dataset) {
       res.json(dataset);
     } else {
@@ -18,7 +18,7 @@ exports.draft_get = async function(req, res, next) {
 
 exports.get_latest_persisted = async function(req, res, next) {
   try {
-    let dataset = await DatasetModel.latestPersisted(req.params.uuid, req.cookies.user);
+    let dataset = await DatasetModel.latestPersisted(req.params.uuid, req.user._id);
     res.json(dataset);
   } catch(err) {
     next(err);
@@ -27,7 +27,7 @@ exports.get_latest_persisted = async function(req, res, next) {
 
 exports.get_persisted_before_timestamp = async function(req, res, next) {
   try {
-    let dataset = await DatasetModel.persistedBeforeDate(req.params.uuid, new Date(req.params.timestamp), req.cookies.user);
+    let dataset = await DatasetModel.persistedBeforeDate(req.params.uuid, new Date(req.params.timestamp), req.user._id);
     res.json(dataset);
   } catch(err) {
     next(err);
@@ -38,7 +38,7 @@ exports.create = async function(req, res, next) {
   try {
     // TODO: when users are implemented, replace the cookie user with the session user
     // Also for all modification endpoints, verify that there is a logged-in user before continuing
-    let inserted_uuid = await DatasetModel.create(req.body, req.cookies.user);
+    let inserted_uuid = await DatasetModel.create(req.body, req.user._id);
     res.json({inserted_uuid});
   } catch(err) {
     next(err);
@@ -50,7 +50,7 @@ exports.update = async function(req, res, next) {
     if(!Util.objectContainsUUID(req.body, req.params.uuid)) {
       throw new Util.InputError(`UUID provided and the body uuid do not match.`)
     }
-    await DatasetModel.update(req.body, req.cookies.user);
+    await DatasetModel.update(req.body, req.user._id);
     res.sendStatus(200);
   } catch(err) {
     next(err);
@@ -60,7 +60,7 @@ exports.update = async function(req, res, next) {
 exports.persist = async function(req, res, next) {
   try {
     if(Date.parse(req.body.last_update)) {
-      await DatasetModel.persist(req.params.uuid, req.cookies.user, new Date(req.body.last_update));
+      await DatasetModel.persist(req.params.uuid, req.user._id, new Date(req.body.last_update));
     } else {
       throw new Util.InputError(`last_update provided as parameter is not in valid date format: ${req.body.last_update}`);
     }
@@ -72,7 +72,7 @@ exports.persist = async function(req, res, next) {
 
 exports.draft_delete = async function(req, res, next) {
   try {
-    await DatasetModel.draftDelete(req.params.uuid, req.cookies.user);
+    await DatasetModel.draftDelete(req.params.uuid, req.user._id);
   } catch(err) {
     return next(err);
   }
@@ -82,7 +82,7 @@ exports.draft_delete = async function(req, res, next) {
 exports.get_last_update = async function(req, res, next) {
   var last_update;
   try {
-    last_update = await DatasetModel.lastUpdate(req.params.uuid, req.cookies.user);
+    last_update = await DatasetModel.lastUpdate(req.params.uuid, req.user._id);
   } catch(err) {
     return next(err);
   }
@@ -101,7 +101,7 @@ exports.draft_existing = async function(req, res, next) {
 
 exports.duplicate = async function(req, res, next) {
   try {
-    let new_dataset = await DatasetModel.duplicate(req.params.uuid, req.cookies.user);
+    let new_dataset = await DatasetModel.duplicate(req.params.uuid, req.user._id);
     res.json(new_dataset);
   } catch(err) {
     next(err);
@@ -110,7 +110,7 @@ exports.duplicate = async function(req, res, next) {
 
 exports.new_dataset_for_template = async function(req, res, next) {
   try {
-    let new_dataset = await DatasetModel.newDatasetForTemplate(req.params.uuid, req.cookies.user);
+    let new_dataset = await DatasetModel.newDatasetForTemplate(req.params.uuid, req.user._id);
     res.json(new_dataset);
   } catch(err) {
     next(err);
@@ -123,7 +123,7 @@ exports.publish = async function(req, res, next) {
     if(!name || typeof(name) !== 'string') {
       throw new Util.InputError('Must provide a valid name for your published dataset version');
     }
-    await DatasetPublishModel.publish(req.params.uuid, name, req.cookies.user);
+    await DatasetPublishModel.publish(req.params.uuid, name, req.user._id);
     res.sendStatus(200);
   } catch(err) {
     next(err);
@@ -142,7 +142,7 @@ exports.published = async function(req, res, next) {
       throw new Util.NotFoundError();
     }
     // Use timestamp to get latest persisted dataset
-    let dataset = await DatasetModel.persistedBeforeDate(req.params.uuid, time, req.cookies.user);
+    let dataset = await DatasetModel.persistedBeforeDate(req.params.uuid, time, req.user._id);
     res.json(dataset);
   } catch(err) {
     next(err);

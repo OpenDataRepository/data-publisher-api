@@ -24,11 +24,6 @@ const get_test_unprotected_route = async () => {
     .get(`/user/test-unprotected-route`);
 };
 
-const get_test_protected_route = async () => {
-  return await agent
-    .get(`/user/test-protected-route`);
-};
-
 const register = async (email, password) => {
   return await agent
     .post(`/user/register`)
@@ -76,13 +71,13 @@ describe("normal login process", () => {
 
   test("After logging in, can access the protected route", async () => {
     // register
-    await Helper.testAndExtract(register, Helper.VALID_EMAIL, "waffle");
+    await Helper.testAndExtract(register, Helper.DEF_EMAIL, "waffle");
 
     let response = await get();
     expect(response.statusCode).toBe(401);
 
     // login and get the cookie back
-    await Helper.testAndExtract(login, Helper.VALID_EMAIL, "waffle");
+    await Helper.testAndExtract(login, Helper.DEF_EMAIL, "waffle");
 
     // get protected route (with session cookie)
     await Helper.testAndExtract(get);
@@ -112,9 +107,9 @@ describe("register", () => {
     });
   
     test("email must be unique", async () => {
-      await Helper.testAndExtract(register, Helper.VALID_EMAIL, "waffle");
+      await Helper.testAndExtract(register, Helper.DEF_EMAIL, "waffle");
   
-      let response = await register(Helper.VALID_EMAIL, "waffle");
+      let response = await register(Helper.DEF_EMAIL, "waffle");
       expect(response.statusCode).toBe(400);
     });
 
@@ -125,21 +120,21 @@ describe("register", () => {
 describe("delete", () => {
 
   test("normal", async () => {
-    await Helper.testAndExtract(register, Helper.VALID_EMAIL, "waffle");
-    await Helper.testAndExtract(login, Helper.VALID_EMAIL, "waffle");
+    await Helper.testAndExtract(register, Helper.DEF_EMAIL, "waffle");
+    await Helper.testAndExtract(login, Helper.DEF_EMAIL, "waffle");
     await Helper.testAndExtract(userDelete, "waffle");
-    let response = await login(Helper.VALID_EMAIL, "waffle");
+    let response = await login(Helper.DEF_EMAIL, "waffle");
     expect(response.statusCode).toBe(400);
   });
 
   test("must be logged in", async () => {
     let response = await userDelete();
-    expect(response.statusCode).toBe(400);
+    expect(response.statusCode).toBe(401);
   });
 
   test("must provide correct password", async () => {
-    await Helper.testAndExtract(register, Helper.VALID_EMAIL, "waffle");
-    await Helper.testAndExtract(login, Helper.VALID_EMAIL, "waffle");
+    await Helper.testAndExtract(register, Helper.DEF_EMAIL, "waffle");
+    await Helper.testAndExtract(login, Helper.DEF_EMAIL, "waffle");
     let response = await userDelete("wrong password");
     expect(response.statusCode).toBe(400);
   });
@@ -151,8 +146,8 @@ describe("update (and get)", () => {
   describe("success", () => {
 
     test("first name and last name", async () => {
-      await Helper.testAndExtract(register, Helper.VALID_EMAIL, "waffle");
-      await Helper.testAndExtract(login, Helper.VALID_EMAIL, "waffle");
+      await Helper.testAndExtract(register, Helper.DEF_EMAIL, "waffle");
+      await Helper.testAndExtract(login, Helper.DEF_EMAIL, "waffle");
       
       let update_properties = {
         first_name: "naruto",
@@ -161,15 +156,15 @@ describe("update (and get)", () => {
       await Helper.testAndExtract(update, update_properties, "waffle");
 
       let user = await Helper.testAndExtract(get);
-      expect(user.email).toEqual(Helper.VALID_EMAIL);
+      expect(user.email).toEqual(Helper.DEF_EMAIL);
       expect(user.first_name).toEqual("naruto");
       expect(user.last_name).toEqual("uzumaki");
 
     });
 
     test("password", async () => {
-      await Helper.testAndExtract(register, Helper.VALID_EMAIL, "waffle");
-      await Helper.testAndExtract(login, Helper.VALID_EMAIL, "waffle");
+      await Helper.testAndExtract(register, Helper.DEF_EMAIL, "waffle");
+      await Helper.testAndExtract(login, Helper.DEF_EMAIL, "waffle");
       
       let update_properties = {
         new_password: "pie",
@@ -178,9 +173,9 @@ describe("update (and get)", () => {
       await Helper.testAndExtract(update, update_properties, "waffle");
 
       await Helper.testAndExtract(logout);
-      let response = await login(Helper.VALID_EMAIL, "waffle");
+      let response = await login(Helper.DEF_EMAIL, "waffle");
       expect(response.statusCode).toBe(400);
-      await Helper.testAndExtract(login, Helper.VALID_EMAIL, "pie");
+      await Helper.testAndExtract(login, Helper.DEF_EMAIL, "pie");
     });
 
   });
@@ -188,8 +183,8 @@ describe("update (and get)", () => {
   describe("failure", () => {
 
     test("must provide correct password to authorize account changes", async () => {
-      await Helper.testAndExtract(register, Helper.VALID_EMAIL, "waffle");
-      await Helper.testAndExtract(login, Helper.VALID_EMAIL, "waffle");
+      await Helper.testAndExtract(register, Helper.DEF_EMAIL, "waffle");
+      await Helper.testAndExtract(login, Helper.DEF_EMAIL, "waffle");
       
       let update_properties = {
         first_name: "naruto",
@@ -200,8 +195,8 @@ describe("update (and get)", () => {
     });
 
     test("new_password_confirmation must match new_password", async () => {
-      await Helper.testAndExtract(register, Helper.VALID_EMAIL, "waffle");
-      await Helper.testAndExtract(login, Helper.VALID_EMAIL, "waffle");
+      await Helper.testAndExtract(register, Helper.DEF_EMAIL, "waffle");
+      await Helper.testAndExtract(login, Helper.DEF_EMAIL, "waffle");
       
       let update_properties = {
         new_password: "honey-pie",

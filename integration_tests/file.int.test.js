@@ -1,4 +1,3 @@
-const request = require("supertest");
 const fs = require('fs');
 const fsPromises = fs.promises;
 const path = require('path');
@@ -10,6 +9,7 @@ var Helper = new HelperClass(app);
 
 var server;
 var serverUrl;
+var agent1;
 
 beforeAll(async () => {
   await appInit();
@@ -20,6 +20,7 @@ beforeEach(async() => {
   await Helper.clearDatabase();
   Helper.clearFilesAtPath(Helper.dynamicTestFilesPath);
   Helper.clearFilesAtPath(Helper.uploadsDirectoryPath);
+  agent1 = await Helper.createAgentRegisterLogin(Helper.DEF_EMAIL, Helper.DEF_PASSWORD);
 });
 
 afterAll(async () => {
@@ -38,12 +39,12 @@ const basicRecordSetup = async () => {
       type: FieldTypes.File
     }]
   };
-  template = await Helper.templateCreatePersistTest(template, Helper.DEF_CURR_USER);
+  template = await Helper.templateCreatePersistTest(template);
 
   let dataset = {
     template_id: template._id
   };
-  dataset = await Helper.datasetCreatePersistTest(dataset, Helper.DEF_CURR_USER);
+  dataset = await Helper.datasetCreatePersistTest(dataset);
 
   let record = {
     dataset_uuid: dataset.uuid,
@@ -54,7 +55,7 @@ const basicRecordSetup = async () => {
       }
     }]
   }
-  record = await Helper.recordCreateAndTest(record, Helper.DEF_CURR_USER);
+  record = await Helper.recordCreateAndTest(record);
   let file_uuid = record.fields[0].file.uuid;
 
   return [template, dataset, record, file_uuid];
@@ -77,9 +78,9 @@ describe("success", () => {
     let file_name, originalFileContents 
     [file_name, originalFileContents] = basicFileSetup();
   
-    await Helper.testAndExtract(Helper.uploadFileDirect, uuid, file_name, Helper.DEF_CURR_USER);
+    await Helper.testAndExtract(Helper.uploadFileDirect, uuid, file_name);
   
-    let response = await Helper.getFile(uuid, Helper.DEF_CURR_USER);
+    let response = await Helper.getFile(uuid);
     expect(response.statusCode).toBe(200);
     let newFileBuffer = response.body;
     let newFileContents = newFileBuffer.toString();
@@ -96,9 +97,9 @@ describe("success", () => {
     await fsPromises.copyFile(old_file_path, new_file_path);
     let raw_data = fs.readFileSync(new_file_path);
   
-    await Helper.testAndExtract(Helper.uploadFileDirect, uuid, file_name, Helper.DEF_CURR_USER);
+    await Helper.testAndExtract(Helper.uploadFileDirect, uuid, file_name);
   
-    let response = await Helper.getFile(uuid, Helper.DEF_CURR_USER);
+    let response = await Helper.getFile(uuid);
     expect(response.statusCode).toBe(200);
     let newFileBuffer = response.body;
     expect(newFileBuffer).toEqual(raw_data);
@@ -113,10 +114,10 @@ describe("success", () => {
     [_, _, _, uuid] = await basicRecordSetup();
   
     let url = serverUrl + file_name;
-    let response = await Helper.uploadFileFromUrl(uuid, url, Helper.DEF_CURR_USER);
+    let response = await Helper.uploadFileFromUrl(uuid, url);
     expect(response.statusCode).toBe(200);
   
-    response = await Helper.getFile(uuid, Helper.DEF_CURR_USER);
+    response = await Helper.getFile(uuid);
     expect(response.statusCode).toBe(200);
     let newFileBuffer = response.body;
     let newFileContents = newFileBuffer.toString();
@@ -134,10 +135,10 @@ describe("success", () => {
     let raw_data = fs.readFileSync(new_file_path);
   
     let url = serverUrl + file_name;
-    let response = await Helper.uploadFileFromUrl(uuid, url, Helper.DEF_CURR_USER);
+    let response = await Helper.uploadFileFromUrl(uuid, url);
     expect(response.statusCode).toBe(200);
   
-    response = await Helper.getFile(uuid, Helper.DEF_CURR_USER);
+    response = await Helper.getFile(uuid);
     expect(response.statusCode).toBe(200);
     let newFileBuffer = response.body;
     expect(newFileBuffer).toEqual(raw_data);
@@ -150,14 +151,14 @@ describe("failure", () => {
   test("file with uuid does not exist", async () => {
     let file_name 
     [file_name, _] = basicFileSetup();
-    let response = await Helper.uploadFileDirect(Helper.VALID_UUID, file_name, Helper.DEF_CURR_USER);
+    let response = await Helper.uploadFileDirect(Helper.VALID_UUID, file_name);
     expect(response.statusCode).toBe(404);
 
     let url = serverUrl + "toUpload.txt";
-    response = await Helper.uploadFileFromUrl(Helper.VALID_UUID, url, Helper.DEF_CURR_USER);
+    response = await Helper.uploadFileFromUrl(Helper.VALID_UUID, url);
     expect(response.statusCode).toBe(404);
 
-    response = await Helper.getFile(Helper.VALID_UUID, Helper.DEF_CURR_USER);
+    response = await Helper.getFile(Helper.VALID_UUID);
     expect(response.statusCode).toBe(404);
   });
 
@@ -165,16 +166,18 @@ describe("failure", () => {
     let uuid;
     [_, _, _, uuid] = await basicRecordSetup();
 
+    await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+
     let file_name; 
     [file_name, _] = basicFileSetup();
-    let response = await Helper.uploadFileDirect(uuid, file_name, Helper.USER_2);
+    let response = await Helper.uploadFileDirect(uuid, file_name);
     expect(response.statusCode).toBe(401);
 
     let url = serverUrl + "toUpload.txt";
-    response = await Helper.uploadFileFromUrl(uuid, url, Helper.USER_2);
+    response = await Helper.uploadFileFromUrl(uuid, url);
     expect(response.statusCode).toBe(401);
 
-    response = await Helper.getFile(uuid, Helper.USER_2);
+    response = await Helper.getFile(uuid);
     expect(response.statusCode).toBe(401);
   });
 
@@ -183,7 +186,7 @@ describe("failure", () => {
     [_, _, _, uuid] = await basicRecordSetup();
 
     let url = serverUrl + "toUpload.txt";
-    response = await Helper.uploadFileFromUrl(uuid, url, Helper.DEF_CURR_USER);
+    response = await Helper.uploadFileFromUrl(uuid, url);
     expect(response.statusCode).toBe(400);
   });
 
@@ -191,7 +194,7 @@ describe("failure", () => {
     let uuid;
     [_, _, _, uuid] = await basicRecordSetup();
 
-    response = await Helper.getFile(uuid, Helper.DEF_CURR_USER);
+    response = await Helper.getFile(uuid);
     expect(response.statusCode).toBe(404);
   });
   

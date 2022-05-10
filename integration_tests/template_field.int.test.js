@@ -1,9 +1,10 @@
-const request = require("supertest");
 var { app, init: appInit, close: appClose } = require('../app');
 var { PERMISSION_ADMIN, PERMISSION_EDIT, PERMISSION_VIEW } = require('../models/permission_group');
 const FieldTypes = require('../models/template_field').FieldTypes;
 var HelperClass = require('./common_test_operations')
 var Helper = new HelperClass(app);
+
+var agent1;
 
 beforeAll(async () => {
   await appInit();
@@ -11,6 +12,7 @@ beforeAll(async () => {
 
 beforeEach(async() => {
   await Helper.clearDatabase();
+  agent1 = await Helper.createAgentRegisterLogin(Helper.DEF_EMAIL, Helper.DEF_PASSWORD);
 });
 
 afterAll(async () => {
@@ -27,10 +29,10 @@ describe("create (and get draft after a create)", () => {
         type: FieldTypes.File,
         public_date: (new Date()).toISOString(),
       };
-      let uuid = await Helper.templateFieldCreateAndTest(data, Helper.DEF_CURR_USER);
+      let uuid = await Helper.templateFieldCreateAndTest(data);
   
       // Now test that all permission groups were created successfully
-      await Helper.testPermissionGroupsInitializedFor(uuid, Helper.DEF_CURR_USER);
+      await Helper.testPermissionGroupsInitializedFor(uuid);
   
     });
 
@@ -50,7 +52,7 @@ describe("create (and get draft after a create)", () => {
           }
         ]
       };
-      await Helper.templateFieldCreateAndTest(data, Helper.DEF_CURR_USER);
+      await Helper.templateFieldCreateAndTest(data);
     });
 
     test("with radio options multi-dimensional", async () => {
@@ -97,14 +99,14 @@ describe("create (and get draft after a create)", () => {
           }
         ]
       };
-      await Helper.templateFieldCreateAndTest(data, Helper.DEF_CURR_USER);
+      await Helper.templateFieldCreateAndTest(data);
     });
   });
 
   describe("failure cases", () => {
 
     const failureTest = async (data, responseCode) => {
-      let response = await Helper.templateFieldCreate(data, Helper.DEF_CURR_USER);
+      let response = await Helper.templateFieldCreate(data);
       expect(response.statusCode).toBe(responseCode);
     };
   
@@ -149,22 +151,22 @@ describe("create (and get draft after a create)", () => {
         options: "must be array"
       };
       // radio options must be an array
-      let response = await Helper.templateFieldCreate(data, Helper.DEF_CURR_USER);
+      let response = await Helper.templateFieldCreate(data);
       expect(response.statusCode).toBe(400);
 
       // radio options must contain objects
       data.options = ["elements must be objects"];
-      response = await Helper.templateFieldCreate(data, Helper.DEF_CURR_USER);
+      response = await Helper.templateFieldCreate(data);
       expect(response.statusCode).toBe(400);
 
       // each radio option must have a name
       data.options = [{}];
-      response = await Helper.templateFieldCreate(data, Helper.DEF_CURR_USER);
+      response = await Helper.templateFieldCreate(data);
       expect(response.statusCode).toBe(400);
 
       // each radio option name must be a string
       data.options = [{name: 6}];
-      response = await Helper.templateFieldCreate(data, Helper.DEF_CURR_USER);
+      response = await Helper.templateFieldCreate(data);
       expect(response.statusCode).toBe(400);
 
     });
@@ -182,7 +184,7 @@ describe("update (and get draft after an update)", () => {
       "name": "field",
       "description": "description"
     };
-    template_field.uuid = await Helper.templateFieldCreateAndTest(template_field, Helper.DEF_CURR_USER);
+    template_field.uuid = await Helper.templateFieldCreateAndTest(template_field);
   });
 
   describe("success cases", () => {
@@ -194,12 +196,10 @@ describe("update (and get draft after an update)", () => {
         public_date: (new Date()).toISOString()
       };
 
-      let response = await Helper.templateFieldUpdate(template_field.uuid, data, Helper.DEF_CURR_USER);
-      expect(response.statusCode).toBe(200);
+      await Helper.testAndExtract(Helper.templateFieldUpdate, template_field.uuid, data);
     
-      response = await Helper.templateFieldDraftGet(template_field.uuid, Helper.DEF_CURR_USER);
-      expect(response.statusCode).toBe(200);
-      expect(response.body).toMatchObject(data);
+      let new_draft = await Helper.testAndExtract(Helper.templateFieldDraftGet, template_field.uuid);
+      expect(new_draft).toMatchObject(data);
 
     });
 
@@ -215,16 +215,14 @@ describe("update (and get draft after an update)", () => {
           name: "sakura"
         }
       ];
-      await Helper.templateFieldUpdateAndTest(template_field, Helper.DEF_CURR_USER);
+      await Helper.templateFieldUpdateAndTest(template_field);
 
-      let response = await Helper.templateFieldDraftGet(template_field.uuid, Helper.DEF_CURR_USER);
-      expect(response.statusCode).toBe(200);
-      template_field = response.body;
+      template_field = await Helper.testAndExtract(Helper.templateFieldDraftGet, template_field.uuid);
 
       template_field.options.push({
         name: "caleb"
       });
-      await Helper.templateFieldUpdateAndTest(template_field, Helper.DEF_CURR_USER);
+      await Helper.templateFieldUpdateAndTest(template_field);
 
     });
 
@@ -272,16 +270,14 @@ describe("update (and get draft after an update)", () => {
           }
         ]
       };
-      let uuid = await Helper.templateFieldCreateAndTest(template_field, Helper.DEF_CURR_USER);
+      let uuid = await Helper.templateFieldCreateAndTest(template_field);
 
-      let response = await Helper.templateFieldDraftGet(uuid, Helper.DEF_CURR_USER);
-      expect(response.statusCode).toBe(200);
-      template_field = response.body;
+      template_field = await Helper.testAndExtract(Helper.templateFieldDraftGet, uuid);
 
       template_field.options.push({
         name: "caleb"
       });
-      await Helper.templateFieldUpdateAndTest(template_field, Helper.DEF_CURR_USER);
+      await Helper.templateFieldUpdateAndTest(template_field);
 
     });
   });
@@ -294,7 +290,7 @@ describe("update (and get draft after an update)", () => {
         "name": "name"
       };
 
-      let response = await Helper.templateFieldUpdate(template_field.uuid, data, Helper.DEF_CURR_USER);
+      let response = await Helper.templateFieldUpdate(template_field.uuid, data);
       expect(response.statusCode).toBe(400);
 
     })
@@ -306,7 +302,7 @@ describe("update (and get draft after an update)", () => {
         "name": "name"
       };
 
-      let response = await Helper.templateFieldUpdate(Helper.VALID_UUID, data, Helper.DEF_CURR_USER);
+      let response = await Helper.templateFieldUpdate(Helper.VALID_UUID, data);
       expect(response.statusCode).toBe(404);
 
     })
@@ -317,6 +313,8 @@ describe("update (and get draft after an update)", () => {
         "uuid": template_field.uuid,
         "name": "different name"
       };
+
+      await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
   
       let response = await Helper.templateFieldUpdate(template_field.uuid, data);
       expect(response.statusCode).toBe(401);
@@ -327,19 +325,17 @@ describe("update (and get draft after an update)", () => {
         {name: "caleb"},
         {name: "naruto"}
       ];
-      await Helper.templateFieldUpdateAndTest(template_field, Helper.DEF_CURR_USER);
-      let response = await Helper.templateFieldDraftGet(template_field.uuid, Helper.DEF_CURR_USER);
-      expect(response.statusCode).toBe(200);
-      template_field = response.body;
+      await Helper.templateFieldUpdateAndTest(template_field);
+      template_field = await Helper.testAndExtract(Helper.templateFieldDraftGet, template_field.uuid);
 
       // radio options uuids supplied must exist
       template_field.options[0].uuid = Helper.VALID_UUID;
-      response = await Helper.templateFieldUpdate(template_field, Helper.DEF_CURR_USER);
+      response = await Helper.templateFieldUpdate(template_field.uuid, template_field);
       expect(response.statusCode).toBe(400);
 
       // radio options uuids supplied must exist
       template_field.options[0].uuid = template_field.options[1].uuid;
-      response = await Helper.templateFieldUpdate(template_field, Helper.DEF_CURR_USER);
+      response = await Helper.templateFieldUpdate(template_field.uuid, template_field);
       expect(response.statusCode).toBe(400);
 
     });
@@ -352,43 +348,43 @@ describe("update (and get draft after an update)", () => {
         description: "ninja",
         public_date: (new Date()).toISOString()
       };
-      field = await Helper.templateFieldCreatePersistTest(field, Helper.DEF_CURR_USER);
+      field = await Helper.templateFieldCreatePersistTest(field);
   
       // Check that a draft no longer exists after the persist
       expect(await Helper.templateFieldDraftExistingAndTest(field.uuid)).toBe(false);
   
       // Test name
       field.name = "caleb";
-      await Helper.templateFieldUpdateAndTest(field, Helper.DEF_CURR_USER);
+      await Helper.templateFieldUpdateAndTest(field);
       expect(await Helper.templateFieldDraftExistingAndTest(field.uuid)).toBe(true);
   
       field.name = "naruto";
-      await Helper.templateFieldDraftDeleteAndTest(field.uuid, Helper.DEF_CURR_USER);
+      await Helper.templateFieldDraftDeleteAndTest(field.uuid);
       expect(await Helper.templateFieldDraftExistingAndTest(field.uuid)).toBe(false);
   
       // Test description
       field.description = "toad";
-      await Helper.templateFieldUpdateAndTest(field, Helper.DEF_CURR_USER);
+      await Helper.templateFieldUpdateAndTest(field);
       expect(await Helper.templateFieldDraftExistingAndTest(field.uuid)).toBe(true);
   
       field.description = "ninja";
-      await Helper.templateFieldDraftDeleteAndTest(field.uuid, Helper.DEF_CURR_USER);
+      await Helper.templateFieldDraftDeleteAndTest(field.uuid);
       expect(await Helper.templateFieldDraftExistingAndTest(field.uuid)).toBe(false);
   
       // Test public_date
       field.public_date = (new Date()).toISOString();
-      await Helper.templateFieldUpdateAndTest(field, Helper.DEF_CURR_USER);
+      await Helper.templateFieldUpdateAndTest(field);
       expect(await Helper.templateFieldDraftExistingAndTest(field.uuid)).toBe(true);
   
-      await Helper.templateFieldDraftDeleteAndTest(field.uuid, Helper.DEF_CURR_USER);
+      await Helper.templateFieldDraftDeleteAndTest(field.uuid);
       expect(await Helper.templateFieldDraftExistingAndTest(field.uuid)).toBe(false);
 
       // Test type
       field.type = FieldTypes.File;
-      await Helper.templateFieldUpdateAndTest(field, Helper.DEF_CURR_USER);
+      await Helper.templateFieldUpdateAndTest(field);
       expect(await Helper.templateFieldDraftExistingAndTest(field.uuid)).toBe(true);
   
-      await Helper.templateFieldDraftDeleteAndTest(field.uuid, Helper.DEF_CURR_USER);
+      await Helper.templateFieldDraftDeleteAndTest(field.uuid);
       expect(await Helper.templateFieldDraftExistingAndTest(field.uuid)).toBe(false);
     });
   
@@ -397,14 +393,14 @@ describe("update (and get draft after an update)", () => {
         name: "naruto",
         options: [{name: "genin"}]
       };
-      field = await Helper.templateFieldCreatePersistTest(field, Helper.DEF_CURR_USER);
+      field = await Helper.templateFieldCreatePersistTest(field);
   
       field.options = [];
-      await Helper.templateFieldUpdateAndTest(field, Helper.DEF_CURR_USER);
+      await Helper.templateFieldUpdateAndTest(field);
       expect(await Helper.templateFieldDraftExistingAndTest(field.uuid)).toBe(true);
   
       field.options = [{name: "shonin"}];
-      await Helper.templateFieldUpdateAndTest(field, Helper.DEF_CURR_USER);
+      await Helper.templateFieldUpdateAndTest(field);
       expect(await Helper.templateFieldDraftExistingAndTest(field.uuid)).toBe(true);
   
       field.options = [
@@ -420,10 +416,10 @@ describe("update (and get draft after an update)", () => {
           ]
         }
       ];
-      field = await Helper.templateFieldUpdatePersistTest(field, Helper.DEF_CURR_USER);
+      field = await Helper.templateFieldUpdatePersistTest(field);
   
       // No changes from last one, a draft shouldn't be created
-      await Helper.templateFieldUpdateAndTest(field, Helper.DEF_CURR_USER);
+      await Helper.templateFieldUpdateAndTest(field);
       expect(await Helper.templateFieldDraftExistingAndTest(field.uuid)).toBe(false);
   
     });
@@ -438,7 +434,9 @@ describe("get draft", () => {
       description: "",
       public_date: (new Date()).toISOString(),
     };
-    let uuid = await Helper.templateFieldCreateAndTest(data, Helper.DEF_CURR_USER);
+    let uuid = await Helper.templateFieldCreateAndTest(data);
+
+    await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
 
     let response = await Helper.templateFieldDraftGet(uuid);
     expect(response.statusCode).toBe(401);    
@@ -452,7 +450,7 @@ describe("persist (and get persisted and draft after a persist)", () => {
     let field = {
       "name":"name"
     };
-    await Helper.templateFieldCreatePersistTest(field, Helper.DEF_CURR_USER);
+    await Helper.templateFieldCreatePersistTest(field);
 
   });
 
@@ -463,13 +461,11 @@ describe("persist (and get persisted and draft after a persist)", () => {
       let data = {
         "name":"name"
       };
-      let uuid = await Helper.templateFieldCreateAndTest(data, Helper.DEF_CURR_USER);
+      let uuid = await Helper.templateFieldCreateAndTest(data);
 
-      let response = await Helper.templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
-      expect(response.statusCode).toBe(200);
-      let last_update = response.body;
+      let last_update = await Helper.testAndExtract(Helper.templateFieldLastUpdate, uuid);
 
-      response = await Helper.templateFieldPersist(Helper.VALID_UUID, last_update, Helper.DEF_CURR_USER);
+      response = await Helper.templateFieldPersist(Helper.VALID_UUID, last_update);
       expect(response.statusCode).toBe(404);
 
     });
@@ -478,16 +474,16 @@ describe("persist (and get persisted and draft after a persist)", () => {
       let data = {
         "name":"name"
       };
-      let uuid = await Helper.templateFieldCreateAndTest(data, Helper.DEF_CURR_USER);
+      let uuid = await Helper.templateFieldCreateAndTest(data);
 
-      let response = await Helper.templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
+      let response = await Helper.templateFieldLastUpdate(uuid);
       expect(response.statusCode).toBe(200);
       let last_update = response.body;
 
-      response = await Helper.templateFieldPersist(uuid, last_update, Helper.DEF_CURR_USER);
+      response = await Helper.templateFieldPersist(uuid, last_update);
       expect(response.statusCode).toBe(200);
 
-      response = await Helper.templateFieldPersist(uuid, last_update, Helper.DEF_CURR_USER);
+      response = await Helper.templateFieldPersist(uuid, last_update);
       expect(response.statusCode).toBe(400);
     });
 
@@ -495,9 +491,9 @@ describe("persist (and get persisted and draft after a persist)", () => {
       let data = {
         "name":"basic template field"
       };
-      let uuid = await Helper.templateFieldCreateAndTest(data, Helper.DEF_CURR_USER);
+      let uuid = await Helper.templateFieldCreateAndTest(data);
 
-      let response = await Helper.templateFieldPersist(uuid, (new Date()).toISOString(), Helper.DEF_CURR_USER);
+      let response = await Helper.templateFieldPersist(uuid, (new Date()).toISOString());
       expect(response.statusCode).toBe(400);
     });
 
@@ -505,13 +501,13 @@ describe("persist (and get persisted and draft after a persist)", () => {
       let data = {
         "name":"name"
       };
-      let uuid = await Helper.templateFieldCreateAndTest(data, Helper.DEF_CURR_USER);
+      let uuid = await Helper.templateFieldCreateAndTest(data);
 
-      let response = await Helper.templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
-      expect(response.statusCode).toBe(200);
-      let last_update = response.body;
+      let last_update = await Helper.testAndExtract(Helper.templateFieldLastUpdate, uuid);
 
-      response = await Helper.templateFieldPersist(uuid, last_update, 'other');
+      await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+
+      response = await Helper.templateFieldPersist(uuid, last_update);
       expect(response.statusCode).toBe(401);
     });
 
@@ -589,7 +585,7 @@ describe("persist (and get persisted and draft after a persist)", () => {
 
 describe("get latest persisted", () => {
   test("must exist", async () => {
-    let response = await Helper.templateFieldLatestPersisted(Helper.VALID_UUID, Helper.DEF_CURR_USER);
+    let response = await Helper.templateFieldLatestPersisted(Helper.VALID_UUID);
     expect(response.statusCode).toBe(404);
   });
 
@@ -598,34 +594,31 @@ describe("get latest persisted", () => {
       "name":"name",
       public_date: (new Date()).toISOString()
     };
-    let uuid = await Helper.templateFieldCreateAndTest(data, Helper.DEF_CURR_USER);
+    let uuid = await Helper.templateFieldCreateAndTest(data);
 
-    let response = await Helper.templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
-    expect(response.statusCode).toBe(200);
-    let last_update = response.body;
+    let last_update = await Helper.testAndExtract(Helper.templateFieldLastUpdate, uuid);
 
-    response = await Helper.templateFieldPersist(uuid, last_update, Helper.DEF_CURR_USER);
-    expect(response.statusCode).toBe(200);
+    await Helper.testAndExtract(Helper.templateFieldPersist, uuid, last_update);
+
+    await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
   
-    // Check that a persisted version now exists
-    response = await Helper.templateFieldLatestPersisted(uuid);
-    expect(response.statusCode).toBe(200);
+    // Second user without permissions should be able to view it because it's public
+    response = await Helper.testAndExtract(Helper.templateFieldLatestPersisted, uuid);
   });
 
   test("if not public, only those with viewer access can get it", async () => {
     let data = {
       "name":"name"
     };
-    let uuid = await Helper.templateFieldCreateAndTest(data, Helper.DEF_CURR_USER);
+    let uuid = await Helper.templateFieldCreateAndTest(data);
 
-    let response = await Helper.templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
-    expect(response.statusCode).toBe(200);
-    let last_update = response.body;
+    let last_update = await Helper.testAndExtract(Helper.templateFieldLastUpdate, uuid);
 
-    response = await Helper.templateFieldPersist(uuid, last_update, Helper.DEF_CURR_USER);
-    expect(response.statusCode).toBe(200);
+    await Helper.testAndExtract(Helper.templateFieldPersist, uuid, last_update);
   
-    // Check that a persisted version now exists
+    await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+  
+    // Second user without permissions shouldn't be able to view it because it's private
     response = await Helper.templateFieldLatestPersisted(uuid);
     expect(response.statusCode).toBe(401);
   });
@@ -638,82 +631,66 @@ describe("get persisted for a certain date", () => {
       "name":"name",
       "description": "1"
     };
-    let uuid = await Helper.templateFieldCreateAndTest(data, Helper.DEF_CURR_USER);
+    let uuid = await Helper.templateFieldCreateAndTest(data);
   
     let beforeFirstPersist = new Date();
   
     // Test that if only a draft exists, it is not fetched
     
-    let response = await Helper.templateFieldLatestPersistedBeforeDate(uuid, beforeFirstPersist.toISOString(), Helper.DEF_CURR_USER);
+    let response = await Helper.templateFieldLatestPersistedBeforeDate(uuid, beforeFirstPersist.toISOString());
     expect(response.statusCode).toBe(404);
   
-    response = await Helper.templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
-    expect(response.statusCode).toBe(200);
-    let last_update = response.body;
+    let last_update = await Helper.testAndExtract(Helper.templateFieldLastUpdate, uuid);
   
     // Persist the first time
-    response = await Helper.templateFieldPersist(uuid, last_update, Helper.DEF_CURR_USER);
-    expect(response.statusCode).toBe(200);
+    response = await Helper.testAndExtract(Helper.templateFieldPersist, uuid, last_update);
   
     let afterFirstPersist = new Date();
   
     data.uuid = uuid;
     data.description = "2";
   
-    response = await Helper.templateFieldUpdate(uuid, data, Helper.DEF_CURR_USER);
-    expect(response.statusCode).toBe(200);
+    await Helper.testAndExtract(Helper.templateFieldUpdate, uuid, data);
   
-    response = await Helper.templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
-    expect(response.statusCode).toBe(200);
-    last_update = response.body;
+    last_update = await Helper.testAndExtract(Helper.templateFieldLastUpdate, uuid);
   
-    response = await Helper.templateFieldPersist(uuid, last_update, Helper.DEF_CURR_USER);
-    expect(response.statusCode).toBe(200);
+    await Helper.testAndExtract(Helper.templateFieldPersist, uuid, last_update);
   
     let afterSecondPersist = new Date();
   
     data.description = "3";
   
-    response = await Helper.templateFieldUpdate(uuid, data, Helper.DEF_CURR_USER);
-    expect(response.statusCode).toBe(200);
+    await Helper.testAndExtract(Helper.templateFieldUpdate, uuid, data);
   
-    response = await Helper.templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
-    expect(response.statusCode).toBe(200);
-    last_update = response.body;
+    last_update = await Helper.testAndExtract(Helper.templateFieldLastUpdate, uuid);
   
-    response = await Helper.templateFieldPersist(uuid, last_update, Helper.DEF_CURR_USER);
-    expect(response.statusCode).toBe(200);
+    await Helper.testAndExtract(Helper.templateFieldPersist, uuid, last_update);
   
     // Now there should be three persisted versions. Search for each based on the date
   
-    response = await Helper.templateFieldLatestPersisted(uuid, Helper.DEF_CURR_USER);
-    expect(response.statusCode).toBe(200);
-    expect(response.body.description).toEqual(expect.stringMatching("3"));
+    let persisted_template = await Helper.testAndExtract(Helper.templateFieldLatestPersisted, uuid);
+    expect(persisted_template.description).toEqual(expect.stringMatching("3"));
   
-    response = await Helper.templateFieldLatestPersistedBeforeDate(uuid, (new Date()).toISOString(), Helper.DEF_CURR_USER);
-    expect(response.statusCode).toBe(200);
-    expect(response.body.description).toEqual(expect.stringMatching("3"));
+    persisted_template = await Helper.testAndExtract(Helper.templateFieldLatestPersistedBeforeDate, uuid, (new Date()).toISOString());
+    expect(persisted_template.description).toEqual(expect.stringMatching("3"));
   
-    response = await Helper.templateFieldLatestPersistedBeforeDate(uuid, afterSecondPersist.toISOString(), Helper.DEF_CURR_USER);
-    expect(response.statusCode).toBe(200);
-    expect(response.body.description).toEqual(expect.stringMatching("2"));
+    persisted_template = await Helper.testAndExtract(Helper.templateFieldLatestPersistedBeforeDate, uuid, afterSecondPersist.toISOString());
+    expect(persisted_template.description).toEqual(expect.stringMatching("2"));
   
-    response = await Helper.templateFieldLatestPersistedBeforeDate(uuid, afterFirstPersist.toISOString(), Helper.DEF_CURR_USER);
-    expect(response.statusCode).toBe(200);
-    expect(response.body.description).toEqual(expect.stringMatching("1"));
+    persisted_template = await Helper.testAndExtract(Helper.templateFieldLatestPersistedBeforeDate, uuid, afterFirstPersist.toISOString());
+    expect(persisted_template.description).toEqual(expect.stringMatching("1"));
   
-    response = await Helper.templateFieldLatestPersistedBeforeDate(uuid, beforeFirstPersist.toISOString(), Helper.DEF_CURR_USER);
+    response = await Helper.templateFieldLatestPersistedBeforeDate(uuid, beforeFirstPersist.toISOString());
     expect(response.statusCode).toBe(404);
   });
 
   test("timestamp must be in valid timestamp format", async () => {
     let field = {name: "hi"};
-    field = await Helper.templateFieldCreatePersistTest(field, Helper.DEF_CURR_USER);
+    field = await Helper.templateFieldCreatePersistTest(field);
 
-    let response = await Helper.templateFieldLatestPersistedBeforeDate(field.uuid, (new Date()).toISOString(), Helper.DEF_CURR_USER);
-    expect(response.statusCode).toBe(200);
+    await Helper.testAndExtract(Helper.templateFieldLatestPersistedBeforeDate, field.uuid, (new Date()).toISOString());
 
-    response = await Helper.templateFieldLatestPersistedBeforeDate(field.uuid, "invalid timestamp", Helper.DEF_CURR_USER);
+    response = await Helper.templateFieldLatestPersistedBeforeDate(field.uuid, "invalid timestamp");
     expect(response.statusCode).toBe(400);
   });
 
@@ -725,32 +702,29 @@ describe("delete", () => {
       "name":"name",
       "description": "description"
     };
-    let uuid = await Helper.templateFieldCreateAndTest(data, Helper.DEF_CURR_USER);
+    let uuid = await Helper.templateFieldCreateAndTest(data);
   
-    let response = await Helper.templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
-    expect(response.statusCode).toBe(200);
-    let last_update = response.body;
-  
-    response = await Helper.templateFieldPersist(uuid, last_update, Helper.DEF_CURR_USER);
-    expect(response.statusCode).toBe(200);
+    let last_update = await Helper.testAndExtract(Helper.templateFieldLastUpdate, uuid);
+
+    await Helper.testAndExtract(Helper.templateFieldPersist, uuid, last_update);
   
     data.uuid = uuid;
     data.description = "different";
   
     // Change the draft, but don't persist the change
-    response = await Helper.templateFieldUpdate(uuid, data, Helper.DEF_CURR_USER);
+    response = await Helper.templateFieldUpdate(uuid, data);
     expect(response.statusCode).toBe(200);
   
     // Verify that the draft is what we changed it to
-    response = await Helper.templateFieldDraftGet(uuid, Helper.DEF_CURR_USER);
+    response = await Helper.templateFieldDraftGet(uuid);
     expect(response.statusCode).toBe(200);
   
     // Delete the draft
-    response = await Helper.templateFieldDraftDelete(uuid, Helper.DEF_CURR_USER);
+    response = await Helper.templateFieldDraftDelete(uuid);
     expect(response.statusCode).toBe(200);
   
     // Get the draft again. Make sure it matches the latest persisted version
-    response = await Helper.templateFieldDraftGet(uuid, Helper.DEF_CURR_USER);
+    response = await Helper.templateFieldDraftGet(uuid);
     expect(response.statusCode).toBe(200);
   
     data.description = "description";
@@ -763,17 +737,15 @@ describe("delete", () => {
       "name":"name",
       "description": "description"
     };
-    let uuid = await Helper.templateFieldCreateAndTest(data, Helper.DEF_CURR_USER);
+    let uuid = await Helper.templateFieldCreateAndTest(data);
   
-    let response = await Helper.templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
-    expect(response.statusCode).toBe(200);
-    let last_update = response.body;
+    let last_update = await Helper.testAndExtract(Helper.templateFieldLastUpdate, uuid);
   
-    response = await Helper.templateFieldPersist(uuid, last_update, Helper.DEF_CURR_USER);
+    response = await Helper.templateFieldPersist(uuid, last_update);
     expect(response.statusCode).toBe(200);
    
     // Delete the draft
-    response = await Helper.templateFieldDraftDelete(uuid, Helper.DEF_CURR_USER);
+    response = await Helper.templateFieldDraftDelete(uuid);
     expect(response.statusCode).toBe(404);
   });
 
@@ -782,27 +754,27 @@ describe("delete", () => {
       "name":"name",
       "description": "description"
     };
-    let uuid = await Helper.templateFieldCreateAndTest(data, Helper.DEF_CURR_USER);
+    let uuid = await Helper.templateFieldCreateAndTest(data);
   
-    let response = await Helper.templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
-    expect(response.statusCode).toBe(200);
-    let last_update = response.body;
+    let last_update = await Helper.testAndExtract(Helper.templateFieldLastUpdate, uuid);
   
-    response = await Helper.templateFieldPersist(uuid, last_update, Helper.DEF_CURR_USER);
+    response = await Helper.templateFieldPersist(uuid, last_update);
     expect(response.statusCode).toBe(200);
   
     data.uuid = uuid;
     data.description = "different";
   
     // Change the draft, but don't persist the change
-    response = await Helper.templateFieldUpdate(uuid, data, Helper.DEF_CURR_USER);
+    response = await Helper.templateFieldUpdate(uuid, data);
     expect(response.statusCode).toBe(200);
   
     // Verify that the draft is what we changed it to
-    response = await Helper.templateFieldDraftGet(uuid, Helper.DEF_CURR_USER);
+    response = await Helper.templateFieldDraftGet(uuid);
     expect(response.statusCode).toBe(200);
+
+    await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
   
-    // Delete the draft
+    // Delete the draft. Should fail since we dont' have permissions
     response = await Helper.templateFieldDraftDelete(uuid);
     expect(response.statusCode).toBe(401);
   });
@@ -815,9 +787,9 @@ describe("lastUpdate", () => {
       let data = {
         "name":"1"
       };
-      let uuid = await Helper.templateFieldCreateAndTest(data, Helper.DEF_CURR_USER);
+      let uuid = await Helper.templateFieldCreateAndTest(data);
   
-      let response = await Helper.templateFieldLastUpdate(uuid, Helper.DEF_CURR_USER);
+      let response = await Helper.templateFieldLastUpdate(uuid);
       expect(response.statusCode).toBe(200);
       expect((new Date(response.body)).getTime()).toBeGreaterThan(timestamp.getTime());
     });
@@ -827,11 +799,10 @@ describe("lastUpdate", () => {
       let data = {
         "name":"1"
       };
-      let template = await Helper.templateFieldCreatePersistTest(data, Helper.DEF_CURR_USER);
+      let template = await Helper.templateFieldCreatePersistTest(data);
   
-      let response = await Helper.templateFieldLastUpdate(template.uuid, Helper.DEF_CURR_USER);
-      expect(response.statusCode).toBe(200);
-      expect((new Date(response.body)).getTime()).toBeGreaterThan(timestamp.getTime());
+      let last_update = await Helper.testAndExtract(Helper.templateFieldLastUpdate, template.uuid);
+      expect((new Date(last_update)).getTime()).toBeGreaterThan(timestamp.getTime());
     });
 
     test("get latest update for that which the user has permission to", async () => {
@@ -839,40 +810,44 @@ describe("lastUpdate", () => {
       let template = {
         "name":"1"
       };
-      template = await Helper.templateFieldCreatePersistTest(template, Helper.DEF_CURR_USER);
+      template = await Helper.templateFieldCreatePersistTest(template);
       template.description = "des";
 
       let time2 = new Date();
 
-      let response = await Helper.templateFieldUpdate(template.uuid, template, Helper.DEF_CURR_USER);
+      let response = await Helper.templateFieldUpdate(template.uuid, template);
       expect(response.statusCode).toBe(200);
 
       let time3 = new Date();
 
-      let other_user = 'other';
-      let view_users = [other_user, Helper.DEF_CURR_USER];
-      response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, template.uuid, PERMISSION_VIEW, view_users);
-      expect(response.statusCode).toBe(200);
-  
-      response = await Helper.templateFieldLastUpdate(template.uuid, other_user);
-      expect(response.statusCode).toBe(200);
-      expect((new Date(response.body)).getTime()).toBeGreaterThan(time1.getTime());
-      expect((new Date(response.body)).getTime()).toBeLessThan(time2.getTime());
+      let agent2 = await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+      Helper.setAgent(agent1);
 
-      response = await Helper.templateFieldLastUpdate(template.uuid, Helper.DEF_CURR_USER);
+      let view_users = [Helper.EMAIL_2, Helper.DEF_EMAIL];
+      response = await Helper.updatePermissionGroup(template.uuid, PERMISSION_VIEW, view_users);
       expect(response.statusCode).toBe(200);
-      expect((new Date(response.body)).getTime()).toBeGreaterThan(time2.getTime());
-      expect((new Date(response.body)).getTime()).toBeLessThan(time3.getTime());
+
+      Helper.setAgent(agent2);
+  
+      let last_update = await Helper.testAndExtract(Helper.templateFieldLastUpdate, template.uuid);
+      expect((new Date(last_update)).getTime()).toBeGreaterThan(time1.getTime());
+      expect((new Date(last_update)).getTime()).toBeLessThan(time2.getTime());
+
+      Helper.setAgent(agent1);
+
+      last_update = await Helper.testAndExtract(Helper.templateFieldLastUpdate, template.uuid);
+      expect((new Date(last_update)).getTime()).toBeGreaterThan(time2.getTime());
+      expect((new Date(last_update)).getTime()).toBeLessThan(time3.getTime());
     });
   
   });
 
   describe("failure", () => {
     test("uuid must be valid", async () => {
-      let response = await Helper.templateFieldLastUpdate("18", Helper.DEF_CURR_USER);
+      let response = await Helper.templateFieldLastUpdate("18");
       expect(response.statusCode).toBe(400);
 
-      response = await Helper.templateFieldLastUpdate(Helper.VALID_UUID, Helper.DEF_CURR_USER);
+      response = await Helper.templateFieldLastUpdate(Helper.VALID_UUID);
       expect(response.statusCode).toBe(404);
     });
 
@@ -880,9 +855,11 @@ describe("lastUpdate", () => {
       let data = {
         "name":"1"
       };
-      let uuid = await Helper.templateFieldCreateAndTest(data, Helper.DEF_CURR_USER);
+      let uuid = await Helper.templateFieldCreateAndTest(data);
+
+      await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
   
-      let response = await Helper.templateFieldLastUpdate(uuid, "other");
+      let response = await Helper.templateFieldLastUpdate(uuid);
       expect(response.statusCode).toBe(401);
     });
   });

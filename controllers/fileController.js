@@ -12,7 +12,7 @@ const PermissionGroupModel = require(`../models/permission_group`);
 
 exports.verifyFileUpload = async function(req, res, next) {
   let uuid = req.params.uuid;
-  let user = req.cookies.user;
+  let user = req.user._id;
   try {
     if(!(await SharedFunctions.exists(FileModel.collection(), uuid))) {
       throw new Util.NotFoundError(`Cannot upload file to uuid ${uuid}. Does not exist`);
@@ -154,7 +154,7 @@ exports.uploadFileFromUrl = async function(req, res, next) {
 
 exports.getFile = async function(req, res, next) {
   let uuid = req.params.uuid;
-  let user = req.cookies.user;
+  let user = req.user._id;
   try {
     if(!(await SharedFunctions.exists(FileModel.collection(), uuid))) {
       throw new Util.NotFoundError(`File with uuid ${uuid} does not exist`);
