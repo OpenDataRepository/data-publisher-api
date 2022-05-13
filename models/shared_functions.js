@@ -2,6 +2,12 @@ const MongoDB = require('../lib/mongoDB');
 const Util = require('../lib/util');
 const ObjectId = require('mongodb').ObjectId;
 
+exports.DocumentTypes = {
+  Dataset: "dataset",
+  Template: "template",
+  TemplateField: "template_field"
+};
+
 // Fetches the draft with the given uuid. 
 // Does not look up fields or related documents
 const draft = async (collection, uuid, session) => {

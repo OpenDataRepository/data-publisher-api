@@ -1,8 +1,10 @@
 const bcrypt = require ("bcryptjs");
-const User = require('../models/user');
 const Util = require('../lib/util');
 var passport = require('passport');
 const email_validator = require("email-validator");
+const SharedFunctions = require('../models/shared_functions');
+const User = require('../models/user');
+const UserPermissions = require('../models/user_permissions');
 
 exports.register = async function(req, res, next) {
   // TODO: research how bcrypt works. Don't I need to store some hash value or something
@@ -13,7 +15,12 @@ exports.register = async function(req, res, next) {
       throw new Util.InputError(`email is not in valid email format`);
     }
     let hashed_password = await bcrypt.hash(req.body.password, 10);
-    await User.create(email, hashed_password);
+    
+    const callback = async (session) => {
+      let user_id = await User.create(email, hashed_password, session);
+      await UserPermissions.create(user_id, session);
+    };
+    await SharedFunctions.executeWithTransaction(callback);
     res.sendStatus(200);
   } catch(err) {
     next(err);
@@ -44,12 +51,12 @@ exports.logout = function(req, res, next) {
 exports.get = async function(req, res, next) {
   try{
     if(!req.isAuthenticated()) {
-      throw new Util.PermissionDeniedError(`Must be logged in to update account`);
+      throw new Util.PermissionDeniedError(`Must be logged in to fetch account`);
     }
     let user = req.user;
     // this should be the same as req.isAuthenticated(), but just put it here for safety.
     if(!user) {
-      throw new Util.PermissionDeniedError(`Must be logged in to delete account`);
+      throw new Util.PermissionDeniedError(`Must be logged in to fetch account`);
     }
     let filtered_user = {};
     filtered_user.first_name = user.first_name;
@@ -77,6 +84,7 @@ exports.delete = async function(req, res, next) {
       throw new Util.InputError(`Password incorrect.`);
     }
     await User.delete(req.user._id);
+    // TODO: There is a problem if a user get's deleted. What happens to their resources?
     req.logout();
     res.sendStatus(200);
   } catch(err) {
@@ -113,6 +121,23 @@ exports.update = async function(req, res, next) {
 
     await User.update(req.user._id, filtered_update_properties);
     res.sendStatus(200);
+  } catch(err) {
+    next(err);
+  }
+};
+
+exports.getPermissions = async function(req, res, next) {
+  try{
+    if(!req.isAuthenticated()) {
+      throw new Util.PermissionDeniedError(`Must be logged in to get account permissions`);
+    }
+    let user = req.user;
+    // this should be the same as req.isAuthenticated(), but just put it here for safety.
+    if(!user) {
+      throw new Util.PermissionDeniedError(`Must be logged in to get account permissions`);
+    }
+    let user_permissions = await UserPermissions.get(user._id)
+    res.send(user_permissions);
   } catch(err) {
     next(err);
   }

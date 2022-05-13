@@ -62,8 +62,6 @@ describe("has_permission", () => {
 
 describe("update (and get)",  () => {
   test("success - can update in every category", async () => {
-    let uuid = Helper.VALID_UUID;
-    await Helper.testAndExtract(Helper.permissionGroupTestingInitialize, uuid);
 
     // Test we can change view, edit, and admin if we are in the admin group
 
@@ -80,6 +78,11 @@ describe("update (and get)",  () => {
     let edit_users = [c_email];
     let admin_users = [Helper.DEF_EMAIL, b_email];
 
+    let template_field = {
+      name: "field"
+    };
+    let uuid = await Helper.templateFieldCreateAndTest(template_field);
+
     await Helper.testAndExtract(Helper.updatePermissionGroup, uuid, PERMISSION_VIEW, view_users);
     let result_users = await Helper.testAndExtract(Helper.getPermissionGroup, uuid, PERMISSION_VIEW);
     expect(result_users).toEqual(view_users);
@@ -94,34 +97,43 @@ describe("update (and get)",  () => {
   });
 
   test("must be in the admin category to update permissions", async () => {
-    await Helper.testAndExtract(Helper.permissionGroupTestingInitialize, Helper.VALID_UUID);
+    let template_field = {
+      name: "field"
+    };
+    let uuid = await Helper.templateFieldCreateAndTest(template_field);
 
     let b_email = "b@b.com";
     await Helper.createAgentRegisterLogin(b_email, Helper.DEF_PASSWORD);
 
     let view_users = [b_email];
-    response = await Helper.updatePermissionGroup(Helper.VALID_UUID, "view", view_users);
+    response = await Helper.updatePermissionGroup(uuid, "view", view_users);
     expect(response.statusCode).toBe(401);
   });
 
   test("if admin, current user must be in updated permissions list", async () => {
-    await Helper.testAndExtract(Helper.permissionGroupTestingInitialize, Helper.VALID_UUID);
+    let template_field = {
+      name: "field"
+    };
+    let uuid = await Helper.templateFieldCreateAndTest(template_field);
 
     let b_email = "b@b.com";
     await Helper.createAgentRegisterLogin(b_email, Helper.DEF_PASSWORD);
     Helper.setAgent(agent1);
 
     let admin_users = ["b@b.com"];
-    response = await Helper.updatePermissionGroup(Helper.VALID_UUID, PERMISSION_ADMIN, admin_users);
+    response = await Helper.updatePermissionGroup(uuid, PERMISSION_ADMIN, admin_users);
     expect(response.statusCode).toBe(400);
 
   });
 
   test("must be a supported category", async () => {
-    await Helper.testAndExtract(Helper.permissionGroupTestingInitialize, Helper.VALID_UUID);
+    let template_field = {
+      name: "field"
+    };
+    let uuid = await Helper.templateFieldCreateAndTest(template_field);
 
     let users = [Helper.DEF_EMAIL];
-    response = await Helper.updatePermissionGroup(Helper.VALID_UUID, "invalid", users);
+    response = await Helper.updatePermissionGroup(uuid, "invalid", users);
     expect(response.statusCode).toBe(404);
 
   });
@@ -202,6 +214,49 @@ describe("update (and get)",  () => {
     response = await Helper.getPermissionGroup(dataset.uuid, PERMISSION_VIEW);
     expect(response.statusCode).toBe(200);
     expect(response.body).toEqual(view_users);
+
+  });
+
+  describe("user permissions stays in sync with permission_group", () => {
+
+    test("Changes to the document permissions reflect changes to the user permissions", async () => {
+
+      let template_field = {
+        name: "field"
+      };
+      let uuid = await Helper.templateFieldCreateAndTest(template_field);
+
+      let user_a_permissions = await Helper.testAndExtract(Helper.userDocuments);
+      expect(user_a_permissions.template_field.admin).toEqual([uuid]);
+
+      let b_email = "b@b.com";
+      let agent2 = await Helper.createAgentRegisterLogin(b_email, Helper.DEF_PASSWORD);
+      Helper.setAgent(agent1);
+
+      let edit_users = [b_email];
+
+      await Helper.testAndExtract(Helper.updatePermissionGroup, uuid, PERMISSION_EDIT, edit_users);
+      let result_users = await Helper.testAndExtract(Helper.getPermissionGroup, uuid, PERMISSION_EDIT);
+      expect(result_users).toEqual(edit_users);
+
+      Helper.setAgent(agent2);
+
+      let user_b_permissions = await Helper.testAndExtract(Helper.userDocuments);
+      expect(user_b_permissions.template_field.edit).toEqual([uuid]);
+
+      Helper.setAgent(agent1);
+
+      await Helper.testAndExtract(Helper.updatePermissionGroup, uuid, PERMISSION_EDIT, []);
+      result_users = await Helper.testAndExtract(Helper.getPermissionGroup, uuid, PERMISSION_EDIT);
+      expect(result_users).toEqual([]);
+
+      Helper.setAgent(agent2);
+
+      user_b_permissions = await Helper.testAndExtract(Helper.userDocuments);
+      expect(user_b_permissions.template_field.edit).toEqual([]);
+      expect(user_b_permissions.template_field.view).toEqual([uuid]);
+
+    })
 
   });
 

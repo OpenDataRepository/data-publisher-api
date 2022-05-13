@@ -1,7 +1,9 @@
 const PermissionGroupModel = require('../models/permission_group');
+const UserPermissionsModel = require('../models/user_permissions');
 const Util = require('../lib/util');
 const ModelsSharedFunctions = require('../models/shared_functions');
 const TemplateModel = require('../models/template');
+const TemplateFieldModel = require('../models/template_field');
 const DatasetModel = require('../models/dataset');
 const UserModel = require('../models/user');
 
@@ -14,16 +16,36 @@ exports.testing_initialize = async function(req, res, next) {
     next(err);
   }
 }
+
+
+async function findCollectionForUuid(uuid) {
+  if(await ModelsSharedFunctions.exists(DatasetModel.collection(), uuid)) {
+    return ModelsSharedFunctions.DocumentTypes.Dataset;
+  }
+  if(await ModelsSharedFunctions.exists(TemplateModel.collection(), uuid)) {
+    return ModelsSharedFunctions.DocumentTypes.Template;
+  }
+  if(await ModelsSharedFunctions.exists(TemplateFieldModel.collection(), uuid)) {
+    return ModelsSharedFunctions.DocumentTypes.TemplateField;
+  }
+  return null;
+}
  
 exports.update = async function(req, res, next) {
   try {
-    if(![PermissionGroupModel.PERMISSION_ADMIN, PermissionGroupModel.PERMISSION_EDIT, PermissionGroupModel.PERMISSION_VIEW].includes(req.params.category)) {
-      throw new Util.NotFoundError();
-    }
     let uuid = req.params.uuid;
     let user_emails = req.body.users;
     let category = req.params.category;
     let user_id = req.user._id;
+
+    if(![PermissionGroupModel.PERMISSION_ADMIN, PermissionGroupModel.PERMISSION_EDIT, PermissionGroupModel.PERMISSION_VIEW].includes(category)) {
+      throw new Util.NotFoundError();
+    }
+
+    let document_type = await findCollectionForUuid(uuid);
+    if(!document_type) {
+      throw new Util.NotFoundError();
+    }
 
     let user_ids = []; 
     for(let email of user_emails) {
@@ -34,7 +56,7 @@ exports.update = async function(req, res, next) {
       user_ids.push(a_user._id);
     }
 
-    if(await ModelsSharedFunctions.exists(DatasetModel.collection(), uuid)) {
+    if(document_type == ModelsSharedFunctions.DocumentTypes.Dataset) {
       // Editing dataset permissions. Ensure every one of the users in this list has_permission on the corresponding template uuid
       let template_uuid = await DatasetModel.template_uuid(uuid);
       for(let i = 0; i < user_ids.length; i++) {
@@ -43,29 +65,29 @@ exports.update = async function(req, res, next) {
         }
       }
     }
-    if(await ModelsSharedFunctions.exists(TemplateModel.collection(), uuid)) {
-      // Editing template permissions. If this is admin or edit, determine which users are being removed from admin/edit, and then add them to view
-      // create a set of existing users, and a set of the new users.
-      let existing_user_ids = await PermissionGroupModel.read_permissions(uuid, category);
-      // find the set difference of existing users minus new users
-      let deleted_user_ids = Util.objectIdsSetDifference(existing_user_ids, user_ids); 
-      if(category == PermissionGroupModel.PERMISSION_VIEW) {
-        // If this is view, make sure no users are being removed 
-        if(deleted_user_ids.length > 0) {
-          throw new Util.InputError(`Cannot delete any users from template view permissions.`);
-        }
-        await PermissionGroupModel.replace_permissions(user_id, uuid, category, user_ids);
-      } else {
-        let callback = async (session) => {
-          // If this is admin or edit, determine which users are being removed, and then add them to view
-          await PermissionGroupModel.replace_permissions(user_id, uuid, category, user_ids, session);
+
+    let existing_user_ids = await PermissionGroupModel.read_permissions(uuid, category);
+    let deleted_user_ids = Util.objectIdsSetDifference(existing_user_ids, user_ids); 
+    let added_user_ids = Util.objectIdsSetDifference(user_ids, existing_user_ids); 
+
+    let callback = async (session) => {
+      if(document_type == ModelsSharedFunctions.DocumentTypes.Template || document_type == ModelsSharedFunctions.DocumentTypes.TemplateField) {
+        if(category == PermissionGroupModel.PERMISSION_VIEW) {
+          // No users can be deleted from view
+          if(deleted_user_ids.length > 0) {
+            throw new Util.InputError(`Cannot delete any users from template view permissions.`);
+          }
+        } else {
+          // If this is admin or edit, add deleted users to view
           await PermissionGroupModel.add_permissions(user_id, uuid, PermissionGroupModel.PERMISSION_VIEW, deleted_user_ids, session);
-        };
-        await ModelsSharedFunctions.executeWithTransaction(callback);
+          await UserPermissionsModel.addUserIdsToUuidAndCategory(uuid, document_type, PermissionGroupModel.PERMISSION_VIEW, deleted_user_ids, session);
+        }
       }
-    } else {
-      await PermissionGroupModel.replace_permissions(user_id, uuid, category, user_ids);
-    }
+      await PermissionGroupModel.replace_permissions(user_id, uuid, category, user_ids, session);
+      await UserPermissionsModel.addUserIdsToUuidAndCategory(uuid, document_type, category, added_user_ids, session);
+      await UserPermissionsModel.removeUserIdsFromUuidAndCategory(uuid, document_type, category, deleted_user_ids, session);
+    };
+    await ModelsSharedFunctions.executeWithTransaction(callback);
     res.sendStatus(200);
   } catch(err) {
     next(err);

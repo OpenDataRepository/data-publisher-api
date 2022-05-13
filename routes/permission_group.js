@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 
+// TODO: rename permission_group to permission
+
 const {validateUuid} = require('../lib/middleware');
 const controller = require('../controllers/permissionGroupController');
 

@@ -2,6 +2,7 @@ const MongoDB = require('../lib/mongoDB');
 const { v4: uuidv4, validate: uuidValidate } = require('uuid');
 const Util = require('../lib/util');
 const TemplateFieldModel = require('./template_field');
+const UserPermissionsModel = require('./user_permissions');
 const PermissionGroupModel = require('./permission_group');
 const SharedFunctions = require('./shared_functions');
 const LegacyUuidToNewUuidMapperModel = require('./legacy_uuid_to_new_uuid_mapper');
@@ -23,7 +24,7 @@ async function collection() {
 
 exports.init = async function() {
   Template = await collection();
-  TemplateField = await TemplateFieldModel.collection();
+  TemplateField = await TemplateFieldModel.init();
 }
 
 // Creates a draft from the persisted version.
@@ -315,7 +316,7 @@ async function getUuidFromCreateOrUpdate(input_template, user, session) {
     // Generate a uuid for the new template
     uuid = uuidv4();
     // create a permissions group for the new template
-    await PermissionGroupModel.initialize_permissions_for(user, uuid, session);
+    await UserPermissionsModel.initialize_permissions_for(user, uuid, SharedFunctions.DocumentTypes.Template, session);
   }
   return uuid;
 }
@@ -1089,7 +1090,7 @@ async function duplicateRecursor(template, user, session) {
   delete template.updated_at;
   delete template.persist_date;
   delete template.public_date;
-  await PermissionGroupModel.initialize_permissions_for(user, template.uuid, session);
+  await UserPermissionsModel.initialize_permissions_for(user, template.uuid, SharedFunctions.DocumentTypes.Template, session);
 
   // 3. For templates and fields, recurse. If they throw an error, just remove them from the copy.
   let fields = [];
@@ -1158,7 +1159,7 @@ async function importTemplate(session, template, user, updated_at) {
     }
   } else {
     uuid = await LegacyUuidToNewUuidMapperModel.create_new_uuid_for_old(old_uuid, session);
-    await PermissionGroupModel.initialize_permissions_for(user, uuid, session);
+    await UserPermissionsModel.initialize_permissions_for(user, uuid, SharedFunctions.DocumentTypes.Template, session);
   }
 
   // Populate template properties

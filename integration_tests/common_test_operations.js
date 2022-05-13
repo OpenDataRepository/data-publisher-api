@@ -872,6 +872,11 @@ module.exports = class Helper {
       .send({email, password});
   }
 
+  userDocuments = async () => {
+    return await this.agent
+      .get(`/user/documents`);
+  }
+
   // import 
 
   importTemplateDataset = async (template) => {

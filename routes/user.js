@@ -11,6 +11,7 @@ router.post('/logout', userController.logout);
 router.post('/delete', userController.delete);
 router.post('/update', userController.update);
 router.get('', userController.get);
+router.get('/documents', userController.getPermissions);
 
 router.get('/test-unprotected-route', (req, res, next) => {
   res.sendStatus(200);

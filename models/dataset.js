@@ -2,6 +2,7 @@ const MongoDB = require('../lib/mongoDB');
 const { v4: uuidv4, validate: uuidValidate } = require('uuid');
 const Util = require('../lib/util');
 const TemplateModel = require('./template');
+const UserPermissionsModel = require('./user_permissions');
 const PermissionGroupModel = require('./permission_group');
 const SharedFunctions = require('./shared_functions');
 const LegacyUuidToNewUuidMapperModel = require('./legacy_uuid_to_new_uuid_mapper');
@@ -191,7 +192,7 @@ async function validateAndCreateOrUpdateRecurser(input_dataset, template, user, 
   // Otherwise, this is a create, so generate a new uuid
   else {
     uuid = uuidv4();
-    await PermissionGroupModel.initialize_permissions_for(user, uuid, session);
+    await UserPermissionsModel.initialize_permissions_for(user, uuid, SharedFunctions.DocumentTypes.Dataset, session);
   }
 
   if(!input_dataset.template_id || typeof(input_dataset.template_id) !== 'string') {
@@ -721,7 +722,7 @@ async function duplicateRecursor(original_dataset, original_group_uuid, new_grou
   if (!response.acknowledged) {
     throw new Error(`Dataset.duplicateRecursor: Inserting failed`);
   } 
-  await PermissionGroupModel.initialize_permissions_for(user, new_dataset.uuid, session);
+  await UserPermissionsModel.initialize_permissions_for(user, new_dataset.uuid, SharedFunctions.DocumentTypes.Dataset, session);
 
   return new_dataset.uuid;
 }
@@ -736,7 +737,7 @@ async function duplicate(session, uuid, user) {
 
 async function createMissingDatasetForImport(template, user, updated_at, session) {
   let uuid = uuidv4();
-  await PermissionGroupModel.initialize_permissions_for(user, uuid, session);
+  await UserPermissionsModel.initialize_permissions_for(user, uuid, SharedFunctions.DocumentTypes.Dataset, session);
   let dataset = {
     uuid,
     template_uuid: template.uuid,
@@ -793,7 +794,7 @@ async function importDatasetFromCombinedRecursor(record, template, user, updated
     }
   } else {
     dataset_uuid = await LegacyUuidToNewUuidMapperModel.create_new_uuid_for_old(old_uuid, session);
-    await PermissionGroupModel.initialize_permissions_for(user, dataset_uuid, session);
+    await UserPermissionsModel.initialize_permissions_for(user, dataset_uuid, SharedFunctions.DocumentTypes.Dataset, session);
   }
 
   // continue here with normal update procedures
@@ -948,7 +949,7 @@ async function importDatasetForTemplate(template, user, session, updated_at) {
     }
   } else {
     dataset_uuid = await LegacyUuidToNewUuidMapperModel.create_secondary_uuid_for_old(old_template_uuid, session);
-    await PermissionGroupModel.initialize_permissions_for(user, dataset_uuid, session);
+    await UserPermissionsModel.initialize_permissions_for(user, dataset_uuid, SharedFunctions.DocumentTypes.Dataset, session);
   }
 
   let dataset = {

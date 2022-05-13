@@ -75,6 +75,7 @@ exports.persist = async function(req, res, next) {
 exports.draft_delete = async function(req, res, next) {
   try {
     await TemplateFieldModel.draftDelete(req.params.uuid, req.user._id);
+    // TODO: Anytime a draft is deleted and there isn't a persisted version, the permissions to it also need to be deleted
   } catch(err) {
     return next(err);
   }

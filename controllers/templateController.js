@@ -45,8 +45,6 @@ exports.get_persisted_before_timestamp = async function(req, res, next) {
 
 exports.create = async function(req, res, next) {
   try {
-    // TODO: when users are implemented, replace the cookie user with the session user
-    // Also for all modification endpoints, verify that there is a logged-in user before continuing
     let inserted_uuid = await TemplateModel.create(req.body, req.user._id);
     res.json({inserted_uuid});
   } catch(err) {

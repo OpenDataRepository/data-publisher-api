@@ -1,6 +1,7 @@
 const MongoDB = require('../lib/mongoDB');
 const { v4: uuidv4, validate: uuidValidate } = require('uuid');
 const Util = require('../lib/util');
+const UserPermissionsModel = require('./user_permissions');
 const PermissionGroupModel = require('./permission_group');
 const SharedFunctions = require('./shared_functions');
 const LegacyUuidToNewUuidMapperModel = require('./legacy_uuid_to_new_uuid_mapper');
@@ -22,6 +23,10 @@ async function collection() {
     TemplateField = db.collection('template_fields');
   }
   return TemplateField;
+}
+
+exports.init = async function() {
+  return await collection();
 }
 
 // Creates a draft from the persisted version.
@@ -362,8 +367,8 @@ async function validateAndCreateOrUpdate(session, input_field, user, updated_at)
   else {
     // Generate a uuid for the new template_field
     uuid = uuidv4();
-    // create a permissions group for the new template_field
-    await PermissionGroupModel.initialize_permissions_for(user, uuid, session);
+    // initialize permissions for the new template_field
+    await UserPermissionsModel.initialize_permissions_for(user, uuid, SharedFunctions.DocumentTypes.TemplateField, session);
   }
 
   // Populate field properties
@@ -504,7 +509,6 @@ async function lastupdateFor(uuid, session) {
   return draft.updated_at;
 }
 
-exports.collection = collection;
 exports.validateAndCreateOrUpdate = validateAndCreateOrUpdate;
 exports.persistField = persistField;
 exports.draft = draftFetchOrCreate;
@@ -609,7 +613,8 @@ exports.duplicate = async function(field, user, session) {
   delete field.updated_at;
   delete field.persist_date;
   delete field.public_date;
-  await PermissionGroupModel.initialize_permissions_for(user, field.uuid, session);
+  await UserPermissionsModel.initialize_permissions_for(user, field.uuid, SharedFunctions.DocumentTypes.TemplateField, session);
+
 
   // 3. Actually create everything
   field.updated_at = (new Date()).toISOString();
@@ -641,7 +646,7 @@ exports.importField = async function(field, user, updated_at, session) {
     }
   } else {
     uuid = await LegacyUuidToNewUuidMapperModel.create_new_uuid_for_old(field.template_field_uuid, session);
-    await PermissionGroupModel.initialize_permissions_for(user, uuid, session);
+    await UserPermissionsModel.initialize_permissions_for(user, uuid, SharedFunctions.DocumentTypes.TemplateField, session);
   }
 
   let new_field = await initializeNewImportedDraftWithProperties(field, uuid, updated_at, session);
@@ -672,4 +677,8 @@ exports.importField = async function(field, user, updated_at, session) {
     throw new Error(`TemplateField.importField: Upserted: ${response.upsertedCount}. Matched: ${response.matchedCount}`);
   } 
   return [true, uuid];
+}
+
+exports.collection = function() {
+  return TemplateField;
 }
