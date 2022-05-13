@@ -604,6 +604,11 @@ describe("get latest persisted", () => {
   
     // Second user without permissions should be able to view it because it's public
     response = await Helper.testAndExtract(Helper.templateFieldLatestPersisted, uuid);
+
+    await Helper.testAndExtract(Helper.logout);
+
+    // non-users should also be able to view it if it's public
+    response = await Helper.testAndExtract(Helper.templateFieldLatestPersisted, uuid);
   });
 
   test("if not public, only those with viewer access can get it", async () => {

@@ -1,4 +1,3 @@
-const request = require("supertest");
 const fs = require('fs');
 var { app, init: appInit, close: appClose } = require('../app');
 var { PERMISSION_ADMIN, PERMISSION_EDIT, PERMISSION_VIEW } = require('../models/permission_group');

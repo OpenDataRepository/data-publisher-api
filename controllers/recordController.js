@@ -59,7 +59,8 @@ exports.persist = async function(req, res, next) {
 
 exports.get_latest_persisted = async function(req, res, next) {
   try {
-    let record = await RecordModel.latestPersisted(req.params.uuid, req.user._id);
+    let user_id = req.user ? req.user._id  : null;
+    let record = await RecordModel.latestPersisted(req.params.uuid, user_id);
     res.json(record);
   } catch(err) {
     next(err);
@@ -68,7 +69,8 @@ exports.get_latest_persisted = async function(req, res, next) {
 
 exports.get_persisted_before_timestamp = async function(req, res, next) {
   try {
-    let record = await RecordModel.persistedBeforeDate(req.params.uuid, new Date(req.params.timestamp), req.user._id);
+    let user_id = req.user ? req.user._id  : null;
+    let record = await RecordModel.persistedBeforeDate(req.params.uuid, new Date(req.params.timestamp), user_id);
     res.json(record);
   } catch(err) {
     next(err);

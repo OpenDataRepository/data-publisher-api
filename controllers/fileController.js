@@ -154,7 +154,7 @@ exports.uploadFileFromUrl = async function(req, res, next) {
 
 exports.getFile = async function(req, res, next) {
   let uuid = req.params.uuid;
-  let user = req.user._id;
+  let user = req.user ? req.user._id  : null;
   try {
     if(!(await SharedFunctions.exists(FileModel.collection(), uuid))) {
       throw new Util.NotFoundError(`File with uuid ${uuid} does not exist`);

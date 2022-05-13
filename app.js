@@ -76,9 +76,8 @@ const minute = second * 60;
 const hour = minute * 60;
 const day = hour * 24;
 app.use(session({
-  // TODO: figure out this secret thing and do it properly with process.env.SECRET
-  //secret: process.env.SECRET,
-  secret: 'some secret',
+  // This secret is of questionable utility: https://github.com/expressjs/session/issues/176
+  secret: process.env.SECRET,
   resave: false,
   saveUninitialized: true,
   store: sessionStore,
@@ -132,7 +131,7 @@ app.use(function(err, req, res, next) {
 });
 
 module.exports.app = app;
-// TODO: rename init and close to initDBConnection and closeDBConnections
+// init and close are currently only used to set up the db and shut it back down
 module.exports.init = init;
 module.exports.close = async () => {
   await MongoDB.close();

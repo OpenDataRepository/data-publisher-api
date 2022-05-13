@@ -50,14 +50,7 @@ exports.logout = function(req, res, next) {
 
 exports.get = async function(req, res, next) {
   try{
-    if(!req.isAuthenticated()) {
-      throw new Util.PermissionDeniedError(`Must be logged in to fetch account`);
-    }
     let user = req.user;
-    // this should be the same as req.isAuthenticated(), but just put it here for safety.
-    if(!user) {
-      throw new Util.PermissionDeniedError(`Must be logged in to fetch account`);
-    }
     let filtered_user = {};
     filtered_user.first_name = user.first_name;
     filtered_user.last_name = user.last_name;
@@ -70,13 +63,6 @@ exports.get = async function(req, res, next) {
 
 exports.delete = async function(req, res, next) {
   try{
-    if(!req.isAuthenticated()) {
-      throw new Util.PermissionDeniedError(`Must be logged in to delete account`);
-    }
-    // this should be the same as req.isAuthenticated(), but just put it here for safety.
-    if(!req.user) {
-      throw new Util.PermissionDeniedError(`Must be logged in to delete account`);
-    }
     if(!req.body.password) {
       throw new Util.InputError(`Must provide password to delete account.`);
     }
@@ -94,13 +80,6 @@ exports.delete = async function(req, res, next) {
 
 exports.update = async function(req, res, next) {
   try{
-    if(!req.isAuthenticated()) {
-      throw new Util.PermissionDeniedError(`Must be logged in to update account`);
-    }
-    // this should be the same as req.isAuthenticated(), but just put it here for safety.
-    if(!req.user) {
-      throw new Util.PermissionDeniedError(`Must be logged in to delete account`);
-    }
     if(!req.body.verification_password) {
       throw new Util.InputError(`Must provide verification password to delete account.`);
     }
@@ -128,14 +107,8 @@ exports.update = async function(req, res, next) {
 
 exports.getPermissions = async function(req, res, next) {
   try{
-    if(!req.isAuthenticated()) {
-      throw new Util.PermissionDeniedError(`Must be logged in to get account permissions`);
-    }
     let user = req.user;
     // this should be the same as req.isAuthenticated(), but just put it here for safety.
-    if(!user) {
-      throw new Util.PermissionDeniedError(`Must be logged in to get account permissions`);
-    }
     let user_permissions = await UserPermissions.get(user._id)
     res.send(user_permissions);
   } catch(err) {

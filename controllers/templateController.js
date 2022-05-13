@@ -1,9 +1,6 @@
 const TemplateModel = require('../models/template');
 const Util = require('../lib/util');
 
-// TODO: write a middleware which tests that the user is authenticated. It should be used on all write endpoints
-// TODO: even on the read endpoints, if req.user is null, we should send along null. req.user._id will throw an error
-
 exports.draft_get = async function(req, res, next) {
   try {
     let template = await TemplateModel.draftGet(req.params.uuid, req.user._id);
@@ -19,7 +16,8 @@ exports.draft_get = async function(req, res, next) {
 
 exports.get_latest_persisted = async function(req, res, next) {
   try {
-    let template = await TemplateModel.latestPersisted(req.params.uuid, req.user._id);
+    let user_id = req.user ? req.user._id  : null;
+    let template = await TemplateModel.latestPersisted(req.params.uuid, user_id);
     if(template) {
       res.json(template);
     } else {
@@ -32,7 +30,8 @@ exports.get_latest_persisted = async function(req, res, next) {
 
 exports.get_persisted_before_timestamp = async function(req, res, next) {
   try {
-    let template = await TemplateModel.persistedBeforeDate(req.params.uuid, new Date(req.params.timestamp), req.user._id);
+    let user_id = req.user ? req.user._id  : null;
+    let template = await TemplateModel.persistedBeforeDate(req.params.uuid, new Date(req.params.timestamp), user_id);
     if(template) {
       res.json(template);
     } else {

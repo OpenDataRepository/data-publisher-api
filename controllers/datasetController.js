@@ -18,7 +18,8 @@ exports.draft_get = async function(req, res, next) {
 
 exports.get_latest_persisted = async function(req, res, next) {
   try {
-    let dataset = await DatasetModel.latestPersisted(req.params.uuid, req.user._id);
+    let user_id = req.user ? req.user._id  : null;
+    let dataset = await DatasetModel.latestPersisted(req.params.uuid, user_id);
     res.json(dataset);
   } catch(err) {
     next(err);
@@ -27,7 +28,8 @@ exports.get_latest_persisted = async function(req, res, next) {
 
 exports.get_persisted_before_timestamp = async function(req, res, next) {
   try {
-    let dataset = await DatasetModel.persistedBeforeDate(req.params.uuid, new Date(req.params.timestamp), req.user._id);
+    let user_id = req.user ? req.user._id  : null;
+    let dataset = await DatasetModel.persistedBeforeDate(req.params.uuid, new Date(req.params.timestamp), user_id);
     res.json(dataset);
   } catch(err) {
     next(err);
@@ -141,7 +143,8 @@ exports.published = async function(req, res, next) {
       throw new Util.NotFoundError();
     }
     // Use timestamp to get latest persisted dataset
-    let dataset = await DatasetModel.persistedBeforeDate(req.params.uuid, time, req.user._id);
+    let user_id = req.user ? req.user._id  : null;
+    let dataset = await DatasetModel.persistedBeforeDate(req.params.uuid, time, user_id);
     res.json(dataset);
   } catch(err) {
     next(err);

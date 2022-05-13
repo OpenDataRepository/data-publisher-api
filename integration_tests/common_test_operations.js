@@ -872,6 +872,11 @@ module.exports = class Helper {
       .send({email, password});
   }
 
+  logout = async () => {
+    return await this.agent
+      .post(`/user/logout`);
+  }
+
   userDocuments = async () => {
     return await this.agent
       .get(`/user/documents`);

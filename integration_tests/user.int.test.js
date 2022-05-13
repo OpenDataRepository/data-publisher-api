@@ -3,6 +3,8 @@ var { app, init: appInit, close: appClose } = require('../app');
 var HelperClass = require('./common_test_operations')
 var Helper = new HelperClass(app);
 
+// TODO: edit this file to use the HelperClass for all api calls
+
 var agent;
 
 beforeAll(async () => {

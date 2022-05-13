@@ -17,7 +17,8 @@ exports.draft_get = async function(req, res, next) {
 
 exports.get_latest_persisted = async function(req, res, next) {
   try {
-    let template_field = await TemplateFieldModel.latestPersisted(req.params.uuid, req.user._id);
+    let user_id = req.user ? req.user._id  : null;
+    let template_field = await TemplateFieldModel.latestPersisted(req.params.uuid, user_id);
     if(!template_field) {
       throw new Util.NotFoundError();
     }
@@ -29,7 +30,8 @@ exports.get_latest_persisted = async function(req, res, next) {
 
 exports.get_persisted_before_timestamp = async function(req, res, next) {
   try {
-    let template_field = await TemplateFieldModel.latestPersistedBeforeDate(req.params.uuid, new Date(req.params.timestamp), req.user._id);
+    let user_id = req.user ? req.user._id  : null;
+    let template_field = await TemplateFieldModel.latestPersistedBeforeDate(req.params.uuid, new Date(req.params.timestamp), user_id);
     if(!template_field) {
       throw new Util.NotFoundError();
     }
