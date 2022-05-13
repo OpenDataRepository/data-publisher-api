@@ -171,6 +171,15 @@ describe("create (and get draft after a create)", () => {
 
     });
 
+    test("there must be a user in the session", async () => {
+      await Helper.testAndExtract(Helper.logout);
+
+      let data = {
+        name: "field",
+      };
+      await failureTest(data, 401);
+    });
+
   });
 
 });

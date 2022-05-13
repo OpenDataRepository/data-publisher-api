@@ -3,7 +3,6 @@ const Util = require('../lib/util');
 
 exports.draft_get = async function(req, res, next) {
   try {
-    // TODO: when users are implemented, replace cookie value with session value
     let template_field = await TemplateFieldModel.draftGet(req.params.uuid, req.user._id);
     if(template_field) {
       res.json(template_field);

@@ -10,6 +10,9 @@ exports.register = async function(req, res, next) {
   // TODO: research how bcrypt works. Don't I need to store some hash value or something
   // for the case when the app goes down and I need to re-calculate passwords?
   try{
+    if(req.isAuthenticated()) {
+      throw new Util.PermissionDeniedError(`Must be logged out to register a new account`);
+    }
     let email = req.body.email;
     if(!email_validator.validate(email)){
       throw new Util.InputError(`email is not in valid email format`);

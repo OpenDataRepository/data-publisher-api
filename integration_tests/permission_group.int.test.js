@@ -47,8 +47,6 @@ describe("initialize_permissions (and get)",  () => {
     expect(response.statusCode).toBe(400);
 
   });
-  // TODO: when users are implemented, test that create can only happen with a valid user in the current session
-
 });
 
 describe("has_permission", () => {

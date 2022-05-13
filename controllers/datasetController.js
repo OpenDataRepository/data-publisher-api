@@ -38,7 +38,6 @@ exports.get_persisted_before_timestamp = async function(req, res, next) {
 
 exports.create = async function(req, res, next) {
   try {
-    // TODO: For all modification endpoints, verify that there is a logged-in user before continuing
     let inserted_uuid = await DatasetModel.create(req.body, req.user._id);
     res.json({inserted_uuid});
   } catch(err) {

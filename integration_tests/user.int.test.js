@@ -3,8 +3,6 @@ var { app, init: appInit, close: appClose } = require('../app');
 var HelperClass = require('./common_test_operations')
 var Helper = new HelperClass(app);
 
-// TODO: edit this file to use the HelperClass for all api calls
-
 var agent;
 
 beforeAll(async () => {
@@ -13,7 +11,7 @@ beforeAll(async () => {
 
 beforeEach(async() => {
   await Helper.clearDatabase();
-  agent = request.agent(app);
+  agent = await Helper.createAgentRegisterLogin(Helper.DEF_EMAIL, Helper.DEF_PASSWORD);
 });
 
 afterAll(async () => {
@@ -25,23 +23,6 @@ const get_test_unprotected_route = async () => {
   return await agent
     .get(`/user/test-unprotected-route`);
 };
-
-const register = async (email, password) => {
-  return await agent
-    .post(`/user/register`)
-    .send({email, password});
-}
-
-const login = async (email, password) => {
-  return await agent
-    .post(`/user/login`)
-    .send({email, password});
-}
-
-const logout = async () => {
-  return await agent
-    .post(`/user/logout`);
-}
 
 const userDelete = async (password) => {
   return await agent
@@ -64,6 +45,8 @@ const get = async () => {
 describe("normal login process", () => {
 
   test("Before logging in, can access the test unprotected route, but not the protected one", async () => {
+
+    await Helper.testAndExtract(Helper.logout);
     
     await Helper.testAndExtract(get_test_unprotected_route);
 
@@ -72,22 +55,13 @@ describe("normal login process", () => {
   });
 
   test("After logging in, can access the protected route", async () => {
-    // register
-    await Helper.testAndExtract(register, Helper.DEF_EMAIL, "waffle");
-
-    let response = await get();
-    expect(response.statusCode).toBe(401);
-
-    // login and get the cookie back
-    await Helper.testAndExtract(login, Helper.DEF_EMAIL, "waffle");
-
-    // get protected route (with session cookie)
+    // get protected route
     await Helper.testAndExtract(get);
 
-    // logout (with session cookie)
-    await Helper.testAndExtract(logout);
+    // logout
+    await Helper.testAndExtract(Helper.logout);
 
-    // get protected route (with session cookie). Expect to fail
+    // get protected route. Expect to fail
     response = await get();
     expect(response.statusCode).toBe(401);
   });
@@ -101,17 +75,20 @@ describe("register", () => {
 
   describe("failure", () => {
 
+    test("can only register if not already logged in", async () => {
+      let response = await Helper.register(Helper.DEF_EMAIL, Helper.DEF_PASSWORD);
+      expect(response.statusCode).toBe(401);
+    });
+
     test("email must be in valid email format", async () => {
-      await register("caleb", "waffle");
-  
-      let response = await register("caleb", "waffle");
+      await Helper.testAndExtract(Helper.logout);
+      let response = await Helper.register("caleb", "waffle");
       expect(response.statusCode).toBe(400);
     });
   
-    test("email must be unique", async () => {
-      await Helper.testAndExtract(register, Helper.DEF_EMAIL, "waffle");
-  
-      let response = await register(Helper.DEF_EMAIL, "waffle");
+    test("email must be unique", async () => {  
+      await Helper.testAndExtract(Helper.logout);
+      let response = await Helper.register(Helper.DEF_EMAIL, "waffle");
       expect(response.statusCode).toBe(400);
     });
 
@@ -122,21 +99,18 @@ describe("register", () => {
 describe("delete", () => {
 
   test("normal", async () => {
-    await Helper.testAndExtract(register, Helper.DEF_EMAIL, "waffle");
-    await Helper.testAndExtract(login, Helper.DEF_EMAIL, "waffle");
-    await Helper.testAndExtract(userDelete, "waffle");
-    let response = await login(Helper.DEF_EMAIL, "waffle");
+    await Helper.testAndExtract(userDelete, Helper.DEF_PASSWORD);
+    let response = await Helper.login(Helper.DEF_EMAIL, Helper.DEF_PASSWORD);
     expect(response.statusCode).toBe(400);
   });
 
   test("must be logged in", async () => {
+    await Helper.testAndExtract(Helper.logout);
     let response = await userDelete();
     expect(response.statusCode).toBe(401);
   });
 
   test("must provide correct password", async () => {
-    await Helper.testAndExtract(register, Helper.DEF_EMAIL, "waffle");
-    await Helper.testAndExtract(login, Helper.DEF_EMAIL, "waffle");
     let response = await userDelete("wrong password");
     expect(response.statusCode).toBe(400);
   });
@@ -148,14 +122,12 @@ describe("update (and get)", () => {
   describe("success", () => {
 
     test("first name and last name", async () => {
-      await Helper.testAndExtract(register, Helper.DEF_EMAIL, "waffle");
-      await Helper.testAndExtract(login, Helper.DEF_EMAIL, "waffle");
       
       let update_properties = {
         first_name: "naruto",
         last_name: "uzumaki"
       };
-      await Helper.testAndExtract(update, update_properties, "waffle");
+      await Helper.testAndExtract(update, update_properties, Helper.DEF_PASSWORD);
 
       let user = await Helper.testAndExtract(get);
       expect(user.email).toEqual(Helper.DEF_EMAIL);
@@ -165,19 +137,16 @@ describe("update (and get)", () => {
     });
 
     test("password", async () => {
-      await Helper.testAndExtract(register, Helper.DEF_EMAIL, "waffle");
-      await Helper.testAndExtract(login, Helper.DEF_EMAIL, "waffle");
-      
       let update_properties = {
         new_password: "pie",
         new_password_confirmation: "pie"
       };
-      await Helper.testAndExtract(update, update_properties, "waffle");
+      await Helper.testAndExtract(update, update_properties, Helper.DEF_PASSWORD);
 
-      await Helper.testAndExtract(logout);
-      let response = await login(Helper.DEF_EMAIL, "waffle");
+      await Helper.testAndExtract(Helper.logout);
+      let response = await Helper.login(Helper.DEF_EMAIL, Helper.DEF_PASSWORD);
       expect(response.statusCode).toBe(400);
-      await Helper.testAndExtract(login, Helper.DEF_EMAIL, "pie");
+      await Helper.testAndExtract(Helper.login, Helper.DEF_EMAIL, "pie");
     });
 
   });
@@ -185,9 +154,6 @@ describe("update (and get)", () => {
   describe("failure", () => {
 
     test("must provide correct password to authorize account changes", async () => {
-      await Helper.testAndExtract(register, Helper.DEF_EMAIL, "waffle");
-      await Helper.testAndExtract(login, Helper.DEF_EMAIL, "waffle");
-      
       let update_properties = {
         first_name: "naruto",
         last_name: "uzumaki"
@@ -197,14 +163,11 @@ describe("update (and get)", () => {
     });
 
     test("new_password_confirmation must match new_password", async () => {
-      await Helper.testAndExtract(register, Helper.DEF_EMAIL, "waffle");
-      await Helper.testAndExtract(login, Helper.DEF_EMAIL, "waffle");
-      
       let update_properties = {
         new_password: "honey-pie",
         new_password_confirmation: "waffle-pie"
       };
-      let response = await update(update_properties, "waffle");
+      let response = await update(update_properties, Helper.DEF_PASSWORD);
       expect(response.statusCode).toBe(400);
     });
 
