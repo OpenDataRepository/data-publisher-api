@@ -7,17 +7,6 @@ const TemplateFieldModel = require('../models/template_field');
 const DatasetModel = require('../models/dataset');
 const UserModel = require('../models/user');
 
-// This endpoint exists only for the purpose of integration testing
-exports.testing_initialize = async function(req, res, next) {
-  try {
-    await PermissionGroupModel.initialize_permissions_for(req.user._id, req.params.uuid);
-    res.sendStatus(200);
-  } catch(err) {
-    next(err);
-  }
-}
-
-
 async function findCollectionForUuid(uuid) {
   if(await ModelsSharedFunctions.exists(DatasetModel.collection(), uuid)) {
     return ModelsSharedFunctions.DocumentTypes.Dataset;
@@ -108,6 +97,16 @@ exports.get = async function(req, res, next) {
   } catch(err) {
     next(err);
   }
+}
+
+exports.delete = async function(uuid, document_type, session) {
+  // Get the permissions group for this uuid
+  for(let permission_type in PermissionGroupModel.PermissionTypes) {
+    let user_ids = await PermissionGroupModel.read_permissions(uuid, permission_type, session);
+    await UserPermissionsModel.removeUserIdsFromUuidAndCategory(uuid, document_type, permission_type, user_ids, session);
+  }
+  // delete permission group and the permissions for all users who have permissions to it
+  await PermissionGroupModel.delete_permissions(uuid, session);
 }
 
 // This endpoint exists only for the purpose of integration testing

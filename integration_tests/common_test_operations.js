@@ -808,12 +808,6 @@ module.exports = class Helper {
     await this.testPermissionGroup(uuid, PERMISSION_EDIT, 200, []);
     await this.testPermissionGroup(uuid, PERMISSION_VIEW, 200, []);
   }
-
-  permissionGroupTestingInitialize = async (uuid) => {
-    return await this.agent
-      .post(`/permission_group/${uuid}/testing_initialize`)
-      .set('Accept', 'application/json');
-  }
   
   permissionGroupTestingHasPermission = async (uuid, category) => {
     return await this.agent

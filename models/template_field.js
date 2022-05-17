@@ -544,19 +544,19 @@ exports.latestPersisted = async function(uuid, user) {
 
 exports.latestPersistedBeforeDate = latestPersistedBeforeDateWithPermissions;
 
-exports.draftDelete = async function(uuid, user) {
+exports.draftDelete = async function(uuid, user, session) {
 
-  let field = await SharedFunctions.draft(TemplateField, uuid);
+  let field = await SharedFunctions.draft(TemplateField, uuid, session);
   if(!field) {
     throw new Util.NotFoundError();
   }
 
   // user must have edit access to see this endpoint
-  if (!await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT)) {
+  if (!await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT, session)) {
     throw new Util.PermissionDeniedError();
   }
 
-  let response = await TemplateField.deleteMany({ uuid, persist_date: {'$exists': false} });
+  let response = await TemplateField.deleteMany({ uuid, persist_date: {'$exists': false} }, session);
   if (response.deletedCount > 1) {
     console.error(`template field draftDelete: Template Field with uuid '${uuid}' had more than one draft to delete.`);
   }

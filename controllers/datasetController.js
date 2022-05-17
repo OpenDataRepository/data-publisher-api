@@ -1,5 +1,7 @@
 const DatasetModel = require('../models/dataset');
 const DatasetPublishModel = require('../models/datasetPublish');
+const PermissionGroupController = require('./permissionGroupController');
+const SharedFunctions = require('../models/shared_functions');
 
 const Util = require('../lib/util');
 
@@ -72,7 +74,15 @@ exports.persist = async function(req, res, next) {
 
 exports.draft_delete = async function(req, res, next) {
   try {
-    await DatasetModel.draftDelete(req.params.uuid, req.user._id);
+    let uuid = req.params.uuid;
+    const callback = async (session) => {
+      await DatasetModel.draftDelete(uuid, req.user._id, session);
+      if( !(await SharedFunctions.latestPersisted(DatasetModel.collection(), uuid, session)) ) {
+        await PermissionGroupController.delete(uuid, SharedFunctions.DocumentTypes.Dataset, session);
+      }
+    }
+    await SharedFunctions.executeWithTransaction(callback);
+
   } catch(err) {
     return next(err);
   }

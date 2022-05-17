@@ -1,6 +1,14 @@
 const MongoDB = require('../lib/mongoDB');
 const Util = require('../lib/util');
 
+const PermissionTypes = {
+  admin: 'admin',
+  edit: 'edit',
+  view: 'view'
+};
+exports.PermissionTypes = PermissionTypes;
+
+// TODO: delete these, and replace all references to them with the above
 const PERMISSION_ADMIN = 'admin';
 const PERMISSION_EDIT = 'edit';
 const PERMISSION_VIEW = 'view';
@@ -67,15 +75,10 @@ async function read_permissions(uuid, category, session) {
 }
 
 async function replace_permissions(current_user_id, uuid, category, user_ids, session) {
-  // TODO: when users are implemented, validate that each user in the list is a real user
-
   // The current user must be in the admin permissions group for this uuid to change it's permissions
   if (!(await has_permission(current_user_id, uuid, PERMISSION_ADMIN, session))) {
     throw new Util.PermissionDeniedError(`You do not have the permission level (admin) required to modify these permissions`);
   }
-
-  // TODO: after the user model is implemented, verify that each user_name exists
-  // Also verify that current_user is one of the user_names included
 
   // If this is the admin category, cannot remove the current user
   if(category == PERMISSION_ADMIN) {
@@ -100,8 +103,8 @@ async function replace_permissions(current_user_id, uuid, category, user_ids, se
   } 
 }
 
+// TODO: consider modifying the design such that there is a single model with all of the permissions
 exports.initialize_permissions_for = async function(current_user, uuid, session) {
-  // TODO: after the user model is implemented, verify that current_user is a real user in the database
   await create_permission(uuid, PERMISSION_ADMIN, [current_user], session);
   await create_permission(uuid, PERMISSION_EDIT, [], session);
   await create_permission(uuid, PERMISSION_VIEW, [], session);
@@ -116,6 +119,16 @@ exports.add_permissions = async function(curr_user_id, uuid, category, user_ids,
   let current_user_ids = await read_permissions(uuid, category, session);
   let combined_user_ids = Util.objectIdsSetUnion(current_user_ids, user_ids);
   await replace_permissions(curr_user_id, uuid, category, combined_user_ids, session);
+}
+
+exports.delete_permissions = async function(uuid, session) {
+  let response = await PermissionGroup.deleteMany(
+    { uuid },
+    { session }
+  );
+  if (response.deletedCount != 3) {
+    console.error(`permission_group.delete_permissions: Expected three permission groups to be deleted upon deleting uuid.`);
+  }
 }
 
 exports.has_permission = has_permission;

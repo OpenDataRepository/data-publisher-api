@@ -746,6 +746,28 @@ describe("delete", () => {
   
   });
 
+  test("if there are no persisted versions, permissions get deleted as well", async () => {
+    let template_field = {
+      name: "tf"
+    };
+    let uuid = await Helper.templateFieldCreateAndTest(template_field);
+
+    let permission_group = await Helper.testAndExtract(Helper.getPermissionGroup, uuid, PERMISSION_ADMIN);
+    expect(permission_group).toEqual([Helper.DEF_EMAIL]);
+
+    let user_permissions = await Helper.testAndExtract(Helper.userDocuments);
+    expect(user_permissions.template_field.admin).toEqual([uuid]);
+  
+    
+    await Helper.testAndExtract(Helper.templateFieldDraftDelete, uuid);
+    
+    response = await Helper.getPermissionGroup(uuid, PERMISSION_ADMIN);
+    expect(response.statusCode).toBe(404);
+
+    user_permissions = await Helper.testAndExtract(Helper.userDocuments);
+    expect(user_permissions.template_field.admin).toEqual([]);
+  });
+
   test("draft must exist", async () => {
     let data = {
       "name":"name",

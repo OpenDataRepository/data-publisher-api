@@ -21,8 +21,9 @@ afterAll(async () => {
 
 describe("initialize_permissions (and get)",  () => {
   test("success", async () => {
-    let uuid = Helper.VALID_UUID;
-    await Helper.testAndExtract(Helper.permissionGroupTestingInitialize, uuid);
+    let template = {name: "t"};
+    template = await Helper.templateCreateAndTest(template);
+    let uuid = template.uuid;
 
     let permission_group = await Helper.testAndExtract(Helper.getPermissionGroup, uuid, PERMISSION_ADMIN);
     expect(permission_group).toEqual([Helper.DEF_EMAIL]);
@@ -42,18 +43,15 @@ describe("initialize_permissions (and get)",  () => {
     has_permission = await Helper.testAndExtract(Helper.permissionGroupTestingHasPermission, uuid, PERMISSION_ADMIN);
     expect(has_permission).toBe(true);
   })
-  test("invalid uuid", async () => {
-    let response = await Helper.permissionGroupTestingInitialize("abc");
-    expect(response.statusCode).toBe(400);
-
-  });
 });
 
 describe("has_permission", () => {
   test("admin also has edit and view permissions", async () => {
-    await Helper.testAndExtract(Helper.permissionGroupTestingInitialize, Helper.VALID_UUID);
+    let template = {name: "t"};
+    template = await Helper.templateCreateAndTest(template);
+    let uuid = template.uuid;
 
-    let has_permission = await Helper.testAndExtract(Helper.permissionGroupTestingHasPermission, Helper.VALID_UUID, PERMISSION_ADMIN);
+    let has_permission = await Helper.testAndExtract(Helper.permissionGroupTestingHasPermission,uuid, PERMISSION_ADMIN);
     expect(has_permission).toBe(true);
   });
 });
@@ -265,8 +263,6 @@ describe("get",  () => {
     let template = await Helper.templateCreateAndTest({
       name: 'template'
     });
-    let response = await Helper.permissionGroupTestingInitialize(template.uuid);
-    expect(response.statusCode).toBe(200);
 
     response = await Helper.getPermissionGroup(template.uuid, 'invalid');
     expect(response.statusCode).toBe(404);

@@ -1577,6 +1577,29 @@ describe("delete", () => {
   
   });
 
+    test("if there are no persisted versions, permissions get deleted as well", async () => {
+    let template = {
+      name: "t"
+    };
+    template = await Helper.templateCreateAndTest(template);
+    let uuid = template.uuid;
+
+    let permission_group = await Helper.testAndExtract(Helper.getPermissionGroup, uuid, PERMISSION_ADMIN);
+    expect(permission_group).toEqual([Helper.DEF_EMAIL]);
+
+    let user_permissions = await Helper.testAndExtract(Helper.userDocuments);
+    expect(user_permissions.template.admin).toEqual([uuid]);
+  
+    
+    await Helper.testAndExtract(Helper.templateDelete, uuid);
+    
+    response = await Helper.getPermissionGroup(uuid, PERMISSION_ADMIN);
+    expect(response.statusCode).toBe(404);
+
+    user_permissions = await Helper.testAndExtract(Helper.userDocuments);
+    expect(user_permissions.template.admin).toEqual([]);
+  });
+
   test("need edit permissions", async () => {
     let template = {
       "name":"basic template"

@@ -1327,17 +1327,17 @@ exports.latestPersistedWithoutPermissions = async function(uuid) {
 
 exports.persistedByIdWithoutPermissions = persistedByIdWithJoins;
 
-exports.draftDelete = async function(uuid, user) {
+exports.draftDelete = async function(uuid, user, session) {
 
-  if(!(await SharedFunctions.draft(Template, uuid))) {
+  if(!(await SharedFunctions.draft(Template, uuid, session))) {
     throw new Util.NotFoundError(`No draft exists with uuid ${uuid}`);
   }
 
-  if(!(await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT))) {
+  if(!(await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT, session))) {
     throw new Util.PermissionDeniedError(`You do not have edit permissions for template ${uuid}.`);
   }
 
-  await SharedFunctions.draftDelete(Template, uuid);
+  await SharedFunctions.draftDelete(Template, uuid, session);
 };
 
 exports.latest_persisted_id_for_uuid = async function(uuid) {

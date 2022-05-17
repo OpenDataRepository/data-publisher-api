@@ -1840,6 +1840,34 @@ describe("delete", () => {
   
   });
 
+  test("if there are no persisted versions, permissions get deleted as well", async () => {
+    let template = {
+      name: "t"
+    };
+    template = await Helper.templateCreatePersistTest(template);
+    let dataset = {
+      template_id: template._id
+    };
+    dataset = await Helper.datasetCreateAndTest(dataset);
+    let uuid = dataset.uuid;
+
+
+    let permission_group = await Helper.testAndExtract(Helper.getPermissionGroup, uuid, PERMISSION_ADMIN);
+    expect(permission_group).toEqual([Helper.DEF_EMAIL]);
+
+    let user_permissions = await Helper.testAndExtract(Helper.userDocuments);
+    expect(user_permissions.dataset.admin).toEqual([uuid]);
+  
+    
+    await Helper.testAndExtract(Helper.datasetDelete, uuid);
+    
+    response = await Helper.getPermissionGroup(uuid, PERMISSION_ADMIN);
+    expect(response.statusCode).toBe(404);
+
+    user_permissions = await Helper.testAndExtract(Helper.userDocuments);
+    expect(user_permissions.dataset.admin).toEqual([]);
+  });
+
   test("dataset doesn't exist", async () => {
     let response = await Helper.datasetDelete(Helper.VALID_UUID);
     expect(response.statusCode).toBe(404);

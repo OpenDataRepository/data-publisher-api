@@ -91,8 +91,11 @@ exports.latest_persisted_id_for_uuid = async (collection, uuid) => {
   return document ? document._id : null;
 }
 
-exports.draftDelete = async (collection, uuid) => {
-  let response = await collection.deleteMany({ uuid, persist_date: {'$exists': false} });
+exports.draftDelete = async (collection, uuid, session) => {
+  let response = await collection.deleteMany(
+    { uuid, persist_date: {'$exists': false} },
+    { session }
+  );
   if (response.deletedCount > 1) {
     console.error(`draftDelete: Document with uuid '${uuid}' had more than one draft to delete.`);
   }

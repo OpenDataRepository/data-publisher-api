@@ -1,5 +1,7 @@
 const TemplateFieldModel = require('../models/template_field');
 const Util = require('../lib/util');
+const PermissionGroupController = require('./permissionGroupController');
+const SharedFunctions = require('../models/shared_functions');
 
 exports.draft_get = async function(req, res, next) {
   try {
@@ -75,8 +77,15 @@ exports.persist = async function(req, res, next) {
 
 exports.draft_delete = async function(req, res, next) {
   try {
-    await TemplateFieldModel.draftDelete(req.params.uuid, req.user._id);
-    // TODO: Anytime a draft is deleted and there isn't a persisted version, the permissions to it also need to be deleted
+    let uuid = req.params.uuid;
+    const callback = async (session) => {
+      await TemplateFieldModel.draftDelete(uuid, req.user._id, session);
+      if( !(await SharedFunctions.latestPersisted(TemplateFieldModel.collection(), uuid, session)) ) {
+        await PermissionGroupController.delete(uuid, SharedFunctions.DocumentTypes.TemplateField, session);
+      }
+    }
+    await SharedFunctions.executeWithTransaction(callback);
+
   } catch(err) {
     return next(err);
   }

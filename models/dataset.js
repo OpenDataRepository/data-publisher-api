@@ -1033,17 +1033,17 @@ exports.lastUpdate = async function(uuid, user) {
 exports.latestPersisted = latestPersistedWithJoinsAndPermissions;
 exports.persistedBeforeDate = latestPersistedBeforeDateWithJoinsAndPermissions;
 
-exports.draftDelete = async function(uuid, user) {
+exports.draftDelete = async function(uuid, user, session) {
   // if draft doesn't exist, return not found
-  if(!(await SharedFunctions.draft(Dataset, uuid))) {
+  if(!(await SharedFunctions.draft(Dataset, uuid, session))) {
     throw new Util.NotFoundError(`No draft exists with uuid ${uuid}`);
   }
   // if don't have admin permissions, return no permissions
-  if(!(await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_ADMIN))) {
+  if(!(await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_ADMIN, session))) {
     throw new Util.PermissionDeniedError(`You do not have admin permissions for dataset ${uuid}.`);
   }
 
-  await SharedFunctions.draftDelete(Dataset, uuid);
+  await SharedFunctions.draftDelete(Dataset, uuid, session);
 }
 
 exports.draftExisting = async function(uuid) {

@@ -1,5 +1,7 @@
 const TemplateModel = require('../models/template');
 const Util = require('../lib/util');
+const PermissionGroupController = require('./permissionGroupController');
+const SharedFunctions = require('../models/shared_functions');
 
 exports.draft_get = async function(req, res, next) {
   try {
@@ -78,7 +80,15 @@ exports.persist = async function(req, res, next) {
 
 exports.draft_delete = async function(req, res, next) {
   try {
-    await TemplateModel.draftDelete(req.params.uuid, req.user._id);
+    let uuid = req.params.uuid;
+    const callback = async (session) => {
+      await TemplateModel.draftDelete(uuid, req.user._id, session);
+      if( !(await SharedFunctions.latestPersisted(TemplateModel.collection(), uuid, session)) ) {
+        await PermissionGroupController.delete(uuid, SharedFunctions.DocumentTypes.Template, session);
+      }
+    }
+    await SharedFunctions.executeWithTransaction(callback);
+
   } catch(err) {
     return next(err);
   }
