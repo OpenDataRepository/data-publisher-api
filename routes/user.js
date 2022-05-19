@@ -7,6 +7,7 @@ const {ensureLoggedIn} = require('../lib/middleware');
 // TODO: rename 'user' to 'account'
 
 router.post('/register', userController.register);
+router.post('/confirm_email/:token', userController.confirm_email);
 router.post('/login', userController.login);
 router.post('/logout', ensureLoggedIn, userController.logout);
 

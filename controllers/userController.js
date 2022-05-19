@@ -1,4 +1,6 @@
-const bcrypt = require ("bcryptjs");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const nodemailer = require("nodemailer");
 const Util = require('../lib/util');
 var passport = require('passport');
 const email_validator = require("email-validator");
@@ -6,9 +8,18 @@ const SharedFunctions = require('../models/shared_functions');
 const User = require('../models/user');
 const UserPermissions = require('../models/user_permissions');
 
+// TODO: this needs to be replaced with a real email eventually. 
+// This email is from https://mailtrap.io/
+const transporter = nodemailer.createTransport({
+  host: 'smtp.mailtrap.io',
+  port: 2525,
+  auth: {
+    user: process.env.EMAIL_USERNAME,
+    pass: process.env.EMAIL_PASSWORD,
+  },
+});
+
 exports.register = async function(req, res, next) {
-  // TODO: research how bcrypt works. Don't I need to store some hash value or something
-  // for the case when the app goes down and I need to re-calculate passwords?
   try{
     if(req.isAuthenticated()) {
       throw new Util.PermissionDeniedError(`Must be logged out to register a new account`);
@@ -18,14 +29,65 @@ exports.register = async function(req, res, next) {
       throw new Util.InputError(`email is not in valid email format`);
     }
     let hashed_password = await bcrypt.hash(req.body.password, 10);
+
+    let email_token;
     
     const callback = async (session) => {
       let user_id = await User.create(email, hashed_password, session);
       await UserPermissions.create(user_id, session);
+
+      // jwt.sign(
+      //   {user_id},
+      //   process.env.EMAIL_SECRET,
+      //   {
+      //     expiresIn: "1d"
+      //   },
+      //   (err, emailToken) => {
+      //     const url = "http://" + req.get('host') + "/user/confirm_email/" + emailToken;
+      //     if(err) {
+      //       console.log(err);
+      //     }
+      //     transporter.sendMail({
+      //       to: email,
+      //       subject: "Confirm Email",
+      //       html: `Please click this email to confirm your email: <a href="${url}">${url}</a>`
+      //     })
+      //   }
+      // )
+
+      email_token = jwt.sign(
+        {user_id},
+        process.env.EMAIL_SECRET,
+        {expiresIn: '1d'}
+      );
+
+      const url = "http://" + req.get('host') + "/user/confirm_email/" + email_token;
+
+      await transporter.sendMail({
+        to: email,
+        subject: 'Confirm Email',
+        html: `Please click this link to confirm your email: <a href="${url}">${url}</a>`,
+      });
+      
     };
     await SharedFunctions.executeWithTransaction(callback);
-    res.sendStatus(200);
+    if(global.is_test) {
+      res.status(200).send({token: email_token});
+    } else {
+      res.sendStatus(200);
+    }
   } catch(err) {
+    next(err);
+  }
+};
+
+exports.confirm_email = async function(req, res, next) {
+  try {
+    let payload = jwt.verify(req.params.token, process.env.EMAIL_SECRET);
+    let user_id = payload.user_id;
+    await User.confirmEmail(user_id);
+    res.sendStatus(200);
+  } catch (e) {
     next(err);
   }
 };
@@ -37,6 +99,8 @@ exports.login = async function(req, res, next) {
         res.status(500).send(err.message);
       } else if(!account) {
         res.status(400).send('either email or password was incorrect');
+      } else if(!global.ignore_email_validation && !account.confirmed) {
+        res.status(401).send('please confirm your email to login');
       } else {
         req.logIn(account, function() {
           res.sendStatus(200);

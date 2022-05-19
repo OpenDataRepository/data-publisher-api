@@ -28,7 +28,7 @@ exports.create = async function(email, password, session) {
     throw new Util.InputError('email already exists');
   }
   let response = await User.insertOne(
-    {email, password},
+    {email, password, confirmed: false},
     {session}
   );
   if (!response.acknowledged) {
@@ -37,6 +37,18 @@ exports.create = async function(email, password, session) {
   return response.insertedId;
 }
 
+exports.confirmEmail = async function(user_id) {
+  user_id = SharedFunctions.convertToMongoId(user_id);
+  let response = await User.updateOne(
+    {_id: user_id},
+    {
+      $set: {confirmed: true}
+    }
+  );
+  if(response.matchedCount != 1) {
+    throw new Error(`User.confirmEmail: matched ${response.matchedCount} accounts with _id: ${user_id}`);
+  }
+}
 exports.getByEmail = async function(email) {
   return await User.findOne(
     {email}

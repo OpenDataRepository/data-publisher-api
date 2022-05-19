@@ -859,6 +859,11 @@ module.exports = class Helper {
       .post(`/user/register`)
       .send({email, password});
   }
+
+  confirmEmail = async (token) => {
+    return await this.agent
+      .post(`/user/confirm_email/${token}`);
+  }
   
   login = async (email, password) => {
     return await this.agent
