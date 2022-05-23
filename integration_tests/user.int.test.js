@@ -11,6 +11,7 @@ beforeAll(async () => {
 
 beforeEach(async() => {
   await Helper.clearDatabase();
+  agent = await Helper.createAgentRegisterLogin(Helper.DEF_EMAIL, Helper.DEF_PASSWORD);
 });
 
 afterAll(async () => {
@@ -41,18 +42,19 @@ const get = async () => {
     .get(`/user`);
 }
 
+const changeEmail = async (new_email, password) => {
+  return await agent
+    .post(`/user/change_email`)
+    .send({new_email, verification_password: password});
+}
+
 describe("email manipulation", () => {
 
-  beforeAll(async() => {
-    global.ignore_email_validation = false;
-  });
-
   test("login only succeeds once email has been confirmed", async () => {
+    await Helper.clearDatabase();
     let agent = request.agent(app);
     Helper.setAgent(agent);
     let email = Helper.DEF_EMAIL;
-    // this is used to signal to register to send back the token directly (bypassing the email for the test case)
-    global.is_test = true;
     let body = await Helper.testAndExtract(Helper.register, email, Helper.DEF_PASSWORD);
     let token = body.token;
 
@@ -64,19 +66,38 @@ describe("email manipulation", () => {
 
     response = await Helper.login(email, Helper.DEF_PASSWORD);
     expect(response.statusCode).toBe(200);
+
+    response = await Helper.confirmEmail(token);
+    expect(response.statusCode).toBe(400);
   });
 
-  afterAll(async() => {
-    global.ignore_email_validation = true;
+  test("able to change email and confirm it", async () => {
+    let response = await changeEmail(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+    expect(response.statusCode).toBe(200);
+    let token = response.body.token;
+
+    await Helper.testAndExtract(Helper.logout);
+
+    response = await Helper.login(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+    expect(response.statusCode).toBe(400);
+    response = await Helper.login(Helper.DEF_EMAIL, Helper.DEF_PASSWORD);
+    expect(response.statusCode).toBe(200);
+
+    await Helper.testAndExtract(Helper.logout);
+
+    response = await Helper.confirmEmail(token);
+    expect(response.statusCode).toBe(200);
+
+    response = await Helper.login(Helper.DEF_EMAIL, Helper.DEF_PASSWORD);
+    expect(response.statusCode).toBe(400);
+    response = await Helper.login(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+    expect(response.statusCode).toBe(200);
+
   });
 
 });
 
 describe("normal login process", () => {
-
-  beforeEach(async() => {
-    agent = await Helper.createAgentRegisterLogin(Helper.DEF_EMAIL, Helper.DEF_PASSWORD);
-  });
 
   test("Before logging in, can access the test unprotected route, but not the protected one", async () => {
 
@@ -102,16 +123,8 @@ describe("normal login process", () => {
 
 });
 
-// TODO: add function to change email
-// Add update email, which will insert a new field replacement_email.
-// When confirm is sent, replacement_email will replace the main email.
-
 // TODO: eventually add constraints on the mongodb itself
 describe("register", () => {
-
-  beforeEach(async() => {
-    agent = await Helper.createAgentRegisterLogin(Helper.DEF_EMAIL, Helper.DEF_PASSWORD);
-  });
 
   describe("failure", () => {
 
@@ -137,9 +150,6 @@ describe("register", () => {
 });
 
 describe("delete", () => {
-  beforeEach(async() => {
-    agent = await Helper.createAgentRegisterLogin(Helper.DEF_EMAIL, Helper.DEF_PASSWORD);
-  });
 
   test("normal", async () => {
     await Helper.testAndExtract(userDelete, Helper.DEF_PASSWORD);
@@ -161,9 +171,6 @@ describe("delete", () => {
 });
 
 describe("update (and get)", () => {
-  beforeEach(async() => {
-    agent = await Helper.createAgentRegisterLogin(Helper.DEF_EMAIL, Helper.DEF_PASSWORD);
-  });
 
   describe("success", () => {
 

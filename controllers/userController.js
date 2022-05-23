@@ -56,22 +56,24 @@ exports.register = async function(req, res, next) {
       // )
 
       email_token = jwt.sign(
-        {user_id},
+        {user_id, email},
         process.env.EMAIL_SECRET,
         {expiresIn: '1d'}
       );
 
       const url = "http://" + req.get('host') + "/user/confirm_email/" + email_token;
 
-      await transporter.sendMail({
-        to: email,
-        subject: 'Confirm Email',
-        html: `Please click this link to confirm your email: <a href="${url}">${url}</a>`,
-      });
+      if(!process.env.is_test) {
+        await transporter.sendMail({
+          to: email,
+          subject: 'Confirm Email',
+          html: `Please click this link to confirm your email: <a href="${url}">${url}</a>`,
+        });
+      }
       
     };
     await SharedFunctions.executeWithTransaction(callback);
-    if(global.is_test) {
+    if(process.env.is_test) {
       res.status(200).send({token: email_token});
     } else {
       res.sendStatus(200);
@@ -85,9 +87,10 @@ exports.confirm_email = async function(req, res, next) {
   try {
     let payload = jwt.verify(req.params.token, process.env.EMAIL_SECRET);
     let user_id = payload.user_id;
-    await User.confirmEmail(user_id);
+    let email = payload.email;
+    await User.confirmEmail(user_id, email);
     res.sendStatus(200);
-  } catch (e) {
+  } catch (err) {
     next(err);
   }
 };
@@ -99,7 +102,7 @@ exports.login = async function(req, res, next) {
         res.status(500).send(err.message);
       } else if(!account) {
         res.status(400).send('either email or password was incorrect');
-      } else if(!global.ignore_email_validation && !account.confirmed) {
+      } else if(!account.confirmed) {
         res.status(401).send('please confirm your email to login');
       } else {
         req.logIn(account, function() {
@@ -148,7 +151,7 @@ exports.delete = async function(req, res, next) {
 exports.update = async function(req, res, next) {
   try{
     if(!req.body.verification_password) {
-      throw new Util.InputError(`Must provide verification password to delete account.`);
+      throw new Util.InputError(`Must provide verification password to update account.`);
     }
     if(!(await bcrypt.compare(req.body.verification_password, req.user.password))) {
       throw new Util.InputError(`Password incorrect.`);
@@ -167,6 +170,58 @@ exports.update = async function(req, res, next) {
 
     await User.update(req.user._id, filtered_update_properties);
     res.sendStatus(200);
+  } catch(err) {
+    next(err);
+  }
+};
+
+exports.change_email = async function(req, res, next) {
+  try{
+    if(!req.body.verification_password) {
+      throw new Util.InputError(`Must provide verification password to change email.`);
+    }
+    if(!(await bcrypt.compare(req.body.verification_password, req.user.password))) {
+      throw new Util.InputError(`Password incorrect.`);
+    }
+
+    let replacement_email = req.body.new_email;
+    if(!replacement_email) {
+      throw new Util.InputError(`New email blank.`);
+    }
+    let filtered_update_properties = {
+      replacement_email
+    };
+
+    let user_id = req.user._id;
+
+    let email_token;
+
+    const callback = async (session) => {
+      await User.update(user_id, filtered_update_properties, session);
+
+      email_token = jwt.sign(
+        {user_id, email: replacement_email},
+        process.env.EMAIL_SECRET,
+        {expiresIn: '1d'}
+      );
+
+      const url = "http://" + req.get('host') + "/user/confirm_email/" + email_token;
+
+      if(!process.env.is_test) {
+        await transporter.sendMail({
+          to: replacement_email,
+          subject: 'Confirm Email',
+          html: `Please click this link to confirm your email: <a href="${url}">${url}</a>`,
+        });
+      }
+    };
+    await SharedFunctions.executeWithTransaction(callback);
+
+    if(process.env.is_test) {
+      res.status(200).send({token: email_token});
+    } else {
+      res.sendStatus(200);
+    }
   } catch(err) {
     next(err);
   }

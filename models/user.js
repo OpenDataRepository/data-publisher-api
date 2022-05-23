@@ -27,6 +27,10 @@ exports.create = async function(email, password, session) {
   if(existing) {
     throw new Util.InputError('email already exists');
   }
+  existing = await User.findOne({unconfirmed_email: email});
+  if(existing) {
+    throw new Util.InputError('email already exists');
+  }
   let response = await User.insertOne(
     {email, password, confirmed: false},
     {session}
@@ -37,12 +41,33 @@ exports.create = async function(email, password, session) {
   return response.insertedId;
 }
 
-exports.confirmEmail = async function(user_id) {
+exports.confirmEmail = async function(user_id, email) {
   user_id = SharedFunctions.convertToMongoId(user_id);
+
+  let current_user = await User.findOne({_id: user_id});
+
+  let set_properties = {};
+  let unset_properties = {};
+  if(!current_user.confirmed) {
+    if(email != current_user.email) {
+      throw new Util.InputError(`Email being confirmed is not the latest email requested`);
+    } 
+    set_properties.confirmed = true;
+  } else if(current_user.replacement_email) {
+    if(email != current_user.replacement_email) {
+      throw new Util.InputError(`Email being confirmed is not the latest email requested`);
+    } 
+    set_properties.email = email;
+    unset_properties.replacement_email = "";
+  } else {
+    throw new Util.InputError(`Email does not need to be confirmed`);
+  }
+
   let response = await User.updateOne(
     {_id: user_id},
     {
-      $set: {confirmed: true}
+      $set: set_properties,
+      $unset: unset_properties
     }
   );
   if(response.matchedCount != 1) {
@@ -70,7 +95,7 @@ exports.delete = async function(_id) {
   }
 }
 
-exports.update = async function(_id, input_update_properties) {
+exports.update = async function(_id, input_update_properties, session) {
   _id = SharedFunctions.convertToMongoId(_id);
   let filtered_update_properties = {};
   if(input_update_properties.first_name) {
@@ -82,11 +107,15 @@ exports.update = async function(_id, input_update_properties) {
   if(input_update_properties.password) {
     filtered_update_properties.password = input_update_properties.password;
   }
+  if(input_update_properties.replacement_email) {
+    filtered_update_properties.replacement_email = input_update_properties.replacement_email;
+  }
   let response = await User.updateOne(
     {_id},
     {
       $set: input_update_properties
-    }
+    },
+    {session}
   );
   if(response.matchedCount != 1) {
     throw new Error(`Updated: matched ${response.matchedCount} accounts with _id: ${_id}`);

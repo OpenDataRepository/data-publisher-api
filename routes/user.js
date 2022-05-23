@@ -13,6 +13,7 @@ router.post('/logout', ensureLoggedIn, userController.logout);
 
 router.post('/delete', ensureLoggedIn, userController.delete);
 router.post('/update', ensureLoggedIn, userController.update);
+router.post('/change_email', ensureLoggedIn, userController.change_email);
 router.get('', ensureLoggedIn, userController.get);
 router.get('/documents', ensureLoggedIn, userController.getPermissions);
 

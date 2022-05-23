@@ -21,7 +21,9 @@ module.exports = class Helper {
   createAgentRegisterLogin = async (email, password) => {
     let agent = request.agent(this.app);
     this.setAgent(agent);
-    await this.testAndExtract(this.register, email, password);
+    let body = await this.testAndExtract(this.register, email, password);
+    let token = body.token;
+    await this.testAndExtract(this.confirmEmail, token);
     await this.testAndExtract(this.login, email, password);
     return agent;
   }

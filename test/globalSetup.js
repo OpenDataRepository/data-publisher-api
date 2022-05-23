@@ -8,5 +8,6 @@ module.exports = async () => {
   let uri = replset.getUri();
   process.env.DB = uri;
   process.env.uploads_folder = "uploads_testing";
+  process.env.is_test = "true";
   global.replset = replset;
 }
