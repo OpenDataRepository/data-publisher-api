@@ -914,6 +914,16 @@ module.exports = class Helper {
       .send({new_email, verification_password: password});
   }
 
+  userTestingSetAdmin = async () => {
+    return await this.agent
+      .post(`/user/testing_set_admin`);
+  }
+
+  userTestingSetSuper = async () => {
+    return await this.agent
+      .post(`/user/testing_set_super`);
+  }
+
   // import 
 
   importTemplateDataset = async (template) => {

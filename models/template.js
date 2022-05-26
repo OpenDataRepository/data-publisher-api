@@ -305,7 +305,7 @@ async function getUuidFromCreateOrUpdate(input_template, user, session) {
     }
     
     // verify that this user is in the 'edit' permission group
-    if (!(await PermissionGroupModel.has_permission(user, input_template.uuid, PermissionGroupModel.PERMISSION_EDIT))) {
+    if (!(await UserPermissionsModel.has_permission(user, input_template.uuid, PermissionGroupModel.PERMISSION_EDIT))) {
       throw new Util.PermissionDeniedError(`Do not have edit permissions for template uuid: ${input_template.uuid}`);
     }
 
@@ -642,19 +642,19 @@ async function persistRecursor(uuid, user, session) {
     if (!persisted_template) {
       throw new Util.NotFoundError(`Template with uuid ${uuid} does not exist`);
     }
-    if(!(await SharedFunctions.userHasAccessToPersistedResource(Template, uuid, user, PermissionGroupModel, session))) {
+    if(!(await UserPermissionsModel.hasAccessToPersistedResource(Template, uuid, user, session))) {
       throw new Util.PermissionDeniedError(`cannot link template with uuid ${uuid}. Requires at least view permissions.`);
     }
     return persisted_template._id;
   }
 
   // If a user doesn't have edit access to this template, we'll use the persisted template instead
-  if(!(await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT, session))) {
+  if(!(await UserPermissionsModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT, session))) {
     // There is no draft of this uuid. Return the latest persisted template instead.
     if (!persisted_template) {
       throw new Util.InputError(`Do not have access to template draft with uuid ${uuid}, and no persisted version exists`);
     }
-    if(!(await SharedFunctions.userHasAccessToPersistedResource(Template, uuid, user, PermissionGroupModel, session))) {
+    if(!(await UserPermissionsModel.hasAccessToPersistedResource(Template, uuid, user, session))) {
       throw new Util.PermissionDeniedError(`cannot link template with uuid ${uuid}. Requires at least view permissions.`);
     }
     return persisted_template._id;
@@ -702,7 +702,7 @@ async function persist(session, uuid, user, last_update) {
     }
   }
 
-  if(!(await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT, session))) {
+  if(!(await UserPermissionsModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT, session))) {
     throw new Util.PermissionDeniedError(`You do not have the edit permissions required to persist ${uuid}`);
   }
 
@@ -842,12 +842,12 @@ async function latestPersistedBeforeDateWithJoins(uuid, date, session) {
 
 async function filterPersistedTemplateForPermissionsRecursor(template, user, session) {
   for(let i = 0; i < template.fields.length; i++) {
-    if(!(await SharedFunctions.userHasAccessToPersistedResource(TemplateField, template.fields[i].uuid, user, PermissionGroupModel, session))) {
+    if(!(await UserPermissionsModel.hasAccessToPersistedResource(TemplateField, template.fields[i].uuid, user, session))) {
       template.fields[i] = {uuid: template.fields[i].uuid};
     }
   }
   for(let i = 0; i < template.related_templates.length; i++) {
-    if(!(await SharedFunctions.userHasAccessToPersistedResource(Template, template.related_templates[i].uuid, user, PermissionGroupModel, session))) {
+    if(!(await UserPermissionsModel.hasAccessToPersistedResource(Template, template.related_templates[i].uuid, user, session))) {
       template.related_templates[i] = {uuid: template.related_templates[i].uuid};
     } else {
       await filterPersistedTemplateForPermissionsRecursor(template.related_templates[i], user, session);
@@ -856,7 +856,7 @@ async function filterPersistedTemplateForPermissionsRecursor(template, user, ses
 }
 
 async function filterPersistedTemplateForPermissions(template, user, session) {
-  if(!(await SharedFunctions.userHasAccessToPersistedResource(Template, template.uuid, user, PermissionGroupModel, session))) {
+  if(!(await UserPermissionsModel.hasAccessToPersistedResource(Template, template.uuid, user, session))) {
     throw new Util.PermissionDeniedError(`Do not have view access to template ${template.uuid}`);
   }
   await filterPersistedTemplateForPermissionsRecursor(template, user, session);
@@ -973,7 +973,7 @@ async function draftFetchOrCreate(session, uuid, user) {
   }
 
   // Make sure this user has a permission to be working with drafts
-  if (!(await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT))) {
+  if (!(await UserPermissionsModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT))) {
     throw new Util.PermissionDeniedError(`You don't have edit permissions required to view template ${uuid}`);
   }
 
@@ -1027,8 +1027,8 @@ async function lastUpdateFor(session, uuid, user) {
 
   let template_draft = await fetchDraftOrCreateFromPersisted(uuid, session);
   let template_persisted = await SharedFunctions.latestPersisted(Template, uuid, session);
-  let edit_permission = await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT, session);
-  let view_permission = await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_VIEW, session);
+  let edit_permission = await UserPermissionsModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT, session);
+  let view_permission = await UserPermissionsModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_VIEW, session);
 
   if(!template_draft) {
     throw new Util.NotFoundError(`No template  exists with uuid ${uuid}`);
@@ -1079,7 +1079,7 @@ async function duplicateRecursor(template, user, session) {
   if(!template) {
     throw new Util.NotFoundError();
   }
-  if(!(await SharedFunctions.userHasAccessToPersistedResource(Template, template.uuid, user, PermissionGroupModel))) {
+  if(!(await UserPermissionsModel.hasAccessToPersistedResource(Template, template.uuid, user))) {
     throw new Util.PermissionDeniedError();
   }
 
@@ -1135,7 +1135,7 @@ async function duplicate(session, uuid, user) {
   if(!template) {
     throw new Util.NotFoundError(`Persisted template ${uuid} does not exist`);
   }
-  if(!(await SharedFunctions.userHasAccessToPersistedResource(Template, template.uuid, user, PermissionGroupModel))) {
+  if(!(await UserPermissionsModel.hasAccessToPersistedResource(Template, template.uuid, user))) {
     throw new Util.PermissionDeniedError(`You do not have view permissions required to duplicate template ${uuid}.`);
   }
   return await duplicateRecursor(template, user, session)
@@ -1154,7 +1154,7 @@ async function importTemplate(session, template, user, updated_at) {
   let uuid = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(old_uuid, session);
   // If the uuid is found, then this has already been imported. Import again if we have edit permissions
   if(uuid) {
-    if(!(await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT, session))) {
+    if(!(await UserPermissionsModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT, session))) {
       throw new Util.PermissionDeniedError(`You do not have edit permissions required to import template ${old_uuid}. It has already been imported.`);
     }
   } else {
@@ -1333,7 +1333,7 @@ exports.draftDelete = async function(uuid, user, session) {
     throw new Util.NotFoundError(`No draft exists with uuid ${uuid}`);
   }
 
-  if(!(await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT, session))) {
+  if(!(await UserPermissionsModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT, session))) {
     throw new Util.PermissionDeniedError(`You do not have edit permissions for template ${uuid}.`);
   }
 

@@ -269,3 +269,20 @@ describe("get",  () => {
 
   });
 });
+
+describe("user permissions: admin and super", () => {
+  test("if admin or super, can access anything", async() => {
+    let template = await Helper.templateCreateAndTest({
+      name: 'template'
+    });
+    await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+    await Helper.userTestingSetAdmin();
+    let response = await Helper.templateDraftGet(template.uuid);
+    expect(response.statusCode).toBe(200);
+
+    await Helper.createAgentRegisterLogin("c@c.com", Helper.DEF_PASSWORD);
+    await Helper.userTestingSetSuper();
+    response = await Helper.templateDraftGet(template.uuid);
+    expect(response.statusCode).toBe(200);
+  });
+});

@@ -101,21 +101,6 @@ exports.draftDelete = async (collection, uuid, session) => {
   }
 }
 
-exports.userHasAccessToPersistedResource = async (collection, uuid, user, PermissionGroupModel, session) => {
-  let latest_persisted = await latestPersisted(collection, uuid, session);
-  if(!latest_persisted) {
-    return false;
-  }
-
-  // If public, then automatic yes
-  if (latest_persisted.public_date && Util.compareTimeStamp((new Date).getTime(), latest_persisted.public_date)){
-    return true;
-  }
-
-  // Otherwise, check, if we have view permissions
-  return await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_VIEW, session);
-}
-
 exports.persistDateFor_id = async (collection, _id, session) => {
   let cursor = await collection.find(
     {"_id": _id}, 

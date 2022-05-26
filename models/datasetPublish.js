@@ -1,6 +1,7 @@
 const MongoDB = require('../lib/mongoDB');
 const Util = require('../lib/util');
 const PermissionGroupModel = require('./permission_group');
+const UserPermissionsModel = require('./user_permissions');
 const DatasetModel = require('./dataset');
 const SharedFunctions = require('./shared_functions');
 
@@ -45,7 +46,7 @@ exports.publish = async function(dataset_uuid, name, user) {
   }
 
   // make sure user has admin permissions on this dataset
-  if (!(await PermissionGroupModel.has_permission(user, dataset_uuid, PermissionGroupModel.PERMISSION_ADMIN))) {
+  if (!(await UserPermissionsModel.has_permission(user, dataset_uuid, PermissionGroupModel.PERMISSION_ADMIN))) {
     throw new Util.PermissionDeniedError(`Do not have admin permissions required for dataset uuid: ${dataset_uuid}`);
   }
 

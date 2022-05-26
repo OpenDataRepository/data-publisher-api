@@ -65,7 +65,7 @@ async function latestPersistedBeforeDateWithPermissions(uuid, date, user) {
   }
 
   // Ensure user has permission to view
-  if (!(await SharedFunctions.userHasAccessToPersistedResource(TemplateField, uuid, user, PermissionGroupModel))) {
+  if (!(await UserPermissionsModel.hasAccessToPersistedResource(TemplateField, uuid, user))) {
     throw new Util.PermissionDeniedError(`Do not have permission to view template field with uuid ${uuid}`);
   }
 
@@ -357,7 +357,7 @@ async function validateAndCreateOrUpdate(session, input_field, user, updated_at)
     }
 
     // verify that this user is in the 'edit' permission group
-    if (!(await PermissionGroupModel.has_permission(user, input_field.uuid, PermissionGroupModel.PERMISSION_EDIT))) {
+    if (!(await UserPermissionsModel.has_permission(user, input_field.uuid, PermissionGroupModel.PERMISSION_EDIT))) {
       throw new Util.PermissionDeniedError();
     }
 
@@ -413,7 +413,7 @@ async function draftFetchOrCreate(session, uuid, user) {
   // If a draft of this template field already exists, return it.
   if (template_field_draft) {
     // Make sure this user has a permission to be working with drafts
-    if (!(await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT))) {
+    if (!(await UserPermissionsModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT))) {
       throw new Util.PermissionDeniedError();
     }
     delete template_field_draft._id;
@@ -427,7 +427,7 @@ async function draftFetchOrCreate(session, uuid, user) {
     return null;
   } else {
     // Make sure this user has a permission to be working with drafts
-    if (!(await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT))) {
+    if (!(await UserPermissionsModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT))) {
       throw new Util.PermissionDeniedError();
     }
   }
@@ -473,7 +473,7 @@ async function persistField(session, uuid, last_update, user) {
   }
 
   // if the user doesn't have edit permissions, throw a permission denied error
-  let has_permission = await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT, session);
+  let has_permission = await UserPermissionsModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT, session);
   if(!has_permission) {
     throw new Util.PermissionDeniedError();
   }
@@ -552,7 +552,7 @@ exports.draftDelete = async function(uuid, user, session) {
   }
 
   // user must have edit access to see this endpoint
-  if (!await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT, session)) {
+  if (!await UserPermissionsModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT, session)) {
     throw new Util.PermissionDeniedError();
   }
 
@@ -566,8 +566,8 @@ exports.lastUpdate = async function(uuid, user, session) {
 
   let field_draft = await SharedFunctions.draft(TemplateField, uuid, session);
   let field_persisted = await latestPersisted(uuid, session);
-  let edit_permission = await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT, session);
-  let view_permission = await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_VIEW, session);
+  let edit_permission = await UserPermissionsModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT, session);
+  let view_permission = await UserPermissionsModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_VIEW, session);
 
   // Get the lat update for the draft if the user has permission to the draft. Otherwise, the last persisted.
   if(!field_draft) {
@@ -602,7 +602,7 @@ exports.duplicate = async function(field, user, session) {
   if(!field) {
     throw new Util.NotFoundError();
   }
-  if(!(await SharedFunctions.userHasAccessToPersistedResource(TemplateField, field.uuid, user, PermissionGroupModel))) {
+  if(!(await UserPermissionsModel.hasAccessToPersistedResource(TemplateField, field.uuid, user))) {
     throw new Util.PermissionDeniedError();
   }
 
@@ -641,7 +641,7 @@ exports.importField = async function(field, user, updated_at, session) {
   let uuid = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(field.template_field_uuid, session);
   // If the uuid is found, then this has already been imported. Import again if we have edit permissions
   if(uuid) {
-    if(!PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT, session)) {
+    if(!UserPermissionsModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT, session)) {
       throw new Util.PermissionDeniedError(`You do not have edit permissions required to import template field ${field.template_field_uuid}. It has already been imported.`);
     }
   } else {

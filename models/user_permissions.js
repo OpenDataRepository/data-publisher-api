@@ -1,5 +1,7 @@
 const MongoDB = require('../lib/mongoDB');
 const PermissionGroupModel = require('./permission_group');
+const SharedFunctions = require('./shared_functions');
+const Util = require('../lib/util');
 
 var UserPermissions;
 
@@ -48,8 +50,33 @@ exports.create = async function(user_id, session) {
   }
 }
 
-exports.get = async function(user_id) {
+
+async function get(user_id) {
   return await UserPermissions.findOne({user_id});
+}
+exports.get = get;
+
+async function has_permission(user_id, uuid, category, session) {
+  let user_permission = await get(user_id);
+  if(user_permission.admin || user_permission.super) {
+    return true;
+  }
+  return await PermissionGroupModel.has_permission(user_id, uuid, category, session);
+}
+exports.has_permission = has_permission;
+
+exports.hasAccessToPersistedResource = async (collection, uuid, user, session) => {
+  let latest_persisted = await SharedFunctions.latestPersisted(collection, uuid, session);
+  if(!latest_persisted) {
+    return false;
+  }
+
+  // If public, then automatic yes
+  if (latest_persisted.public_date && Util.compareTimeStamp((new Date).getTime(), latest_persisted.public_date)){
+    return true;
+  }
+
+  return await has_permission(user, uuid, PermissionGroupModel.PERMISSION_VIEW, session);
 }
 
 async function getCurrentUuids(user_id, document_type, permission_type) {
@@ -114,4 +141,24 @@ exports.removeUserIdsFromUuidAndCategory = async function(document_uuid, documen
 exports.initialize_permissions_for = async function(user_id, document_uuid, document_type, session) {
   await addPermission(user_id, document_type, PermissionGroupModel.PERMISSION_ADMIN, document_uuid, session);
   await PermissionGroupModel.initialize_permissions_for(user_id, document_uuid, session);
+}
+
+exports.setAdmin = async function(user_id) {
+  let response = await UserPermissions.updateOne(
+    {user_id},
+    {$set: {admin: true}}
+  );
+  if (response.modifiedCount != 1) {
+    throw `UserPermissions.setAdmin: should be 1 modified document. Instead: ${response.modifiedCount}`;
+  }
+}
+
+exports.setSuper = async function(user_id) {
+  let response = await UserPermissions.updateOne(
+    {user_id},
+    {$set: {super: true}}
+  );
+  if (response.modifiedCount != 1) {
+    throw `UserPermissions.setSuper: should be 1 modified document. Instead: ${response.modifiedCount}`;
+  }
 }

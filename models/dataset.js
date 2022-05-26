@@ -182,7 +182,7 @@ async function validateAndCreateOrUpdateRecurser(input_dataset, template, user, 
     }
 
     // verify that this user is in the 'admin' permission group
-    if (!(await PermissionGroupModel.has_permission(user, input_dataset.uuid, PermissionGroupModel.PERMISSION_ADMIN))) {
+    if (!(await UserPermissionsModel.has_permission(user, input_dataset.uuid, PermissionGroupModel.PERMISSION_ADMIN))) {
       throw new Util.PermissionDeniedError(`Do not have admin permissions for dataset uuid: ${input_dataset.uuid}`);
     }
 
@@ -202,7 +202,7 @@ async function validateAndCreateOrUpdateRecurser(input_dataset, template, user, 
   if(input_dataset.template_id != template._id.toString()) {
     throw new Util.InputError(`The template _id provided by the dataset (${input_dataset.template_id}) does not correspond to the template _id expected by the template (${template._id})`);
   }
-  if(!(await SharedFunctions.userHasAccessToPersistedResource(TemplateModel.collection(), template.uuid, user, PermissionGroupModel, session))) {
+  if(!(await UserPermissionsModel.hasAccessToPersistedResource(TemplateModel.collection(), template.uuid, user, session))) {
     throw new Util.PermissionDeniedError(`Cannot link to template_id ${template._id}, as you do not have view permissions to it`);
   }
 
@@ -335,7 +335,7 @@ async function draftFetchOrCreate(session, uuid, user) {
   }
   
   // Make sure this user has a permission to be working with drafts
-  if (!(await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_ADMIN, session))) {
+  if (!(await UserPermissionsModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_ADMIN, session))) {
     throw new Util.PermissionDeniedError(`You do not have the edit permissions required to view draft ${uuid}`);
   }
 
@@ -389,8 +389,8 @@ async function lastUpdateFor(session, uuid, user) {
   }
 
   let persisted = await SharedFunctions.latestPersisted(Dataset, uuid, session);
-  let admin_permission = await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_ADMIN);
-  let view_permission = await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_VIEW);
+  let admin_permission = await UserPermissionsModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_ADMIN);
+  let view_permission = await UserPermissionsModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_VIEW);
 
   if(!admin_permission) {
     if(!persisted) {
@@ -512,7 +512,7 @@ async function persistRecurser(uuid, user, session, template) {
   }
 
   // verify that this user is in the 'admin' permission group
-  if (!(await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_ADMIN, session))) {
+  if (!(await UserPermissionsModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_ADMIN, session))) {
     throw new Util.PermissionDeniedError(`Do not have admin permissions for dataset uuid: ${uuid}`);
   }
 
@@ -648,7 +648,7 @@ async function latestPersistedBeforeDateWithJoins(uuid, date, session) {
 
 async function filterPersistedForPermissionsRecursor(dataset, user, session) {
   for(let i = 0; i < dataset.related_datasets.length; i++) {
-    if(!(await SharedFunctions.userHasAccessToPersistedResource(Dataset, dataset.related_datasets[i].uuid, user, PermissionGroupModel, session))) {
+    if(!(await UserPermissionsModel.hasAccessToPersistedResource(Dataset, dataset.related_datasets[i].uuid, user, session))) {
       dataset.related_datasets[i] = {uuid: dataset.related_datasets[i].uuid};
     } else {
       await filterPersistedForPermissionsRecursor(dataset.related_datasets[i], user, session);
@@ -657,7 +657,7 @@ async function filterPersistedForPermissionsRecursor(dataset, user, session) {
 }
 
 async function filterPersistedForPermissions(dataset, user, session) {
-  if(!(await SharedFunctions.userHasAccessToPersistedResource(Dataset, dataset.uuid, user, PermissionGroupModel, session))) {
+  if(!(await UserPermissionsModel.hasAccessToPersistedResource(Dataset, dataset.uuid, user, session))) {
     throw new Util.PermissionDeniedError(`Do not have view access to dataset ${dataset.uuid}`);
   }
   await filterPersistedForPermissionsRecursor(dataset, user, session);
@@ -677,7 +677,7 @@ async function latestPersistedWithJoinsAndPermissions(uuid, user, session) {
 
 async function duplicateRecursor(original_dataset, original_group_uuid, new_group_uuid, uuid_dictionary, user, session) {
   // verify that this user is in the 'view' permission group
-  if (!(await SharedFunctions.userHasAccessToPersistedResource(Dataset, original_dataset.uuid, user, PermissionGroupModel))) {
+  if (!(await UserPermissionsModel.hasAccessToPersistedResource(Dataset, original_dataset.uuid, user))) {
     throw new Util.PermissionDeniedError(`Do not have view permissions required to duplicate dataset: ${original_dataset.uuid}`);
   }
 
@@ -789,7 +789,7 @@ async function importDatasetFromCombinedRecursor(record, template, user, updated
   let dataset_uuid = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(old_uuid, session);
   // If the uuid is found, then this has already been imported. Import again if we have edit permissions
   if(dataset_uuid) {
-    if(!(await PermissionGroupModel.has_permission(user, dataset_uuid, PermissionGroupModel.PERMISSION_ADMIN, session))) {
+    if(!(await UserPermissionsModel.has_permission(user, dataset_uuid, PermissionGroupModel.PERMISSION_ADMIN, session))) {
       throw new Util.PermissionDeniedError(`You do not have edit permissions required to import database ${old_uuid}. It has already been imported.`);
     }
   } else {
@@ -944,7 +944,7 @@ async function importDatasetForTemplate(template, user, session, updated_at) {
   let dataset_uuid = await LegacyUuidToNewUuidMapperModel.get_secondary_uuid_from_old(old_template_uuid, session);
   // If the uuid is found, then this has already been imported. Import again if we have edit permissions
   if(dataset_uuid) {
-    if(!(await PermissionGroupModel.has_permission(user, dataset_uuid, PermissionGroupModel.PERMISSION_EDIT, session))) {
+    if(!(await UserPermissionsModel.has_permission(user, dataset_uuid, PermissionGroupModel.PERMISSION_EDIT, session))) {
       throw new Util.PermissionDeniedError(`You do not have edit permissions required to import dataset ${old_template_uuid}. It has already been imported.`);
     }
   } else {
@@ -1039,7 +1039,7 @@ exports.draftDelete = async function(uuid, user, session) {
     throw new Util.NotFoundError(`No draft exists with uuid ${uuid}`);
   }
   // if don't have admin permissions, return no permissions
-  if(!(await PermissionGroupModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_ADMIN, session))) {
+  if(!(await UserPermissionsModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_ADMIN, session))) {
     throw new Util.PermissionDeniedError(`You do not have admin permissions for dataset ${uuid}.`);
   }
 

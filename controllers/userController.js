@@ -243,3 +243,21 @@ exports.getPermissions = async function(req, res, next) {
     next(err);
   }
 };
+
+exports.testing_set_admin = async function(req, res, next) {
+  try{
+    await UserPermissions.setAdmin(req.user._id)
+    res.sendStatus(200);
+  } catch(err) {
+    next(err);
+  }
+};
+
+exports.testing_set_super = async function(req, res, next) {
+  try{
+    await UserPermissions.setSuper(req.user._id)
+    res.sendStatus(200);
+  } catch(err) {
+    next(err);
+  }
+};
