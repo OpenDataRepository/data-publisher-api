@@ -2,11 +2,11 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 const Util = require('../lib/util');
-var passport = require('passport');
 const email_validator = require("email-validator");
 const SharedFunctions = require('../models/shared_functions');
 const User = require('../models/user');
 const UserPermissions = require('../models/user_permissions');
+const PassportImplementation = require('../lib/passport_implementation');
 
 // TODO: this needs to be replaced with a real email eventually. 
 // This email is from https://mailtrap.io/
@@ -21,9 +21,9 @@ const transporter = nodemailer.createTransport({
 
 exports.register = async function(req, res, next) {
   try{
-    if(req.isAuthenticated()) {
-      throw new Util.PermissionDeniedError(`Must be logged out to register a new account`);
-    }
+    // if(req.isAuthenticated()) {
+    //   throw new Util.PermissionDeniedError(`Must be logged out to register a new account`);
+    // }
     let email = req.body.email;
     if(!email_validator.validate(email)){
       throw new Util.InputError(`email is not in valid email format`);
@@ -96,27 +96,34 @@ exports.confirm_email = async function(req, res, next) {
 };
 
 exports.login = async function(req, res, next) {
-  passport.authenticate('local', 
-    function (err, account) {
-      if(err) {
-        res.status(500).send(err.message);
-      } else if(!account) {
-        res.status(400).send('either email or password was incorrect');
-      } else if(!account.confirmed) {
-        res.status(401).send('please confirm your email to login');
-      } else {
-        req.logIn(account, function() {
-          res.sendStatus(200);
-        });
-      }
+  try {
+    let account = await User.getByEmail(req.body.email);
+    if(!account) {
+      throw new Util.InputError("email does not exist");
     }
-  )(req, res, next) 
+                
+    if(!(await bcrypt.compare(req.body.password, account.password))) {
+      throw new Util.InputError("password incorrect");
+    }
+
+    if(!account.confirmed) {
+      throw new Util.PermissionDeniedError("confirm email before logging in");
+    }
+        
+    const tokenObject = PassportImplementation.issueJWT(account._id);
+
+    res.status(200).json({ token: tokenObject.token, expiresIn: tokenObject.expires });
+
+  } catch(err) {
+    next(err);
+  };
 };
 
-exports.logout = function(req, res, next) {
-  req.logout();
-  res.sendStatus(200);
-};
+// TODO: at some point implement logout by creating a token blacklist
+// exports.logout = function(req, res, next) {
+//   req.logout();
+//   res.sendStatus(200);
+// };
 
 exports.get = async function(req, res, next) {
   try{
@@ -141,7 +148,7 @@ exports.delete = async function(req, res, next) {
     }
     await User.delete(req.user._id);
     // TODO: There is a problem if a user get's deleted. What happens to their resources?
-    req.logout();
+    // req.logout();
     res.sendStatus(200);
   } catch(err) {
     next(err);
@@ -230,7 +237,6 @@ exports.change_email = async function(req, res, next) {
 exports.getPermissions = async function(req, res, next) {
   try{
     let user = req.user;
-    // this should be the same as req.isAuthenticated(), but just put it here for safety.
     let user_permissions = await UserPermissions.get(user._id)
     res.send(user_permissions);
   } catch(err) {

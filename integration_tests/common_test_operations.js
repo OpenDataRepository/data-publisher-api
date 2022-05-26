@@ -22,9 +22,11 @@ module.exports = class Helper {
     let agent = request.agent(this.app);
     this.setAgent(agent);
     let body = await this.testAndExtract(this.register, email, password);
-    let token = body.token;
-    await this.testAndExtract(this.confirmEmail, token);
-    await this.testAndExtract(this.login, email, password);
+    let email_token = body.token;
+    await this.testAndExtract(this.confirmEmail, email_token);
+    body = await this.testAndExtract(this.login, email, password);
+    let login_token = body.token.split(" ")[1];
+    this.setAgent(this.agent.auth(login_token, { type: 'bearer' }));
     return agent;
   }
 
@@ -881,6 +883,35 @@ module.exports = class Helper {
   userDocuments = async () => {
     return await this.agent
       .get(`/user/documents`);
+  }
+
+  get_test_unprotected_route = async () => {
+    return await this.agent
+      .get(`/user/test-unprotected-route`);
+  };
+  
+  userDelete = async (password) => {
+    return await this.agent
+      .post(`/user/delete`)
+      .send({password});
+  }
+  
+  userUpdate = async (update_properties, password) => {
+    update_properties.verification_password = password;
+    return await this.agent
+      .post(`/user/update`)
+      .send(update_properties);
+  }
+  
+  userGet = async () => {
+    return await this.agent
+      .get(`/user`);
+  }
+  
+  changeEmail = async (new_email, password) => {
+    return await this.agent
+      .post(`/user/change_email`)
+      .send({new_email, verification_password: password});
   }
 
   // import 

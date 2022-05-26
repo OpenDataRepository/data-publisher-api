@@ -1,3 +1,4 @@
+const request = require("supertest");
 var { app, init: appInit, close: appClose } = require('../app');
 var { PERMISSION_ADMIN, PERMISSION_EDIT, PERMISSION_VIEW } = require('../models/permission_group');
 const FieldTypes = require('../models/template_field').FieldTypes;
@@ -172,7 +173,8 @@ describe("create (and get draft after a create)", () => {
     });
 
     test("there must be a user in the session", async () => {
-      await Helper.testAndExtract(Helper.logout);
+      let agent2 = request.agent(app);
+      Helper.setAgent(agent2);
 
       let data = {
         name: "field",
@@ -614,7 +616,8 @@ describe("get latest persisted", () => {
     // Second user without permissions should be able to view it because it's public
     response = await Helper.testAndExtract(Helper.templateFieldLatestPersisted, uuid);
 
-    await Helper.testAndExtract(Helper.logout);
+    let agent2 = request.agent(app);
+    Helper.setAgent(agent2);
 
     // non-users should also be able to view it if it's public
     response = await Helper.testAndExtract(Helper.templateFieldLatestPersisted, uuid);
