@@ -1263,13 +1263,44 @@ async function importTemplate(session, template, user, updated_at) {
 // Wraps the actual request to create with a transaction
 exports.create = async function(template, user) {
   let inserted_uuid;
-  [_, inserted_uuid] = await SharedFunctions.executeWithTransaction(validateAndCreateOrUpdate, template, user, new Date(), new Set());
-  return inserted_uuid;
+  // Note comments for update below
+  const session = MongoDB.newSession();
+  try {
+    await session.withTransaction(async () => {
+      try {
+        [_, inserted_uuid] = await validateAndCreateOrUpdate(session, template, user, new Date(), new Set());
+      } catch(err) {
+        await session.abortTransaction();
+        throw err;
+      }
+    });
+    session.endSession();
+    return inserted_uuid;
+  } catch(err) {
+    session.endSession();
+    throw err;
+  }
 }
 
 // Wraps the actual request to update with a transaction
 exports.update = async function(template, user) {
-  await SharedFunctions.executeWithTransaction(validateAndCreateOrUpdate, template, user, new Date(), new Set());
+  // if this transaction fails, it retries. The problem is, if it retries we need the last argument, ancestors, to reset
+  // solution is not to use SharedFunctions.executeWithTransaction, since the argument ancestors wouldn't reset if we did that
+  const session = MongoDB.newSession();
+  try {
+    await session.withTransaction(async () => {
+      try {
+        await validateAndCreateOrUpdate(session, template, user, new Date(), new Set());
+      } catch(err) {
+        await session.abortTransaction();
+        throw err;
+      }
+    });
+    session.endSession();
+  } catch(err) {
+    session.endSession();
+    throw err;
+  }
 }
 
 // Wraps the actual request to get with a transaction

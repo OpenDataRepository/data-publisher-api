@@ -1,13 +1,15 @@
 const express = require('express');
 const logger = require('morgan');
 const cookieParser = require("cookie-parser");
-var passport = require('passport');
+// var passport = require('passport');
 const Util = require('./lib/util');
 require('dotenv').config();
 const init = require('./lib/init');
 const MongoDB = require('./lib/mongoDB');
 var indexRouter = require('./routes/index');
-const PassportImplementation = require('./lib/passport_implementation');
+// const PassportImplementation = require('./lib/passport_implementation');
+const { getUserFromToken, superUserActAs } = require('./lib/middleware');
+
 
 var app = express();
 
@@ -16,9 +18,12 @@ app.use(express.json({limit: '10mb'}));
 app.use(express.urlencoded({ limit: '10mb', extended: false }));
 app.use(cookieParser());
 
-passport.use(PassportImplementation.JWTStrategy);
+// passport.use(PassportImplementation.JWTStrategy);
 
-app.use(passport.initialize());
+// app.use(passport.initialize());
+
+app.use(getUserFromToken);
+app.use(superUserActAs);
 
 app.use('/', indexRouter);
 app.use(function(req, res, next) {

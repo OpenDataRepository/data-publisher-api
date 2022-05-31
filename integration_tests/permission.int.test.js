@@ -19,6 +19,10 @@ afterAll(async () => {
   await appClose();
 });
 
+function actAs(req, user_email) {
+  return req.query({ user_email });
+}
+
 describe("initialize_permissions (and get)",  () => {
   test("success", async () => {
     let template = {name: "t"};
@@ -284,5 +288,62 @@ describe("user permissions: admin and super", () => {
     await Helper.userTestingSetSuper();
     response = await Helper.templateDraftGet(template.uuid);
     expect(response.statusCode).toBe(200);
+  });
+
+  test("super user can act as anyone", async() => {
+    // user 1 is super user
+    await Helper.userTestingSetSuper();
+    // user 1 creates child template as self
+    let child = await Helper.templateCreateAndTest({
+      name: 'child'
+    });
+    // user 2 creates parent template
+    let agent2 = await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+    let parent = await Helper.templateCreateAndTest({
+      name: 'parent'
+    });
+
+    // user 2 doesn't have permissions to child template, so user 1 will use admin permissions to link child to parent
+    Helper.setAgent(agent1);
+    parent.related_templates = [child];
+    await Helper.templateUpdateAndTest(parent);
+
+    // Fetch parent using admin permissions. Should be able to see everything
+    let temp_parent = await Helper.templateDraftGetAndTest(parent.uuid);
+    expect(temp_parent.related_templates[0].name).toEqual("child");
+
+    // Fetch parent using acting as user 2
+    temp_parent = await Helper.testAndExtract(actAs, Helper.templateDraftGet(parent.uuid), Helper.EMAIL_2);
+    expect(temp_parent.related_templates[0].name).toBeFalsy();
+
+    Helper.setAgent(agent2);
+
+    // Fetch parent with user 2. Shouldn't be able to see child template
+    temp_parent = await Helper.templateDraftGetAndTest(parent.uuid);
+    expect(temp_parent.related_templates[0].name).toBeFalsy();
+
+    // Try to update child template through updating the parent template with user 2. Should fail.
+    child.description = "i now have a description";
+    let response = await Helper.templateUpdate(parent.uuid, parent);
+    expect(response.statusCode).toBe(200)
+
+    Helper.setAgent(agent1);
+
+    temp_parent = await Helper.templateDraftGetAndTest(parent.uuid);
+    expect(temp_parent.related_templates[0].description).toEqual("");
+
+    // Try to update child template through updating the parent template with super user acting as user 2. Should fail.
+
+    Helper.testAndExtract(actAs, Helper.templateUpdate(parent.uuid, parent), Helper.EMAIL_2);
+
+    temp_parent = await Helper.templateDraftGetAndTest(parent.uuid);
+    expect(temp_parent.related_templates[0].description).toBeFalsy();
+
+    // Update child template through the admin user. Should succeed
+    response = await Helper.templateUpdate(parent.uuid, parent);
+    expect(response.statusCode).toBe(200)
+    temp_parent = await Helper.templateDraftGetAndTest(parent.uuid);
+    expect(temp_parent.related_templates[0].description).toEqual(child.description);
+
   });
 });

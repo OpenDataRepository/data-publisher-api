@@ -162,3 +162,11 @@ exports.setSuper = async function(user_id) {
     throw `UserPermissions.setSuper: should be 1 modified document. Instead: ${response.modifiedCount}`;
   }
 }
+
+exports.isSuper = async function(user_id) {
+  let permissions = await get(user_id);
+  if(!permissions) {
+    return false;
+  }
+  return permissions.super;
+}

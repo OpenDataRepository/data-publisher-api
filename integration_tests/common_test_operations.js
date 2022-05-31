@@ -261,15 +261,15 @@ module.exports = class Helper {
 
   // template
 
-  templateCreate = async (template) => {
-    return await this.agent
+  templateCreate = (template) => {
+    return this.agent
       .post('/template')
       .send(template)
       .set('Accept', 'application/json');
   };
 
-  templateDraftGet = async (uuid) => {
-    return await this.agent
+  templateDraftGet = (uuid) => {
+    return this.agent
       .get(`/template/${uuid}/draft`)
       .set('Accept', 'application/json');
   };
@@ -384,8 +384,8 @@ module.exports = class Helper {
     return persisted_template;
   };
 
-  templateUpdate = async (uuid, template) => {
-    return await this.agent
+  templateUpdate = (uuid, template) => {
+    return this.agent
       .put(`/template/${uuid}`)
       .send(template)
       .set('Accept', 'application/json');
