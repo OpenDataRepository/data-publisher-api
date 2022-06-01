@@ -33,7 +33,7 @@ exports.register = async function(req, res, next) {
     let email_token;
     
     const callback = async (session) => {
-      let user_id = await User.create(email, hashed_password, session);
+      let user_id = await User.create(email, hashed_password, false, session);
       await UserPermissions.create(user_id, session);
 
       // jwt.sign(
@@ -127,7 +127,12 @@ exports.login = async function(req, res, next) {
 
 exports.get = async function(req, res, next) {
   try{
-    let user = req.user;
+    let user;
+    if(req.params.email) {
+      user = await User.getByEmail(req.params.email);
+    } else {
+      user = req.user;
+    }
     let filtered_user = {};
     filtered_user.first_name = user.first_name;
     filtered_user.last_name = user.last_name;

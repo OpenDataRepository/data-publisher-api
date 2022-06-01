@@ -907,6 +907,11 @@ module.exports = class Helper {
     return await this.agent
       .get(`/user`);
   }
+
+  userGetByEmail = async (email) => {
+    return await this.agent
+      .get(`/user/other_user/${email}`);
+  }
   
   changeEmail = async (new_email, password) => {
     return await this.agent

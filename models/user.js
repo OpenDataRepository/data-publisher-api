@@ -22,7 +22,7 @@ exports.init = async function() {
   User = await collection();
 }
 
-exports.create = async function(email, password, session) {
+exports.create = async function(email, password, confirmed, session) {
   let existing = await User.findOne({email});
   if(existing) {
     throw new Util.InputError('email already exists');
@@ -32,7 +32,7 @@ exports.create = async function(email, password, session) {
     throw new Util.InputError('email already exists');
   }
   let response = await User.insertOne(
-    {email, password, confirmed: false},
+    {email, password, confirmed},
     {session}
   );
   if (!response.acknowledged) {
