@@ -1,4 +1,4 @@
-var { PERMISSION_ADMIN, PERMISSION_EDIT, PERMISSION_VIEW } = require('../models/permission_group');
+var { PermissionTypes } = require('../models/permission_group');
 var { app, init: appInit, close: appClose } = require('../app');
 var HelperClass = require('./common_test_operations');
 var Helper = new HelperClass(app);
@@ -26,22 +26,22 @@ describe("initialize_permissions (and get)",  () => {
     template = await Helper.templateCreateAndTest(template);
     let uuid = template.uuid;
 
-    let permission_group = await Helper.testAndExtract(Helper.getPermissionGroup, uuid, PERMISSION_ADMIN);
+    let permission_group = await Helper.testAndExtract(Helper.getPermissionGroup, uuid, PermissionTypes.admin);
     expect(permission_group).toEqual([Helper.DEF_EMAIL]);
 
-    permission_group = await Helper.testAndExtract(Helper.getPermissionGroup, uuid, PERMISSION_EDIT);
+    permission_group = await Helper.testAndExtract(Helper.getPermissionGroup, uuid, PermissionTypes.edit);
     expect(permission_group).toEqual([]);
 
-    permission_group = await Helper.testAndExtract(Helper.getPermissionGroup, uuid, PERMISSION_VIEW);
+    permission_group = await Helper.testAndExtract(Helper.getPermissionGroup, uuid, PermissionTypes.view);
     expect(permission_group).toEqual([]);
 
-    let has_permission = await Helper.testAndExtract(Helper.permissionGroupTestingHasPermission, uuid, PERMISSION_ADMIN);
+    let has_permission = await Helper.testAndExtract(Helper.permissionGroupTestingHasPermission, uuid, PermissionTypes.admin);
     expect(has_permission).toBe(true);
 
-    has_permission = await Helper.testAndExtract(Helper.permissionGroupTestingHasPermission, uuid, PERMISSION_ADMIN);
+    has_permission = await Helper.testAndExtract(Helper.permissionGroupTestingHasPermission, uuid, PermissionTypes.admin);
     expect(has_permission).toBe(true);
 
-    has_permission = await Helper.testAndExtract(Helper.permissionGroupTestingHasPermission, uuid, PERMISSION_ADMIN);
+    has_permission = await Helper.testAndExtract(Helper.permissionGroupTestingHasPermission, uuid, PermissionTypes.admin);
     expect(has_permission).toBe(true);
   })
 });
@@ -52,7 +52,7 @@ describe("has_permission", () => {
     template = await Helper.templateCreateAndTest(template);
     let uuid = template.uuid;
 
-    let has_permission = await Helper.testAndExtract(Helper.permissionGroupTestingHasPermission,uuid, PERMISSION_ADMIN);
+    let has_permission = await Helper.testAndExtract(Helper.permissionGroupTestingHasPermission,uuid, PermissionTypes.admin);
     expect(has_permission).toBe(true);
   });
 });
@@ -80,16 +80,16 @@ describe("update (and get)",  () => {
     };
     let uuid = await Helper.templateFieldCreateAndTest(template_field);
 
-    await Helper.testAndExtract(Helper.updatePermissionGroup, uuid, PERMISSION_VIEW, view_users);
-    let result_users = await Helper.testAndExtract(Helper.getPermissionGroup, uuid, PERMISSION_VIEW);
+    await Helper.testAndExtract(Helper.updatePermissionGroup, uuid, PermissionTypes.view, view_users);
+    let result_users = await Helper.testAndExtract(Helper.getPermissionGroup, uuid, PermissionTypes.view);
     expect(result_users).toEqual(view_users);
 
-    await Helper.testAndExtract(Helper.updatePermissionGroup, uuid, PERMISSION_EDIT, edit_users);
-    result_users = await Helper.testAndExtract(Helper.getPermissionGroup, uuid, PERMISSION_EDIT);
+    await Helper.testAndExtract(Helper.updatePermissionGroup, uuid, PermissionTypes.edit, edit_users);
+    result_users = await Helper.testAndExtract(Helper.getPermissionGroup, uuid, PermissionTypes.edit);
     expect(result_users).toEqual(edit_users);
 
-    await Helper.testAndExtract(Helper.updatePermissionGroup, uuid, PERMISSION_ADMIN, admin_users);
-    result_users = await Helper.testAndExtract(Helper.getPermissionGroup, uuid, PERMISSION_ADMIN);
+    await Helper.testAndExtract(Helper.updatePermissionGroup, uuid, PermissionTypes.admin, admin_users);
+    result_users = await Helper.testAndExtract(Helper.getPermissionGroup, uuid, PermissionTypes.admin);
     expect(result_users).toEqual(admin_users);
   });
 
@@ -118,7 +118,7 @@ describe("update (and get)",  () => {
     Helper.setAgent(agent1);
 
     let admin_users = ["b@b.com"];
-    response = await Helper.updatePermissionGroup(uuid, PERMISSION_ADMIN, admin_users);
+    response = await Helper.updatePermissionGroup(uuid, PermissionTypes.admin, admin_users);
     expect(response.statusCode).toBe(400);
 
   });
@@ -145,14 +145,14 @@ describe("update (and get)",  () => {
     await Helper.setAgent(agent1);
 
     let view_users = [Helper.EMAIL_2, Helper.DEF_EMAIL];
-    let response = await Helper.updatePermissionGroup(template.uuid, PERMISSION_VIEW, view_users);
+    let response = await Helper.updatePermissionGroup(template.uuid, PermissionTypes.view, view_users);
     expect(response.statusCode).toBe(200);
-    response = await Helper.getPermissionGroup(template.uuid, PERMISSION_VIEW);
+    response = await Helper.getPermissionGroup(template.uuid, PermissionTypes.view);
     expect(response.statusCode).toBe(200);
     expect(response.body).toEqual(view_users);
 
     view_users = [Helper.DEF_EMAIL];
-    response = await Helper.updatePermissionGroup(template.uuid, PERMISSION_VIEW, view_users);
+    response = await Helper.updatePermissionGroup(template.uuid, PermissionTypes.view, view_users);
     expect(response.statusCode).toBe(400);
 
   });
@@ -167,19 +167,19 @@ describe("update (and get)",  () => {
     await Helper.setAgent(agent1);
 
     let users = [Helper.EMAIL_2, Helper.DEF_EMAIL];
-    let response = await Helper.updatePermissionGroup(template.uuid, PERMISSION_EDIT, users);
+    let response = await Helper.updatePermissionGroup(template.uuid, PermissionTypes.edit, users);
     expect(response.statusCode).toBe(200);
-    response = await Helper.getPermissionGroup(template.uuid, PERMISSION_EDIT);
+    response = await Helper.getPermissionGroup(template.uuid, PermissionTypes.edit);
     expect(response.statusCode).toBe(200);
     expect(response.body).toEqual(users);
 
     users = [Helper.DEF_EMAIL];
-    response = await Helper.updatePermissionGroup(template.uuid, PERMISSION_EDIT, users);
+    response = await Helper.updatePermissionGroup(template.uuid, PermissionTypes.edit, users);
     expect(response.statusCode).toBe(200);
-    response = await Helper.getPermissionGroup(template.uuid, PERMISSION_EDIT);
+    response = await Helper.getPermissionGroup(template.uuid, PermissionTypes.edit);
     expect(response.statusCode).toBe(200);
     expect(response.body).toEqual(users);
-    response = await Helper.getPermissionGroup(template.uuid, PERMISSION_VIEW);
+    response = await Helper.getPermissionGroup(template.uuid, PermissionTypes.view);
     expect(response.statusCode).toBe(200);
     expect(response.body).toEqual([Helper.EMAIL_2]);
   });
@@ -199,16 +199,16 @@ describe("update (and get)",  () => {
     await Helper.setAgent(agent1);
 
     let view_users = [Helper.EMAIL_2, Helper.DEF_EMAIL];
-    let response = await Helper.updatePermissionGroup(dataset.uuid, PERMISSION_VIEW, view_users);
+    let response = await Helper.updatePermissionGroup(dataset.uuid, PermissionTypes.view, view_users);
     expect(response.statusCode).toBe(400);
 
-    response = await Helper.updatePermissionGroup(template.uuid, PERMISSION_VIEW, view_users);
+    response = await Helper.updatePermissionGroup(template.uuid, PermissionTypes.view, view_users);
     expect(response.statusCode).toBe(200);
 
-    response = await Helper.updatePermissionGroup(dataset.uuid, PERMISSION_VIEW, view_users);
+    response = await Helper.updatePermissionGroup(dataset.uuid, PermissionTypes.view, view_users);
     expect(response.statusCode).toBe(200);
 
-    response = await Helper.getPermissionGroup(dataset.uuid, PERMISSION_VIEW);
+    response = await Helper.getPermissionGroup(dataset.uuid, PermissionTypes.view);
     expect(response.statusCode).toBe(200);
     expect(response.body).toEqual(view_users);
 
@@ -232,8 +232,8 @@ describe("update (and get)",  () => {
 
       let edit_users = [b_email];
 
-      await Helper.testAndExtract(Helper.updatePermissionGroup, uuid, PERMISSION_EDIT, edit_users);
-      let result_users = await Helper.testAndExtract(Helper.getPermissionGroup, uuid, PERMISSION_EDIT);
+      await Helper.testAndExtract(Helper.updatePermissionGroup, uuid, PermissionTypes.edit, edit_users);
+      let result_users = await Helper.testAndExtract(Helper.getPermissionGroup, uuid, PermissionTypes.edit);
       expect(result_users).toEqual(edit_users);
 
       Helper.setAgent(agent2);
@@ -243,8 +243,8 @@ describe("update (and get)",  () => {
 
       Helper.setAgent(agent1);
 
-      await Helper.testAndExtract(Helper.updatePermissionGroup, uuid, PERMISSION_EDIT, []);
-      result_users = await Helper.testAndExtract(Helper.getPermissionGroup, uuid, PERMISSION_EDIT);
+      await Helper.testAndExtract(Helper.updatePermissionGroup, uuid, PermissionTypes.edit, []);
+      result_users = await Helper.testAndExtract(Helper.getPermissionGroup, uuid, PermissionTypes.edit);
       expect(result_users).toEqual([]);
 
       Helper.setAgent(agent2);

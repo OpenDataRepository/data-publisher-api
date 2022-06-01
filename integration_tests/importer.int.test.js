@@ -1,6 +1,6 @@
 const fs = require('fs');
 var { app, init: appInit, close: appClose } = require('../app');
-var { PERMISSION_ADMIN, PERMISSION_EDIT, PERMISSION_VIEW } = require('../models/permission_group');
+var { PermissionTypes } = require('../models/permission_group');
 var HelperClass = require('./common_test_operations');
 var Helper = new HelperClass(app);
 
@@ -677,8 +677,8 @@ describe("template and dataset", () => {
 
       let new_related_template, new_related_dataset;
       [new_related_template, new_related_dataset] = await importTemplateDatasetPersistTest(related_template);
-      await Helper.testAndExtract(Helper.updatePermissionGroup, new_related_template.uuid, PERMISSION_VIEW, [Helper.DEF_EMAIL]);
-      await Helper.testAndExtract(Helper.updatePermissionGroup, new_related_dataset.uuid, PERMISSION_VIEW, [Helper.DEF_EMAIL]);
+      await Helper.testAndExtract(Helper.updatePermissionGroup, new_related_template.uuid, PermissionTypes.view, [Helper.DEF_EMAIL]);
+      await Helper.testAndExtract(Helper.updatePermissionGroup, new_related_dataset.uuid, PermissionTypes.view, [Helper.DEF_EMAIL]);
 
       let template = {
         template_uuid: "t1", 
@@ -715,8 +715,8 @@ describe("template and dataset", () => {
 
     [ima_list_template, ima_list_dataset] = await importTemplateDatasetPersistTest(imalist_template);
 
-    await Helper.testAndExtract(Helper.updatePermissionGroup, ima_list_template.uuid, PERMISSION_VIEW, [Helper.DEF_EMAIL]);
-    await Helper.testAndExtract(Helper.updatePermissionGroup, ima_list_dataset.uuid, PERMISSION_VIEW, [Helper.DEF_EMAIL]);
+    await Helper.testAndExtract(Helper.updatePermissionGroup, ima_list_template.uuid, PermissionTypes.view, [Helper.DEF_EMAIL]);
+    await Helper.testAndExtract(Helper.updatePermissionGroup, ima_list_dataset.uuid, PermissionTypes.view, [Helper.DEF_EMAIL]);
 
     await Helper.setAgent(agent1);
 
@@ -1058,8 +1058,8 @@ describe("records", () => {
 
       let new_related_template, new_related_dataset;
       [new_related_template, new_related_dataset] = await importTemplateDatasetPersistTest(related_template);
-      await Helper.testAndExtract(Helper.updatePermissionGroup, new_related_template.uuid, PERMISSION_VIEW, [Helper.DEF_EMAIL]);
-      await Helper.testAndExtract(Helper.updatePermissionGroup, new_related_dataset.uuid, PERMISSION_VIEW, [Helper.DEF_EMAIL]);
+      await Helper.testAndExtract(Helper.updatePermissionGroup, new_related_template.uuid, PermissionTypes.view, [Helper.DEF_EMAIL]);
+      await Helper.testAndExtract(Helper.updatePermissionGroup, new_related_dataset.uuid, PermissionTypes.view, [Helper.DEF_EMAIL]);
 
       let related_record = {
         record_uuid: "r1.1", 
@@ -1279,8 +1279,8 @@ describe("records", () => {
     let ima_list_template, ima_list_dataset;
     [ima_list_template, ima_list_dataset] = await importTemplateDatasetPersistTest(imalist_template);
 
-    await Helper.testAndExtract(Helper.updatePermissionGroup, ima_list_template.uuid, PERMISSION_VIEW, [Helper.DEF_EMAIL]);
-    await Helper.testAndExtract(Helper.updatePermissionGroup, ima_list_dataset.uuid, PERMISSION_VIEW, [Helper.DEF_EMAIL]);
+    await Helper.testAndExtract(Helper.updatePermissionGroup, ima_list_template.uuid, PermissionTypes.view, [Helper.DEF_EMAIL]);
+    await Helper.testAndExtract(Helper.updatePermissionGroup, ima_list_dataset.uuid, PermissionTypes.view, [Helper.DEF_EMAIL]);
 
     await Helper.setAgent(agent1);
 

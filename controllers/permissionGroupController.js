@@ -27,7 +27,7 @@ exports.update = async function(req, res, next) {
     let category = req.params.category;
     let user_id = req.user._id;
 
-    if(![PermissionGroupModel.PERMISSION_ADMIN, PermissionGroupModel.PERMISSION_EDIT, PermissionGroupModel.PERMISSION_VIEW].includes(category)) {
+    if(![PermissionGroupModel.PermissionTypes.admin, PermissionGroupModel.PermissionTypes.edit, PermissionGroupModel.PermissionTypes.view].includes(category)) {
       throw new Util.NotFoundError();
     }
 
@@ -61,15 +61,15 @@ exports.update = async function(req, res, next) {
 
     let callback = async (session) => {
       if(document_type == ModelsSharedFunctions.DocumentTypes.Template || document_type == ModelsSharedFunctions.DocumentTypes.TemplateField) {
-        if(category == PermissionGroupModel.PERMISSION_VIEW) {
+        if(category == PermissionGroupModel.PermissionTypes.view) {
           // No users can be deleted from view
           if(deleted_user_ids.length > 0) {
             throw new Util.InputError(`Cannot delete any users from template view permissions.`);
           }
         } else {
           // If this is admin or edit, add deleted users to view
-          await PermissionGroupModel.add_permissions(user_id, uuid, PermissionGroupModel.PERMISSION_VIEW, deleted_user_ids, session);
-          await UserPermissionsModel.addUserIdsToUuidAndCategory(uuid, document_type, PermissionGroupModel.PERMISSION_VIEW, deleted_user_ids, session);
+          await PermissionGroupModel.add_permissions(user_id, uuid, PermissionGroupModel.PermissionTypes.view, deleted_user_ids, session);
+          await UserPermissionsModel.addUserIdsToUuidAndCategory(uuid, document_type, PermissionGroupModel.PermissionTypes.view, deleted_user_ids, session);
         }
       }
       await PermissionGroupModel.replace_permissions(user_id, uuid, category, user_ids, session);

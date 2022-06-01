@@ -1,4 +1,4 @@
-var { PERMISSION_ADMIN, PERMISSION_EDIT, PERMISSION_VIEW } = require('../models/permission_group');
+var { PermissionTypes } = require('../models/permission_group');
 var { app, init: appInit, close: appClose } = require('../app');
 var HelperClass = require('./common_test_operations');
 var Helper = new HelperClass(app);
@@ -180,12 +180,12 @@ describe("create (and get draft)", () => {
 
 
       let view_users = [Helper.DEF_EMAIL, Helper.EMAIL_2];
-      let response = await Helper.updatePermissionGroup(template.related_templates[0].uuid, PERMISSION_VIEW, view_users);
+      let response = await Helper.updatePermissionGroup(template.related_templates[0].uuid, PermissionTypes.view, view_users);
       expect(response.statusCode).toBe(200);
-      response = await Helper.updatePermissionGroup(related_dataset_1_persisted.uuid, PERMISSION_VIEW, view_users);
+      response = await Helper.updatePermissionGroup(related_dataset_1_persisted.uuid, PermissionTypes.view, view_users);
       expect(response.statusCode).toBe(200);
 
-      response = await Helper.updatePermissionGroup(template.uuid, PERMISSION_VIEW, view_users);
+      response = await Helper.updatePermissionGroup(template.uuid, PermissionTypes.view, view_users);
       expect(response.statusCode).toBe(200);
 
       let dataset = {
@@ -910,12 +910,12 @@ describe("get draft", () => {
 
     let users = [Helper.DEF_EMAIL, Helper.EMAIL_2];
 
-    let response = await Helper.updatePermissionGroup(dataset.uuid, PERMISSION_ADMIN, users);
+    let response = await Helper.updatePermissionGroup(dataset.uuid, PermissionTypes.admin, users);
     expect(response.statusCode).toBe(200);
 
-    response = await Helper.updatePermissionGroup(template.related_templates[0].uuid, PERMISSION_VIEW, users);
+    response = await Helper.updatePermissionGroup(template.related_templates[0].uuid, PermissionTypes.view, users);
     expect(response.statusCode).toBe(200);
-    response = await Helper.updatePermissionGroup(dataset.related_datasets[0].uuid, PERMISSION_VIEW, users);
+    response = await Helper.updatePermissionGroup(dataset.related_datasets[0].uuid, PermissionTypes.view, users);
     expect(response.statusCode).toBe(200);
 
     await Helper.setAgent(agent2);
@@ -951,7 +951,7 @@ describe("get draft", () => {
 
     let users = [Helper.DEF_EMAIL, Helper.EMAIL_2];
 
-    let response = await Helper.updatePermissionGroup(dataset.uuid, PERMISSION_ADMIN, users);
+    let response = await Helper.updatePermissionGroup(dataset.uuid, PermissionTypes.admin, users);
     expect(response.statusCode).toBe(200);
 
     await Helper.setAgent(agent2);
@@ -1146,7 +1146,7 @@ describe("persist (and get persisted)", () => {
 
       // Give user 2 edit permissions to parent dataset
       let admin_users = [Helper.DEF_EMAIL, Helper.EMAIL_2];
-      response = await Helper.updatePermissionGroup(dataset.uuid, PERMISSION_ADMIN, admin_users);
+      response = await Helper.updatePermissionGroup(dataset.uuid, PermissionTypes.admin, admin_users);
       expect(response.statusCode).toBe(200);
 
       await Helper.setAgent(agent2);
@@ -1377,9 +1377,9 @@ describe("persist (and get persisted)", () => {
       let view_permissions = [Helper.DEF_EMAIL, Helper.EMAIL_2];
 
       // Even if that user has view permissions, they still shouldn't be able to persist
-      response = await Helper.updatePermissionGroup(template.uuid, PERMISSION_VIEW, view_permissions);
+      response = await Helper.updatePermissionGroup(template.uuid, PermissionTypes.view, view_permissions);
       expect(response.statusCode).toBe(200);
-      response = await Helper.updatePermissionGroup(dataset.uuid, PERMISSION_VIEW, view_permissions);
+      response = await Helper.updatePermissionGroup(dataset.uuid, PermissionTypes.view, view_permissions);
       expect(response.statusCode).toBe(200);
 
       await Helper.setAgent(agent2);
@@ -1475,9 +1475,9 @@ describe("get persisted", () => {
     await Helper.setAgent(agent1);
     
     let view_users = [Helper.EMAIL_2, Helper.DEF_EMAIL];
-    let response = await Helper.updatePermissionGroup(template.uuid, PERMISSION_VIEW, view_users);
+    let response = await Helper.updatePermissionGroup(template.uuid, PermissionTypes.view, view_users);
     expect(response.statusCode).toBe(200);
-    response = await Helper.updatePermissionGroup(dataset.uuid, PERMISSION_VIEW, view_users);
+    response = await Helper.updatePermissionGroup(dataset.uuid, PermissionTypes.view, view_users);
     expect(response.statusCode).toBe(200);
 
     dataset.related_datasets[0] = {uuid: dataset.related_datasets[0].uuid};
@@ -1611,9 +1611,9 @@ describe("lastUpdate", () => {
       await Helper.setAgent(agent1);
 
       let view_users = [Helper.EMAIL_2, Helper.DEF_EMAIL];
-      response = await Helper.updatePermissionGroup(template.uuid, PERMISSION_VIEW, view_users);
+      response = await Helper.updatePermissionGroup(template.uuid, PermissionTypes.view, view_users);
       expect(response.statusCode).toBe(200);
-      response = await Helper.updatePermissionGroup(dataset.uuid, PERMISSION_VIEW, view_users);
+      response = await Helper.updatePermissionGroup(dataset.uuid, PermissionTypes.view, view_users);
       expect(response.statusCode).toBe(200);
 
       await Helper.setAgent(agent2);
@@ -1852,7 +1852,7 @@ describe("delete", () => {
     let uuid = dataset.uuid;
 
 
-    let permission_group = await Helper.testAndExtract(Helper.getPermissionGroup, uuid, PERMISSION_ADMIN);
+    let permission_group = await Helper.testAndExtract(Helper.getPermissionGroup, uuid, PermissionTypes.admin);
     expect(permission_group).toEqual([Helper.DEF_EMAIL]);
 
     let user_permissions = await Helper.testAndExtract(Helper.userDocuments);
@@ -1861,7 +1861,7 @@ describe("delete", () => {
     
     await Helper.testAndExtract(Helper.datasetDelete, uuid);
     
-    response = await Helper.getPermissionGroup(uuid, PERMISSION_ADMIN);
+    response = await Helper.getPermissionGroup(uuid, PermissionTypes.admin);
     expect(response.statusCode).toBe(404);
 
     user_permissions = await Helper.testAndExtract(Helper.userDocuments);

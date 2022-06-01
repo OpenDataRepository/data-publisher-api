@@ -76,7 +76,7 @@ exports.hasAccessToPersistedResource = async (collection, uuid, user, session) =
     return true;
   }
 
-  return await has_permission(user, uuid, PermissionGroupModel.PERMISSION_VIEW, session);
+  return await has_permission(user, uuid, PermissionGroupModel.PermissionTypes.view, session);
 }
 
 async function getCurrentUuids(user_id, document_type, permission_type) {
@@ -139,7 +139,7 @@ exports.removeUserIdsFromUuidAndCategory = async function(document_uuid, documen
 }
 
 exports.initialize_permissions_for = async function(user_id, document_uuid, document_type, session) {
-  await addPermission(user_id, document_type, PermissionGroupModel.PERMISSION_ADMIN, document_uuid, session);
+  await addPermission(user_id, document_type, PermissionGroupModel.PermissionTypes.admin, document_uuid, session);
   await PermissionGroupModel.initialize_permissions_for(user_id, document_uuid, session);
 }
 

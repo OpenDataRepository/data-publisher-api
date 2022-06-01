@@ -536,7 +536,7 @@ async function validateAndCreateOrUpdateRecurser(input_record, dataset, template
   }
 
   // verify that this user is in the 'edit' permission group
-  if (!(await UserPermissionsModel.has_permission(user, dataset.uuid, PermissionGroupModel.PERMISSION_EDIT))) {
+  if (!(await UserPermissionsModel.has_permission(user, dataset.uuid, PermissionGroupModel.PermissionTypes.edit))) {
     throw new Util.PermissionDeniedError(`Do not have edit permissions required to create/update records in dataset ${dataset.uuid}`);
   }
 
@@ -664,7 +664,7 @@ async function draftFetchOrCreate(uuid, user, session) {
   }
 
   // Make sure this user has a permission to be working with drafts
-  if (!(await UserPermissionsModel.has_permission(user, record_draft.dataset_uuid, PermissionGroupModel.PERMISSION_EDIT, session))) {
+  if (!(await UserPermissionsModel.has_permission(user, record_draft.dataset_uuid, PermissionGroupModel.PermissionTypes.edit, session))) {
     throw new Util.PermissionDeniedError(`You do not have the edit permissions required to view draft ${uuid}`);
   }
 
@@ -772,7 +772,7 @@ async function persistRecurser(uuid, dataset, template, user, session) {
   }
 
   // verify that this user is in the 'edit' permission group
-  if (!(await UserPermissionsModel.has_permission(user, dataset.uuid, PermissionGroupModel.PERMISSION_EDIT))) {
+  if (!(await UserPermissionsModel.has_permission(user, dataset.uuid, PermissionGroupModel.PermissionTypes.edit))) {
     throw new Util.PermissionDeniedError(`Do not have edit permissions required to persist records in dataset ${dataset.uuid}`);
   }
 
@@ -950,8 +950,8 @@ async function lastUpdate(uuid, user) {
     throw new Util.NotFoundError();
   }
 
-  let edit_permission = await UserPermissionsModel.has_permission(user, draft.dataset_uuid, PermissionGroupModel.PERMISSION_EDIT);
-  let view_permission = await UserPermissionsModel.has_permission(user, draft.dataset_uuid, PermissionGroupModel.PERMISSION_VIEW);
+  let edit_permission = await UserPermissionsModel.has_permission(user, draft.dataset_uuid, PermissionGroupModel.PermissionTypes.edit);
+  let view_permission = await UserPermissionsModel.has_permission(user, draft.dataset_uuid, PermissionGroupModel.PermissionTypes.view);
   let persisted = await SharedFunctions.latestPersisted(Record, uuid);
 
   if(!edit_permission) {
@@ -994,7 +994,7 @@ async function userHasAccessToPersistedRecord(record, user, session) {
   }
 
   // Otherwise, check if we have view permissions
-  return await UserPermissionsModel.has_permission(user, dataset.uuid, PermissionGroupModel.PERMISSION_VIEW, session);
+  return await UserPermissionsModel.has_permission(user, dataset.uuid, PermissionGroupModel.PermissionTypes.view, session);
 }
 
 async function filterPersistedForPermissionsRecursor(record, user, session) {
@@ -1042,7 +1042,7 @@ async function importRecordFromCombinedRecursor(input_record, dataset, template,
   let new_record_uuid = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(old_record_uuid, session);
   // If the uuid is found, then this has already been imported. Import again if we have edit permissions
   if(new_record_uuid) {
-    if(!(await UserPermissionsModel.has_permission(user, new_dataset_uuid, PermissionGroupModel.PERMISSION_ADMIN, session))) {
+    if(!(await UserPermissionsModel.has_permission(user, new_dataset_uuid, PermissionGroupModel.PermissionTypes.admin, session))) {
       throw new Util.PermissionDeniedError(`You do not have edit permissions required to import record ${old_record_uuid}. It has already been imported.`);
     }
   } else {
@@ -1275,7 +1275,7 @@ async function importRecordRecursor(input_record, dataset, template, user, updat
   let new_record_uuid = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(old_record_uuid, session);
   // If the uuid is found, then this has already been imported. Import again if we have edit permissions
   if(new_record_uuid) {
-    if(!(await UserPermissionsModel.has_permission(user, new_dataset_uuid, PermissionGroupModel.PERMISSION_EDIT, session))) {
+    if(!(await UserPermissionsModel.has_permission(user, new_dataset_uuid, PermissionGroupModel.PermissionTypes.edit, session))) {
       throw new Util.PermissionDeniedError(`You do not have edit permissions required to import record ${old_record_uuid}. It has already been imported.`);
     }
   } else {
@@ -1400,7 +1400,7 @@ exports.draftDelete = async function(uuid, user) {
     throw new Util.NotFoundError(`No draft exists with uuid ${uuid}`);
   }
   // if don't have admin permissions, return no permissions
-  if(!(await UserPermissionsModel.has_permission(user, draft.dataset_uuid, PermissionGroupModel.PERMISSION_EDIT))) {
+  if(!(await UserPermissionsModel.has_permission(user, draft.dataset_uuid, PermissionGroupModel.PermissionTypes.edit))) {
     throw new Util.PermissionDeniedError(`You do not have edit permissions for dataset ${draft.dataset_uuid}.`);
   }
 

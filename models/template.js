@@ -305,7 +305,7 @@ async function getUuidFromCreateOrUpdate(input_template, user, session) {
     }
     
     // verify that this user is in the 'edit' permission group
-    if (!(await UserPermissionsModel.has_permission(user, input_template.uuid, PermissionGroupModel.PERMISSION_EDIT))) {
+    if (!(await UserPermissionsModel.has_permission(user, input_template.uuid, PermissionGroupModel.PermissionTypes.edit))) {
       throw new Util.PermissionDeniedError(`Do not have edit permissions for template uuid: ${input_template.uuid}`);
     }
 
@@ -649,7 +649,7 @@ async function persistRecursor(uuid, user, session) {
   }
 
   // If a user doesn't have edit access to this template, we'll use the persisted template instead
-  if(!(await UserPermissionsModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT, session))) {
+  if(!(await UserPermissionsModel.has_permission(user, uuid, PermissionGroupModel.PermissionTypes.edit, session))) {
     // There is no draft of this uuid. Return the latest persisted template instead.
     if (!persisted_template) {
       throw new Util.InputError(`Do not have access to template draft with uuid ${uuid}, and no persisted version exists`);
@@ -702,7 +702,7 @@ async function persist(session, uuid, user, last_update) {
     }
   }
 
-  if(!(await UserPermissionsModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT, session))) {
+  if(!(await UserPermissionsModel.has_permission(user, uuid, PermissionGroupModel.PermissionTypes.edit, session))) {
     throw new Util.PermissionDeniedError(`You do not have the edit permissions required to persist ${uuid}`);
   }
 
@@ -973,7 +973,7 @@ async function draftFetchOrCreate(session, uuid, user) {
   }
 
   // Make sure this user has a permission to be working with drafts
-  if (!(await UserPermissionsModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT))) {
+  if (!(await UserPermissionsModel.has_permission(user, uuid, PermissionGroupModel.PermissionTypes.edit))) {
     throw new Util.PermissionDeniedError(`You don't have edit permissions required to view template ${uuid}`);
   }
 
@@ -1027,8 +1027,8 @@ async function lastUpdateFor(session, uuid, user) {
 
   let template_draft = await fetchDraftOrCreateFromPersisted(uuid, session);
   let template_persisted = await SharedFunctions.latestPersisted(Template, uuid, session);
-  let edit_permission = await UserPermissionsModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT, session);
-  let view_permission = await UserPermissionsModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_VIEW, session);
+  let edit_permission = await UserPermissionsModel.has_permission(user, uuid, PermissionGroupModel.PermissionTypes.edit, session);
+  let view_permission = await UserPermissionsModel.has_permission(user, uuid, PermissionGroupModel.PermissionTypes.view, session);
 
   if(!template_draft) {
     throw new Util.NotFoundError(`No template  exists with uuid ${uuid}`);
@@ -1154,7 +1154,7 @@ async function importTemplate(session, template, user, updated_at) {
   let uuid = await LegacyUuidToNewUuidMapperModel.get_new_uuid_from_old(old_uuid, session);
   // If the uuid is found, then this has already been imported. Import again if we have edit permissions
   if(uuid) {
-    if(!(await UserPermissionsModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT, session))) {
+    if(!(await UserPermissionsModel.has_permission(user, uuid, PermissionGroupModel.PermissionTypes.edit, session))) {
       throw new Util.PermissionDeniedError(`You do not have edit permissions required to import template ${old_uuid}. It has already been imported.`);
     }
   } else {
@@ -1364,7 +1364,7 @@ exports.draftDelete = async function(uuid, user, session) {
     throw new Util.NotFoundError(`No draft exists with uuid ${uuid}`);
   }
 
-  if(!(await UserPermissionsModel.has_permission(user, uuid, PermissionGroupModel.PERMISSION_EDIT, session))) {
+  if(!(await UserPermissionsModel.has_permission(user, uuid, PermissionGroupModel.PermissionTypes.edit, session))) {
     throw new Util.PermissionDeniedError(`You do not have edit permissions for template ${uuid}.`);
   }
 

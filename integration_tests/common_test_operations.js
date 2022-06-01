@@ -5,7 +5,7 @@ var finalhandler = require('finalhandler')
 var http = require('http')
 var serveStatic = require('serve-static')
 const MongoDB = require('../lib/mongoDB');
-var { PERMISSION_ADMIN, PERMISSION_EDIT, PERMISSION_VIEW } = require('../models/permission_group');
+var { PermissionTypes } = require('../models/permission_group');
 const FieldTypes = require('../models/template_field').FieldTypes;
 
 module.exports = class Helper {
@@ -808,9 +808,9 @@ module.exports = class Helper {
     if(!user) {
       user = this.DEF_EMAIL;
     }
-    await this.testPermissionGroup(uuid, PERMISSION_ADMIN, 200, [user]);
-    await this.testPermissionGroup(uuid, PERMISSION_EDIT, 200, []);
-    await this.testPermissionGroup(uuid, PERMISSION_VIEW, 200, []);
+    await this.testPermissionGroup(uuid, PermissionTypes.admin, 200, [user]);
+    await this.testPermissionGroup(uuid, PermissionTypes.edit, 200, []);
+    await this.testPermissionGroup(uuid, PermissionTypes.view, 200, []);
   }
   
   permissionGroupTestingHasPermission = async (uuid, category) => {

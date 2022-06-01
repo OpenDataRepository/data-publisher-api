@@ -18,7 +18,7 @@ exports.verifyFileUpload = async function(req, res, next) {
       throw new Util.NotFoundError(`Cannot upload file to uuid ${uuid}. Does not exist`);
     }
     let file_metadata = await SharedFunctions.latestDocument(FileModel.collection(), uuid);
-    if(!(await RecordModel.userHasPermissionsTo(file_metadata.record_uuid, PermissionGroupModel.PERMISSION_EDIT, user))) {
+    if(!(await RecordModel.userHasPermissionsTo(file_metadata.record_uuid, PermissionGroupModel.PermissionTypes.edit, user))) {
       throw new Util.PermissionDeniedError(`You do not have the edit permissions required to add a file to record ${file_metadata.record_uuid}`);
     }
     if(file_metadata.uploaded) {
@@ -161,8 +161,8 @@ exports.getFile = async function(req, res, next) {
     }
     let file_metadata = await SharedFunctions.latestDocument(FileModel.collection(), uuid);
     let record_uuid = file_metadata.record_uuid;
-    if(await RecordModel.userHasPermissionsTo(record_uuid, PermissionGroupModel.PERMISSION_VIEW, user)) {
-    } else if (file_metadata.published && await SharedFunctions.userHasAccessToPersistedResource(RecordModel.collection(), record_uuid, user, PermissionGroupModel.PERMISSION_VIEW)) {
+    if(await RecordModel.userHasPermissionsTo(record_uuid, PermissionGroupModel.PermissionTypes.view, user)) {
+    } else if (file_metadata.published && await SharedFunctions.userHasAccessToPersistedResource(RecordModel.collection(), record_uuid, user, PermissionGroupModel.PermissionTypes.view)) {
     } else {
       throw new Util.PermissionDeniedError(`You do not have the view permissions required to view a file attached to record ${file_metadata.record_uuid}`);
     }

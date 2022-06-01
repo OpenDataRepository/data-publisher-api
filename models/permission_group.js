@@ -8,10 +8,6 @@ const PermissionTypes = {
 };
 exports.PermissionTypes = PermissionTypes;
 
-// TODO: delete these, and replace all references to them with the above
-const PERMISSION_ADMIN = 'admin';
-const PERMISSION_EDIT = 'edit';
-const PERMISSION_VIEW = 'view';
 
 var PermissionGroup;
 
@@ -34,12 +30,12 @@ exports.init = async function() {
 // If a user has permission to this category or a superior one, return true
 async function has_permission(user, uuid, category, session) {
   let categories = [category];
-  if(category == PERMISSION_EDIT) {
-    categories.push(PERMISSION_ADMIN);
+  if(category == PermissionTypes.edit) {
+    categories.push(PermissionTypes.admin);
   }
-  if(category == PERMISSION_VIEW) {
-    categories.push(PERMISSION_EDIT);
-    categories.push(PERMISSION_ADMIN);
+  if(category == PermissionTypes.view) {
+    categories.push(PermissionTypes.edit);
+    categories.push(PermissionTypes.admin);
   }
   let cursor = await PermissionGroup.find(
     {uuid, category: { "$in" : categories }, users: user},
@@ -76,12 +72,12 @@ async function read_permissions(uuid, category, session) {
 
 async function replace_permissions(current_user_id, uuid, category, user_ids, session) {
   // The current user must be in the admin permissions group for this uuid to change it's permissions
-  if (!(await has_permission(current_user_id, uuid, PERMISSION_ADMIN, session))) {
+  if (!(await has_permission(current_user_id, uuid, PermissionTypes.admin, session))) {
     throw new Util.PermissionDeniedError(`You do not have the permission level (admin) required to modify these permissions`);
   }
 
   // If this is the admin category, cannot remove the current user
-  if(category == PERMISSION_ADMIN) {
+  if(category == PermissionTypes.admin) {
     let current_user_found = false;
     for(let user_id of user_ids) {
       if(user_id.equals(current_user_id)) {
@@ -105,9 +101,9 @@ async function replace_permissions(current_user_id, uuid, category, user_ids, se
 
 // TODO: consider modifying the design such that there is a single model with all of the permissions
 exports.initialize_permissions_for = async function(current_user, uuid, session) {
-  await create_permission(uuid, PERMISSION_ADMIN, [current_user], session);
-  await create_permission(uuid, PERMISSION_EDIT, [], session);
-  await create_permission(uuid, PERMISSION_VIEW, [], session);
+  await create_permission(uuid, PermissionTypes.admin, [current_user], session);
+  await create_permission(uuid, PermissionTypes.edit, [], session);
+  await create_permission(uuid, PermissionTypes.view, [], session);
 }
 
 exports.replace_permissions = replace_permissions;
@@ -133,7 +129,4 @@ exports.delete_permissions = async function(uuid, session) {
 
 exports.has_permission = has_permission;
 
-exports.PERMISSION_ADMIN = PERMISSION_ADMIN;
-exports.PERMISSION_EDIT = PERMISSION_EDIT;
-exports.PERMISSION_VIEW = PERMISSION_VIEW;
 exports.collection = collection;
