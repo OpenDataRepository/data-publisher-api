@@ -85,13 +85,16 @@ exports.getBy_id = async function(_id) {
   return await User.findOne({_id});
 }
 
-exports.delete = async function(_id) {
+exports.suspend = async function(_id) {
   _id = SharedFunctions.convertToMongoId(_id);
-  let response = await User.deleteMany(
-    {_id}
+  let response = await User.updateOne(
+    {_id},
+    {
+      $set: {suspended: true}
+    }
   );
-  if(response.deletedCount != 1) {
-    throw new Error(`Deleted ${response.deletedCount} accounts with _id: ${_id}`);
+  if(response.matchedCount != 1) {
+    throw new Error(`Updated: matched ${response.matchedCount} accounts with _id: ${_id}`);
   }
 }
 

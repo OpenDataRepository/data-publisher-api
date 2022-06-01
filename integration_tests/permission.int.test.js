@@ -19,9 +19,6 @@ afterAll(async () => {
   await appClose();
 });
 
-function actAs(req, user_email) {
-  return req.query({ user_email });
-}
 
 describe("initialize_permissions (and get)",  () => {
   test("success", async () => {
@@ -313,7 +310,7 @@ describe("user permissions: admin and super", () => {
     expect(temp_parent.related_templates[0].name).toEqual("child");
 
     // Fetch parent using acting as user 2
-    temp_parent = await Helper.testAndExtract(actAs, Helper.templateDraftGet(parent.uuid), Helper.EMAIL_2);
+    temp_parent = await Helper.testAndExtract(Helper.actAs, Helper.templateDraftGet(parent.uuid), Helper.EMAIL_2);
     expect(temp_parent.related_templates[0].name).toBeFalsy();
 
     Helper.setAgent(agent2);
@@ -334,7 +331,7 @@ describe("user permissions: admin and super", () => {
 
     // Try to update child template through updating the parent template with super user acting as user 2. Should fail.
 
-    await Helper.testAndExtract(actAs, Helper.templateUpdate(parent.uuid, parent), Helper.EMAIL_2);
+    await Helper.testAndExtract(Helper.actAs, Helper.templateUpdate(parent.uuid, parent), Helper.EMAIL_2);
 
     temp_parent = await Helper.templateDraftGetAndTest(parent.uuid);
     expect(temp_parent.related_templates[0].description).toBeFalsy();
@@ -350,7 +347,7 @@ describe("user permissions: admin and super", () => {
   test("super user act-as generates new users dynamically", async() => {
     await Helper.userTestingSetSuper();
     let template = {name: "waffle"};
-    let response = await actAs(Helper.templateCreate(template), Helper.EMAIL_2);
+    let response = await Helper.actAs(Helper.templateCreate(template), Helper.EMAIL_2);
     expect(response.statusCode).toBe(200);
 
     let new_user = await Helper.testAndExtract(Helper.userGetByEmail, Helper.EMAIL_2);

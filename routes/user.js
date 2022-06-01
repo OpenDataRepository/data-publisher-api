@@ -12,7 +12,7 @@ router.post('/confirm_email/:token', userController.confirm_email);
 router.post('/login', userController.login);
 // router.post('/logout', ensureLoggedIn(), userController.logout);
 
-router.post('/delete', ensureLoggedIn, userController.delete);
+router.post('/suspend', ensureLoggedIn, userController.suspend);
 router.post('/update', ensureLoggedIn, userController.update);
 router.post('/change_email', ensureLoggedIn, userController.change_email);
 router.get('', ensureLoggedIn, userController.get);

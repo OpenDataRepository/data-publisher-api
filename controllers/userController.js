@@ -58,7 +58,7 @@ exports.register = async function(req, res, next) {
       email_token = jwt.sign(
         {user_id, email},
         process.env.EMAIL_SECRET,
-        {expiresIn: '1d'}
+        {expiresIn: '1h'}
       );
 
       const url = "http://" + req.get('host') + "/user/confirm_email/" + email_token;
@@ -106,6 +106,10 @@ exports.login = async function(req, res, next) {
       throw new Util.InputError("password incorrect");
     }
 
+    if(account.suspended) {
+      throw new Util.PermissionDeniedError(`Account is suspended`);
+    }
+
     if(!account.confirmed) {
       throw new Util.PermissionDeniedError("confirm email before logging in");
     }
@@ -118,12 +122,6 @@ exports.login = async function(req, res, next) {
     next(err);
   };
 };
-
-// TODO: at some point implement logout by creating a token blacklist
-// exports.logout = function(req, res, next) {
-//   req.logout();
-//   res.sendStatus(200);
-// };
 
 exports.get = async function(req, res, next) {
   try{
@@ -143,17 +141,15 @@ exports.get = async function(req, res, next) {
   }
 };
 
-exports.delete = async function(req, res, next) {
+exports.suspend = async function(req, res, next) {
   try{
     if(!req.body.password) {
-      throw new Util.InputError(`Must provide password to delete account.`);
+      throw new Util.InputError(`Must provide password to suspend account.`);
     }
     if(!(await bcrypt.compare(req.body.password, req.user.password))) {
       throw new Util.InputError(`Password incorrect.`);
     }
-    await User.delete(req.user._id);
-    // TODO: There is a problem if a user get's deleted. What happens to their resources?
-    // req.logout();
+    await User.suspend(req.user._id);
     res.sendStatus(200);
   } catch(err) {
     next(err);
@@ -214,7 +210,7 @@ exports.change_email = async function(req, res, next) {
       email_token = jwt.sign(
         {user_id, email: replacement_email},
         process.env.EMAIL_SECRET,
-        {expiresIn: '1d'}
+        {expiresIn: '1h'}
       );
 
       const url = "http://" + req.get('host') + "/user/confirm_email/" + email_token;

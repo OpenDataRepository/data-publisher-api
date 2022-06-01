@@ -104,23 +104,38 @@ describe("register", () => {
 
 });
 
-describe("delete", () => {
+describe("suspend", () => {
 
   test("normal", async () => {
-    await Helper.testAndExtract(Helper.userDelete, Helper.DEF_PASSWORD);
+    await Helper.testAndExtract(Helper.userSuspend, Helper.DEF_PASSWORD);
     let response = await Helper.login(Helper.DEF_EMAIL, Helper.DEF_PASSWORD);
-    expect(response.statusCode).toBe(400);
+    expect(response.statusCode).toBe(401);
+  });
+
+  test("with super user act-as", async () => {
+    await Helper.userTestingSetSuper();
+
+    await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+    Helper.setAgent(agent);
+    
+    let response = await Helper.actAs(Helper.templateCreate({name: "waffle"}), Helper.EMAIL_2);
+    expect(response.statusCode).toBe(200);
+
+    await Helper.testAndExtract(Helper.actAs, Helper.userSuspend(Helper.DEF_PASSWORD), Helper.EMAIL_2);
+
+    response = await Helper.actAs(Helper.templateCreate({name: "waffle"}), Helper.EMAIL_2);
+    expect(response.statusCode).toBe(401);
   });
 
   test("must be logged in", async () => {
     let agent2 = request.agent(app);
     Helper.setAgent(agent2);
-    let response = await Helper.userDelete();
+    let response = await Helper.userSuspend();
     expect(response.statusCode).toBe(401);
   });
 
   test("must provide correct password", async () => {
-    let response = await Helper.userDelete("wrong password");
+    let response = await Helper.userSuspend("wrong password");
     expect(response.statusCode).toBe(400);
   });
 

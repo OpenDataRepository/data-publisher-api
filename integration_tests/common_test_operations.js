@@ -890,9 +890,9 @@ module.exports = class Helper {
       .get(`/user/test-unprotected-route`);
   };
   
-  userDelete = async (password) => {
-    return await this.agent
-      .post(`/user/delete`)
+  userSuspend = (password) => {
+    return this.agent
+      .post(`/user/suspend`)
       .send({password});
   }
   
@@ -959,6 +959,12 @@ module.exports = class Helper {
   
     let serverUrl = "http://localhost:" + server.address().port + "/";
     return [server, serverUrl];
+  }
+
+  // other
+
+  actAs = (req, user_email) => {
+    return req.query({ user_email });
   }
 
 }
