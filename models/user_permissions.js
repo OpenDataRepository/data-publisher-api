@@ -170,3 +170,11 @@ exports.isSuper = async function(user_id) {
   }
   return permissions.super;
 }
+
+exports.isAdmin = async function(user_id) {
+  let permissions = await get(user_id);
+  if(!permissions) {
+    return false;
+  }
+  return permissions.admin;
+}

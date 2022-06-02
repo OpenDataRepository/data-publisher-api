@@ -223,7 +223,7 @@ describe("update (and get)",  () => {
       };
       let uuid = await Helper.templateFieldCreateAndTest(template_field);
 
-      let user_a_permissions = await Helper.testAndExtract(Helper.userDocuments);
+      let user_a_permissions = await Helper.testAndExtract(Helper.userPermissions);
       expect(user_a_permissions.template_field.admin).toEqual([uuid]);
 
       let b_email = "b@b.com";
@@ -238,7 +238,7 @@ describe("update (and get)",  () => {
 
       Helper.setAgent(agent2);
 
-      let user_b_permissions = await Helper.testAndExtract(Helper.userDocuments);
+      let user_b_permissions = await Helper.testAndExtract(Helper.userPermissions);
       expect(user_b_permissions.template_field.edit).toEqual([uuid]);
 
       Helper.setAgent(agent1);
@@ -249,7 +249,7 @@ describe("update (and get)",  () => {
 
       Helper.setAgent(agent2);
 
-      user_b_permissions = await Helper.testAndExtract(Helper.userDocuments);
+      user_b_permissions = await Helper.testAndExtract(Helper.userPermissions);
       expect(user_b_permissions.template_field.edit).toEqual([]);
       expect(user_b_permissions.template_field.view).toEqual([uuid]);
 
@@ -272,7 +272,7 @@ describe("get",  () => {
 });
 
 describe("user permissions: admin and super", () => {
-  test("if admin or super, can access anything", async() => {
+  test("if admin or super, can access anything, including other user's permissions", async() => {
     let template = await Helper.templateCreateAndTest({
       name: 'template'
     });
@@ -285,6 +285,10 @@ describe("user permissions: admin and super", () => {
     await Helper.userTestingSetSuper();
     response = await Helper.templateDraftGet(template.uuid);
     expect(response.statusCode).toBe(200);
+
+    response = await Helper.otherUserPermissions(Helper.DEF_EMAIL);
+    expect(response.statusCode).toBe(200);
+    expect(response.body.template.admin).toEqual([template.uuid]);
   });
 
   test("super user can act as anyone", async() => {

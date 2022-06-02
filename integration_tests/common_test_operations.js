@@ -880,9 +880,14 @@ module.exports = class Helper {
       .post(`/user/logout`);
   }
 
-  userDocuments = async () => {
+  userPermissions = async () => {
     return await this.agent
-      .get(`/user/documents`);
+      .get(`/user/permissions`);
+  }
+
+  otherUserPermissions = async (email) => {
+    return await this.agent
+      .get(`/user/other_user/${email}/permissions`);
   }
 
   get_test_unprotected_route = async () => {
@@ -895,11 +900,23 @@ module.exports = class Helper {
       .post(`/user/suspend`)
       .send({password});
   }
+
+  otherUserSuspend = (email) => {
+    return this.agent
+      .post(`/user/other_user/${email}/suspend`);
+  }
   
   userUpdate = async (update_properties, password) => {
     update_properties.verification_password = password;
     return await this.agent
       .post(`/user/update`)
+      .send(update_properties);
+  }
+
+  otherUserUpdate = async (update_properties, email) => {
+    update_properties;
+    return await this.agent
+      .post(`/user/other_user/${email}/update`)
       .send(update_properties);
   }
   
@@ -917,6 +934,12 @@ module.exports = class Helper {
     return await this.agent
       .post(`/user/change_email`)
       .send({new_email, verification_password: password});
+  }
+
+  otherUserChangeEmail = async (new_email, email) => {
+    return await this.agent
+      .post(`/user/other_user/${email}/change_email`)
+      .send({new_email});
   }
 
   userTestingSetAdmin = async () => {

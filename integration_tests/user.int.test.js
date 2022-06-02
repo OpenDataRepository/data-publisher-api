@@ -62,6 +62,27 @@ describe("email manipulation", () => {
 
   });
 
+  test("admin is able to change email for another user and confirm it", async () => {
+
+    await Helper.createAgentRegisterLogin("adminemail@gmail.com", Helper.DEF_PASSWORD);
+    await Helper.userTestingSetAdmin();
+
+    let response = await Helper.otherUserChangeEmail(Helper.EMAIL_2, Helper.DEF_EMAIL);
+    expect(response.statusCode).toBe(200);
+    let token = response.body.token;
+
+    response = await Helper.confirmEmail(token);
+    expect(response.statusCode).toBe(200);
+
+    Helper.setAgent(agent);
+
+    response = await Helper.login(Helper.DEF_EMAIL, Helper.DEF_PASSWORD);
+    expect(response.statusCode).toBe(400);
+    response = await Helper.login(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+    expect(response.statusCode).toBe(200);
+
+  });
+
 });
 
 describe("normal login process", () => {
@@ -139,6 +160,31 @@ describe("suspend", () => {
     expect(response.statusCode).toBe(400);
   });
 
+  describe("suspend user other than self", () => {
+    test("normal", async () => {
+      await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+      await Helper.userTestingSetAdmin();
+
+      await Helper.testAndExtract(Helper.otherUserSuspend, Helper.DEF_EMAIL);
+      let response = await Helper.login(Helper.DEF_EMAIL, Helper.DEF_PASSWORD);
+      expect(response.statusCode).toBe(401);
+    });
+
+    test("must be admin or super", async () => {
+      await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+
+      let response = await Helper.otherUserSuspend(Helper.DEF_EMAIL);
+      expect(response.statusCode).toBe(401);
+    });
+
+    test("user must exist", async () => {
+      await Helper.userTestingSetAdmin();
+
+      let response = await Helper.otherUserSuspend(Helper.EMAIL_2);
+      expect(response.statusCode).toBe(400);
+    });
+  });
+
 });
 
 describe("update (and get)", () => {
@@ -195,6 +241,23 @@ describe("update (and get)", () => {
       let response = await Helper.userUpdate(update_properties, Helper.DEF_PASSWORD);
       expect(response.statusCode).toBe(400);
     });
+
+  });
+
+  test("update user other than self", async () => {
+    await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+    await Helper.userTestingSetAdmin();
+
+    let update_properties = {
+      first_name: "naruto",
+      last_name: "uzumaki"
+    };
+    await Helper.testAndExtract(Helper.otherUserUpdate, update_properties, Helper.DEF_EMAIL);
+
+    let user = await Helper.testAndExtract(Helper.userGetByEmail, Helper.DEF_EMAIL);
+    expect(user.email).toEqual(Helper.DEF_EMAIL);
+    expect(user.first_name).toEqual("naruto");
+    expect(user.last_name).toEqual("uzumaki");
 
   });
 

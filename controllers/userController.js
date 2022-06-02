@@ -141,14 +141,18 @@ exports.get = async function(req, res, next) {
   }
 };
 
+async function verifyPassword(input_password, actual_password) {
+  if(!input_password) {
+    throw new Util.InputError(`Must provide password to suspend account.`);
+  }
+  if(!(await bcrypt.compare(input_password, actual_password))) {
+    throw new Util.InputError(`Password incorrect.`);
+  }
+}
+
 exports.suspend = async function(req, res, next) {
   try{
-    if(!req.body.password) {
-      throw new Util.InputError(`Must provide password to suspend account.`);
-    }
-    if(!(await bcrypt.compare(req.body.password, req.user.password))) {
-      throw new Util.InputError(`Password incorrect.`);
-    }
+    await verifyPassword(req.body.password, req.user.password);
     await User.suspend(req.user._id);
     res.sendStatus(200);
   } catch(err) {
@@ -156,80 +160,115 @@ exports.suspend = async function(req, res, next) {
   }
 };
 
-exports.update = async function(req, res, next) {
+exports.suspend_other_user = async function(req, res, next) {
   try{
-    if(!req.body.verification_password) {
-      throw new Util.InputError(`Must provide verification password to update account.`);
+    let user = await User.getByEmail(req.params.email);
+    if(!user) {
+      throw new Util.InputError(`User with email ${req.params.email} does not exist`);
     }
-    if(!(await bcrypt.compare(req.body.verification_password, req.user.password))) {
-      throw new Util.InputError(`Password incorrect.`);
-    }
-
-    let input_update_properties = req.body;
-    let filtered_update_properties = {};
-    if(input_update_properties.new_password) {
-      if(input_update_properties.new_password != input_update_properties.new_password_confirmation) {
-        throw new Util.InputError(`new_password and new_password_confirmation must be identical`);
-      }
-      filtered_update_properties.password = await bcrypt.hash(input_update_properties.new_password, 10);
-    }
-    filtered_update_properties.first_name = input_update_properties.first_name;
-    filtered_update_properties.last_name = input_update_properties.last_name;
-
-    await User.update(req.user._id, filtered_update_properties);
+    await User.suspend(user._id);
     res.sendStatus(200);
   } catch(err) {
     next(err);
   }
 };
 
+async function update(body, user) {
+  let input_update_properties = body;
+  let filtered_update_properties = {};
+  if(input_update_properties.new_password) {
+    if(input_update_properties.new_password != input_update_properties.new_password_confirmation) {
+      throw new Util.InputError(`new_password and new_password_confirmation must be identical`);
+    }
+    filtered_update_properties.password = await bcrypt.hash(input_update_properties.new_password, 10);
+  }
+  filtered_update_properties.first_name = input_update_properties.first_name;
+  filtered_update_properties.last_name = input_update_properties.last_name;
+
+  await User.update(user._id, filtered_update_properties);
+}
+
+exports.update = async function(req, res, next) {
+  try{
+    await verifyPassword(req.body.verification_password, req.user.password);
+    await update(req.body, req.user);
+    res.sendStatus(200);
+  } catch(err) {
+    next(err);
+  }
+};
+
+exports.update_other_user = async function(req, res, next) {
+  try{
+    let user = await User.getByEmail(req.params.email);
+    if(!user) {
+      throw new Util.InputError(`User with email ${req.params.email} does not exist`);
+    }
+    await update(req.body, user);
+    res.sendStatus(200);
+  } catch(err) {
+    next(err);
+  }
+};
+
+async function changeEmail(req, user_id, res) {
+  let replacement_email = req.body.new_email;
+  if(!replacement_email) {
+    throw new Util.InputError(`New email blank.`);
+  }
+  let filtered_update_properties = {
+    replacement_email
+  };
+
+  let email_token;
+
+  const callback = async (session) => {
+    await User.update(user_id, filtered_update_properties, session);
+
+    email_token = jwt.sign(
+      {user_id, email: replacement_email},
+      process.env.EMAIL_SECRET,
+      {expiresIn: '1h'}
+    );
+
+    const url = "http://" + req.get('host') + "/user/confirm_email/" + email_token;
+
+    if(!process.env.is_test) {
+      await transporter.sendMail({
+        to: replacement_email,
+        subject: 'Confirm Email',
+        html: `Please click this link to confirm your email: <a href="${url}">${url}</a>`,
+      });
+    }
+  };
+  await SharedFunctions.executeWithTransaction(callback);
+  if(process.env.is_test) {
+    res.status(200).send({token: email_token});
+  } else {
+    res.sendStatus(200);
+  }
+}
+
 exports.change_email = async function(req, res, next) {
   try{
-    if(!req.body.verification_password) {
-      throw new Util.InputError(`Must provide verification password to change email.`);
-    }
-    if(!(await bcrypt.compare(req.body.verification_password, req.user.password))) {
-      throw new Util.InputError(`Password incorrect.`);
-    }
-
-    let replacement_email = req.body.new_email;
-    if(!replacement_email) {
-      throw new Util.InputError(`New email blank.`);
-    }
-    let filtered_update_properties = {
-      replacement_email
-    };
+    await verifyPassword(req.body.verification_password, req.user.password);
 
     let user_id = req.user._id;
 
-    let email_token;
+    await changeEmail(req, user_id, res);
+  } catch(err) {
+    next(err);
+  }
+};
 
-    const callback = async (session) => {
-      await User.update(user_id, filtered_update_properties, session);
-
-      email_token = jwt.sign(
-        {user_id, email: replacement_email},
-        process.env.EMAIL_SECRET,
-        {expiresIn: '1h'}
-      );
-
-      const url = "http://" + req.get('host') + "/user/confirm_email/" + email_token;
-
-      if(!process.env.is_test) {
-        await transporter.sendMail({
-          to: replacement_email,
-          subject: 'Confirm Email',
-          html: `Please click this link to confirm your email: <a href="${url}">${url}</a>`,
-        });
-      }
-    };
-    await SharedFunctions.executeWithTransaction(callback);
-
-    if(process.env.is_test) {
-      res.status(200).send({token: email_token});
-    } else {
-      res.sendStatus(200);
+exports.change_other_user_email = async function(req, res, next) {
+  try{
+    let user = await User.getByEmail(req.params.email);
+    if(!user) {
+      throw new Util.InputError(`User with email ${req.params.email} does not exist`);
     }
+
+    await changeEmail(req, user._id, res);
   } catch(err) {
     next(err);
   }
@@ -237,7 +276,12 @@ exports.change_email = async function(req, res, next) {
 
 exports.getPermissions = async function(req, res, next) {
   try{
-    let user = req.user;
+    let user;
+    if(req.params.email) {
+      user = await User.getByEmail(req.params.email);
+    } else {
+      user = req.user;
+    }
     let user_permissions = await UserPermissions.get(user._id)
     res.send(user_permissions);
   } catch(err) {
