@@ -5,6 +5,29 @@ const UserPermissionsModel = require('./user_permissions');
 const DatasetModel = require('./dataset');
 const SharedFunctions = require('./shared_functions');
 
+const Schema = Object.freeze({
+  bsonType: "object",
+  required: [ "_id", "dataset_uuid", "name", "time" ],
+  properties: {
+    _id: {
+      bsonType: "objectId"
+    },
+    dataset_uuid: {
+      bsonType: "string",
+      description: "the dataset which is published"
+      // uuid should be in a valid uuid format as well
+    },
+    name: {
+      bsonType: "string",
+      description: "the name of this published version of the dataset"
+    },
+    time: {
+      bsonType: "date",
+      description: "the timestamp marking when the dataset is published"
+    }
+  },
+  additionalProperties: false
+});
 
 var DatasetPublishedVersions;
 
@@ -13,7 +36,7 @@ async function collection() {
   if (DatasetPublishedVersions === undefined) {
     let db = MongoDB.db();
     try {
-      await db.createCollection('dataset_published_versions');
+      await db.createCollection('dataset_published_versions', {validator: { $jsonSchema: Schema} });
     } catch(e) {}
     DatasetPublishedVersions = db.collection('dataset_published_versions');
   }

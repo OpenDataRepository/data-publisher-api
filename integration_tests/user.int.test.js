@@ -102,7 +102,6 @@ describe("normal login process", () => {
 
 });
 
-// TODO: eventually add constraints on the mongodb itself
 describe("register", () => {
 
   describe("failure", () => {

@@ -7,6 +7,67 @@ const PermissionGroupModel = require('./permission_group');
 const SharedFunctions = require('./shared_functions');
 const LegacyUuidToNewUuidMapperModel = require('./legacy_uuid_to_new_uuid_mapper');
 
+const Schema = Object.freeze({
+  bsonType: "object",
+  required: [ "_id", "uuid", "updated_at", "fields", "related_templates", "subscribed_templates" ],
+  properties: {
+    _id: {
+      bsonType: "objectId",
+      description: "identifies a specific version of the template with this uuid"
+    },
+    uuid: {
+      bsonType: "string",
+      description: "identifies the template, but the uuid is common between all versions of said template"
+      // uuid should be in a valid uuid format as well
+    },
+    name: {
+      bsonType: "string"
+    },
+    description: {
+      bsonType: "string"
+    },
+    updated_at: {
+      bsonType: "date",
+      description: "identifies the last update for this version of this template"
+    },
+    persist_date: {
+      bsonType: "date",
+      description: "if persisted, identifies the time of persistance for this version of this template"
+    },
+    public_date: {
+      bsonType: "date",
+      description: "identifies the time specified for this template to go public. Note: the public date on the latest version is used for all versions of the template"
+    },
+    old_system_uuid: {
+      bsonType: "string",
+      description: "the uuid of this template as imported from the legacy system"
+    },
+    duplicated_from: {
+      bsonType: "string",
+      description: "if this template is duplicated from elsewhere, specifies which template it was duplicated from"
+    },
+    fields: {
+      bsonType: "array",
+      description: "fields this template links to",
+      uniqueItems: true
+    },
+    related_templates: {
+      bsonType: "array",
+      description: "templates this template links to",
+      uniqueItems: true
+    },
+    subscribed_templates: {
+      bsonType: "array",
+      description: "templates this template subscribes to",
+      uniqueItems: true,
+      items: {
+        bsonType: "objectId"
+      }
+    }
+  },
+  additionalProperties: false
+});
+
 var Template;
 var TemplateField;
 
@@ -15,8 +76,10 @@ async function collection() {
   if (Template === undefined) {
     let db = MongoDB.db();
     try {
-      await db.createCollection('templates');
-    } catch(e) {}
+      await db.createCollection('templates', {validator: { $jsonSchema: Schema} });
+    } catch(e) {
+      console.log(e);
+    }
     Template = db.collection('templates');
   }
   return Template;
@@ -1095,6 +1158,7 @@ async function duplicateRecursor(template, user, session) {
   // 3. For templates and fields, recurse. If they throw an error, just remove them from the copy.
   let fields = [];
   let related_templates = [];
+  let subscribed_templates = [];
   for(field of template.fields) {
     try {
       field = await TemplateFieldModel.duplicate(field, user, session);
@@ -1115,10 +1179,14 @@ async function duplicateRecursor(template, user, session) {
       }
     }
   }
+  for(subscribed_template of template.subscribed_templates) {
+    subscribed_templates.push(subscribed_template._id);
+  }
   template.fields = fields;
   template.related_templates = related_templates;
+  template.subscribed_templates = subscribed_templates;
 
-  template.updated_at = (new Date()).toISOString();
+  template.updated_at = new Date();
   let response = await Template.insertOne(
     template, 
     {session}

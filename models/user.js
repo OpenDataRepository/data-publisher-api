@@ -2,13 +2,51 @@ const MongoDB = require('../lib/mongoDB');
 const SharedFunctions = require('./shared_functions');
 const Util = require('../lib/util');
 
+const Schema = Object.freeze({
+  bsonType: "object",
+  required: [ "_id", "email", "password", "confirmed" ],
+  properties: {
+    _id: {
+      bsonType: "objectId"
+    },
+    email: {
+      bsonType: "string",
+      description: "user email. Also functions as the user login credential"
+      // uuid should be in a valid uuid format as well
+    },
+    first_name: {
+      bsonType: "string"
+    },
+    last_name: {
+      bsonType: "string"
+    },
+    password: {
+      bsonType: "string",
+      description: "encrypted with hash"
+    },
+    confirmed: {
+      bsonType: "bool",
+      description: "indicated whether or not this email has been confirmed. If not, credentials are invalid"
+    },
+    replacement_email: {
+      bsonType: "string",
+      description: "requested replacement email which has yet to be confirmed"
+      // string should be in valid email format
+    },
+    suspended: {
+      bsonType: "bool"
+    }
+  },
+  additionalProperties: false
+});
+
 var User;
 
 async function collection() {
   if (User === undefined) {
     let db = MongoDB.db();
     try {
-      await db.createCollection('users');
+      await db.createCollection('users', {validator: { $jsonSchema: Schema} });
     } catch(e) {}
     User = db.collection('users');
   }
@@ -116,7 +154,7 @@ exports.update = async function(_id, input_update_properties, session) {
   let response = await User.updateOne(
     {_id},
     {
-      $set: input_update_properties
+      $set: filtered_update_properties
     },
     {session}
   );

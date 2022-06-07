@@ -3,11 +3,36 @@ const { v4: uuidv4} = require('uuid');
 
 var LegacyUuidToNewUuidMapper;
 
+const Schema = Object.freeze({
+  bsonType: "object",
+  required: [ "_id", "old_uuid", "new_uuid" ],
+  properties: {
+    _id: {
+      bsonType: "objectId"
+    },
+    old_uuid: {
+      bsonType: "string",
+      description: "the uuid of the old system"
+    },
+    new_uuid: {
+      bsonType: "string",
+      description: "the uuid in the new system"
+      // uuid should be in a valid uuid format as well
+    },
+    secondary_uuid: {
+      bsonType: "string",
+      description: "if a uuid in the old system correlates to multiple uuids in the new system, then the second new uuid is here"
+      // uuid should be in a valid uuid format as well
+    }
+  },
+  additionalProperties: false
+});
+
 async function collection() {
   if (LegacyUuidToNewUuidMapper === undefined) {
     let db = MongoDB.db();
     try {
-      await db.createCollection('legacy_uuid_to_new_uuid_mapper');
+      await db.createCollection('legacy_uuid_to_new_uuid_mapper', {validator: { $jsonSchema: Schema} });
     } catch(e) {}
     LegacyUuidToNewUuidMapper = db.collection('legacy_uuid_to_new_uuid_mapper');
   }

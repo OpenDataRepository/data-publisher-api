@@ -3,13 +3,58 @@ const PermissionGroupModel = require('./permission_group');
 const SharedFunctions = require('./shared_functions');
 const Util = require('../lib/util');
 
+const uuids_schema = Object.freeze({
+  bsonType: "array",
+  uniqueItems: true,
+  items: {
+    bsonType: "string" // uuid
+  }
+});
+
+const document_schema = Object.freeze({
+  bsonType: "object",
+  required: [ "admin", "edit", "view" ],
+  properties: {
+    admin: uuids_schema,
+    edit: uuids_schema,
+    view: uuids_schema
+  },
+  additionalProperties: false
+});
+
+const Schema = Object.freeze({
+  bsonType: "object",
+  required: [ "_id", "user_id", "dataset", "template", "template_field" ],
+  properties: {
+    _id: {
+      bsonType: "objectId"
+    },
+    user_id: {
+      bsonType: "objectId",
+      description: "the user id whose permissions we are specifying"
+    },
+    dataset: document_schema,
+    template: document_schema,
+    template_field: document_schema,
+    admin: {
+      bsonType: "bool",
+      description: "if true, this is an admin user"
+    },
+    super: {
+      bsonType: "bool",
+      description: "if true, this is a super user"
+    }
+  },
+  additionalProperties: false
+});
+
 var UserPermissions;
 
 async function collection() {
   if (UserPermissions === undefined) {
     let db = MongoDB.db();
     try {
-      await db.createCollection('user_permissions');
+      await db.createCollection('user_permissions', {validator: { $jsonSchema: Schema} });
     } catch(e) {}
     UserPermissions = db.collection('user_permissions');
   }

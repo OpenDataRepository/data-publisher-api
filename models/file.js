@@ -7,6 +7,42 @@ const MongoDB = require('../lib/mongoDB');
 const Util = require('../lib/util');
 const SharedFunctions = require('./shared_functions');
 
+const Schema = Object.freeze({
+  bsonType: "object",
+  required: [ "_id", "uuid", "record_uuid", "template_field_uuid", "uploaded", "persisted" ],
+  properties: {
+    _id: {
+      bsonType: "objectId"
+    },
+    uuid: {
+      bsonType: "string",
+      description: "identifies the file name, which is just a uuid. A file can be used accross multiple versions of a record."
+      // uuid should be in a valid uuid format as well
+    },
+    record_uuid: {
+      bsonType: "string",
+      description: "identifies the record this file belongs to"
+    },
+    template_field_uuid: {
+      bsonType: "string",
+      description: "identifies the template_field within the record that this file belongs to"
+    },
+    updated_at: {
+      bsonType: "date",
+      description: "identifies the last update for this version of this record"
+    },
+    uploaded: {
+      bsonType: "bool",
+      description: "identifies whether or not an actual file has been uploaded for this file_uuid"
+    },
+    persisted: {
+      bsonType: "bool",
+      description: "identifies whether or not the record containing this file has been persisted. If so, the file cannot be deleted"
+    }
+  },
+  additionalProperties: false
+});
+
 var File;
 
 var Upload_Destination;
@@ -16,7 +52,7 @@ async function collection() {
   if (File === undefined) {
     let db = MongoDB.db();
     try {
-      await db.createCollection('files');
+      await db.createCollection('files', {validator: { $jsonSchema: Schema} });
     } catch(e) {}
     File = db.collection('files');
   }

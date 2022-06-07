@@ -12,14 +12,87 @@ const FieldTypes = Object.freeze({
 });
 exports.FieldTypes = FieldTypes;
 
+const Schema = Object.freeze({
+  bsonType: "object",
+  required: [ "_id", "uuid", "updated_at" ],
+  properties: {
+    _id: {
+      bsonType: "objectId",
+      description: "identifies a specific version of the template_field with this uuid"
+    },
+    uuid: {
+      bsonType: "string",
+      description: "identifies the template_field, but the uuid is common between all versions of said template_field"
+      // uuid should be in a valid uuid format as well
+    },
+    name: {
+      bsonType: "string"
+    },
+    description: {
+      bsonType: "string"
+    },
+    updated_at: {
+      bsonType: "date",
+      description: "identifies the last update for this version of this template_field"
+    },
+    persist_date: {
+      bsonType: "date",
+      description: "if persisted, identifies the time of persistance for this version of this template_field"
+    },
+    public_date: {
+      bsonType: "date",
+      description: "identifies the time specified for this template_field to go public. Note: the public date on the latest version is used for all versions of the template_field"
+    },
+    type: {
+      enum: Object.values(FieldTypes),
+      description: "allows user to force the record field type to be in the format of one of the implemented field types"
+    },
+    old_system_uuid: {
+      bsonType: "string",
+      description: "the uuid of this template_field as imported from the legacy system"
+    },
+    duplicated_from: {
+      bsonType: "string",
+      description: "if this template_field is duplicated from elsewhere, specifies which template_field it was duplicated from"
+    },
+    options: {
+      bsonType: "array",
+      description: "allows user to specify a checkbox list of values to select",
+      items: {
+        bsonType: "object",
+        required: ["name"],
+        properties: {
+          name: {
+            bsonType: "string",
+            description: "identifies the value of the checkbox"
+          },
+          // either uuid or options is required
+          // options is recursive
+          uuid: {
+            bsonType: "string",
+            description: "maintains the consistency of the checkbox accross versions of the template_field in case the name is changed"
+          },
+          options: {
+            bsonType: "array",
+            description: "options is recursive, but there is no way to specify that in the schema, so stop here"
+          }
+        }
+      }
+    }
+  },
+  additionalProperties: false
+});
+
 var TemplateField;
 
 async function collection() {
   if (TemplateField === undefined) {
     let db = MongoDB.db();
     try {
-      await db.createCollection('template_fields');
-    } catch(e) {}
+      await db.createCollection('template_fields', {validator: { $jsonSchema: Schema} });
+    } catch(e) {
+      console.log(e);
+    }
     TemplateField = db.collection('template_fields');
   }
   return TemplateField;
@@ -617,7 +690,7 @@ exports.duplicate = async function(field, user, session) {
 
 
   // 3. Actually create everything
-  field.updated_at = (new Date()).toISOString();
+  field.updated_at = new Date();
   let response = await TemplateField.insertOne(
     field, 
     {session}

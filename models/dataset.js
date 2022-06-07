@@ -7,6 +7,53 @@ const PermissionGroupModel = require('./permission_group');
 const SharedFunctions = require('./shared_functions');
 const LegacyUuidToNewUuidMapperModel = require('./legacy_uuid_to_new_uuid_mapper');
 
+const Schema = Object.freeze({
+  bsonType: "object",
+  required: [ "_id", "uuid", "template_id", "updated_at", "related_datasets" ],
+  properties: {
+    _id: {
+      bsonType: "objectId",
+      description: "identifies a specific version of the dataset with this uuid"
+    },
+    uuid: {
+      bsonType: "string",
+      description: "identifies the dataset, but the uuid is common between all versions of said dataset"
+      // uuid should be in a valid uuid format as well
+    },
+    template_id: {
+      bsonType: "objectId",
+      description: "identifies the specific template and version that this dataset uses"
+    },
+    updated_at: {
+      bsonType: "date",
+      description: "identifies the last update for this version of this dataset"
+    },
+    persist_date: {
+      bsonType: "date",
+      description: "if persisted, identifies the time of persistance for this version of this dataset"
+    },
+    public_date: {
+      bsonType: "date",
+      description: "identifies the time specified for this dataset to go public. Note: the public date on the latest version is used for all versions of the dataset"
+    },
+    group_uuid: {
+      bsonType: "string",
+      description: "used for duplication. Only those datasets that were created together are duplicated together"
+      // group_uuid should be in a valid uuid format as well
+    },
+    old_system_uuid: {
+      bsonType: "string",
+      description: "the uuid of this dataset as imported from the legacy system. Note: In the old system template/dataset are combined"
+    },
+    related_datasets: {
+      bsonType: "array",
+      description: "datasets this dataset links to",
+      uniqueItems: true
+    }
+  },
+  additionalProperties: false
+});
+
 var Dataset;
 
 // Returns a reference to the dataset Mongo Collection
@@ -14,7 +61,7 @@ async function collection() {
   if (Dataset === undefined) {
     let db = MongoDB.db();
     try {
-      await db.createCollection('datasets');
+      await db.createCollection('datasets', {validator: { $jsonSchema: Schema} });
     } catch(e) {}
     Dataset = db.collection('datasets');
   }
@@ -957,9 +1004,11 @@ async function importDatasetForTemplate(template, user, session, updated_at) {
     old_system_uuid: old_template_uuid,
     template_id: new_template._id,
     updated_at, 
-    public_date: new_template.public_date,
     related_datasets: []
   };
+  if(new_template.public_date) {
+    dataset.public_date = new_template.public_date;
+  }
 
   if (template.related_databases !== undefined) {
     for(let related_template of template.related_databases) {

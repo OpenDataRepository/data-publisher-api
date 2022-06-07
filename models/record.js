@@ -11,6 +11,113 @@ const LegacyUuidToNewUuidMapperModel = require('./legacy_uuid_to_new_uuid_mapper
 const FileModel = require('./file');
 const FieldTypes = TemplateFieldModel.FieldTypes;
 
+const Schema = Object.freeze({
+  bsonType: "object",
+  required: [ "_id", "uuid", "updated_at", "related_records" ],
+  properties: {
+    _id: {
+      bsonType: "objectId",
+      description: "identifies a specific version of the record with this uuid"
+    },
+    uuid: {
+      bsonType: "string",
+      description: "identifies the record, but the uuid is common between all versions of said record"
+      // uuid should be in a valid uuid format as well
+    },
+    dataset_uuid: {
+      bsonType: "string",
+      description: "identifies the dataset this record belongs to. Only used for the record draft"
+    },
+    dataset_id: {
+      bsonType: "objectId",
+      description: "identifies the dataset this record belongs to. Only used for a persisted record"
+    },
+    updated_at: {
+      bsonType: "date",
+      description: "identifies the last update for this version of this record"
+    },
+    persist_date: {
+      bsonType: "date",
+      description: "if persisted, identifies the time of persistance for this version of this record"
+    },
+    old_system_uuid: {
+      bsonType: "string",
+      description: "the uuid of this record as imported from the legacy system"
+    },
+    related_records: {
+      bsonType: "array",
+      description: "records this record links to",
+      uniqueItems: true
+    },
+    fields: {
+      bsonType: "array",
+      description: "fields this record includes",
+      items: {
+        bsonType: "object",
+        required: [ "uuid" ],
+        properties: {
+          uuid: {
+            bsonType: "string"
+          },
+          name: {
+            bsonType: "string"
+          },
+          description: {
+            bsonType: "string"
+          },
+          type: {
+            enum: Object.values(TemplateFieldModel.FieldTypes)
+          },
+          file: {
+            bsonType: "object",
+            required: [ "uuid" ],
+            properties: {
+              uuid: {
+                bsonType: "string"
+              },
+              name: {
+                bsonType: "string"
+              },
+              import_url: {
+                bsonType: "string"
+              }
+            },
+            additionalProperties: false
+          },
+          images: {
+            bsonType: "array",
+            uniqueItems: true,
+            items: {
+              bsonType: "object",
+              required: [ "uuid", "name" ],
+              properties: {
+                uuid: {
+                  bsonType: "string"
+                },
+                name: {
+                  bsonType: "string"
+                },
+                import_url: {
+                  bsonType: "string"
+                }
+              },
+              additionalProperties: false
+            }
+          },
+          values: {
+            bsonType: "array"
+          },
+          value: {
+            description: "the value provided by the user for this field"
+          }
+        },
+        additionalProperties: false
+      }
+    }
+  },
+  additionalProperties: false
+});
+
 var Record;
 
 // Returns a reference to the record Mongo Collection
@@ -18,7 +125,7 @@ async function collection() {
   if (Record === undefined) {
     let db = MongoDB.db();
     try {
-      await db.createCollection('records');
+      await db.createCollection('records', {validator: { $jsonSchema: Schema} });
     } catch(e) {}
     Record = db.collection('records');
   }
@@ -1297,11 +1404,6 @@ async function importRecordRecursor(input_record, dataset, template, user, updat
     updated_at,
     related_records: []
   };
-
-  if (input_record._record_metadata && Util.isObject(input_record._record_metadata) && 
-  input_record._record_metadata._public_date && Date.parse(input_record._record_metadata._public_date)) {
-    new_record.public_date = new Date(input_record._record_metadata._public_date);
-  }
 
   new_record.fields = await createRecordFieldsFromImportRecordAndTemplate(input_record.fields, template.fields, new_record_uuid, session);
 

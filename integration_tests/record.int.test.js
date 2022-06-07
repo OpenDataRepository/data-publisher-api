@@ -1054,13 +1054,6 @@ describe("update", () => {
 
       expect(await Helper.recordDraftExisting(record.uuid)).toBe(true);
 
-      record.fields[0].value = 'something';
-
-      // Test that draft exists if public_date changes
-      record.public_date = (new Date()).toISOString();
-      await Helper.recordUpdateAndTest(record);
-      expect(await Helper.recordDraftExisting(record.uuid)).toBe(true);
-
     });
 
     test("updating a related_record creates drafts of parents but not children", async () => {
@@ -1919,10 +1912,15 @@ describe("with files", () => {
   const basicRecordSetup = async () => {
     let template = {
       name: "t",
-      fields: [{
-        name: "tf",
-        type: FieldTypes.File
-      }]
+      fields: [
+        {
+          name: "filefield",
+          type: FieldTypes.File
+        },
+        {
+          name: "otherfield"
+        }
+      ]
     };
     template = await Helper.templateCreatePersistTest(template);
 
@@ -1933,13 +1931,19 @@ describe("with files", () => {
 
     let record = {
       dataset_uuid: dataset.uuid,
-      fields: [{
-        uuid: template.fields[0].uuid,
-        file: {
-          uuid: "new",
-          name: "banana"
+      fields: [
+        {
+          uuid: template.fields[0].uuid,
+          file: {
+            uuid: "new",
+            name: "banana"
+          }
+        },
+        {
+          uuid: template.fields[1].uuid,
+          value: "something"
         }
-      }]
+      ]
     }
     record = await Helper.recordCreateAndTest(record);
     let file_uuid = record.fields[0].file.uuid;
@@ -1977,7 +1981,8 @@ describe("with files", () => {
       record = await Helper.recordPersistAndTest(record);
       
       record = await Helper.recordDraftGetAndTest(record.uuid);
-      record.public_date = (new Date()).toISOString();
+
+      record.fields[1].value = "other value";
 
       record = await Helper.recordUpdatePersistTest(record);
       expect(record.fields[0].file.uuid).toEqual(file_uuid);

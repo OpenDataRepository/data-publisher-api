@@ -1,4 +1,4 @@
-var { PERMISSION_ADMIN, PERMISSION_EDIT, PermissionTypes.view } = require('../models/permission_group');
+var { PermissionTypes } = require('../models/permission_group');
 var { app, init: appInit, close: appClose } = require('../app');
 var HelperClass = require('./common_test_operations');
 var Helper = new HelperClass(app);
@@ -1813,7 +1813,7 @@ describe("templateLastUpdate", () => {
 
 describe("duplicate", () => {
   describe("success", () => {
-    test("basic template", async () => {
+    test("basic template, nothing else", async () => {
       let template = {
         name: "t1"
       };
@@ -1857,6 +1857,23 @@ describe("duplicate", () => {
       expect(draft.duplicated_from).toEqual(template_persisted.uuid);
       expect(draft.fields[0].duplicated_from).toEqual(template_persisted.fields[0].uuid);
       expect(draft.related_templates[0].duplicated_from).toEqual(template_persisted.related_templates[0].uuid);
+    });
+    test("template with subscribed_template", async () => {
+      let subscribed_template = {
+        name: "subscribed"
+      };
+      subscribed_template = await Helper.templateCreatePersistTest(subscribed_template);
+      let template = {
+        name: "t1",
+        subscribed_templates: [subscribed_template]
+      };
+      let template_persisted = await Helper.templateCreatePersistTest(template);
+      let response = await Helper.templateDuplicate(template_persisted.uuid);
+      expect(response.statusCode).toEqual(200);
+      let new_uuid = response.body.new_uuid;
+      let draft = await Helper.templateDraftGetAndTest(new_uuid);
+      Helper.testTemplateDraftsEqual(template, draft);
+      expect(draft.duplicated_from).toEqual(template_persisted.uuid);
     });
     test("only have permisssion to duplicate the top template", async () => {
       let template = {

@@ -8,6 +8,29 @@ const PermissionTypes = {
 };
 exports.PermissionTypes = PermissionTypes;
 
+const Schema = Object.freeze({
+  bsonType: "object",
+  required: [ "_id", "uuid", "category", "users" ],
+  properties: {
+    _id: {
+      bsonType: "objectId"
+    },
+    uuid: {
+      bsonType: "string",
+      description: "the uuid of the document whose permissions this mongodocument is specifying"
+      // uuid should be in a valid uuid format as well
+    },
+    category: {
+      enum: Object.values(PermissionTypes),
+      description: "the permission level this mongodocument is specifying"
+    },
+    users: {
+      bsonType: "array",
+      description: "specifies the the users with this permission level to this document"
+    }
+  },
+  additionalProperties: false
+});
 
 var PermissionGroup;
 
@@ -16,7 +39,7 @@ async function collection() {
   if (PermissionGroup === undefined) {
     let db = MongoDB.db();
     try {
-      await db.createCollection('permission_groups');
+      await db.createCollection('permission_groups', {validator: { $jsonSchema: Schema} });
     } catch(e) {}
     PermissionGroup = db.collection('permission_groups');
   }
