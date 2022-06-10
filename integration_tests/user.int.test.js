@@ -90,13 +90,13 @@ describe("normal login process", () => {
   test("Anyone can access unprotected routes, but only logged-in users can access the protected one", async () => {
 
     await Helper.testAndExtract(Helper.get_test_unprotected_route);
-    await Helper.testAndExtract(Helper.userGet);
+    await Helper.testAndExtract(Helper.accountGet);
 
     let agent2 = request.agent(app);
     Helper.setAgent(agent2);
     
     await Helper.testAndExtract(Helper.get_test_unprotected_route);
-    let response = await Helper.userGet();
+    let response = await Helper.accountGet();
     expect(response.statusCode).toBe(401);
   });
 
@@ -127,7 +127,7 @@ describe("register", () => {
 describe("suspend", () => {
 
   test("normal", async () => {
-    await Helper.testAndExtract(Helper.userSuspend, Helper.DEF_PASSWORD);
+    await Helper.testAndExtract(Helper.accountSuspend, Helper.DEF_PASSWORD);
     let response = await Helper.login(Helper.DEF_EMAIL, Helper.DEF_PASSWORD);
     expect(response.statusCode).toBe(401);
   });
@@ -141,7 +141,7 @@ describe("suspend", () => {
     let response = await Helper.actAs(Helper.templateCreate({name: "waffle"}), Helper.EMAIL_2);
     expect(response.statusCode).toBe(200);
 
-    await Helper.testAndExtract(Helper.actAs, Helper.userSuspend(Helper.DEF_PASSWORD), Helper.EMAIL_2);
+    await Helper.testAndExtract(Helper.actAs, Helper.accountSuspend(Helper.DEF_PASSWORD), Helper.EMAIL_2);
 
     response = await Helper.actAs(Helper.templateCreate({name: "waffle"}), Helper.EMAIL_2);
     expect(response.statusCode).toBe(401);
@@ -150,12 +150,12 @@ describe("suspend", () => {
   test("must be logged in", async () => {
     let agent2 = request.agent(app);
     Helper.setAgent(agent2);
-    let response = await Helper.userSuspend();
+    let response = await Helper.accountSuspend();
     expect(response.statusCode).toBe(401);
   });
 
   test("must provide correct password", async () => {
-    let response = await Helper.userSuspend("wrong password");
+    let response = await Helper.accountSuspend("wrong password");
     expect(response.statusCode).toBe(400);
   });
 
@@ -196,9 +196,9 @@ describe("update (and get)", () => {
         first_name: "naruto",
         last_name: "uzumaki"
       };
-      await Helper.testAndExtract(Helper.userUpdate, update_properties, Helper.DEF_PASSWORD);
+      await Helper.testAndExtract(Helper.accountUpdate, update_properties, Helper.DEF_PASSWORD);
 
-      let user = await Helper.testAndExtract(Helper.userGet);
+      let user = await Helper.testAndExtract(Helper.accountGet);
       expect(user.email).toEqual(Helper.DEF_EMAIL);
       expect(user.first_name).toEqual("naruto");
       expect(user.last_name).toEqual("uzumaki");
@@ -210,7 +210,7 @@ describe("update (and get)", () => {
         new_password: "pie",
         new_password_confirmation: "pie"
       };
-      await Helper.testAndExtract(Helper.userUpdate, update_properties, Helper.DEF_PASSWORD);
+      await Helper.testAndExtract(Helper.accountUpdate, update_properties, Helper.DEF_PASSWORD);
 
       let agent2 = request.agent(app);
       Helper.setAgent(agent2);
@@ -228,7 +228,7 @@ describe("update (and get)", () => {
         first_name: "naruto",
         last_name: "uzumaki"
       };
-      let response = await Helper.userUpdate(update_properties, "wrong password");
+      let response = await Helper.accountUpdate(update_properties, "wrong password");
       expect(response.statusCode).toBe(400);
     });
 
@@ -237,7 +237,7 @@ describe("update (and get)", () => {
         new_password: "honey-pie",
         new_password_confirmation: "waffle-pie"
       };
-      let response = await Helper.userUpdate(update_properties, Helper.DEF_PASSWORD);
+      let response = await Helper.accountUpdate(update_properties, Helper.DEF_PASSWORD);
       expect(response.statusCode).toBe(400);
     });
 

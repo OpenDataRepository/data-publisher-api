@@ -58,7 +58,7 @@ exports.uploadFileDirect = async function(req, res, next) {
   }
 }
 
-// TODO: maybe at some point it would be a good idea to downoad to a different file first,
+// maybe at some point it would be a good idea to downoad to a different file first,
 // and then move that file to the correct location. That way we don't write half of a bad file and then delete it
 // Reference: https://stackoverflow.com/questions/11944932/how-to-download-a-file-with-node-js-without-using-third-party-libraries
 

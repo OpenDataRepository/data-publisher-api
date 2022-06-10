@@ -856,100 +856,98 @@ module.exports = class Helper {
       .get(`/file/${uuid}`);
   }
 
-  // users
+  // account
 
   register = async (email, password) => {
     return await this.agent
-      .post(`/user/register`)
+      .post(`/account/register`)
       .send({email, password});
   }
 
   confirmEmail = async (token) => {
     return await this.agent
-      .post(`/user/confirm_email/${token}`);
+      .post(`/account/confirm_email/${token}`);
   }
   
   login = async (email, password) => {
     return await this.agent
-      .post(`/user/login`)
+      .post(`/account/login`)
       .send({email, password});
   }
 
-  logout = async () => {
+  accountPermissions = async () => {
     return await this.agent
-      .post(`/user/logout`);
+      .get(`/account/permissions`);
   }
 
-  userPermissions = async () => {
-    return await this.agent
-      .get(`/user/permissions`);
+  accountSuspend = (password) => {
+    return this.agent
+      .post(`/account/suspend`)
+      .send({password});
   }
 
-  otherUserPermissions = async (email) => {
+  accountUpdate = async (update_properties, password) => {
+    update_properties.verification_password = password;
     return await this.agent
-      .get(`/user/other_user/${email}/permissions`);
+      .post(`/account/update`)
+      .send(update_properties);
+  }
+
+  accountGet = async () => {
+    return await this.agent
+      .get(`/account`);
+  }
+
+  changeEmail = async (new_email, password) => {
+    return await this.agent
+      .post(`/account/change_email`)
+      .send({new_email, verification_password: password});
   }
 
   get_test_unprotected_route = async () => {
     return await this.agent
-      .get(`/user/test-unprotected-route`);
+      .get(`/account/test-unprotected-route`);
   };
-  
-  userSuspend = (password) => {
-    return this.agent
-      .post(`/user/suspend`)
-      .send({password});
+
+  userTestingSetAdmin = async () => {
+    return await this.agent
+      .post(`/account/testing_set_admin`);
+  }
+
+  userTestingSetSuper = async () => {
+    return await this.agent
+      .post(`/account/testing_set_super`);
+  }
+
+
+  // users
+
+  otherUserPermissions = async (email) => {
+    return await this.agent
+      .get(`/user/${email}/permissions`);
   }
 
   otherUserSuspend = (email) => {
     return this.agent
-      .post(`/user/other_user/${email}/suspend`);
-  }
-  
-  userUpdate = async (update_properties, password) => {
-    update_properties.verification_password = password;
-    return await this.agent
-      .post(`/user/update`)
-      .send(update_properties);
+      .post(`/user/${email}/suspend`);
   }
 
   otherUserUpdate = async (update_properties, email) => {
     update_properties;
     return await this.agent
-      .post(`/user/other_user/${email}/update`)
+      .post(`/user/${email}/update`)
       .send(update_properties);
-  }
-  
-  userGet = async () => {
-    return await this.agent
-      .get(`/user`);
   }
 
   userGetByEmail = async (email) => {
     return await this.agent
-      .get(`/user/other_user/${email}`);
-  }
-  
-  changeEmail = async (new_email, password) => {
-    return await this.agent
-      .post(`/user/change_email`)
-      .send({new_email, verification_password: password});
+      .get(`/user/${email}`);
   }
 
   otherUserChangeEmail = async (new_email, email) => {
     return await this.agent
-      .post(`/user/other_user/${email}/change_email`)
+      .post(`/user/${email}/change_email`)
       .send({new_email});
-  }
-
-  userTestingSetAdmin = async () => {
-    return await this.agent
-      .post(`/user/testing_set_admin`);
-  }
-
-  userTestingSetSuper = async () => {
-    return await this.agent
-      .post(`/user/testing_set_super`);
   }
 
   // import 

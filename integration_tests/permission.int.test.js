@@ -223,7 +223,7 @@ describe("update (and get)",  () => {
       };
       let uuid = await Helper.templateFieldCreateAndTest(template_field);
 
-      let user_a_permissions = await Helper.testAndExtract(Helper.userPermissions);
+      let user_a_permissions = await Helper.testAndExtract(Helper.accountPermissions);
       expect(user_a_permissions.template_field.admin).toEqual([uuid]);
 
       let b_email = "b@b.com";
@@ -238,7 +238,7 @@ describe("update (and get)",  () => {
 
       Helper.setAgent(agent2);
 
-      let user_b_permissions = await Helper.testAndExtract(Helper.userPermissions);
+      let user_b_permissions = await Helper.testAndExtract(Helper.accountPermissions);
       expect(user_b_permissions.template_field.edit).toEqual([uuid]);
 
       Helper.setAgent(agent1);
@@ -249,7 +249,7 @@ describe("update (and get)",  () => {
 
       Helper.setAgent(agent2);
 
-      user_b_permissions = await Helper.testAndExtract(Helper.userPermissions);
+      user_b_permissions = await Helper.testAndExtract(Helper.accountPermissions);
       expect(user_b_permissions.template_field.edit).toEqual([]);
       expect(user_b_permissions.template_field.view).toEqual([uuid]);
 

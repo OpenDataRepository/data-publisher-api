@@ -9,12 +9,14 @@ var permissionGroupRouter = require('./permission_group');
 var importRouter = require('./importer');
 var fileRouter = require('./file');
 var userRouter = require('./user');
+var accountRouter = require('./account');
 
 /* GET home page. */
 router.get('/', function(req, res, next) {
   res.send('not implemented');
 });
 
+router.use('/account', accountRouter);
 router.use('/user', userRouter);
 router.use('/template', templateRouter);
 router.use('/template_field', templateFieldRouter);

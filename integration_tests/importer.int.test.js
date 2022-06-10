@@ -1253,7 +1253,6 @@ describe("records", () => {
 
   });
 
-  // TODO: at some point, once the links in chemin work / are valid, make this an importRecordsPersistTest
   test("with Chemin data", async () => {
 
     let raw_template = fs.readFileSync(__dirname + '/test_data/chemin_template.json');
@@ -1264,7 +1263,7 @@ describe("records", () => {
     let raw_records = fs.readFileSync(__dirname + '/test_data/chemin_data.json');
     let old_records = JSON.parse(raw_records).records;
 
-    // We can't test persisting this also because the download links don't work
+    // We can't test persisting this also because the download links in the chemin data don't work
     await importRecordsTest(old_records, false);
   });
 

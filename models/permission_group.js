@@ -122,7 +122,6 @@ async function replace_permissions(current_user_id, uuid, category, user_ids, se
   } 
 }
 
-// TODO: consider modifying the design such that there is a single model with all of the permissions
 exports.initialize_permissions_for = async function(current_user, uuid, session) {
   await create_permission(uuid, PermissionTypes.admin, [current_user], session);
   await create_permission(uuid, PermissionTypes.edit, [], session);

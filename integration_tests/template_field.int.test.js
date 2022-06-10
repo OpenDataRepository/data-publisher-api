@@ -758,7 +758,7 @@ describe("delete", () => {
     let permission_group = await Helper.testAndExtract(Helper.getPermissionGroup, uuid, PermissionTypes.admin);
     expect(permission_group).toEqual([Helper.DEF_EMAIL]);
 
-    let user_permissions = await Helper.testAndExtract(Helper.userPermissions);
+    let user_permissions = await Helper.testAndExtract(Helper.accountPermissions);
     expect(user_permissions.template_field.admin).toEqual([uuid]);
   
     
@@ -767,7 +767,7 @@ describe("delete", () => {
     response = await Helper.getPermissionGroup(uuid, PermissionTypes.admin);
     expect(response.statusCode).toBe(404);
 
-    user_permissions = await Helper.testAndExtract(Helper.userPermissions);
+    user_permissions = await Helper.testAndExtract(Helper.accountPermissions);
     expect(user_permissions.template_field.admin).toEqual([]);
   });
 
