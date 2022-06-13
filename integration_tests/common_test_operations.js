@@ -591,6 +591,11 @@ module.exports = class Helper {
       .get(`/dataset/${uuid}/published/${name}`);
   }
 
+  datasetPublishedRecords = async (uuid, name) => {
+    return await this.agent
+      .get(`/dataset/${uuid}/published/${name}/records`);
+  }
+
   // record
   
   recordCreate = async (record) => {

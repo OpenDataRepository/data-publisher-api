@@ -1,5 +1,8 @@
 const DatasetModel = require('../models/dataset');
 const DatasetPublishModel = require('../models/datasetPublish');
+const RecordModel = require('../models/record');
+const UserPermissionsModel = require('../models/user_permissions');
+var { PermissionTypes } = require('../models/permission_group');
 const PermissionGroupController = require('./permissionGroupController');
 const SharedFunctions = require('../models/shared_functions');
 
@@ -155,6 +158,47 @@ exports.published = async function(req, res, next) {
     let user_id = req.user ? req.user._id  : null;
     let dataset = await DatasetModel.persistedBeforeDate(req.params.uuid, time, user_id);
     res.json(dataset);
+  } catch(err) {
+    next(err);
+  }
+}
+
+exports.published_records = async function(req, res, next) {
+  try {
+    let dataset_uuid = req.params.uuid;
+    let name = req.params.name;
+    let user_id = req.user ? req.user._id  : null;
+
+    if(!(await UserPermissionsModel.has_permission(user_id, dataset_uuid, PermissionTypes.view))) {
+      throw new Util.PermissionDeniedError();
+    }
+
+    if(!name || typeof(name) !== 'string') {
+      throw new Util.InputError('Must provide a valid name for your published dataset version');
+    }
+
+    // Get timestamp of published
+    let time = await DatasetPublishModel.publishedTimeForDatasetUUIDAndName(dataset_uuid, name);
+    if(!time) {
+      throw new Util.NotFoundError();
+    }
+
+    // Strategy: First get the list of all unique record uuids in the dataset, then, for each one, the the latest published by timestamp
+    // At some point, when we need to scale, change the above to be in a singe db call. This will definitely be much harder to write, but also much faster
+
+    let record_uuids_in_dataset = await RecordModel.uniqueUuidsInDataset(dataset_uuid)
+    let final_record_list = [];
+    for(let record_uuid of record_uuids_in_dataset) {
+      let record;
+      try {
+        record = await RecordModel.persistedBeforeDate(record_uuid, time, user_id);
+      } catch (e) {
+        if (e instanceof Util.NotFoundError) {continue;}
+        else {throw e}
+      }
+      final_record_list.push(record);
+    }
+    res.send(final_record_list);
   } catch(err) {
     next(err);
   }

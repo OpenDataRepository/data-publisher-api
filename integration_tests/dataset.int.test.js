@@ -2,6 +2,7 @@ var { PermissionTypes } = require('../models/permission_group');
 var { app, init: appInit, close: appClose } = require('../app');
 var HelperClass = require('./common_test_operations');
 var Helper = new HelperClass(app);
+const Util = require('../lib/util');
 
 var agent1;
 
@@ -2079,7 +2080,7 @@ describe("duplicate", () => {
   });
 });
 
-describe("publish (and get published", () => {
+describe("publish", () => {
 
   test("basic test that it works", async () => {
 
@@ -2178,6 +2179,137 @@ describe("publish (and get published", () => {
       expect(response.statusCode).toBe(400);
     });
 
+  });
+
+  test("can get all records in published dataset", async () => {
+    // 1 dataset, 4 records, 2 published versions
+
+    // Question: if a record in the dataset was persisted before the dataset was persisted, is it included in the published version?
+    // For: You want the user to be able to get all of the records, even if they update the dataset, they shouldn't have to update every single record for it to appear in that dataset
+    // Against: The data in the records might not match the new dataset
+
+    // Create and persist the dataset, and create four records. 
+    // persist the first record
+    // update the dataset, update the first record, and persist the first two records
+    // publish 1
+    // persist the dataset, update the first 2 records and persist the first 3
+    // update the first 3 records and persist all 4
+    // publish 2
+    // Get all records in the first publish. It should be the 1st version of the dataset, 2nd version of the 1st record and 1st version of the 2nd record
+    // Get all records in the second publish. It should be the 2nd version of the dataset, 1st record 4th version ... 4th record 1st version
+
+    // Create and persist the dataset, and create four records. 
+    let template = {
+      name:"t1",
+      fields: [
+        {
+          name: "name"
+        }
+      ],
+      public_date: (new Date()).toISOString()
+    };
+    template = await Helper.templateCreatePersistTest(template);
+  
+    let public_date_1 = (new Date()).toISOString();
+    let dataset = {
+      template_id: template._id,
+      public_date: public_date_1
+    };
+    dataset = await Helper.datasetCreatePersistTest(dataset);
+
+    let record_1 = {
+      dataset_uuid: dataset.uuid,
+      fields: [
+        {
+          uuid: template.fields[0].uuid,
+          name: "name", 
+          value: "record1_version1"
+        }
+      ]
+    };
+    let record_2 = {
+      dataset_uuid: dataset.uuid,
+      fields: [
+        {
+          uuid: template.fields[0].uuid,
+          name: "name", 
+          value: "record2_version1"
+        }
+      ]
+    };
+    let record_3 = {
+      dataset_uuid: dataset.uuid,
+      fields: [
+        {
+          uuid: template.fields[0].uuid,
+          name: "name", 
+          value: "record3_version1"
+        }
+      ]
+    };
+    let record_4 = {
+      dataset_uuid: dataset.uuid,
+      fields: [
+        {
+          uuid: template.fields[0].uuid,
+          name: "name", 
+          value: "record4_version1"
+        }
+      ]
+    };
+    record_1 = await Helper.recordCreateAndTest(record_1);
+    record_2 = await Helper.recordCreateAndTest(record_2);
+    record_3 = await Helper.recordCreateAndTest(record_3);
+    record_4 = await Helper.recordCreateAndTest(record_4);
+
+    // persist the first record
+    await Helper.recordPersistAndTest(record_1);
+
+    // update the dataset, update the first record, and persist the first two records
+    let public_date_2 = (new Date()).toISOString();
+    dataset.public_date = public_date_2;
+    await Helper.datasetUpdateAndTest(dataset);
+    record_1.fields[0].value = "record1_version2";
+    await Helper.recordUpdateAndTest(record_1);
+    await Helper.recordPersistAndTest(record_1);
+    await Helper.recordPersistAndTest(record_2);
+
+    // publish 1
+    let published_name_1 = "publish_1";
+    await Helper.testAndExtract(Helper.datasetPublish, dataset.uuid, published_name_1);
+
+    // persist the dataset, update the first 2 records and persist the first 3
+    await Helper.datasetPersistAndFetch(dataset.uuid);
+    record_1.fields[0].value = "record1_version3";
+    record_2.fields[0].value = "record2_version2";
+    await Helper.recordUpdatePersistTest(record_1);
+    await Helper.recordUpdatePersistTest(record_2);
+    await Helper.recordUpdatePersistTest(record_3);
+
+    // update the first 3 records and persist all 4
+    record_1.fields[0].value = "record1_version4";
+    record_2.fields[0].value = "record2_version3";
+    record_3.fields[0].value = "record3_version2";
+    await Helper.recordUpdatePersistTest(record_1);
+    await Helper.recordUpdatePersistTest(record_2);
+    await Helper.recordUpdatePersistTest(record_3);
+    await Helper.recordUpdatePersistTest(record_4);
+
+    // publish 2
+    let published_name_2 = "publish_2";
+    await Helper.testAndExtract(Helper.datasetPublish, dataset.uuid, published_name_2);
+
+    // Get all records in the first publish. It should be the 1st version of the dataset, 2nd version of the 1st record and 1st version of the 2nd record 
+    let publish_1_records = await Helper.testAndExtract(Helper.datasetPublishedRecords, dataset.uuid, published_name_1);
+    let publish_1_record_values = publish_1_records.map(record => record.fields[0].value);
+    let expected_values = ["record1_version2", "record2_version1"];
+    expect(Util.arrayEqual(publish_1_record_values, expected_values)).toBeTruthy();
+
+    // Get all records in the second publish. It should be the 2nd version of the dataset, 1st record 4th version ... 4th record 1st version
+    let publish_2_records = await Helper.testAndExtract(Helper.datasetPublishedRecords, dataset.uuid, published_name_2);
+    let publish_2_record_values = publish_2_records.map(record => record.fields[0].value);
+    expected_values = ["record1_version4", "record2_version3", "record3_version2", "record4_version1"];
+    expect(Util.arrayEqual(publish_2_record_values, expected_values)).toBeTruthy();
   });
 
 });

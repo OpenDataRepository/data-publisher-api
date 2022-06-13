@@ -1122,6 +1122,7 @@ async function filterPersistedForPermissions(record, user, session) {
   await filterPersistedForPermissionsRecursor(record, user, session);
 }
 
+// TODO: this should return null instead of throwing a not found error
 async function latestPersistedBeforeDateWithJoinsAndPermissions(uuid, date, user, session) {
   let record = await latestPersistedBeforeDateWithJoins(uuid, date, session);
   await filterPersistedForPermissions(record, user, session);
@@ -1545,4 +1546,12 @@ exports.importDatasetsAndRecords = async function(records, user) {
 exports.importRecords = async function(records, user) {
   let new_uuids = await SharedFunctions.executeWithTransaction(importRecords, records, user);
   return new_uuids;
+}
+
+// At some point for optimization, could modify this query to accept a timestamp and filter further based on that
+exports.uniqueUuidsInDataset = async function(dataset_uuid) {
+  return await Record.distinct(
+    "uuid",
+    {dataset_uuid}
+  );
 }

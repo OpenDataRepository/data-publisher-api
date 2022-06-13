@@ -16,7 +16,7 @@ router.delete('/:uuid/draft', ensureLoggedIn, validateUuid, controller.draft_del
 router.post('/:uuid/duplicate', ensureLoggedIn, validateUuid, controller.duplicate);
 router.post('/:uuid/publish', ensureLoggedIn, validateUuid, controller.publish);
 router.get('/:uuid/published/:name', validateUuid, controller.published);
-// TODO: at some point write a similar endpoint which will fetch the records for the published dataset
+router.get('/:uuid/published/:name/records', validateUuid, controller.published_records);
 router.get('/:uuid/:timestamp', validateUuid, validateTimestamp, controller.get_persisted_before_timestamp);
 
 module.exports = router;
