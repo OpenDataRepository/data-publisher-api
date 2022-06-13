@@ -746,11 +746,14 @@ async function validateAndCreateOrUpdate(session, record, user) {
   try {
     dataset = await DatasetModel.latestPersistedWithoutPermissions(record.dataset_uuid);
   } catch(error) {
-    if(error instanceof Util.NotFoundError || error instanceof Util.InputError) {
+    if(error instanceof Util.InputError) {
       throw new Util.InputError(`a valid dataset_uuid was not provided for record ${record.uuid}`);
     } else {
       throw error;
     }
+  }
+  if(!dataset) {
+    throw new Util.InputError(`a valid dataset_uuid was not provided for record ${record.uuid}`);
   }
   let template = await TemplateModel.persistedByIdWithoutPermissions(SharedFunctions.convertToMongoId(dataset.template_id));
 
@@ -1045,7 +1048,7 @@ async function latestPersistedBeforeDateWithJoins(uuid, date, session) {
   if (await response.hasNext()){
     return await response.next();
   } else {
-    throw new Util.NotFoundError('No record exists with the uuid provided which was persisted before the provided date.');
+    return null;
   }
 }
 
@@ -1122,9 +1125,11 @@ async function filterPersistedForPermissions(record, user, session) {
   await filterPersistedForPermissionsRecursor(record, user, session);
 }
 
-// TODO: this should return null instead of throwing a not found error
 async function latestPersistedBeforeDateWithJoinsAndPermissions(uuid, date, user, session) {
   let record = await latestPersistedBeforeDateWithJoins(uuid, date, session);
+  if(!record) {
+    return null;
+  }
   await filterPersistedForPermissions(record, user, session);
   return record;
 } 

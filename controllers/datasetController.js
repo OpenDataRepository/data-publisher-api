@@ -25,7 +25,11 @@ exports.get_latest_persisted = async function(req, res, next) {
   try {
     let user_id = req.user ? req.user._id  : null;
     let dataset = await DatasetModel.latestPersisted(req.params.uuid, user_id);
-    res.json(dataset);
+    if(dataset) {
+      res.json(dataset);
+    } else {
+      throw new Util.NotFoundError();
+    }
   } catch(err) {
     next(err);
   }
@@ -35,7 +39,11 @@ exports.get_persisted_before_timestamp = async function(req, res, next) {
   try {
     let user_id = req.user ? req.user._id  : null;
     let dataset = await DatasetModel.persistedBeforeDate(req.params.uuid, new Date(req.params.timestamp), user_id);
-    res.json(dataset);
+    if(dataset) {
+      res.json(dataset);
+    } else {
+      throw new Util.NotFoundError();
+    }
   } catch(err) {
     next(err);
   }
@@ -189,14 +197,10 @@ exports.published_records = async function(req, res, next) {
     let record_uuids_in_dataset = await RecordModel.uniqueUuidsInDataset(dataset_uuid)
     let final_record_list = [];
     for(let record_uuid of record_uuids_in_dataset) {
-      let record;
-      try {
-        record = await RecordModel.persistedBeforeDate(record_uuid, time, user_id);
-      } catch (e) {
-        if (e instanceof Util.NotFoundError) {continue;}
-        else {throw e}
+      let record = await RecordModel.persistedBeforeDate(record_uuid, time, user_id);
+      if(record) {
+        final_record_list.push(record);
       }
-      final_record_list.push(record);
     }
     res.send(final_record_list);
   } catch(err) {

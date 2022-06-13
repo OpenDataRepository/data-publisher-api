@@ -689,7 +689,7 @@ async function latestPersistedBeforeDateWithJoins(uuid, date, session) {
   if (await response.hasNext()){
     return await response.next();
   } else {
-    throw new Util.NotFoundError(`No dataset exists with uuid ${uuid} which was persisted before the provided date.`);
+    return null;
   }
 }
 
@@ -712,6 +712,9 @@ async function filterPersistedForPermissions(dataset, user, session) {
 
 async function latestPersistedBeforeDateWithJoinsAndPermissions(uuid, date, user, session) {
   let dataset = await latestPersistedBeforeDateWithJoins(uuid, date, session);
+  if(!dataset) {
+    return null;
+  }
   await filterPersistedForPermissions(dataset, user, session);
   return dataset;
 } 
