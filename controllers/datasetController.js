@@ -207,3 +207,6 @@ exports.published_records = async function(req, res, next) {
     next(err);
   }
 }
+
+// TODO: Get a list of all published datasets
+// TODO: Get a list of all datasets the user has view permissions to

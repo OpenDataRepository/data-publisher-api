@@ -552,7 +552,8 @@ async function createRecordFieldsFromImportRecordAndTemplate(record_fields, temp
   return await createRecordFieldsFromTemplateFieldsAndMap(template_fields, record_field_map, record_uuid, session);
 }
 
-// TODO: the number of parameters is getting out of hand. Can I make something object-oriented, so I don't hve to pass the session and user all the way through?
+// TODO: the number of parameters is getting out of hand. Can I make something object-oriented, so I don't have to pass the session and user all the way through?
+// TODO: write a wrapper object for the models which will hold the user, session, and updated_at function, or generally things which are passed around everywhere
 async function extractRelatedRecordsFromCreateOrUpdate(input_related_records, related_datasets, template, user, session, updated_at, seen_uuids) {
   let return_records = [];
   let changes = false;
