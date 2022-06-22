@@ -43,78 +43,91 @@ exports.init = async function() {
   LegacyUuidToNewUuidMapper = await collection();
 }
 
-async function getDocumentWithOldUuid(uuid, session) {
-  let cursor = await LegacyUuidToNewUuidMapper.find(
-    {old_uuid: uuid}, 
-    {session}
-  );
-  if (!(await cursor.hasNext())) {
-    return null;
-  }
-  return await cursor.next();
-}
+class Model {
+  collection = LegacyUuidToNewUuidMapper;
 
-exports.get_new_uuid_from_old = async (uuid, session) => {
-  let document = await getDocumentWithOldUuid(uuid, session);
-  if(!document) {
-    return null;
+  constructor(state){
+    this.state = state;
   }
-  return document.new_uuid;
-}
 
-exports.get_secondary_uuid_from_old = async (uuid, session) => {
-  let document = await getDocumentWithOldUuid(uuid, session);
-  if(!document) {
-    return null;
+  async #getDocumentWithOldUuid(uuid) {
+    let session = this.state.session;
+    let cursor = await LegacyUuidToNewUuidMapper.find(
+      {old_uuid: uuid}, 
+      {session}
+    );
+    if (!(await cursor.hasNext())) {
+      return null;
+    }
+    return await cursor.next();
   }
-  return document.secondary_uuid;
-}
 
-exports.get_old_uuid_from_new = async (uuid, session) => {
-  let cursor = await LegacyUuidToNewUuidMapper.find(
-    {new_uuid: uuid}, 
-    {session}
-  );
-  if (await cursor.hasNext()) {
-    return (await cursor.next()).old_uuid;
+  async get_new_uuid_from_old(uuid){
+    let document = await this.#getDocumentWithOldUuid(uuid);
+    if(!document) {
+      return null;
+    }
+    return document.new_uuid;
   }
   
-  cursor = await LegacyUuidToNewUuidMapper.find(
-    {secondary_uuid: uuid}, 
-    {session}
-  );
-  if (await cursor.hasNext()) {
-    return (await cursor.next()).old_uuid;
+  async get_secondary_uuid_from_old(uuid){
+    let document = await this.#getDocumentWithOldUuid(uuid);
+    if(!document) {
+      return null;
+    }
+    return document.secondary_uuid;
   }
-  return null;
-}
+  
+  async get_old_uuid_from_new(uuid){
+    let session = this.state.session;
+    let cursor = await LegacyUuidToNewUuidMapper.find(
+      {new_uuid: uuid}, 
+      {session}
+    );
+    if (await cursor.hasNext()) {
+      return (await cursor.next()).old_uuid;
+    }
+    
+    cursor = await LegacyUuidToNewUuidMapper.find(
+      {secondary_uuid: uuid}, 
+      {session}
+    );
+    if (await cursor.hasNext()) {
+      return (await cursor.next()).old_uuid;
+    }
+    return null;
+  }
+  
+  async create_document_with_old_and_new(old_uuid, new_uuid){
+    let session = this.state.session;
+    let response = await LegacyUuidToNewUuidMapper.insertOne(
+      {old_uuid, new_uuid},
+      {session}
+    )
+    if (!response.acknowledged) {
+      throw new Error(`LegacyUuidToNewUuidMapper.createNewUuidForOld: Insert failed`);
+    }
+  };
+  
+  async create_new_uuid_for_old(old_uuid){
+    let new_uuid = uuidv4();
+    await this.create_document_with_old_and_new(old_uuid, new_uuid);
+    return new_uuid;
+  }
+  
+  async create_secondary_uuid_for_old(old_uuid){
+    let secondary_uuid = uuidv4();
+    let session = this.state.session;
+    let response = await LegacyUuidToNewUuidMapper.updateOne(
+      {old_uuid},
+      {$set: {secondary_uuid}},
+      {session}
+    )
+    if (response.modifiedCount != 1) {
+      throw new Error(`LegacyUuidToNewUuidMapper.createSecondaryUuidForOld: should be 1 modified document. Instead: ${response.modifiedCount}`);
+    }
+    return secondary_uuid;
+  }
 
-const create_document_with_old_and_new = async (old_uuid, new_uuid, session) => {
-  let response = await LegacyUuidToNewUuidMapper.insertOne(
-    {old_uuid, new_uuid},
-    {session}
-  )
-  if (!response.acknowledged) {
-    throw new Error(`LegacyUuidToNewUuidMapper.createNewUuidForOld: Insert failed`);
-  }
 };
-exports.create_document_with_old_and_new = create_document_with_old_and_new;
-
-exports.create_new_uuid_for_old = async (old_uuid, session) => {
-  let new_uuid = uuidv4();
-  await create_document_with_old_and_new(old_uuid, new_uuid, session);
-  return new_uuid;
-}
-
-exports.create_secondary_uuid_for_old = async (old_uuid, session) => {
-  let secondary_uuid = uuidv4();
-  let response = await LegacyUuidToNewUuidMapper.updateOne(
-    {old_uuid},
-    {$set: {secondary_uuid}},
-    {session}
-  )
-  if (response.modifiedCount != 1) {
-    throw new Error(`LegacyUuidToNewUuidMapper.createSecondaryUuidForOld: should be 1 modified document. Instead: ${response.modifiedCount}`);
-  }
-  return secondary_uuid;
-}
+exports.model = Model;

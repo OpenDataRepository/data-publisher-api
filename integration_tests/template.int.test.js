@@ -791,7 +791,7 @@ describe("update (and get draft after an update)", () => {
   
 });
 
-describe("get draft", () => {
+describe("get/fetch draft", () => {
   test("must have edit permission", async () => {
     let template = {
       name: "t"
@@ -1440,7 +1440,7 @@ describe("persist (and get persisted and draft after a persist)", () => {
 
 });
 
-describe("get persisted", () => {
+describe("get/fetch persisted", () => {
   test("if user does not have view access to linked properties, an empty object replaces that property", async () => {
     let field = {
       "name": "t1f1"

@@ -456,7 +456,7 @@ describe("get draft", () => {
 
 describe("persist (and get persisted and draft after a persist)", () => {
 
-  test("Success", async () => {
+  test("persist Success", async () => {
 
     let field = {
       "name":"name"
@@ -465,7 +465,7 @@ describe("persist (and get persisted and draft after a persist)", () => {
 
   });
 
-  describe("Failure cases", () => {
+  describe("persist Failure cases", () => {
     
     test("Field with uuid does not exist", async () => {
 
@@ -820,7 +820,7 @@ describe("delete", () => {
 });
 
 describe("lastUpdate", () => {
-  describe("success", () => {
+  describe("lastUpdate success", () => {
     test("basic field draft", async () => {
       let timestamp = new Date();
       let data = {
@@ -881,7 +881,7 @@ describe("lastUpdate", () => {
   
   });
 
-  describe("failure", () => {
+  describe("lastUpdate failure", () => {
     test("uuid must be valid", async () => {
       let response = await Helper.templateFieldLastUpdate("18");
       expect(response.statusCode).toBe(400);

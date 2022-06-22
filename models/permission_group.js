@@ -45,110 +45,118 @@ async function collection() {
   }
   return PermissionGroup;
 }
+exports.collection = collection;
 
 exports.init = async function() {
   PermissionGroup = await collection();
 }
 
-// If a user has permission to this category or a superior one, return true
-async function has_permission(user, uuid, category, session) {
-  let categories = [category];
-  if(category == PermissionTypes.edit) {
-    categories.push(PermissionTypes.admin);
-  }
-  if(category == PermissionTypes.view) {
-    categories.push(PermissionTypes.edit);
-    categories.push(PermissionTypes.admin);
-  }
-  let cursor = await PermissionGroup.find(
-    {uuid, category: { "$in" : categories }, users: user},
-    {session}
-  );
-  return (await cursor.hasNext());
-}
+class Model {
 
-async function create_permission(uuid, category, users, session) {
-  let response = await PermissionGroup.insertOne(
-    {
-      uuid,
-      category,
-      users: users 
-    },
-    { session }
-  );
-  if (!response.acknowledged) {
-    throw `PermissionGroup.create_permission: Failed to insert uuid ${uuid}`;
-  } 
-}
+  collection = PermissionGroup;
 
-async function read_permissions(uuid, category, session) {
-  let cursor = await PermissionGroup.find(
-    {uuid, category},
-    {session}
-  );
-  if (!(await cursor.hasNext())) {
-    throw new Util.NotFoundError();
-  } 
-  let first_result = await cursor.next();
-  return first_result.users;
-}
-
-async function replace_permissions(current_user_id, uuid, category, user_ids, session) {
-  // The current user must be in the admin permissions group for this uuid to change it's permissions
-  if (!(await has_permission(current_user_id, uuid, PermissionTypes.admin, session))) {
-    throw new Util.PermissionDeniedError(`You do not have the permission level (admin) required to modify these permissions`);
+  constructor(state){
+    this.state = state;
   }
 
-  // If this is the admin category, cannot remove the current user
-  if(category == PermissionTypes.admin) {
-    let current_user_found = false;
-    for(let user_id of user_ids) {
-      if(user_id.equals(current_user_id)) {
-        current_user_found = true;
+  // If a user has permission to this category or a superior one, return true
+  async has_permission(user, uuid, category) {
+    let categories = [category];
+    if(category == PermissionTypes.edit) {
+      categories.push(PermissionTypes.admin);
+    }
+    if(category == PermissionTypes.view) {
+      categories.push(PermissionTypes.edit);
+      categories.push(PermissionTypes.admin);
+    }
+    let session = this.state.session;
+    let cursor = await PermissionGroup.find(
+      {uuid, category: { "$in" : categories }, users: user},
+      {session}
+    );
+    return (await cursor.hasNext());
+  }
+
+  async #create_permission(uuid, category, users) {
+    let session = this.state.session;
+    let response = await PermissionGroup.insertOne(
+      {
+        uuid,
+        category,
+        users: users 
+      },
+      { session }
+    );
+    if (!response.acknowledged) {
+      throw `PermissionGroup.create_permission: Failed to insert uuid ${uuid}`;
+    } 
+  }
+
+  async read_permissions(uuid, category) {
+    let session = this.state.session;
+    let cursor = await PermissionGroup.find(
+      {uuid, category},
+      {session}
+    );
+    if (!(await cursor.hasNext())) {
+      throw new Util.NotFoundError();
+    } 
+    let first_result = await cursor.next();
+    return first_result.users;
+  }
+
+  async replace_permissions(uuid, category, user_ids) {
+    // The current user must be in the admin permissions group for this uuid to change it's permissions
+    if (!(await this.has_permission(this.state.user_id, uuid, PermissionTypes.admin))) {
+      throw new Util.PermissionDeniedError(`You do not have the permission level (admin) required to modify these permissions`);
+    }
+
+    // If this is the admin category, cannot remove the current user
+    if(category == PermissionTypes.admin) {
+      let current_user_found = false;
+      for(let user_id of user_ids) {
+        if(user_id.equals(this.state.user_id)) {
+          current_user_found = true;
+        }
+      }
+      if(!current_user_found) {
+        throw new Util.InputError(`Can not alter permissions without including the current user in the permissions list`);
       }
     }
-    if(!current_user_found) {
-      throw new Util.InputError(`Can not alter permissions without including the current user in the permissions list`);
+
+    let session = this.state.session;
+    let response = await PermissionGroup.updateOne(
+      {uuid, category},
+      {$set: {users: user_ids}}, 
+      {session}
+    );
+    if (!response.acknowledged) {
+      throw new Error(`PermissionGroup.replace_permission: Failed to update ${uuid}.`);
+    } 
+  }
+
+  async initialize_permissions_for(user_id, uuid) {
+    await this.#create_permission(uuid, PermissionTypes.admin, [user_id]);
+    await this.#create_permission(uuid, PermissionTypes.edit, []);
+    await this.#create_permission(uuid, PermissionTypes.view, []);
+  }
+
+  async add_permissions(uuid, category, user_ids) {
+    // Combine current users at this permission level with the new users at this permission level
+    let current_user_ids = await this.read_permissions(uuid, category);
+    let combined_user_ids = Util.objectIdsSetUnion(current_user_ids, user_ids);
+    await this.replace_permissions(uuid, category, combined_user_ids);
+  }
+
+  async delete_permissions(uuid) {
+    let session = this.state.session;
+    let response = await PermissionGroup.deleteMany(
+      { uuid },
+      { session }
+    );
+    if (response.deletedCount != 3) {
+      console.error(`permission_group.delete_permissions: Expected three permission groups to be deleted upon deleting uuid.`);
     }
   }
-
-  let response = await PermissionGroup.updateOne(
-    {uuid, category},
-    {$set: {users: user_ids}}, 
-    {session}
-  );
-  if (!response.acknowledged) {
-    throw new Error(`PermissionGroup.replace_permission: Failed to update ${uuid}.`);
-  } 
-}
-
-exports.initialize_permissions_for = async function(current_user, uuid, session) {
-  await create_permission(uuid, PermissionTypes.admin, [current_user], session);
-  await create_permission(uuid, PermissionTypes.edit, [], session);
-  await create_permission(uuid, PermissionTypes.view, [], session);
-}
-
-exports.replace_permissions = replace_permissions;
-
-exports.read_permissions = read_permissions;
-
-exports.add_permissions = async function(curr_user_id, uuid, category, user_ids, session) {
-  // Combine current users at this permission level with the new users at this permission level
-  let current_user_ids = await read_permissions(uuid, category, session);
-  let combined_user_ids = Util.objectIdsSetUnion(current_user_ids, user_ids);
-  await replace_permissions(curr_user_id, uuid, category, combined_user_ids, session);
-}
-
-exports.delete_permissions = async function(uuid, session) {
-  let response = await PermissionGroup.deleteMany(
-    { uuid },
-    { session }
-  );
-  if (response.deletedCount != 3) {
-    console.error(`permission_group.delete_permissions: Expected three permission groups to be deleted upon deleting uuid.`);
-  }
-}
-
-exports.has_permission = has_permission;
-
-exports.collection = collection;
+};
+exports.model = Model;

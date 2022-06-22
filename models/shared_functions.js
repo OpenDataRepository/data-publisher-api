@@ -86,6 +86,7 @@ exports.uuidFor_id = async (collection, _id, session) => {
   return document.uuid;
 }
 
+// TODO: should this take a session?
 exports.latest_persisted_id_for_uuid = async (collection, uuid) => {
   let document = await latestPersisted(collection, uuid);
   return document ? document._id : null;
@@ -118,13 +119,14 @@ exports.latest_persisted_time_for_uuid = async (collection, uuid) => {
   return document ? document.persist_date : null;
 }
 
-exports.executeWithTransaction = async (callback, ...args) => {
+exports.executeWithTransaction = async (state, callback) => {
   const session = MongoDB.newSession();
+  state.session = session;
   let result;
   try {
     await session.withTransaction(async () => {
       try {
-        result = await callback(session, ...args);
+        result = await callback();
       } catch(err) {
         await session.abortTransaction();
         throw err;

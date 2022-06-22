@@ -3,11 +3,13 @@ const TemplateModel = require('../models/template');
 const DatasetModel = require('../models/dataset');
 const RecordModel = require('../models/record');
 const SharedFunctions = require('../models/shared_functions');
+const Util = require('../lib/util');
 
 
 exports.template = async function(req, res, next) {
   try {
-    let new_uuid = await TemplateModel.importTemplate(req.body, req.user._id);
+    let state = Util.initializeState(req);
+    let new_uuid = await (new TemplateModel.model(state)).importTemplate(req.body);
     res.send({new_uuid});
   } catch(err) {
     next(err);
@@ -20,7 +22,8 @@ exports.datasets_and_records = async function(req, res, next) {
     if(!data || !data.records) {
       throw new InputError(`Must submit an object with property records`)
     }
-    let record_uuids = await RecordModel.importDatasetsAndRecords(data.records, req.user._id);
+    let state = Util.initializeState(req);
+    let record_uuids = await (new RecordModel.model(state)).importDatasetsAndRecords(data.records);
     res.send({record_uuids});
   } catch(err) {
     next(err);
@@ -32,14 +35,16 @@ exports.template_with_dataset = async function(req, res, next) {
   try {
     let template_uuid, dataset_uuid;
     let import_template = req.body;
-    let user = req.user._id;
-    let callback = async (session) => {
-      template_uuid = await TemplateModel.importTemplate(import_template, user, session);
-      let last_update = await TemplateModel.lastUpdate(template_uuid, user, session);
-      await TemplateModel.persist(template_uuid, user, last_update, session);
-      dataset_uuid = await DatasetModel.importDatasetForTemplate(import_template, user, session);
+    let state = Util.initializeState(req);
+    let template_model_instance = new TemplateModel.model(state);
+    let dataset_model_instance = new DatasetModel.model(state);
+    let callback = async () => {
+      template_uuid = await template_model_instance.importTemplate(import_template);
+      let last_update = await template_model_instance.lastUpdate(template_uuid);
+      await template_model_instance.persist(template_uuid, last_update);
+      dataset_uuid = await dataset_model_instance.importDatasetForTemplate(import_template);
     };
-    await SharedFunctions.executeWithTransaction(callback);
+    await SharedFunctions.executeWithTransaction(state, callback);
 
     res.send({template_uuid, dataset_uuid});
   } catch(err) {
@@ -53,7 +58,8 @@ exports.records = async function(req, res, next) {
     if(!data || !data.records) {
       throw new InputError(`Must submit an object with property records`)
     }
-    let record_uuids = await RecordModel.importRecords(data.records, req.user._id);
+    let state = Util.initializeState(req);
+    let record_uuids = await (new RecordModel.model(state)).importRecords(data.records);
     res.send({record_uuids});
   } catch(err) {
     next(err);

@@ -7,6 +7,7 @@ const SharedFunctions = require('../models/shared_functions');
 const User = require('../models/user');
 const UserPermissions = require('../models/user_permissions');
 const PassportImplementation = require('../lib/passport_implementation');
+const { init } = require("passport/lib");
 
 // TODO: this needs to be replaced with a real email eventually. 
 // This email is from https://mailtrap.io/
@@ -32,9 +33,12 @@ exports.register = async function(req, res, next) {
 
     let email_token;
     
-    const callback = async (session) => {
-      let user_id = await User.create(email, hashed_password, false, session);
-      await UserPermissions.create(user_id, session);
+    let state = Util.initializeState(req);
+    let user_model_instance = new User.model(state);
+    let user_permissions_model_instance = new UserPermissions.model(state);
+    const callback = async () => {
+      let user_id = await user_model_instance.create(email, hashed_password, false);
+      await user_permissions_model_instance.create(user_id);
 
       // jwt.sign(
       //   {user_id},
@@ -72,7 +76,7 @@ exports.register = async function(req, res, next) {
       }
       
     };
-    await SharedFunctions.executeWithTransaction(callback);
+    await SharedFunctions.executeWithTransaction(state, callback);
     if(process.env.is_test) {
       res.status(200).send({token: email_token});
     } else {
@@ -88,7 +92,7 @@ exports.confirm_email = async function(req, res, next) {
     let payload = jwt.verify(req.params.token, process.env.EMAIL_SECRET);
     let user_id = payload.user_id;
     let email = payload.email;
-    await User.confirmEmail(user_id, email);
+    await User.model.confirmEmail(user_id, email);
     res.sendStatus(200);
   } catch (err) {
     next(err);
@@ -97,7 +101,7 @@ exports.confirm_email = async function(req, res, next) {
 
 exports.login = async function(req, res, next) {
   try {
-    let account = await User.getByEmail(req.body.email);
+    let account = await User.model.getByEmail(req.body.email);
     if(!account) {
       throw new Util.InputError("email does not exist");
     }
@@ -127,7 +131,7 @@ exports.get = async function(req, res, next) {
   try{
     let user;
     if(req.params.email) {
-      user = await User.getByEmail(req.params.email);
+      user = await User.model.getByEmail(req.params.email);
     } else {
       user = req.user;
     }
@@ -153,7 +157,7 @@ async function verifyPassword(input_password, actual_password) {
 exports.suspend = async function(req, res, next) {
   try{
     await verifyPassword(req.body.password, req.user.password);
-    await User.suspend(req.user._id);
+    await User.model.suspend(req.user._id);
     res.sendStatus(200);
   } catch(err) {
     next(err);
@@ -162,18 +166,18 @@ exports.suspend = async function(req, res, next) {
 
 exports.suspend_other_user = async function(req, res, next) {
   try{
-    let user = await User.getByEmail(req.params.email);
+    let user = await User.model.getByEmail(req.params.email);
     if(!user) {
       throw new Util.InputError(`User with email ${req.params.email} does not exist`);
     }
-    await User.suspend(user._id);
+    await User.model.suspend(user._id);
     res.sendStatus(200);
   } catch(err) {
     next(err);
   }
 };
 
-async function update(body, user) {
+async function update(user_model_instance, body, user) {
   let input_update_properties = body;
   let filtered_update_properties = {};
   if(input_update_properties.new_password) {
@@ -185,13 +189,14 @@ async function update(body, user) {
   filtered_update_properties.first_name = input_update_properties.first_name;
   filtered_update_properties.last_name = input_update_properties.last_name;
 
-  await User.update(user._id, filtered_update_properties);
+  await user_model_instance.update(user._id, filtered_update_properties);
 }
 
 exports.update = async function(req, res, next) {
   try{
     await verifyPassword(req.body.verification_password, req.user.password);
-    await update(req.body, req.user);
+    let user_model_instance = new User.model({});
+    await update(user_model_instance, req.body, req.user);
     res.sendStatus(200);
   } catch(err) {
     next(err);
@@ -200,11 +205,12 @@ exports.update = async function(req, res, next) {
 
 exports.update_other_user = async function(req, res, next) {
   try{
-    let user = await User.getByEmail(req.params.email);
+    let user_model_instance = new User.model({});
+    let user = await User.model.getByEmail(req.params.email);
     if(!user) {
       throw new Util.InputError(`User with email ${req.params.email} does not exist`);
     }
-    await update(req.body, user);
+    await update(user_model_instance, req.body, user);
     res.sendStatus(200);
   } catch(err) {
     next(err);
@@ -222,8 +228,11 @@ async function changeEmail(req, user_id, res) {
 
   let email_token;
 
-  const callback = async (session) => {
-    await User.update(user_id, filtered_update_properties, session);
+  let state = Util.initializeState(req);
+  let user_model_instance = new User.model(state);
+
+  const callback = async () => {
+    await user_model_instance.update(user_id, filtered_update_properties);
 
     email_token = jwt.sign(
       {user_id, email: replacement_email},
@@ -241,7 +250,7 @@ async function changeEmail(req, user_id, res) {
       });
     }
   };
-  await SharedFunctions.executeWithTransaction(callback);
+  await SharedFunctions.executeWithTransaction(state, callback);
   if(process.env.is_test) {
     res.status(200).send({token: email_token});
   } else {
@@ -263,7 +272,7 @@ exports.change_email = async function(req, res, next) {
 
 exports.change_other_user_email = async function(req, res, next) {
   try{
-    let user = await User.getByEmail(req.params.email);
+    let user = await User.model.getByEmail(req.params.email);
     if(!user) {
       throw new Util.InputError(`User with email ${req.params.email} does not exist`);
     }
@@ -278,11 +287,11 @@ exports.getPermissions = async function(req, res, next) {
   try{
     let user;
     if(req.params.email) {
-      user = await User.getByEmail(req.params.email);
+      user = await User.model.getByEmail(req.params.email);
     } else {
       user = req.user;
     }
-    let user_permissions = await UserPermissions.get(user._id)
+    let user_permissions = await UserPermissions.model.get(user._id)
     res.send(user_permissions);
   } catch(err) {
     next(err);
@@ -291,7 +300,7 @@ exports.getPermissions = async function(req, res, next) {
 
 exports.testing_set_admin = async function(req, res, next) {
   try{
-    await UserPermissions.setAdmin(req.user._id)
+    await UserPermissions.model.setAdmin(req.user._id)
     res.sendStatus(200);
   } catch(err) {
     next(err);
@@ -300,7 +309,7 @@ exports.testing_set_admin = async function(req, res, next) {
 
 exports.testing_set_super = async function(req, res, next) {
   try{
-    await UserPermissions.setSuper(req.user._id)
+    await UserPermissions.model.setSuper(req.user._id)
     res.sendStatus(200);
   } catch(err) {
     next(err);

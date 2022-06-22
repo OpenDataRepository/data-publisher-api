@@ -25,7 +25,6 @@ exports.update = async function(req, res, next) {
     let uuid = req.params.uuid;
     let user_emails = req.body.users;
     let category = req.params.category;
-    let user_id = req.user._id;
 
     if(![PermissionGroupModel.PermissionTypes.admin, PermissionGroupModel.PermissionTypes.edit, PermissionGroupModel.PermissionTypes.view].includes(category)) {
       throw new Util.NotFoundError();
@@ -38,24 +37,30 @@ exports.update = async function(req, res, next) {
 
     let user_ids = []; 
     for(let email of user_emails) {
-      let a_user = await UserModel.getByEmail(email);
+      let a_user = await UserModel.model.getByEmail(email);
       if(!a_user) {
         throw new Util.InputError(`No user exists with email ${email}`);
       } 
       user_ids.push(a_user._id);
     }
 
+    let state = Util.initializeState(req);
+    let permission_group_model_instance = new PermissionGroupModel.model(state);
+    let user_permissions_model_instance = new UserPermissionsModel.model(state);
+    let dataset_model_instance = new DatasetModel.model(state);
+
+
     if(document_type == ModelsSharedFunctions.DocumentTypes.Dataset) {
       // Editing dataset permissions. Ensure every one of the users in this list has_permission on the corresponding template uuid
-      let template_uuid = await DatasetModel.template_uuid(uuid);
+      let template_uuid = await dataset_model_instance.template_uuid(uuid);
       for(let i = 0; i < user_ids.length; i++) {
-        if(!(await UserPermissionsModel.hasAccessToPersistedResource(TemplateModel.collection(), template_uuid, user_ids[i]))) {
+        if(!(await user_permissions_model_instance.hasAccessToPersistedResource(TemplateModel.collection(), template_uuid, user_ids[i]))) {
           throw new Util.InputError(`Cannot add user ${user_emails[i]} to dataset permission. User required to have view permissions to template first`);
         }
       }
     }
 
-    let existing_user_ids = await PermissionGroupModel.read_permissions(uuid, category);
+    let existing_user_ids = await permission_group_model_instance.read_permissions(uuid, category);
     let deleted_user_ids = Util.objectIdsSetDifference(existing_user_ids, user_ids); 
     let added_user_ids = Util.objectIdsSetDifference(user_ids, existing_user_ids); 
 
@@ -68,15 +73,15 @@ exports.update = async function(req, res, next) {
           }
         } else {
           // If this is admin or edit, add deleted users to view
-          await PermissionGroupModel.add_permissions(user_id, uuid, PermissionGroupModel.PermissionTypes.view, deleted_user_ids, session);
-          await UserPermissionsModel.addUserIdsToUuidAndCategory(uuid, document_type, PermissionGroupModel.PermissionTypes.view, deleted_user_ids, session);
+          await permission_group_model_instance.add_permissions(uuid, PermissionGroupModel.PermissionTypes.view, deleted_user_ids, session);
+          await user_permissions_model_instance.addUserIdsToUuidAndCategory(uuid, document_type, PermissionGroupModel.PermissionTypes.view, deleted_user_ids, session);
         }
       }
-      await PermissionGroupModel.replace_permissions(user_id, uuid, category, user_ids, session);
-      await UserPermissionsModel.addUserIdsToUuidAndCategory(uuid, document_type, category, added_user_ids, session);
-      await UserPermissionsModel.removeUserIdsFromUuidAndCategory(uuid, document_type, category, deleted_user_ids, session);
+      await permission_group_model_instance.replace_permissions(uuid, category, user_ids, session);
+      await user_permissions_model_instance.addUserIdsToUuidAndCategory(uuid, document_type, category, added_user_ids, session);
+      await user_permissions_model_instance.removeUserIdsFromUuidAndCategory(uuid, document_type, category, deleted_user_ids, session);
     };
-    await ModelsSharedFunctions.executeWithTransaction(callback);
+    await ModelsSharedFunctions.executeWithTransaction(state, callback);
     res.sendStatus(200);
   } catch(err) {
     next(err);
@@ -85,10 +90,13 @@ exports.update = async function(req, res, next) {
 
 exports.get = async function(req, res, next) {
   try {
-    let _ids = await PermissionGroupModel.read_permissions(req.params.uuid, req.params.category);
+    let state = Util.initializeState(req);
+    let permission_group_model_instance = new PermissionGroupModel.model(state);
+
+    let _ids = await permission_group_model_instance.read_permissions(req.params.uuid, req.params.category);
     let emails = []; 
     for(let _id of _ids) {
-      let user = await UserModel.getBy_id(_id);
+      let user = await UserModel.model.getBy_id(_id);
       if(user) {
         emails.push(user.email);
       }
@@ -99,20 +107,25 @@ exports.get = async function(req, res, next) {
   }
 }
 
-exports.delete = async function(uuid, document_type, session) {
+// This is technically misplaced in the controller, but I'm not sure where else to put it
+exports.delete = async function(uuid, document_type, state) {
+  let permission_group_model_instance = new PermissionGroupModel.model(state);
+  let user_permissions_model_instance = new UserPermissionsModel.model(state);
   // Get the permissions group for this uuid
   for(let permission_type in PermissionGroupModel.PermissionTypes) {
-    let user_ids = await PermissionGroupModel.read_permissions(uuid, permission_type, session);
-    await UserPermissionsModel.removeUserIdsFromUuidAndCategory(uuid, document_type, permission_type, user_ids, session);
+    let user_ids = await permission_group_model_instance.read_permissions(uuid, permission_type);
+    await user_permissions_model_instance.removeUserIdsFromUuidAndCategory(uuid, document_type, permission_type, user_ids);
   }
   // delete permission group and the permissions for all users who have permissions to it
-  await PermissionGroupModel.delete_permissions(uuid, session);
+  await permission_group_model_instance.delete_permissions(uuid);
 }
 
 // This endpoint exists only for the purpose of integration testing
 exports.testing_has_permission = async function(req, res, next) {
   try {
-    let result = await PermissionGroupModel.has_permission(req.user._id, req.params.uuid, req.params.category);
+    let state = Util.initializeState(req);
+    let permission_group_model_instance = new PermissionGroupModel.model(state);
+    let result = await permission_group_model_instance.has_permission(req.user._id, req.params.uuid, req.params.category);
     res.send(result);
   } catch(err) {
     next(err);

@@ -1,3 +1,6 @@
+// TODO: switch to typescript. The compiler will catch a lot of errors for me in that way
+// so I don't have to hunt them down myself
+
 const express = require('express');
 const logger = require('morgan');
 const cookieParser = require("cookie-parser");

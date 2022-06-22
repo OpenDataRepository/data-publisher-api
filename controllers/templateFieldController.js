@@ -5,7 +5,9 @@ const SharedFunctions = require('../models/shared_functions');
 
 exports.draft_get = async function(req, res, next) {
   try {
-    let template_field = await TemplateFieldModel.draftGet(req.params.uuid, req.user._id);
+    let state = Util.initializeState(req);
+    let model_instance = new TemplateFieldModel.model(state);
+    let template_field = await model_instance.draftGet(req.params.uuid);
     if(template_field) {
       res.json(template_field);
     } else {
@@ -18,8 +20,9 @@ exports.draft_get = async function(req, res, next) {
 
 exports.get_latest_persisted = async function(req, res, next) {
   try {
-    let user_id = req.user ? req.user._id  : null;
-    let template_field = await TemplateFieldModel.latestPersisted(req.params.uuid, user_id);
+    let state = Util.initializeState(req);
+    let model_instance = new TemplateFieldModel.model(state);
+    let template_field = await model_instance.latestPersisted(req.params.uuid);
     if(!template_field) {
       throw new Util.NotFoundError();
     }
@@ -31,8 +34,9 @@ exports.get_latest_persisted = async function(req, res, next) {
 
 exports.get_persisted_before_timestamp = async function(req, res, next) {
   try {
-    let user_id = req.user ? req.user._id  : null;
-    let template_field = await TemplateFieldModel.latestPersistedBeforeDate(req.params.uuid, new Date(req.params.timestamp), user_id);
+    let state = Util.initializeState(req);
+    let model_instance = new TemplateFieldModel.model(state);
+    let template_field = await model_instance.latestPersistedBeforeDate(req.params.uuid, new Date(req.params.timestamp));
     if(!template_field) {
       throw new Util.NotFoundError();
     }
@@ -44,7 +48,9 @@ exports.get_persisted_before_timestamp = async function(req, res, next) {
 
 exports.create = async function(req, res, next) {
   try {
-    let inserted_uuid = await TemplateFieldModel.create(req.body, req.user._id);
+    let state = Util.initializeState(req);
+    let model_instance = new TemplateFieldModel.model(state);
+    let inserted_uuid = await model_instance.create(req.body);
     res.json({inserted_uuid});
   } catch(err) {
     next(err);
@@ -56,7 +62,9 @@ exports.update = async function(req, res, next) {
     if(!Util.objectContainsUUID(req.body, req.params.uuid)) {
       throw new Util.InputError(`UUID provided and the body uuid do not match.`)
     }
-    await TemplateFieldModel.update(req.body, req.user._id);
+    let state = Util.initializeState(req);
+    let model_instance = new TemplateFieldModel.model(state);
+    await model_instance.update(req.body);
     res.sendStatus(200);
   } catch(err) {
     next(err);
@@ -68,23 +76,27 @@ exports.persist = async function(req, res, next) {
     if(!Date.parse(req.body.last_update)) {
       throw new Util.InputError(`last_update provided as parameter is not in valid date format: ${req.body.last_update}`);
     } 
-    await TemplateFieldModel.persist(req.params.uuid, new Date(req.body.last_update), req.user._id);
+    let state = Util.initializeState(req);
+    let model_instance = new TemplateFieldModel.model(state);
+    await model_instance.persist(req.params.uuid, new Date(req.body.last_update));
     res.sendStatus(200);
   } catch(err) {
     next(err);
-  }
+  }  
 }
 
 exports.draft_delete = async function(req, res, next) {
   try {
     let uuid = req.params.uuid;
-    const callback = async (session) => {
-      await TemplateFieldModel.draftDelete(uuid, req.user._id, session);
-      if( !(await SharedFunctions.latestPersisted(TemplateFieldModel.collection(), uuid, session)) ) {
-        await PermissionGroupController.delete(uuid, SharedFunctions.DocumentTypes.TemplateField, session);
+    let state = Util.initializeState(req);
+    let model_instance = new TemplateFieldModel.model(state);
+    const callback = async () => {
+      await model_instance.draftDelete(uuid);
+      if( !(await SharedFunctions.latestPersisted(TemplateFieldModel.collection(), uuid, state.session)) ) {
+        await PermissionGroupController.delete(uuid, SharedFunctions.DocumentTypes.TemplateField, state);
       }
     }
-    await SharedFunctions.executeWithTransaction(callback);
+    await SharedFunctions.executeWithTransaction(model_instance.state, callback);
 
   } catch(err) {
     return next(err);
@@ -95,7 +107,9 @@ exports.draft_delete = async function(req, res, next) {
 exports.get_last_update = async function(req, res, next) {
   var last_update;
   try {
-    last_update = await TemplateFieldModel.lastUpdate(req.params.uuid, req.user._id);
+    let state = Util.initializeState(req);
+    let model_instance = new TemplateFieldModel.model(state);
+    last_update = await model_instance.lastUpdate(req.params.uuid);
   } catch(err) {
     return next(err);
   }
@@ -105,7 +119,9 @@ exports.get_last_update = async function(req, res, next) {
 exports.draft_existing = async function(req, res, next) {
   var exists;
   try {
-    exists = await TemplateFieldModel.draftExisting(req.params.uuid);
+    let state = Util.initializeState(req);
+    let model_instance = new TemplateFieldModel.model(state);
+    exists = await model_instance.draftExisting(req.params.uuid);
   } catch(err) {
     return next(err);
   }

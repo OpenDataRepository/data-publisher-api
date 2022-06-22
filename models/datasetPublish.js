@@ -61,7 +61,7 @@ async function publishedTimeForDatasetUUIDAndName(dataset_uuid, name) {
 }
 exports.publishedTimeForDatasetUUIDAndName = publishedTimeForDatasetUUIDAndName;
 
-exports.publish = async function(dataset_uuid, name, user) {
+exports.publish = async function(dataset_uuid, name, user_id) {
 
   // make sure a persisted version of this dataset exists
   if(!(await SharedFunctions.latestPersisted(DatasetModel.collection(), dataset_uuid))) {
@@ -69,7 +69,7 @@ exports.publish = async function(dataset_uuid, name, user) {
   }
 
   // make sure user has admin permissions on this dataset
-  if (!(await UserPermissionsModel.has_permission(user, dataset_uuid, PermissionGroupModel.PermissionTypes.admin))) {
+  if (!(await new UserPermissionsModel.model({}).has_permission(user_id, dataset_uuid, PermissionGroupModel.PermissionTypes.admin))) {
     throw new Util.PermissionDeniedError(`Do not have admin permissions required for dataset uuid: ${dataset_uuid}`);
   }
 
