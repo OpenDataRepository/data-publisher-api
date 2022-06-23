@@ -6,14 +6,17 @@ var HelperClass = require('./common_test_operations')
 var Helper = new HelperClass(app);
 
 var agent1;
+var agent2;
 
 beforeAll(async () => {
   await appInit();
+  agent2 = await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+  agent1 = await Helper.createAgentRegisterLogin(Helper.DEF_EMAIL, Helper.DEF_PASSWORD);
 });
 
 beforeEach(async() => {
-  await Helper.clearDatabase();
-  agent1 = await Helper.createAgentRegisterLogin(Helper.DEF_EMAIL, Helper.DEF_PASSWORD);
+  await Helper.clearDatabaseExceptForUsers();
+  Helper.setAgent(agent1);
 });
 
 afterAll(async () => {
@@ -325,7 +328,7 @@ describe("update (and get draft after an update)", () => {
         "name": "different name"
       };
 
-      await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+      Helper.setAgent(agent2);
   
       let response = await Helper.templateFieldUpdate(template_field.uuid, data);
       expect(response.statusCode).toBe(401);
@@ -447,7 +450,7 @@ describe("get draft", () => {
     };
     let uuid = await Helper.templateFieldCreateAndTest(data);
 
-    await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+    Helper.setAgent(agent2);
 
     let response = await Helper.templateFieldDraftGet(uuid);
     expect(response.statusCode).toBe(401);    
@@ -516,7 +519,7 @@ describe("persist (and get persisted and draft after a persist)", () => {
 
       let last_update = await Helper.testAndExtract(Helper.templateFieldLastUpdate, uuid);
 
-      await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+      Helper.setAgent(agent2);
 
       response = await Helper.templateFieldPersist(uuid, last_update);
       expect(response.statusCode).toBe(401);
@@ -611,12 +614,11 @@ describe("get latest persisted", () => {
 
     await Helper.testAndExtract(Helper.templateFieldPersist, uuid, last_update);
 
-    await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+    Helper.setAgent(agent2);
   
     // Second user without permissions should be able to view it because it's public
     response = await Helper.testAndExtract(Helper.templateFieldLatestPersisted, uuid);
 
-    let agent2 = request.agent(app);
     Helper.setAgent(agent2);
 
     // non-users should also be able to view it if it's public
@@ -633,7 +635,7 @@ describe("get latest persisted", () => {
 
     await Helper.testAndExtract(Helper.templateFieldPersist, uuid, last_update);
   
-    await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+    Helper.setAgent(agent2);
   
     // Second user without permissions shouldn't be able to view it because it's private
     response = await Helper.templateFieldLatestPersisted(uuid);
@@ -759,7 +761,7 @@ describe("delete", () => {
     expect(permission_group).toEqual([Helper.DEF_EMAIL]);
 
     let user_permissions = await Helper.testAndExtract(Helper.accountPermissions);
-    expect(user_permissions.template_field.admin).toEqual([uuid]);
+    expect(user_permissions.template_field.admin).toEqual(expect.arrayContaining([uuid]));
   
     
     await Helper.testAndExtract(Helper.templateFieldDraftDelete, uuid);
@@ -768,7 +770,7 @@ describe("delete", () => {
     expect(response.statusCode).toBe(404);
 
     user_permissions = await Helper.testAndExtract(Helper.accountPermissions);
-    expect(user_permissions.template_field.admin).toEqual([]);
+    expect(user_permissions.template_field.admin).not.toEqual([uuid]);
   });
 
   test("draft must exist", async () => {
@@ -811,7 +813,7 @@ describe("delete", () => {
     response = await Helper.templateFieldDraftGet(uuid);
     expect(response.statusCode).toBe(200);
 
-    await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+    Helper.setAgent(agent2);
   
     // Delete the draft. Should fail since we dont' have permissions
     response = await Helper.templateFieldDraftDelete(uuid);
@@ -859,9 +861,6 @@ describe("lastUpdate", () => {
 
       let time3 = new Date();
 
-      let agent2 = await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
-      Helper.setAgent(agent1);
-
       let view_users = [Helper.EMAIL_2, Helper.DEF_EMAIL];
       response = await Helper.updatePermissionGroup(template.uuid, PermissionTypes.view, view_users);
       expect(response.statusCode).toBe(200);
@@ -896,7 +895,7 @@ describe("lastUpdate", () => {
       };
       let uuid = await Helper.templateFieldCreateAndTest(data);
 
-      await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+      Helper.setAgent(agent2);
   
       let response = await Helper.templateFieldLastUpdate(uuid);
       expect(response.statusCode).toBe(401);

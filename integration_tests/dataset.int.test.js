@@ -5,14 +5,17 @@ var Helper = new HelperClass(app);
 const Util = require('../lib/util');
 
 var agent1;
+var agent2;
 
 beforeAll(async () => {
   await appInit();
+  agent2 = await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+  agent1 = await Helper.createAgentRegisterLogin(Helper.DEF_EMAIL, Helper.DEF_PASSWORD);
 });
 
 beforeEach(async() => {
-  await Helper.clearDatabase();
-  agent1 = await Helper.createAgentRegisterLogin(Helper.DEF_EMAIL, Helper.DEF_PASSWORD);
+  await Helper.clearDatabaseExceptForUsers();
+  Helper.setAgent(agent1);
 });
 
 afterAll(async () => {
@@ -175,10 +178,6 @@ describe("create (and get draft)", () => {
 
       related_dataset_1.uuid = related_dataset_1_persisted.uuid;
       related_dataset_2.uuid = related_dataset_2_persisted.uuid;
-
-      let agent2 = await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
-      await Helper.setAgent(agent1);
-
 
       let view_users = [Helper.DEF_EMAIL, Helper.EMAIL_2];
       let response = await Helper.updatePermissionGroup(template.related_templates[0].uuid, PermissionTypes.view, view_users);
@@ -353,7 +352,7 @@ describe("create (and get draft)", () => {
         template_id: template._id
       };
 
-      await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+      Helper.setAgent(agent2);
 
       response = await Helper.datasetCreate(dataset);
       expect(response.statusCode).toBe(401);
@@ -694,7 +693,7 @@ describe("update (and get draft)", () => {
     });
 
     test("User must have edit access", async () => {
-      await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+      Helper.setAgent(agent2);
       let response = await Helper.datasetUpdate(dataset.uuid, dataset);
       expect(response.statusCode).toBe(401);
     });
@@ -880,7 +879,7 @@ describe("get draft", () => {
     };
     dataset = await Helper.datasetCreateAndTest(dataset);
 
-    await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+    Helper.setAgent(agent2);
     
     let response = await Helper.datasetDraftGet(dataset.uuid);
     expect(response.statusCode).toBe(401);
@@ -905,9 +904,6 @@ describe("get draft", () => {
       related_datasets: [related_dataset]
     };
     dataset = await Helper.datasetCreatePersistTest(dataset);
-
-    let agent2 = await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
-    await Helper.setAgent(agent1);
 
     let users = [Helper.DEF_EMAIL, Helper.EMAIL_2];
 
@@ -946,9 +942,6 @@ describe("get draft", () => {
       related_datasets: [related_dataset]
     };
     dataset = await Helper.datasetCreatePersistTest(dataset);
-
-    let agent2 = await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
-    await Helper.setAgent(agent1);
 
     let users = [Helper.DEF_EMAIL, Helper.EMAIL_2];
 
@@ -1141,9 +1134,6 @@ describe("persist (and get persisted)", () => {
       draft.related_datasets[0].public_date = (new Date()).toISOString();
       response = await Helper.datasetUpdate(draft.uuid, draft);
       expect(response.statusCode).toBe(200);
-
-      let agent2 = await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
-      await Helper.setAgent(agent1);
 
       // Give user 2 edit permissions to parent dataset
       let admin_users = [Helper.DEF_EMAIL, Helper.EMAIL_2];
@@ -1368,7 +1358,7 @@ describe("persist (and get persisted)", () => {
       // A different user shouldn't be able to persist
       let last_update = await Helper.testAndExtract(Helper.datasetLastUpdate, dataset.uuid);
 
-      let agent2 = await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+      Helper.setAgent(agent2);
 
       response = await Helper.datasetPersist(dataset.uuid, last_update);
       expect(response.statusCode).toBe(401);
@@ -1433,7 +1423,7 @@ describe("persist (and get persisted)", () => {
 
       template = await Helper.templateCreatePersistTest(template);
 
-      let agent2 = await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+      Helper.setAgent(agent2);
 
       let related_dataset = {
         template_id: template.related_templates[0]._id
@@ -1471,9 +1461,6 @@ describe("get persisted", () => {
       }]
     };
     dataset = await Helper.datasetCreatePersistTest(dataset);  
-
-    let agent2 = await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
-    await Helper.setAgent(agent1);
     
     let view_users = [Helper.EMAIL_2, Helper.DEF_EMAIL];
     let response = await Helper.updatePermissionGroup(template.uuid, PermissionTypes.view, view_users);
@@ -1503,7 +1490,7 @@ describe("get persisted", () => {
     };
     dataset = await Helper.datasetCreatePersistTest(dataset);  
 
-    await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+    Helper.setAgent(agent2);
 
     let response = await Helper.datasetLatestPersisted(dataset.uuid);
     expect(response.statusCode).toBe(401);
@@ -1607,9 +1594,6 @@ describe("lastUpdate", () => {
       let response = await Helper.datasetLastUpdate(dataset.uuid);
       expect(response.statusCode).toBe(200);
       expect((new Date(response.body)).getTime()).toBeGreaterThan(timestamp.getTime());
-
-      let agent2 = await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
-      await Helper.setAgent(agent1);
 
       let view_users = [Helper.EMAIL_2, Helper.DEF_EMAIL];
       response = await Helper.updatePermissionGroup(template.uuid, PermissionTypes.view, view_users);
@@ -1777,7 +1761,7 @@ describe("lastUpdate", () => {
       };
       dataset = await Helper.datasetCreateAndTest(dataset);
 
-      await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+      Helper.setAgent(agent2);
 
       let response = await Helper.datasetLastUpdate(dataset.uuid);
       expect(response.statusCode).toBe(401);
@@ -1794,7 +1778,7 @@ describe("lastUpdate", () => {
       };
       dataset = await Helper.datasetCreatePersistTest(dataset);
 
-      await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+      Helper.setAgent(agent2);
 
       let response = await Helper.datasetLastUpdate(dataset.uuid, Helper.USER_2);
       expect(response.statusCode).toBe(401);
@@ -1857,7 +1841,7 @@ describe("delete", () => {
     expect(permission_group).toEqual([Helper.DEF_EMAIL]);
 
     let user_permissions = await Helper.testAndExtract(Helper.accountPermissions);
-    expect(user_permissions.dataset.admin).toEqual([uuid]);
+    expect(user_permissions.dataset.admin).toEqual(expect.arrayContaining([uuid]));
   
     
     await Helper.testAndExtract(Helper.datasetDelete, uuid);
@@ -1866,7 +1850,7 @@ describe("delete", () => {
     expect(response.statusCode).toBe(404);
 
     user_permissions = await Helper.testAndExtract(Helper.accountPermissions);
-    expect(user_permissions.dataset.admin).toEqual([]);
+    expect(user_permissions.dataset.admin).not.toEqual(expect.arrayContaining([uuid]));
   });
 
   test("dataset doesn't exist", async () => {
@@ -1885,7 +1869,7 @@ describe("delete", () => {
     };
     dataset = await Helper.datasetCreateAndTest(dataset);
 
-    await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+    Helper.setAgent(agent2);
 
     let response = await Helper.datasetDelete(dataset.uuid);
     expect(response.statusCode).toBe(401);
@@ -2005,7 +1989,7 @@ describe("duplicate", () => {
       };
       dataset = await Helper.datasetCreatePersistTest(dataset);
 
-      await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+      Helper.setAgent(agent2);
 
       response = await Helper.datasetDuplicate(dataset.uuid);
       expect(response.statusCode).toBe(200);
@@ -2072,7 +2056,7 @@ describe("duplicate", () => {
       };
       dataset = await Helper.datasetCreatePersistTest(dataset);
 
-      await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+      Helper.setAgent(agent2);
 
       response = await Helper.datasetDuplicate(dataset.uuid);
       expect(response.statusCode).toBe(401);
@@ -2165,7 +2149,7 @@ describe("publish", () => {
     test("user must have admin permissions", async () => {
       let dataset = await createDummyTemplateAndPersistedDataset();
 
-      await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+      Helper.setAgent(agent2);
 
       response = await Helper.datasetPublish(dataset.uuid, "name");
       expect(response.statusCode).toBe(401);

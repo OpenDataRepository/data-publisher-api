@@ -5,14 +5,17 @@ var { PermissionTypes } = require('../models/permission_group');
 const FieldTypes = require('../models/template_field').FieldTypes;
 
 var agent1;
+var agent2;
 
 beforeAll(async () => {
   await appInit();
+  agent2 = await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+  agent1 = await Helper.createAgentRegisterLogin(Helper.DEF_EMAIL, Helper.DEF_PASSWORD);
 });
 
 beforeEach(async() => {
-  await Helper.clearDatabase();
-  agent1 = await Helper.createAgentRegisterLogin(Helper.DEF_EMAIL, Helper.DEF_PASSWORD);
+  await Helper.clearDatabaseExceptForUsers();
+  Helper.setAgent(agent1);
 });
 
 afterAll(async () => {
@@ -298,9 +301,6 @@ describe("create (and get draft)", () => {
 
       related_record_1.uuid = related_record_1_persisted.uuid;
       related_record_2.uuid = related_record_2_persisted.uuid;
-
-      let agent2 = await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
-      await Helper.setAgent(agent1);
 
       let both_users = [Helper.DEF_EMAIL, Helper.EMAIL_2];
       let response = await Helper.updatePermissionGroup(template.uuid, PermissionTypes.edit, both_users);
@@ -671,9 +671,6 @@ describe("create (and get draft)", () => {
       };
       dataset = await Helper.datasetCreatePersistTest(dataset);
 
-      let agent2 = await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
-      await Helper.setAgent(agent1);
-
       let both_users = [Helper.DEF_EMAIL, Helper.EMAIL_2];
       let response = await Helper.updatePermissionGroup(template.uuid, PermissionTypes.view, both_users);
       expect(response.statusCode).toBe(200);
@@ -1001,7 +998,7 @@ describe("update", () => {
     });
 
     test("must have edit permissions on the dataset", async () => {
-      await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+      Helper.setAgent(agent2);
 
       record.fields[0].value = "sad";
       let response = await Helper.recordUpdate(record, record.uuid);
@@ -1201,7 +1198,7 @@ describe("delete", () => {
   test("must have edit permissions", async () => {
     [template, dataset, record] = await populateWithDummyTemplateAndRecord();
 
-    await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+    Helper.setAgent(agent2);
     
     let response = await Helper.recordDelete(record.uuid);
     expect(response.statusCode).toBe(401);
@@ -1424,7 +1421,7 @@ describe("persist (and get persisted)", () => {
 
       let last_update = await Helper.recordLastUpdateAndTest(record.uuid);
 
-      await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+      Helper.setAgent(agent2);
 
       let response = await Helper.recordPersist(record.uuid, last_update);
       expect(response.statusCode).toBe(401);
@@ -1458,9 +1455,6 @@ describe("get persisted", () => {
       }]
     };
     record = await Helper.recordCreatePersistTest(record);  
-
-    let agent2 = await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
-    await Helper.setAgent(agent1);
     
     let view_users = [Helper.EMAIL_2, Helper.DEF_EMAIL];
     let response = await Helper.updatePermissionGroup(template.uuid, PermissionTypes.view, view_users);
@@ -1495,7 +1489,7 @@ describe("get persisted", () => {
     };
     record = await Helper.recordCreatePersistTest(record); 
     
-    await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+    Helper.setAgent(agent2);
 
     let response = await Helper.recordLatestPersistedGet(record.uuid);
     expect(response.statusCode).toBe(401);
@@ -1720,7 +1714,7 @@ describe("Helper.recordLastUpdate", () => {
       };
       record = await Helper.recordCreateAndTest(record);
 
-      await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+      Helper.setAgent(agent2);
 
       let response = await Helper.recordLastUpdate(record.uuid);
       expect(response.statusCode).toBe(401);
@@ -1742,7 +1736,7 @@ describe("Helper.recordLastUpdate", () => {
       };
       record = await Helper.recordCreatePersistTest(record);
 
-      await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+      Helper.setAgent(agent2);
 
       let response = await Helper.recordLastUpdate(record.uuid);
       expect(response.statusCode).toBe(401);

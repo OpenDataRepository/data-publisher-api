@@ -36,6 +36,13 @@ module.exports = class Helper {
   EMAIL_2 = "b@b.com";
 
   clearDatabase = async () => {
+    await this.clearDatabaseExceptForUsers();
+    let db = MongoDB.db();
+    await db.collection('users').deleteMany();
+    await db.collection('user_permissions').deleteMany();
+  };
+
+  clearDatabaseExceptForUsers = async () => {
     let db = MongoDB.db();
     await db.collection('templates').deleteMany();
     await db.collection('template_fields').deleteMany();
@@ -44,9 +51,6 @@ module.exports = class Helper {
     await db.collection('permission_groups').deleteMany();
     await db.collection('legacy_uuid_to_new_uuid_mapper').deleteMany();
     await db.collection('files').deleteMany();
-
-    await db.collection('users').deleteMany();
-    await db.collection('sessions').deleteMany();
   };
 
   sortArrayByNameProperty = (o1, o2) => {

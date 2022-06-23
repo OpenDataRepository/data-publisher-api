@@ -6,14 +6,17 @@ var Helper = new HelperClass(app);
 // TODO: improve execution time of tests
 
 var agent1;
+var agent2;
 
 beforeAll(async () => {
   await appInit();
+  agent2 = await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+  agent1 = await Helper.createAgentRegisterLogin(Helper.DEF_EMAIL, Helper.DEF_PASSWORD);
 });
 
 beforeEach(async() => {
-  await Helper.clearDatabase();
-  agent1 = await Helper.createAgentRegisterLogin(Helper.DEF_EMAIL, Helper.DEF_PASSWORD);
+  await Helper.clearDatabaseExceptForUsers();
+  Helper.setAgent(agent1);
 });
 
 afterAll(async () => {
@@ -296,7 +299,7 @@ describe("create (and get draft after a create)", () => {
         public_date: (new Date()).toISOString()
       };
 
-      await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+      await Helper.setAgent(agent2);
       
       let field_persisted = await Helper.templateFieldCreatePersistTest(field);
       let related_template_persisted = await Helper.templateCreatePersistTest(related_template);
@@ -320,7 +323,7 @@ describe("create (and get draft after a create)", () => {
         name: "t2.1"
       };
 
-      await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+      await Helper.setAgent(agent2);
       
       let field_persisted = await Helper.templateFieldCreatePersistTest(field);
       let related_template_persisted = await Helper.templateCreatePersistTest(related_template);
@@ -361,7 +364,7 @@ describe("create (and get draft after a create)", () => {
         public_date: (new Date()).toISOString()
       };
 
-      await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+      await Helper.setAgent(agent2);
       
       let field_uuid = await Helper.templateFieldCreateAndTest(field);
       related_template = await Helper.templateCreateAndTest(related_template);
@@ -606,7 +609,7 @@ describe("update (and get draft after an update)", () => {
         "name": "create template"
       };
       
-      await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+      await Helper.setAgent(agent2);
 
       let response = await Helper.templateUpdate(uuid, template);
       expect(response.statusCode).toBe(401);
@@ -798,7 +801,7 @@ describe("get/fetch draft", () => {
     }
     template = await Helper.templateCreateAndTest(template);
 
-    await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+    await Helper.setAgent(agent2);
     
     let response = await Helper.templateDraftGet(template.uuid);
     expect(response.statusCode).toBe(401);
@@ -812,7 +815,7 @@ describe("get/fetch draft", () => {
       name: "t2"
     };
 
-    await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+    await Helper.setAgent(agent2);
     
     let field_persisted = await Helper.templateFieldCreatePersistTest(field);
     let related_template_persisted = await Helper.templateCreatePersistTest(related_template);
@@ -854,7 +857,7 @@ describe("get/fetch draft", () => {
       "related_templates": [related_template]
     };
 
-    await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+    await Helper.setAgent(agent2);
 
     let template_persisted = await Helper.templateCreatePersistTest(template);  
     
@@ -1087,7 +1090,7 @@ describe("persist (and get persisted and draft after a persist)", () => {
         public_date: (new Date()).toISOString()
       };
 
-      await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+      await Helper.setAgent(agent2);
       
       let field_persisted = await Helper.templateFieldCreatePersistTest(field);
       let related_template_persisted = await Helper.templateCreatePersistTest(related_template);
@@ -1111,7 +1114,7 @@ describe("persist (and get persisted and draft after a persist)", () => {
         name: "t2"
       };
 
-      await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+      await Helper.setAgent(agent2);
       
       let field_persisted = await Helper.templateFieldCreatePersistTest(field);
       let related_template_persisted = await Helper.templateCreatePersistTest(related_template);
@@ -1145,7 +1148,7 @@ describe("persist (and get persisted and draft after a persist)", () => {
         name: "t2"
       };
 
-      await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+      await Helper.setAgent(agent2);
       
       let field_persisted = await Helper.templateFieldCreatePersistTest(field);
       let related_template_persisted = await Helper.templateCreatePersistTest(related_template);
@@ -1190,7 +1193,6 @@ describe("persist (and get persisted and draft after a persist)", () => {
       response = await Helper.templateUpdate(draft.uuid, draft);
       expect(response.statusCode).toBe(200);
 
-      let agent2 = await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
       await Helper.setAgent(agent1);
 
       // Give user 2 edit and view permissions to parent template
@@ -1346,7 +1348,7 @@ describe("persist (and get persisted and draft after a persist)", () => {
       // A different user shouldn't be able to persist
       let last_update = await Helper.testAndExtract(Helper.templateLastUpdate, uuid);
 
-      let agent2 = await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+      await Helper.setAgent(agent2);
 
       response = await Helper.templatePersist(uuid, last_update);
       expect(response.statusCode).toBe(401);
@@ -1455,7 +1457,7 @@ describe("get/fetch persisted", () => {
       "related_templates": [related_template]
     };
 
-    await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+    await Helper.setAgent(agent2);
 
     let template_persisted = await Helper.templateCreatePersistTest(template);  
     
@@ -1480,7 +1482,7 @@ describe("get/fetch persisted", () => {
       "name": "t1"
     };
 
-    await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+    await Helper.setAgent(agent2);
 
     let template_persisted = await Helper.templateCreatePersistTest(template);  
 
@@ -1579,7 +1581,7 @@ describe("delete", () => {
   
   });
 
-    test("if there are no persisted versions, permissions get deleted as well", async () => {
+  test("if there are no persisted versions, permissions get deleted as well", async () => {
     let template = {
       name: "t"
     };
@@ -1590,7 +1592,7 @@ describe("delete", () => {
     expect(permission_group).toEqual([Helper.DEF_EMAIL]);
 
     let user_permissions = await Helper.testAndExtract(Helper.accountPermissions);
-    expect(user_permissions.template.admin).toEqual([uuid]);
+    expect(user_permissions.template.admin).toEqual(expect.arrayContaining([uuid]));
   
     
     await Helper.testAndExtract(Helper.templateDelete, uuid);
@@ -1599,7 +1601,7 @@ describe("delete", () => {
     expect(response.statusCode).toBe(404);
 
     user_permissions = await Helper.testAndExtract(Helper.accountPermissions);
-    expect(user_permissions.template.admin).toEqual([]);
+    expect(user_permissions.template.admin).not.toEqual(expect.arrayContaining([uuid]));
   });
 
   test("need edit permissions", async () => {
@@ -1608,7 +1610,7 @@ describe("delete", () => {
     };
     template = await Helper.templateCreateAndTest(template);
 
-    await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+    await Helper.setAgent(agent2);
 
     let response = await Helper.templateDelete(template.uuid);
     expect(response.statusCode).toBe(401);
@@ -1640,9 +1642,6 @@ describe("templateLastUpdate", () => {
       let response = await Helper.templateLastUpdate(persisted.uuid);
       expect(response.statusCode).toBe(200);
       expect((new Date(response.body)).getTime()).toBeGreaterThan(timestamp.getTime());
-
-      let agent2 = await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
-      await Helper.setAgent(agent1);
 
       let view_users = [Helper.EMAIL_2, Helper.DEF_EMAIL];
       response = await Helper.updatePermissionGroup(persisted.uuid, PermissionTypes.view, view_users);
@@ -1793,7 +1792,7 @@ describe("templateLastUpdate", () => {
       };
       template = await Helper.templateCreateAndTest(template);
 
-      await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+      Helper.setAgent(agent2);
       
       let response = await Helper.templateLastUpdate(template.uuid);
       expect(response.statusCode).toBe(401);
@@ -1805,7 +1804,7 @@ describe("templateLastUpdate", () => {
       };
       template = await Helper.templateCreatePersistTest(template);
 
-      await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+      Helper.setAgent(agent2);
 
       let response = await Helper.templateLastUpdate(template.uuid);
       expect(response.statusCode).toBe(401);
@@ -1834,7 +1833,7 @@ describe("duplicate", () => {
       };
       let template_persisted = await Helper.templateCreatePersistTest(template);
 
-      await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+      Helper.setAgent(agent2);
 
       let response = await Helper.templateDuplicate(template_persisted.uuid);
       expect(response.statusCode).toEqual(200);
@@ -1886,7 +1885,7 @@ describe("duplicate", () => {
       };
       let template_persisted = await Helper.templateCreatePersistTest(template);
       
-      await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+      Helper.setAgent(agent2);
 
       let response = await Helper.templateDuplicate(template_persisted.uuid);
       expect(response.statusCode).toEqual(200);
@@ -1913,7 +1912,7 @@ describe("duplicate", () => {
       };
       template = await Helper.templateCreatePersistTest(template);
       
-      await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+      Helper.setAgent(agent2);
 
       let response = await Helper.templateDuplicate(template.uuid);
       expect(response.statusCode).toEqual(401);

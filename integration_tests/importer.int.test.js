@@ -5,16 +5,19 @@ var HelperClass = require('./common_test_operations');
 var Helper = new HelperClass(app);
 
 var agent1;
+var agent2;
 
 beforeAll(async () => {
   await appInit();
+  agent2 = await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+  agent1 = await Helper.createAgentRegisterLogin(Helper.DEF_EMAIL, Helper.DEF_PASSWORD);
   Helper.clearFilesAtPath(Helper.dynamicTestFilesPath);
   Helper.clearFilesAtPath(Helper.uploadsDirectoryPath);
 });
 
 beforeEach(async() => {
-  await Helper.clearDatabase();
-  agent1 = await Helper.createAgentRegisterLogin(Helper.DEF_EMAIL, Helper.DEF_PASSWORD);
+  await Helper.clearDatabaseExceptForUsers();
+  Helper.setAgent(agent1);
 });
 
 afterAll(async () => {
@@ -673,7 +676,7 @@ describe("template and dataset", () => {
         name, description, updated_at
       };
 
-      await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+      Helper.setAgent(agent2);
 
       let new_related_template, new_related_dataset;
       [new_related_template, new_related_dataset] = await importTemplateDatasetPersistTest(related_template);
@@ -711,7 +714,7 @@ describe("template and dataset", () => {
     let imalist_template = JSON.parse(rruff_imalist_template_raw_data);
     let ima_list_template, ima_list_dataset;
 
-    await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+    Helper.setAgent(agent2);
 
     [ima_list_template, ima_list_dataset] = await importTemplateDatasetPersistTest(imalist_template);
 
@@ -1054,7 +1057,7 @@ describe("records", () => {
         name, description, updated_at
       };
 
-      await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+      Helper.setAgent(agent2);
 
       let new_related_template, new_related_dataset;
       [new_related_template, new_related_dataset] = await importTemplateDatasetPersistTest(related_template);

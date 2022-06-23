@@ -10,17 +10,20 @@ var Helper = new HelperClass(app);
 var server;
 var serverUrl;
 var agent1;
+var agent2;
 
 beforeAll(async () => {
   await appInit();
+  agent2 = await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+  agent1 = await Helper.createAgentRegisterLogin(Helper.DEF_EMAIL, Helper.DEF_PASSWORD);
   [server, serverUrl] = Helper.basicServerSetup();
 });
 
 beforeEach(async() => {
-  await Helper.clearDatabase();
+  await Helper.clearDatabaseExceptForUsers();
   Helper.clearFilesAtPath(Helper.dynamicTestFilesPath);
   Helper.clearFilesAtPath(Helper.uploadsDirectoryPath);
-  agent1 = await Helper.createAgentRegisterLogin(Helper.DEF_EMAIL, Helper.DEF_PASSWORD);
+  Helper.setAgent(agent1);
 });
 
 afterAll(async () => {
@@ -166,7 +169,7 @@ describe("failure", () => {
     let uuid;
     [_, _, _, uuid] = await basicRecordSetup();
 
-    await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+    Helper.setAgent(agent2);
 
     let file_name; 
     [file_name, _] = basicFileSetup();
