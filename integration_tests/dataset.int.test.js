@@ -2367,3 +2367,74 @@ test("full range of operations with big data", async () => {
   }
   dataset = await Helper.datasetCreatePersistTest(dataset);
 });
+
+test("all public datasets uuids", async () => {
+
+  let public_date = (new Date()).toISOString();
+  let one_hour_late = (new Date((new Date(public_date)).getTime() + 1*60*60*1000)).toISOString();
+  let template = { 
+    name: "t1",
+    public_date,
+    related_templates: [
+      { 
+        name: "t2",
+        public_date,
+        related_templates: [
+          { 
+            name: "t3",
+            public_date,
+            related_templates: [
+              { 
+                name: "t4",
+                public_date,
+                related_templates: [
+                  { 
+                    "name": "t5",
+                    public_date
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  };
+  template = await Helper.templateCreatePersistTest(template);
+
+  let dataset = { 
+    template_id: template._id,
+    public_date,
+    related_datasets: [
+      { 
+        template_id: template.related_templates[0]._id,
+        public_date,
+        related_datasets: [
+          { 
+            template_id: template.related_templates[0].related_templates[0]._id,
+            public_date: one_hour_late,
+            related_datasets: [
+              { 
+                template_id: template.related_templates[0].related_templates[0].related_templates[0]._id,
+                related_datasets: [
+                  { 
+                    template_id: template.related_templates[0].related_templates[0].related_templates[0].related_templates[0]._id,
+                    public_date
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  };
+
+  dataset = await Helper.datasetCreatePersistTest(dataset);
+
+  let public_dataset_uuids = await Helper.testAndExtract(Helper.datasetAllPublicUuids);
+  expect(public_dataset_uuids.length).toBe(3);
+  expect(public_dataset_uuids).toEqual(expect.arrayContaining([dataset.uuid, dataset.related_datasets[0].uuid, 
+    dataset.related_datasets[0].related_datasets[0].related_datasets[0].related_datasets[0].uuid]));
+
+});

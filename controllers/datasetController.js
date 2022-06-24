@@ -229,5 +229,13 @@ exports.published_records = async function(req, res, next) {
   }
 }
 
-// TODO: Get a list of all published datasets
+exports.all_public_uuids = async function(req, res, next) {
+  try {
+    let public_uuids = await DatasetModel.model.allPublicUuids();
+    res.send(public_uuids);
+  } catch(err) {
+    next(err);
+  }
+}
+
 // TODO: Get a list of all datasets the user has view permissions to

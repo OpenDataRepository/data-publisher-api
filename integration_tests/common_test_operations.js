@@ -600,6 +600,11 @@ module.exports = class Helper {
       .get(`/dataset/${uuid}/published/${name}/records`);
   }
 
+  datasetAllPublicUuids = async () => {
+    return await this.agent
+      .get(`/dataset/all_public_uuids`);
+  }
+
   // record
   
   recordCreate = async (record) => {

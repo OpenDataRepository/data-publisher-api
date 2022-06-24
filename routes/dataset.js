@@ -18,5 +18,6 @@ router.post('/:uuid/publish', ensureLoggedIn, validateUuid, controller.publish);
 router.get('/:uuid/published/:name', validateUuid, controller.published);
 router.get('/:uuid/published/:name/records', validateUuid, controller.published_records);
 router.get('/:uuid/:timestamp', validateUuid, validateTimestamp, controller.get_persisted_before_timestamp);
+router.get('/all_public_uuids', controller.all_public_uuids);
 
 module.exports = router;

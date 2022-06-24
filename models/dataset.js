@@ -1181,5 +1181,12 @@ class Model {
     return await this.#importDatasetForTemplate(template, new Date());
   };
 
+  static async allPublicUuids() {
+    return await Dataset.distinct(
+      "uuid",
+      {public_date: {$exists: true, $lte: new Date()}}
+    );
+  }
+
 };
 exports.model = Model;

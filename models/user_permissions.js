@@ -120,7 +120,7 @@ class Model {
     }
   
     // If public, then automatic yes
-    if (latest_persisted.public_date && Util.compareTimeStamp((new Date).getTime(), latest_persisted.public_date)){
+    if(Util.isPublic(latest_persisted.public_date)) {
       return true;
     }
   

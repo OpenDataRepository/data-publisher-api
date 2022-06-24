@@ -562,7 +562,7 @@ class Model {
     return await this.#createRecordFieldsFromTemplateFieldsAndMap(template_fields, record_field_map, record_uuid);
   }
 
-  // TODO: write a wrapper object for the models which will hold the user, session, and updated_at function, or generally things which are passed around everywhere
+  // TODO: add updated_at to the state
   async #extractRelatedRecordsFromCreateOrUpdate(input_related_records, related_datasets, template, updated_at, seen_uuids) {
     let return_records = [];
     let changes = false;
@@ -1112,8 +1112,8 @@ class Model {
   async #userHasAccessToPersistedRecord(record) {
     let dataset = await SharedFunctions.latestPersisted(DatasetModel.collection(), record.dataset_uuid, this.state.session);
     // If both the dataset and the record are public, then everyone has view access
-    if (dataset.public_date && Util.compareTimeStamp((new Date).getTime(), dataset.public_date) 
-        //&& record.public_date && Util.compareTimeStamp((new Date).getTime(), record.public_date)
+    if (Util.isPublic(dataset.public_date) 
+        //&& Util.isPublic(record.public_date)
     ){
       return true;
     }

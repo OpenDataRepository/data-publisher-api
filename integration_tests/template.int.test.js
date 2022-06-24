@@ -3,8 +3,6 @@ var { app, init: appInit, close: appClose } = require('../app');
 var HelperClass = require('./common_test_operations');
 var Helper = new HelperClass(app);
 
-// TODO: improve execution time of tests
-
 var agent1;
 var agent2;
 
