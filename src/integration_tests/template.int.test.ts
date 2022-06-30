@@ -69,14 +69,14 @@ describe("create (and get draft after a create)", () => {
 
       test("Subscribe to latest version, then keep that version after a update, then subscribe to latest again", async () => {
   
-        let subscribed_template = { 
+        let subscribed_template: any = { 
           name: "t1.1"
         };
         subscribed_template = await Helper.templateCreatePersistTest(subscribed_template);
         let first_version_id = subscribed_template._id;
   
         // Subscribe to only version existing
-        let template = { 
+        let template: any = { 
           name: "t1",
           subscribed_templates: [subscribed_template]
         };
@@ -109,7 +109,7 @@ describe("create (and get draft after a create)", () => {
 
       test("Input format must be valid", async () => {
 
-        let template = { 
+        let template: any = { 
           name: "t1",
           subscribed_templates: ""
         };
@@ -124,7 +124,7 @@ describe("create (and get draft after a create)", () => {
 
       test("Input format provide a valid _id for each subscribed template", async () => {
 
-        let template = { 
+        let template: any = { 
           name: "t1",
           subscribed_templates: [{_id: 5}]
         };
@@ -139,7 +139,7 @@ describe("create (and get draft after a create)", () => {
 
       test("Can only subscribe to any give uuid once per template", async () => {
   
-        let subscribed_template = { 
+        let subscribed_template: any = { 
           name: "t1.1"
         };
         subscribed_template = await Helper.templateCreatePersistTest(subscribed_template);
@@ -178,7 +178,7 @@ describe("create (and get draft after a create)", () => {
   describe("Success cases", () => {
     test("Simple create - no fields and no related templates", async () => {
 
-      let template = {
+      let template: any = {
         "name":"create template",
         "description":"a template to test a create",
         "fields":[],
@@ -192,14 +192,14 @@ describe("create (and get draft after a create)", () => {
   
     test("Create template with related template and field", async () => {
   
-      let related_template = { 
+      let related_template: any = { 
         name: "create template child",
         description: "the child of create template"
       };
       let field = {
         name: "create template field"
       }
-      let template = { 
+      let template: any = { 
         name: "create template",
         description: "a template to test a create",
         fields: [field],
@@ -357,7 +357,7 @@ describe("create (and get draft after a create)", () => {
         "name": "t1f1",
         public_date: (new Date()).toISOString()
       }
-      let related_template = { 
+      let related_template: any = { 
         name: "t2.1",
         public_date: (new Date()).toISOString()
       };
@@ -539,7 +539,7 @@ describe("update (and get draft after an update)", () => {
 
     test("Add an existing field and related template", async () => {
 
-      let related_template = {
+      let related_template: any = {
         "name": "related_template name"
       };
       related_template = await Helper.templateCreateAndTest(related_template);
@@ -618,7 +618,7 @@ describe("update (and get draft after an update)", () => {
       let template = await Helper.templateDraftGetAndTest(uuid);
 
       template.related_templates.push(template.related_templates[0]);
-      response = await Helper.templateUpdate(uuid, template);
+      let response = await Helper.templateUpdate(uuid, template);
       expect(response.statusCode).toBe(400);
 
     });
@@ -627,11 +627,11 @@ describe("update (and get draft after an update)", () => {
 
       // Create template with parent a and child b. Then edit b to point to a
 
-      let b = {
+      let b: any = {
         name: "b"
       };
 
-      let a = { 
+      let a: any = { 
         name: "a",
         related_templates: [b]
       };
@@ -664,7 +664,7 @@ describe("update (and get draft after an update)", () => {
 
   describe("update after a persist: is draft different and thus created or not?", () => {
     test("name, description, dates", async () => {
-      let template = {
+      let template: any = {
         name: "naruto",
         description: "ninja",
         public_date: (new Date()).toISOString()
@@ -701,7 +701,7 @@ describe("update (and get draft after an update)", () => {
     });
   
     test("fields", async () => {
-      let template = {
+      let template: any = {
         fields: [{name: "f"}]
       };
       template = await Helper.templateCreatePersistTest(template);
@@ -729,11 +729,11 @@ describe("update (and get draft after an update)", () => {
     });
   
     test("related_templates", async () => {
-      let template = {
+      let template: any = {
         related_templates: [{name: "related"}]
       };
       template = await Helper.templateCreatePersistTest(template);
-      let related_template = template.related_templates[0];
+      let related_template: any = template.related_templates[0];
   
       //  Case 1, a related template has changed
       template.related_templates[0].description = "caleb";
@@ -763,12 +763,12 @@ describe("update (and get draft after an update)", () => {
     test("subscribed_templaes", async () => {
       // If any of the _ids in the array have changed
   
-      let subscribed_template = {
+      let subscribed_template: any = {
         name: "subscribee"
       };
       subscribed_template = await Helper.templateCreatePersistTest(subscribed_template);
   
-      let template = {
+      let template: any = {
         subscribed_templates: [subscribed_template]
       };
       template = await Helper.templateCreatePersistTest(template);
@@ -794,7 +794,7 @@ describe("update (and get draft after an update)", () => {
 
 describe("get/fetch draft", () => {
   test("must have edit permission", async () => {
-    let template = {
+    let template: any = {
       name: "t"
     }
     template = await Helper.templateCreateAndTest(template);
@@ -999,7 +999,7 @@ describe("persist (and get persisted and draft after a persist)", () => {
 
     test("Complex persist - changes in related_template result in persisting for all parent properties", async () => {
 
-      let template = {
+      let template: any = {
         "name":"1",
         "related_templates":[{
           "name": "2",
@@ -1037,7 +1037,7 @@ describe("persist (and get persisted and draft after a persist)", () => {
 
     test("Complex persist - persist parent who's child changed previously and no other changes are present", async () => {
 
-      let template = {
+      let template: any = {
         "name":"1",
         "related_templates":[{
           "name": "2"
@@ -1188,7 +1188,7 @@ describe("persist (and get persisted and draft after a persist)", () => {
       draft.description = "d";
       draft.related_templates[0].description = "d";
       draft.fields[0].description = "d";
-      response = await Helper.templateUpdate(draft.uuid, draft);
+      let response = await Helper.templateUpdate(draft.uuid, draft);
       expect(response.statusCode).toBe(200);
 
       await Helper.setAgent(agent1);
@@ -1238,20 +1238,20 @@ describe("persist (and get persisted and draft after a persist)", () => {
     
     test("Template with uuid must exist", async () => {
 
-      let template = {
+      let template: any = {
         "name":"basic template"
       };
       template = await Helper.templateCreateAndTest(template);
 
       let last_update = await Helper.testAndExtract(Helper.templateLastUpdate, template.uuid);
 
-      response = await Helper.templatePersist(Helper.VALID_UUID, last_update);
+      let response = await Helper.templatePersist(Helper.VALID_UUID, last_update);
       expect(response.statusCode).toBe(404);
 
     });
 
     test("There must be changes to persist", async () => {
-      let template = {
+      let template: any = {
         "name":"basic template"
       };
       template = await Helper.templateCreatePersistTest(template);
@@ -1264,7 +1264,7 @@ describe("persist (and get persisted and draft after a persist)", () => {
     });
 
     test("Internal refrences must be valid", async () => {
-      let template = {
+      let template: any = {
         "name":"temp1",
         "related_templates": [{
           "name": "temp2"
@@ -1300,7 +1300,7 @@ describe("persist (and get persisted and draft after a persist)", () => {
     });
 
     test("Last update provided must match to actual last update in the database", async () => {
-      let template = {
+      let template: any = {
         "name":"basic template",
         "description":"a template to test a persist"
       };
@@ -1312,9 +1312,9 @@ describe("persist (and get persisted and draft after a persist)", () => {
 
     test("Last update provided must match to actual last update in the database, also if sub-property is updated later", async () => {
      
-      let related_template = {"name": "2"};
+      let related_template: any = {"name": "2"};
      
-      let template = {
+      let template: any = {
         "name":"1",
         "related_templates": [related_template]
       };
@@ -1337,7 +1337,7 @@ describe("persist (and get persisted and draft after a persist)", () => {
 
     test("User must have edit permission to persist", async () => {
 
-      let template = {
+      let template: any = {
         "name":"basic template"
       };
       template = await Helper.templateCreateAndTest(template);
@@ -1348,7 +1348,7 @@ describe("persist (and get persisted and draft after a persist)", () => {
 
       await Helper.setAgent(agent2);
 
-      response = await Helper.templatePersist(uuid, last_update);
+      let response = await Helper.templatePersist(uuid, last_update);
       expect(response.statusCode).toBe(401);
 
       await Helper.setAgent(agent1);
@@ -1492,7 +1492,7 @@ describe("get/fetch persisted", () => {
 });
 
 test("get persisted for a certain date", async () => {
-  let template = {
+  let template: any = {
     "name":"basic template",
     "description": "1"
   };
@@ -1548,7 +1548,7 @@ test("get persisted for a certain date", async () => {
 
 describe("delete", () => {
   test("delete a draft, not a persisted version", async () => {
-    let template = {
+    let template: any = {
       "name":"basic template",
       "description": "description"
     };
@@ -1557,7 +1557,7 @@ describe("delete", () => {
     template.description = "different";
   
     // Change the draft, but don't persist the change
-    response = await Helper.templateUpdate(template.uuid, template);
+    let response = await Helper.templateUpdate(template.uuid, template);
     expect(response.statusCode).toBe(200);
   
     // Verify that the draft is what we changed it to
@@ -1580,7 +1580,7 @@ describe("delete", () => {
   });
 
   test("if there are no persisted versions, permissions get deleted as well", async () => {
-    let template = {
+    let template: any = {
       name: "t"
     };
     template = await Helper.templateCreateAndTest(template);
@@ -1595,7 +1595,7 @@ describe("delete", () => {
     
     await Helper.testAndExtract(Helper.templateDelete, uuid);
     
-    response = await Helper.getPermissionGroup(uuid, PermissionTypes.admin);
+    let response = await Helper.getPermissionGroup(uuid, PermissionTypes.admin);
     expect(response.statusCode).toBe(404);
 
     user_permissions = await Helper.testAndExtract(Helper.accountPermissions);
@@ -1603,7 +1603,7 @@ describe("delete", () => {
   });
 
   test("need edit permissions", async () => {
-    let template = {
+    let template: any = {
       "name":"basic template"
     };
     template = await Helper.templateCreateAndTest(template);
@@ -1620,7 +1620,7 @@ describe("templateLastUpdate", () => {
   describe("success", () => {
     test("basic draft, no fields or related templates", async () => {
       let timestamp = new Date();
-      let template = {
+      let template: any = {
         "name":"1"
       };
       template = await Helper.templateCreateAndTest(template);
@@ -1654,7 +1654,7 @@ describe("templateLastUpdate", () => {
 
     test("sub template updated later than parent template", async () => {
       // let timestamp_before_create = new Date();
-      let template = {
+      let template: any = {
         "name": "1",
         "related_templates": [{
           "name": "2",
@@ -1674,13 +1674,13 @@ describe("templateLastUpdate", () => {
       let timestamp_between_create_and_update = new Date();
 
       // Update 3. 1 and 2 dates should be 3, but 4s should be older
-      let template3 = template.related_templates[0].related_templates[0];
+      let template3: any = template.related_templates[0].related_templates[0];
       template3.description = "added a description";
 
       // maybe another time: test that updating a parent doesn't update a child
       //let data4_updated_at = data3.related_templates[0].updated_at;
 
-      response = await Helper.templateUpdate(template3.uuid, template3);
+      let response = await Helper.templateUpdate(template3.uuid, template3);
       expect(response.statusCode).toBe(200);
 
       let timestamp_after_update = new Date();
@@ -1705,7 +1705,7 @@ describe("templateLastUpdate", () => {
 
     test("sub template updated and persisted later than parent template", async () => {
 
-      let template = {
+      let template: any = {
         "name": "1",
         "related_templates": [{
           "name": "2"
@@ -1730,7 +1730,7 @@ describe("templateLastUpdate", () => {
     });
 
     test("grandchild updated, but child deleted. Updated time should still be grandchild updated", async () => {
-      let template = {
+      let template: any = {
         "name": "1",
         "related_templates": [{
           "name": "2",
@@ -1785,7 +1785,7 @@ describe("templateLastUpdate", () => {
     });
 
     test("must have edit permissions to get last update of draft", async () => {
-      let template = {
+      let template: any = {
         "name":"1"
       };
       template = await Helper.templateCreateAndTest(template);
@@ -1797,7 +1797,7 @@ describe("templateLastUpdate", () => {
     });
 
     test("must have edit or view permissions to get last update of persisted", async () => {
-      let template = {
+      let template: any = {
         "name":"1"
       };
       template = await Helper.templateCreatePersistTest(template);
@@ -1825,7 +1825,7 @@ describe("duplicate", () => {
       expect(draft.duplicated_from).toEqual(template_persisted.uuid);
     });
     test("basic template duplicated by a user with view permissions to the original", async () => {
-      let template = {
+      let template: any = {
         name: "t1",
         public_date: (new Date()).toISOString()
       };
@@ -1875,7 +1875,7 @@ describe("duplicate", () => {
       expect(draft.duplicated_from).toEqual(template_persisted.uuid);
     });
     test("only have permisssion to duplicate the top template", async () => {
-      let template = {
+      let template: any = {
         name: "t1",
         public_date: (new Date()).toISOString(),
         fields: [{name: "t1f1"}],
@@ -1905,7 +1905,7 @@ describe("duplicate", () => {
       expect(response.statusCode).toEqual(404);
     });
     test("user must have view access to template", async () => {
-      let template = {
+      let template: any = {
         name: "t1"
       };
       template = await Helper.templateCreatePersistTest(template);
@@ -1919,7 +1919,7 @@ describe("duplicate", () => {
 });
 
 test("full range of operations with big data", async () => {
-  let template = {
+  let template: any = {
     name: "1",
     fields: [
       {name: "t1f1"},

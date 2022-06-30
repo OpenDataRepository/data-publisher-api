@@ -1,6 +1,6 @@
 const MongoDB = require('../lib/mongoDB');
 const { v4: uuidv4, validate: uuidValidate } = require('uuid');
-const Util = require('../lib/util');
+import * as Util from '../lib/util';
 const UserPermissionsModel = require('./user_permissions');
 const { PermissionTypes } = require('./permission_group');
 const SharedFunctions = require('./shared_functions');
@@ -10,7 +10,6 @@ const FieldTypes = Object.freeze({
   File: "File",
   Image: "Image"
 });
-exports.FieldTypes = FieldTypes;
 
 const Schema = Object.freeze({
   bsonType: "object",
@@ -90,24 +89,24 @@ async function collection() {
     let db = MongoDB.db();
     try {
       await db.createCollection('template_fields', {validator: { $jsonSchema: Schema} });
-    } catch(e) {
-      console.log(e);
-    }
+    } catch(e) {}
     TemplateField = db.collection('template_fields');
   }
   return TemplateField;
 }
 
-exports.init = async function() {
+async function init() {
   return await collection();
 }
 
-exports.collection = () => TemplateField;
+function collectionExport(){
+  return TemplateField
+};
 
 class Model {
   collection = TemplateField;
 
-  constructor(state){
+  constructor(public state){
     this.state = state;
   }
 
@@ -216,12 +215,12 @@ class Model {
     if(!Array.isArray(options)) {
       throw new Util.InputError(`options must be an array.`);
     }
-    let return_options = [];
+    let return_options: any[] = [];
     for(let option of options) {
       if(!Util.isObject(option)) {
         throw new Util.InputError(`Each option in the field must be a json object`);
       }
-      let cleansed_option = {};
+      let cleansed_option: any = {};
       if (!option.name) {
         throw new Util.InputError('each option must have a name');
       }
@@ -294,7 +293,7 @@ class Model {
     let uuid_to_value_map = {};
     this.#buildOptionMap(options, uuid_to_value_map);
 
-    let values = [];
+    let values: any[] = [];
     for(let uuid of uuids) {
       if(!(uuid in uuid_to_value_map)) {
         throw new Util.InputError(`Option uuid ${uuid} is not an option uuid provided by the template`);
@@ -309,12 +308,12 @@ class Model {
     if(!Array.isArray(radio_options)) {
       throw new Util.InputError(`Radio options must be an array.`);
     }
-    let return_options = [];
+    let return_options: any[] = [];
     for(let radio_option of radio_options) {
       if(!Util.isObject(radio_option)) {
         throw new Util.InputError(`Each radio_option in the field must be a json object`);
       }
-      let cleansed_option = {};
+      let cleansed_option: any = {};
       if (!radio_option.name || typeof(radio_option.name) !== 'string') {
         throw new Util.InputError('each radio option must have a name of type string ');
       }
@@ -362,7 +361,7 @@ class Model {
   }
 
   async #initializeNewDraftWithProperties(input_field, uuid, updated_at) {
-    let output_field = this.#initializeNewDraftWithPropertiesSharedWithImport(input_field, uuid, updated_at);
+    let output_field: any = this.#initializeNewDraftWithPropertiesSharedWithImport(input_field, uuid, updated_at);
     if (input_field.public_date) {
       if (!Date.parse(input_field.public_date)){
         throw new Util.InputError('template public_date property must be in valid date format');
@@ -397,7 +396,7 @@ class Model {
   }
 
   async #initializeNewImportedDraftWithProperties(input_field, uuid, updated_at) {
-    let output_field = this.#initializeNewDraftWithPropertiesSharedWithImport(input_field, uuid, updated_at);
+    let output_field: any = this.#initializeNewDraftWithPropertiesSharedWithImport(input_field, uuid, updated_at);
     if (input_field._field_metadata && Util.isObject(input_field._field_metadata) && input_field._field_metadata._public_date) {
       if (Date.parse(input_field._field_metadata._public_date)){
         output_field.public_date = new Date(input_field.public_date);
@@ -420,7 +419,7 @@ class Model {
   // Return:
   // 1. A boolean: true if there were changes from the last persisted.
   // 2. The uuid of the template field created / updated
-  async validateAndCreateOrUpdate(input_field, updated_at) {
+  async validateAndCreateOrUpdate(input_field, updated_at): Promise<[boolean, string]> {
 
     // Field must be an object
     if (!Util.isObject(input_field)) {
@@ -785,4 +784,10 @@ class Model {
   }
 
 };
-exports.model = Model;
+
+export {
+  init,
+  collectionExport as collection,
+  Model as model,
+  FieldTypes
+}

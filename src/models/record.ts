@@ -1,6 +1,6 @@
 const MongoDB = require('../lib/mongoDB');
 const { v4: uuidv4, validate: uuidValidate } = require('uuid');
-const Util = require('../lib/util');
+import * as Util from '../lib/util';
 const TemplateFieldModel = require('./template_field');
 const TemplateModel = require('./template');
 const DatasetModel = require('./dataset');
@@ -132,14 +132,14 @@ async function collection() {
   return Record;
 }
 
-exports.init = async function() {
+async function init() {
   Record = await collection();
 }
 
 class Model {
   collection = Record;
 
-  constructor(state){
+  constructor(public state){
     this.state = state;
   }
 
@@ -226,7 +226,7 @@ class Model {
     delete draft.dataset_id;
 
     // Replace each of the related_record _ids with uuids. 
-    let related_records = [];
+    let related_records: string[] = [];
     for(let _id of persisted.related_records) {
       let uuid = await SharedFunctions.uuidFor_id(Record, _id, this.state.session);
       if(uuid) {
@@ -299,7 +299,7 @@ class Model {
   }
 
   async #createOutputFileFromInputFile(input_file, record_uuid, field_uuid) {
-    let output_file = {};
+    let output_file: any = {};
     if(!Util.isObject(input_file)) {
       throw new Util.InputError(`Each file/image supplied in record field must be an object`);
     }
@@ -330,11 +330,11 @@ class Model {
   }
 
   async #createRecordFieldsFromTemplateFieldsAndMap(template_fields, record_field_map, record_uuid) {
-    let result_fields = [];
+    let result_fields: any[] = [];
 
     for (let field of template_fields) {
       let field_uuid = field.uuid;
-      let field_object = {
+      let field_object: any = {
         uuid: field_uuid,
         name: field.name,
         description: field.description,
@@ -363,7 +363,7 @@ class Model {
             if(!Array.isArray(input_images)) {
               throw new Util.InputError(`images property in record field must be an array`);
             }
-            let output_images = [];
+            let output_images: any[] = [];
             field_object.images = output_images;
             for(let input_image of input_images) {
               output_images.push(await this.#createOutputFileFromInputFile(input_image, record_uuid, field_uuid));
@@ -395,7 +395,7 @@ class Model {
   }
 
   async #deleteDraftFiles(draft) {
-    let file_uuids = [];
+    let file_uuids: any[] = [];
     for(let field of draft.fields) {
       if(field.file) {
         file_uuids.push(field.file.uuid);
@@ -480,7 +480,7 @@ class Model {
       if (record_field_map[field.uuid]) {
         throw new Util.InputError(`A record can only supply a single value for each field`);
       }
-      let record_field_data = {};
+      let record_field_data: any = {};
       if(field.value) {
         record_field_data.value = field.value;
       }
@@ -530,11 +530,11 @@ class Model {
       if (record_field_map[field_uuid]) {
         throw new Util.InputError(`A record can only supply a single value for each field`);
       }
-      let record_field_data = {value: field.value};
+      let record_field_data: any = {value: field.value};
       if(field.files) {
         record_field_data.files = [];
         for(let input_file of field.files) {
-          let output_file = {};
+          let output_file: any = {};
           let old_file_uuid = input_file.file_uuid;
           let new_file_uuid = await uuid_mapper_model_instance.get_new_uuid_from_old(old_file_uuid);
           if(new_file_uuid) {
@@ -564,7 +564,7 @@ class Model {
 
   // TODO: add updated_at to the state
   async #extractRelatedRecordsFromCreateOrUpdate(input_related_records, related_datasets, template, updated_at, seen_uuids) {
-    let return_records = [];
+    let return_records: any[] = [];
     let changes = false;
     // Recurse into related_records
     if(!input_related_records) {
@@ -678,7 +678,7 @@ class Model {
     }
 
     // Now process the record data provided
-    let new_record = {
+    let new_record: any = {
       uuid,
       dataset_uuid: input_record.dataset_uuid,
       updated_at,
@@ -790,7 +790,7 @@ class Model {
     }
 
     // Now recurse into each related_record, replacing each uuid with an imbedded object
-    let related_records = [];
+    let related_records: any[] = [];
     for(let i = 0; i < record_draft.related_records.length; i++) {
       let related_record;
       try{
@@ -829,7 +829,7 @@ class Model {
   }
 
   async #persistRelatedRecords(related_record_uuids, related_datasets, template) {
-    let return_record_ids = [];
+    let return_record_ids: any[] = [];
     // For each records's related_records, persist that related_record, then replace the uuid with the internal_id.
     // It is possible there weren't any changes to persist, so keep track of whether we actually persisted anything.
     // Requirements: 
@@ -1002,9 +1002,9 @@ class Model {
       }
     ]
 
-    let current_pipeline = pipeline;
+    let current_pipeline: any[] = pipeline;
 
-    let pipeline_addons = [
+    let pipeline_addons: any[] = [
       {
         '$lookup': {
           'from': "records",
@@ -1180,7 +1180,7 @@ class Model {
     }
 
     // Build object to create/update
-    let new_record = {
+    let new_record: any = {
       uuid: new_record_uuid,
       dataset_uuid: new_dataset_uuid,
       updated_at,
@@ -1195,7 +1195,7 @@ class Model {
     // Need to determine if this draft is any different from the persisted one.
     let changes = false;
 
-    new_record.fields = await this.#createRecordFieldsFromImportRecordAndTemplate(input_record.fields, template.fields);
+    new_record.fields = await this.#createRecordFieldsFromImportRecordAndTemplate(input_record.fields, template.fields, new_record_uuid);
 
     // Requirements:
     // - related_records is a set, so there can't be any duplicates
@@ -1326,7 +1326,7 @@ class Model {
       throw new Util.InputError(`'records' must be a valid array`);
     }
 
-    let result_uuids = [];
+    let result_uuids: any[] = [];
     for(let record of records) {
       result_uuids.push(await this.#importDatasetAndRecord(record));
     }
@@ -1342,7 +1342,7 @@ class Model {
     if(!Array.isArray(input_record.records)) {
       throw new Util.InputError(`Records object in record to import must be an array`);
     }
-    let result_records = [];
+    let result_records: any[] = [];
     // Requirements:
     // - related_records is a set, so there can't be any duplicates
     // - Every related_record must point to a related_dataset supported by the dataset
@@ -1429,7 +1429,7 @@ class Model {
     }
 
     // Build object to create/update
-    let new_record = {
+    let new_record: any = {
       uuid: new_record_uuid,
       old_system_uuid: old_record_uuid,
       dataset_uuid: new_dataset_uuid,
@@ -1492,7 +1492,7 @@ class Model {
 
     let seen_uuids = new Set();
 
-    let result_uuids = [];
+    let result_uuids: any[] = [];
     for(let record of records) {
       result_uuids.push(await this.#importRecord(record, updated_at, seen_uuids));
     }
@@ -1600,4 +1600,5 @@ class Model {
   }
 
 };
-exports.model = Model;
+
+export {init, Model as model};

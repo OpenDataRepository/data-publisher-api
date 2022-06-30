@@ -261,7 +261,7 @@ const compareOldAndNewDatabaseAndRecord = async (old_record_and_database, new_da
 // }
 
 const sanitizeInputDatasetsAndRecords = (input_datasets_and_records) => {
-  let output_datasets_and_records = [];
+  let output_datasets_and_records: any = [];
   for(let record of input_datasets_and_records) {
     if(record.template_uuid == "") {
       continue;
@@ -409,7 +409,7 @@ const testOldAndNewRecordEqual = (old_record, new_record, uuid_mapper) => {
 
   // Create a map of new field uuid -> new field
   let new_record_field_map = {};
-  for(field of new_record.fields) {
+  for(let field of new_record.fields) {
     new_record_field_map[field.name] = field;
   }
   for(let old_field of old_record.fields) {
@@ -428,7 +428,7 @@ const testOldAndNewRecordEqual = (old_record, new_record, uuid_mapper) => {
   }
 }
 
-const importRecordsTest = async (records, testUploads) => {
+const importRecordsTest = async (records, testUploads?) => {
 
   let uuid_mapper = {};
   let response = await Helper.importRecords(records);
@@ -447,7 +447,7 @@ const importRecordsTest = async (records, testUploads) => {
     let new_record = await Helper.recordDraftGetAndTest(new_record_uuid);
     let old_record = records[i];
 
-    let promiseValues = await uploadFilesForRecord(new_record, uploaded_uuids);
+    let promiseValues: any = await uploadFilesForRecord(new_record, uploaded_uuids);
     if(testUploads) {
       for(let value of promiseValues) {
         if(value.statusCode != 200) {
@@ -468,7 +468,7 @@ const importRecordsPersistTest = async (records) => {
   let record_uuids = await importRecordsTest(records, true);
   // remove duplciates
   record_uuids = [...new Set(record_uuids)];
-  let persisted_records = [];
+  let persisted_records: any = [];
   for(let record_uuid of record_uuids) {
     persisted_records.push(await Helper.recordPersistAndFetch(record_uuid));
   }
@@ -608,7 +608,7 @@ describe("template and dataset", () => {
       let template_uuid = "t1";
       let field_uuid = "t1f1"
 
-      let template = {
+      let template: any = {
         template_uuid, 
         name: "naruto", 
         description: "awesome", 
@@ -703,14 +703,14 @@ describe("template and dataset", () => {
   });
 
   test("import chemin template", async () => {
-    let rawdata = fs.readFileSync(__dirname + '/test_data/chemin_template.json');
+    let rawdata = fs.readFileSync(Helper.testDataPath + '/chemin_template.json');
     let old_template = JSON.parse(rawdata);
   
     await importTemplateDatasetTest(old_template);
   });
 
   test("import rruff template", async () => {
-    let rruff_imalist_template_raw_data = fs.readFileSync(__dirname + '/test_data/rruff_imalist_template.json');
+    let rruff_imalist_template_raw_data = fs.readFileSync(Helper.testDataPath + '/rruff_imalist_template.json');
     let imalist_template = JSON.parse(rruff_imalist_template_raw_data);
     let ima_list_template, ima_list_dataset;
 
@@ -723,7 +723,7 @@ describe("template and dataset", () => {
 
     await Helper.setAgent(agent1);
 
-    let rawdata = fs.readFileSync(__dirname + '/test_data/rruff_sample_template.json');
+    let rawdata = fs.readFileSync(Helper.testDataPath + '/rruff_sample_template.json');
     let old_template = JSON.parse(rawdata);
     await importTemplateDatasetTest(old_template);
   });
@@ -909,7 +909,7 @@ describe("records", () => {
       };
       await importTemplateDatasetPersistTest(template);
 
-      let record = {
+      let record: any = {
         record_uuid: "r1",
         database_uuid: template_uuid,
         fields: [{
@@ -1258,12 +1258,12 @@ describe("records", () => {
 
   test("with Chemin data", async () => {
 
-    let raw_template = fs.readFileSync(__dirname + '/test_data/chemin_template.json');
+    let raw_template = fs.readFileSync(Helper.testDataPath + '/chemin_template.json');
     let old_template = JSON.parse(raw_template);
   
     await importTemplateDatasetPersistTest(old_template);
 
-    let raw_records = fs.readFileSync(__dirname + '/test_data/chemin_data.json');
+    let raw_records = fs.readFileSync(Helper.testDataPath + '/chemin_data.json');
     let old_records = JSON.parse(raw_records).records;
 
     // We can't test persisting this also because the download links in the chemin data don't work
@@ -1276,7 +1276,7 @@ describe("records", () => {
 
     let agent2 = await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
 
-    let rruff_imalist_template_raw_data = fs.readFileSync(__dirname + '/test_data/rruff_imalist_template.json');
+    let rruff_imalist_template_raw_data = fs.readFileSync(Helper.testDataPath + '/rruff_imalist_template.json');
     let imalist_template = JSON.parse(rruff_imalist_template_raw_data);
     let ima_list_template, ima_list_dataset;
     [ima_list_template, ima_list_dataset] = await importTemplateDatasetPersistTest(imalist_template);
@@ -1286,12 +1286,12 @@ describe("records", () => {
 
     await Helper.setAgent(agent1);
 
-    let raw_template = fs.readFileSync(__dirname + '/test_data/rruff_sample_template.json');
+    let raw_template = fs.readFileSync(Helper.testDataPath + '/rruff_sample_template.json');
     let old_template = JSON.parse(raw_template);
     await importTemplateDatasetPersistTest(old_template);
 
   
-    let raw_records = fs.readFileSync(__dirname + '/test_data/rruff_samples.json');
+    let raw_records = fs.readFileSync(Helper.testDataPath + '/rruff_samples.json');
     let old_records = JSON.parse(raw_records).records;
 
     // 42 records. 169 MB with files and images. Can do the whole test at once, no problem
@@ -1329,7 +1329,7 @@ describe("records", () => {
       };
       await importTemplateDatasetPersistTest(template);
 
-      let record = {
+      let record: any = {
         database_uuid: template_uuid,
         fields: [],
         records: []

@@ -1,4 +1,4 @@
-const fs = require('fs');
+import * as fs from 'fs';
 const fsPromises = fs.promises;
 const path = require('path');
 const { v4: uuidv4} = require('uuid');
@@ -58,20 +58,20 @@ async function collection() {
   }
   return File;
 }
-exports.collection = function() {
+function collectionExport() {
   return File;
 }
-exports.uploadDestination = function() {
+function uploadDestination() {
   return Upload_Destination;
 }
 
-exports.init = async function() {
+async function init() {
   File = await collection();
-  Upload_Destination = path.resolve(process.env.uploads_folder);
+  Upload_Destination = path.resolve(process.env.uploads_folder as string);
 }
 
 
-exports.newFile = async function(record_uuid, template_field_uuid, session) {
+async function newFile(record_uuid, template_field_uuid, session) {
   let uuid = uuidv4();
   let fileObject = {
     uuid,
@@ -92,7 +92,7 @@ exports.newFile = async function(record_uuid, template_field_uuid, session) {
   return uuid;
 }
 
-exports.markUploaded = async function(uuid, session) {
+async function markUploaded(uuid, session) {
   let response = await File.updateOne(
     {uuid}, 
     {$set: {uploaded: true}},
@@ -103,7 +103,7 @@ exports.markUploaded = async function(uuid, session) {
   } 
 }
 
-exports.markPersisted = async function(uuid, session) {
+async function markPersisted(uuid, session) {
 
   let document = await File.findOne(
     {uuid},
@@ -129,7 +129,7 @@ exports.markPersisted = async function(uuid, session) {
 
 // At the moment, the user is not allowed to delete the file directly.
 // Only a record can request a delete if it loses the reference to a file
-exports.delete = async function(uuid, session) {
+async function deleteFile(uuid, session) {
   if(!(await SharedFunctions.exists(File, uuid))) {
     throw new Util.NotFoundError(`Cannot delete file ${uuid}. Does not exist`);
   }
@@ -147,11 +147,11 @@ exports.delete = async function(uuid, session) {
     {session}
   );
   if(response.deletedCount != 1) {
-    throw new Error(`File.delete: Deleted: ${resonse.deletedCount}`);
+    throw new Error(`File.delete: Deleted: ${response.deletedCount}`);
   }
 }
 
-exports.existsWithParams = async function(uuid, record_uuid, template_field_uuid, session) {
+async function existsWithParams(uuid, record_uuid, template_field_uuid, session) {
   let draft = await File.findOne(
     {uuid, record_uuid, template_field_uuid},
     {session}
@@ -161,3 +161,14 @@ exports.existsWithParams = async function(uuid, record_uuid, template_field_uuid
   }
   return false;
 }
+
+export {
+  collectionExport as collection,
+  init,
+  uploadDestination,
+  newFile,
+  markUploaded,
+  markPersisted,
+  deleteFile as delete,
+  existsWithParams
+};

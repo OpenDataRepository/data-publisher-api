@@ -73,13 +73,13 @@ exports.update = async function(req, res, next) {
           }
         } else {
           // If this is admin or edit, add deleted users to view
-          await permission_group_model_instance.add_permissions(uuid, PermissionGroupModel.PermissionTypes.view, deleted_user_ids, session);
-          await user_permissions_model_instance.addUserIdsToUuidAndCategory(uuid, document_type, PermissionGroupModel.PermissionTypes.view, deleted_user_ids, session);
+          await permission_group_model_instance.add_permissions(uuid, PermissionGroupModel.PermissionTypes.view, deleted_user_ids);
+          await user_permissions_model_instance.addUserIdsToUuidAndCategory(uuid, document_type, PermissionGroupModel.PermissionTypes.view, deleted_user_ids);
         }
       }
-      await permission_group_model_instance.replace_permissions(uuid, category, user_ids, session);
-      await user_permissions_model_instance.addUserIdsToUuidAndCategory(uuid, document_type, category, added_user_ids, session);
-      await user_permissions_model_instance.removeUserIdsFromUuidAndCategory(uuid, document_type, category, deleted_user_ids, session);
+      await permission_group_model_instance.replace_permissions(uuid, category, user_ids);
+      await user_permissions_model_instance.addUserIdsToUuidAndCategory(uuid, document_type, category, added_user_ids);
+      await user_permissions_model_instance.removeUserIdsFromUuidAndCategory(uuid, document_type, category, deleted_user_ids);
     };
     await ModelsSharedFunctions.executeWithTransaction(state, callback);
     res.sendStatus(200);

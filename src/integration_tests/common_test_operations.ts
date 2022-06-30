@@ -4,14 +4,18 @@ const path = require('path');
 var finalhandler = require('finalhandler')
 var http = require('http')
 var serveStatic = require('serve-static')
+import { AddressInfo } from 'net'
 const MongoDB = require('../lib/mongoDB');
 var { PermissionTypes } = require('../models/permission_group');
 const FieldTypes = require('../models/template_field').FieldTypes;
+var appRoot = require('app-root-path');
 
-module.exports = class Helper {
-  constructor(app) {
+export = class Helper {
+  public constructor(private app) {
     this.app = app;
   };
+
+  private agent;
 
   // Required to set agent in app before making api calls
   setAgent = (agent) => {
@@ -835,17 +839,16 @@ module.exports = class Helper {
 
   // files 
 
-  dynamicTestFilesPath = __dirname + '/test_data/dynamic_files'
-  uploadsDirectoryPath = __dirname + "/../uploads_testing"
+  testDataPath = appRoot + '/test_data'
+  dynamicTestFilesPath = appRoot + '/test_data/dynamic_files'
+  uploadsDirectoryPath = appRoot + "/uploads_testing"
 
   clearFilesAtPath = (directory) => {
     fs.readdir(directory, (err, files) => {
       if (err) throw err;
     
       for (let file of files) {
-        fs.unlink(path.join(directory, file), err => {
-          if (err) throw err;
-        });
+        fs.unlinkSync(path.join(directory, file));
       }
     });
   };
@@ -992,7 +995,7 @@ module.exports = class Helper {
     // Listen
     server.listen(0);
   
-    let serverUrl = "http://localhost:" + server.address().port + "/";
+    let serverUrl = "http://localhost:" + (server.address() as AddressInfo).port + "/";
     return [server, serverUrl];
   }
 

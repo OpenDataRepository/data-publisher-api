@@ -149,7 +149,7 @@ describe("create (and get draft after a create)", () => {
     })
 
     test("radio options", async () => {
-      let data = {
+      let data: { name: string, public_date: string, options: any } = {
         name: "f1",
         public_date: (new Date()).toISOString(),
         options: "must be array"
@@ -241,7 +241,7 @@ describe("update (and get draft after an update)", () => {
     });
 
     test("with radio options multi-dimensional", async () => {
-      let template_field = {
+      let template_field: any = {
         name: "f1",
         public_date: (new Date()).toISOString(),
         options: [
@@ -344,7 +344,7 @@ describe("update (and get draft after an update)", () => {
 
       // radio options uuids supplied must exist
       template_field.options[0].uuid = Helper.VALID_UUID;
-      response = await Helper.templateFieldUpdate(template_field.uuid, template_field);
+      let response = await Helper.templateFieldUpdate(template_field.uuid, template_field);
       expect(response.statusCode).toBe(400);
 
       // radio options uuids supplied must exist
@@ -357,7 +357,7 @@ describe("update (and get draft after an update)", () => {
 
   describe("update after a persist: is draft different and thus created or not?", () => {
     test("name, description, dates, type", async () => {
-      let field = {
+      let field: any = {
         name: "naruto",
         description: "ninja",
         public_date: (new Date()).toISOString()
@@ -403,7 +403,7 @@ describe("update (and get draft after an update)", () => {
     });
   
     test("radio options", async () => {
-      let field = {
+      let field: any = {
         name: "naruto",
         options: [{name: "genin"}]
       };
@@ -479,7 +479,7 @@ describe("persist (and get persisted and draft after a persist)", () => {
 
       let last_update = await Helper.testAndExtract(Helper.templateFieldLastUpdate, uuid);
 
-      response = await Helper.templateFieldPersist(Helper.VALID_UUID, last_update);
+      let response = await Helper.templateFieldPersist(Helper.VALID_UUID, last_update);
       expect(response.statusCode).toBe(404);
 
     });
@@ -521,7 +521,7 @@ describe("persist (and get persisted and draft after a persist)", () => {
 
       Helper.setAgent(agent2);
 
-      response = await Helper.templateFieldPersist(uuid, last_update);
+      let response = await Helper.templateFieldPersist(uuid, last_update);
       expect(response.statusCode).toBe(401);
     });
 
@@ -617,7 +617,7 @@ describe("get latest persisted", () => {
     Helper.setAgent(agent2);
   
     // Second user without permissions should be able to view it because it's public
-    response = await Helper.testAndExtract(Helper.templateFieldLatestPersisted, uuid);
+    let response = await Helper.testAndExtract(Helper.templateFieldLatestPersisted, uuid);
 
     Helper.setAgent(agent2);
 
@@ -638,7 +638,7 @@ describe("get latest persisted", () => {
     Helper.setAgent(agent2);
   
     // Second user without permissions shouldn't be able to view it because it's private
-    response = await Helper.templateFieldLatestPersisted(uuid);
+    let response = await Helper.templateFieldLatestPersisted(uuid);
     expect(response.statusCode).toBe(401);
   });
 });
@@ -646,7 +646,7 @@ describe("get latest persisted", () => {
 describe("get persisted for a certain date", () => {
 
   test("primary functionality", async () => {
-    let data = {
+    let data: any = {
       "name":"name",
       "description": "1"
     };
@@ -704,12 +704,12 @@ describe("get persisted for a certain date", () => {
   });
 
   test("timestamp must be in valid timestamp format", async () => {
-    let field = {name: "hi"};
+    let field: any = {name: "hi"};
     field = await Helper.templateFieldCreatePersistTest(field);
 
     await Helper.testAndExtract(Helper.templateFieldLatestPersistedBeforeDate, field.uuid, (new Date()).toISOString());
 
-    response = await Helper.templateFieldLatestPersistedBeforeDate(field.uuid, "invalid timestamp");
+    let response = await Helper.templateFieldLatestPersistedBeforeDate(field.uuid, "invalid timestamp");
     expect(response.statusCode).toBe(400);
   });
 
@@ -717,7 +717,7 @@ describe("get persisted for a certain date", () => {
 
 describe("delete", () => {
   test("success", async () => {
-    let data = {
+    let data: any = {
       "name":"name",
       "description": "description"
     };
@@ -731,7 +731,7 @@ describe("delete", () => {
     data.description = "different";
   
     // Change the draft, but don't persist the change
-    response = await Helper.templateFieldUpdate(uuid, data);
+    let response = await Helper.templateFieldUpdate(uuid, data);
     expect(response.statusCode).toBe(200);
   
     // Verify that the draft is what we changed it to
@@ -766,7 +766,7 @@ describe("delete", () => {
     
     await Helper.testAndExtract(Helper.templateFieldDraftDelete, uuid);
     
-    response = await Helper.getPermissionGroup(uuid, PermissionTypes.admin);
+    let response = await Helper.getPermissionGroup(uuid, PermissionTypes.admin);
     expect(response.statusCode).toBe(404);
 
     user_permissions = await Helper.testAndExtract(Helper.accountPermissions);
@@ -782,7 +782,7 @@ describe("delete", () => {
   
     let last_update = await Helper.testAndExtract(Helper.templateFieldLastUpdate, uuid);
   
-    response = await Helper.templateFieldPersist(uuid, last_update);
+    let response = await Helper.templateFieldPersist(uuid, last_update);
     expect(response.statusCode).toBe(200);
    
     // Delete the draft
@@ -791,7 +791,7 @@ describe("delete", () => {
   });
 
   test("must have edit permissions", async () => {
-    let data = {
+    let data: any = {
       "name":"name",
       "description": "description"
     };
@@ -799,7 +799,7 @@ describe("delete", () => {
   
     let last_update = await Helper.testAndExtract(Helper.templateFieldLastUpdate, uuid);
   
-    response = await Helper.templateFieldPersist(uuid, last_update);
+    let response = await Helper.templateFieldPersist(uuid, last_update);
     expect(response.statusCode).toBe(200);
   
     data.uuid = uuid;
@@ -848,7 +848,7 @@ describe("lastUpdate", () => {
 
     test("get latest update for that which the user has permission to", async () => {
       let time1 = new Date();
-      let template = {
+      let template: any = {
         "name":"1"
       };
       template = await Helper.templateFieldCreatePersistTest(template);

@@ -76,7 +76,7 @@ describe("success", () => {
 
   test("Upload a file directly (and fetch it)", async () => {
     let uuid;
-    [_, _, _, uuid] = await basicRecordSetup();
+    [, , , uuid] = await basicRecordSetup();
   
     let file_name, originalFileContents 
     [file_name, originalFileContents] = basicFileSetup();
@@ -92,10 +92,10 @@ describe("success", () => {
   
   test("Upload a large file directly (and fetch it)", async () => {
     let uuid;
-    [_, _, _, uuid] = await basicRecordSetup();
+    [, , , uuid] = await basicRecordSetup();
   
     let file_name = "someFile.txt";
-    let old_file_path = __dirname + '/test_data/rruff_samples.json'
+    let old_file_path = Helper.testDataPath + '/rruff_samples.json'
     let new_file_path = path.join(Helper.dynamicTestFilesPath, file_name);
     await fsPromises.copyFile(old_file_path, new_file_path);
     let raw_data = fs.readFileSync(new_file_path);
@@ -105,7 +105,7 @@ describe("success", () => {
     let response = await Helper.getFile(uuid);
     expect(response.statusCode).toBe(200);
     let newFileBuffer = response.body;
-    expect(newFileBuffer).toEqual(raw_data);
+    expect(newFileBuffer.toString()).toEqual(raw_data.toString());
   });
   
   // If tests start failing with 404 errors, it could be because we need to runInBand. Or, they all are using the same file name
@@ -114,7 +114,7 @@ describe("success", () => {
     [file_name, originalFileContents] = basicFileSetup();
   
     let uuid;
-    [_, _, _, uuid] = await basicRecordSetup();
+    [, , , uuid] = await basicRecordSetup();
   
     let url = serverUrl + file_name;
     let response = await Helper.uploadFileFromUrl(uuid, url);
@@ -129,10 +129,10 @@ describe("success", () => {
   
   test("Upload a large file from url (and fetch it)", async () => {
     let uuid;
-    [_, _, _, uuid] = await basicRecordSetup();
+    [, , , uuid] = await basicRecordSetup();
   
     let file_name = "toUpload.txt";
-    let old_file_path = __dirname + '/test_data/rruff_samples.json'
+    let old_file_path = Helper.testDataPath + '/rruff_samples.json'
     let new_file_path = path.join(Helper.dynamicTestFilesPath, file_name);
     await fsPromises.copyFile(old_file_path, new_file_path);
     let raw_data = fs.readFileSync(new_file_path);
@@ -144,7 +144,7 @@ describe("success", () => {
     response = await Helper.getFile(uuid);
     expect(response.statusCode).toBe(200);
     let newFileBuffer = response.body;
-    expect(newFileBuffer).toEqual(raw_data);
+    expect(newFileBuffer.toString()).toEqual(raw_data.toString());
   });
 
 });
@@ -153,7 +153,7 @@ describe("failure", () => {
 
   test("file with uuid does not exist", async () => {
     let file_name 
-    [file_name, _] = basicFileSetup();
+    [file_name, ] = basicFileSetup();
     let response = await Helper.uploadFileDirect(Helper.VALID_UUID, file_name);
     expect(response.statusCode).toBe(404);
 
@@ -167,12 +167,12 @@ describe("failure", () => {
 
   test("don't have edit permissions for file", async () => {
     let uuid;
-    [_, _, _, uuid] = await basicRecordSetup();
+    [, , , uuid] = await basicRecordSetup();
 
     Helper.setAgent(agent2);
 
     let file_name; 
-    [file_name, _] = basicFileSetup();
+    [file_name, ] = basicFileSetup();
     let response = await Helper.uploadFileDirect(uuid, file_name);
     expect(response.statusCode).toBe(401);
 
@@ -186,18 +186,18 @@ describe("failure", () => {
 
   test("file to upload doesn't exist", async () => {
     let uuid;
-    [_, _, _, uuid] = await basicRecordSetup();
+    [, , , uuid] = await basicRecordSetup();
 
     let url = serverUrl + "toUpload.txt";
-    response = await Helper.uploadFileFromUrl(uuid, url);
+    let response = await Helper.uploadFileFromUrl(uuid, url);
     expect(response.statusCode).toBe(400);
   });
 
   test("file to fetch doesn't exist", async () => {
     let uuid;
-    [_, _, _, uuid] = await basicRecordSetup();
+    [, , , uuid] = await basicRecordSetup();
 
-    response = await Helper.getFile(uuid);
+    let response = await Helper.getFile(uuid);
     expect(response.statusCode).toBe(404);
   });
   

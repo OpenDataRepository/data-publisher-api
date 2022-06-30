@@ -1,6 +1,6 @@
 const MongoDB = require('../lib/mongoDB');
 const { v4: uuidv4, validate: uuidValidate } = require('uuid');
-const Util = require('../lib/util');
+import * as Util from '../lib/util';
 const TemplateFieldModel = require('./template_field');
 const UserPermissionsModel = require('./user_permissions');
 const PermissionGroupModel = require('./permission_group');
@@ -77,20 +77,18 @@ async function collection() {
     let db = MongoDB.db();
     try {
       await db.createCollection('templates', {validator: { $jsonSchema: Schema} });
-    } catch(e) {
-      console.log(e);
-    }
+    } catch(e) {}
     Template = db.collection('templates');
   }
   return Template;
 }
 
-exports.init = async function() {
+async function init() {
   Template = await collection();
   TemplateField = await TemplateFieldModel.init();
 }
 
-exports.collection = function() {
+function collectionExport() {
   return Template;
 }
 
@@ -98,7 +96,7 @@ class Model {
 
   collection = Template;
 
-  constructor(state){
+  constructor(public state){
     this.state = state;
   }
 
@@ -113,7 +111,7 @@ class Model {
     delete draft.persist_date;
 
     // Replace each of the field _ids with uuids.
-    let fields = [];
+    let fields: any[] = [];
     for(let _id of persisted.fields) {
       let uuid = await SharedFunctions.uuidFor_id(TemplateField, _id, this.state.session);
       if(uuid) {
@@ -125,7 +123,7 @@ class Model {
     draft.fields = fields;
 
     // Replace each of the related_template _ids with uuids. 
-    let related_templates = [];
+    let related_templates: string[] = [];
     for(let _id of persisted.related_templates) {
       let uuid = await SharedFunctions.uuidFor_id(Template, _id, this.state.session);
       if(uuid) {
@@ -168,7 +166,7 @@ class Model {
   }
 
   #convertObjectIdArrayToStringArray(object_ids) {
-    let string_array = [];
+    let string_array: any[] = [];
     for(let object_id of object_ids) {
       string_array.push(object_id.toString())
     }
@@ -225,7 +223,7 @@ class Model {
     // Get the last 3 _ids associated with this uuid. Then use those _ids to find the uuids of the templates referencing this template.
 
     // First, get the three _ids last persisted by this uuid
-    let pipeline = [
+    let pipeline: any[] = [
       {
         '$match': { 
           uuid,
@@ -330,7 +328,7 @@ class Model {
   }
 
   async #initializeNewDraftWithProperties(input_template, uuid, updated_at) {
-    let output_template = this.#initializeNewDraftWithPropertiesSharedWithImport(input_template, uuid, updated_at);
+    let output_template: any = this.#initializeNewDraftWithPropertiesSharedWithImport(input_template, uuid, updated_at);
     if (input_template.public_date) {
       if (!Date.parse(input_template.public_date)){
         throw new Util.InputError('template public_date property must be in valid date format');
@@ -345,7 +343,7 @@ class Model {
   }
 
   #initializeNewImportedDraftWithProperties(input_template, uuid, updated_at) {
-    let output_template = this.#initializeNewDraftWithPropertiesSharedWithImport(input_template, uuid, updated_at);
+    let output_template: any = this.#initializeNewDraftWithPropertiesSharedWithImport(input_template, uuid, updated_at);
     if (input_template._database_metadata && Util.isObject(input_template._database_metadata) && 
         input_template._database_metadata._public_date && Date.parse(input_template._database_metadata._public_date)) {
       output_template.public_date = new Date(input_template.public_date);
@@ -387,7 +385,7 @@ class Model {
   }
 
   async #extractFieldsFromCreateOrUpdate(input_fields, updated_at) {
-    let return_fields = [];
+    let return_fields: any[] = [];
     let changes = false;
     if (input_fields === undefined) {
       return [return_fields, changes];
@@ -418,8 +416,8 @@ class Model {
     return [return_fields, changes];
   }
 
-  async #extractRelatedTemplatesFromCreateOrUpdate(input_related_templates, updated_at, ancestor_uuids) {
-    let return_related_templates = [];
+  async #extractRelatedTemplatesFromCreateOrUpdate(input_related_templates, updated_at, ancestor_uuids): Promise<[any[], boolean]> {
+    let return_related_templates: any[] = [];
     let changes = false;
     if (input_related_templates === undefined) {
       return [return_related_templates, changes];
@@ -515,7 +513,7 @@ class Model {
   // The output will of course just be that version of the persisted template fetched.
   // How will the input indicate if it wants to update? It will submit the latest persisted version of that template
   async #extractSubscribedTemplatesFromCreateOrUpdate(input_subscribed_templates, parent_uuid, ancestor_uuids) {
-    let return_subscribed_templates = [];
+    let return_subscribed_templates: any[] = [];
     if (input_subscribed_templates === undefined) {
       return return_subscribed_templates;
     }
@@ -624,7 +622,7 @@ class Model {
   }
 
   async #persistFields(input_field_uuids) {
-    let return_field_ids = [];
+    let return_field_ids: any[] = [];
     // For each template field, persist that field, then replace the uuid with the internal_id.
     // It is possible there weren't any changes to persist, so keep track of whether we actually persisted anything.
     let template_field_model_instance = new TemplateFieldModel.model(this.state);
@@ -660,7 +658,7 @@ class Model {
   }
 
   async #persistRelatedTemplates(input_related_templates_uuids) {
-    let result_related_templates_ids = [];
+    let result_related_templates_ids: any[] = [];
     // For each template's related_templates, persist that related_template, then replace the uuid with the internal_id.
     // It is possible there weren't any changes to persist, so keep track of whether we actually persisted anything.
     for(let related_template_uuid of input_related_templates_uuids) {
@@ -729,12 +727,9 @@ class Model {
       return persisted_template._id;
     }
 
-    let fields = [];
-    let related_templates = [];
+    let fields = await this.#persistFields(template_draft.fields);
 
-    fields = await this.#persistFields(template_draft.fields);
-
-    related_templates = await this.#persistRelatedTemplates(template_draft.related_templates);
+    let related_templates = await this.#persistRelatedTemplates(template_draft.related_templates);
 
     // If there are changes, persist the current draft
     let persist_time = new Date();
@@ -959,8 +954,8 @@ class Model {
   }
 
   async #draftFetchFields(input_field_uuids) {
-    let fields = [];
-    let field_uuids = [];
+    let fields: any[] = [];
+    let field_uuids: string[] = [];
     let template_field_model_instance = new TemplateFieldModel.model(this.state);
     for(let field_uuid of input_field_uuids) {
       let field;
@@ -989,16 +984,14 @@ class Model {
       if (field) {
         fields.push(field);
         field_uuids.push(field.uuid);
-      } else {
-        console.log(`Failed to find a template field with uuid ${field_uuid}. Therefore, removing the reference to it from template with uuid ${template_draft.uuid}`);
-      }
+      } 
     }
     return [fields, field_uuids];
   }
 
   async #draftFetchRelatedTemplates(input_related_template_uuids) {
-    let related_templates = [];
-    let related_template_uuids = [];
+    let related_templates: any[] = [];
+    let related_template_uuids: string[] = [];
     for(let related_template_uuid of input_related_template_uuids) {
       let related_template;
       try {
@@ -1057,14 +1050,14 @@ class Model {
     let related_templates, related_template_uuids;
     [related_templates, related_template_uuids] = await this.#draftFetchRelatedTemplates(template_draft.related_templates);
 
-    let subscribed_templates = [];
+    let subscribed_templates: any[] = [];
     for(let subscribed_id of template_draft.subscribed_templates) {
       let subscribed_template = await this.#persistedByIdWithJoinsAndPermissions(subscribed_id);
       subscribed_templates.push(subscribed_template);
     }
 
     // Any existing references that are bad pointers need to be removed
-    let update = {};
+    let update: any = {};
     if(template_draft.fields.length != field_uuids.length) {
       update.fields = field_uuids;
     } 
@@ -1172,9 +1165,9 @@ class Model {
     await user_permissions_model_instance.initialize_permissions_for(this.state.user_id, template.uuid, SharedFunctions.DocumentTypes.Template);
 
     // 3. For templates and fields, recurse. If they throw an error, just remove them from the copy.
-    let fields = [];
-    let related_templates = [];
-    let subscribed_templates = [];
+    let fields: any[] = [];
+    let related_templates: any[] = [];
+    let subscribed_templates: any[] = [];
     for(let field of template.fields) {
       try {
         field = await template_field_model_instance.duplicate(field);
@@ -1251,7 +1244,7 @@ class Model {
     }
 
     // Populate template properties
-    let new_template = this.#initializeNewImportedDraftWithProperties(template, uuid, updated_at);
+    let new_template: any = this.#initializeNewImportedDraftWithProperties(template, uuid, updated_at);
 
     // Need to determine if this draft is any different from the persisted one.
     let changes = false;
@@ -1264,9 +1257,9 @@ class Model {
       for (let field of template.fields) {
         let field_uuid;
         try {
-          let more_changes;
+          let more_changes: boolean;
           [more_changes, field_uuid] = await (new TemplateFieldModel.model(this.state)).importField(field, updated_at);
-          changes |= more_changes;
+          changes ||= more_changes;
         } catch(err) {
           if (err instanceof Util.PermissionDeniedError) {
             field_uuid = await uuid_mapper_model_instance.get_new_uuid_from_old(field.template_field_uuid);
@@ -1292,7 +1285,7 @@ class Model {
         let more_changes;
         try {
           [more_changes, related_template_uuid] = await this.#importTemplate(related_template, updated_at);
-          changes |= more_changes;
+          changes ||= more_changes;
         } catch(err) {
           if (err instanceof Util.PermissionDeniedError) {
             // If the user doesn't have edit permissions, assume they want to link the persisted version of the template, or keep something another editor added
@@ -1475,4 +1468,9 @@ class Model {
   }
 
 };
-exports.model = Model;
+
+export {
+  init,
+  collectionExport as collection,
+  Model as model
+};

@@ -103,7 +103,7 @@ describe("update (and get)",  () => {
     await Helper.createAgentRegisterLogin(b_email, Helper.DEF_PASSWORD);
 
     let view_users = [b_email];
-    response = await Helper.updatePermissionGroup(uuid, "view", view_users);
+    let response = await Helper.updatePermissionGroup(uuid, "view", view_users);
     expect(response.statusCode).toBe(401);
   });
 
@@ -118,7 +118,7 @@ describe("update (and get)",  () => {
     Helper.setAgent(agent1);
 
     let admin_users = ["b@b.com"];
-    response = await Helper.updatePermissionGroup(uuid, PermissionTypes.admin, admin_users);
+    let response = await Helper.updatePermissionGroup(uuid, PermissionTypes.admin, admin_users);
     expect(response.statusCode).toBe(400);
 
   });
@@ -130,7 +130,7 @@ describe("update (and get)",  () => {
     let uuid = await Helper.templateFieldCreateAndTest(template_field);
 
     let users = [Helper.DEF_EMAIL];
-    response = await Helper.updatePermissionGroup(uuid, "invalid", users);
+    let response = await Helper.updatePermissionGroup(uuid, "invalid", users);
     expect(response.statusCode).toBe(404);
 
   });
@@ -265,7 +265,7 @@ describe("get",  () => {
       name: 'template'
     });
 
-    response = await Helper.getPermissionGroup(template.uuid, 'invalid');
+    let response = await Helper.getPermissionGroup(template.uuid, 'invalid');
     expect(response.statusCode).toBe(404);
 
   });

@@ -150,7 +150,7 @@ describe("suspend", () => {
   test("must be logged in", async () => {
     let agent2 = request.agent(app);
     Helper.setAgent(agent2);
-    let response = await Helper.accountSuspend();
+    let response = await Helper.accountSuspend("nothing");
     expect(response.statusCode).toBe(401);
   });
 

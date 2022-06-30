@@ -1,26 +1,27 @@
-const MongoClient = require('mongodb').MongoClient
+import {MongoClient, MongoClientOptions} from 'mongodb';
 
 var MongoConnection;
 var DB;
 
-exports.connect = async function(path) {
+async function connect(path) {
     MongoConnection = await MongoClient.connect(path, {
         useNewUrlParser: true,
         useUnifiedTopology: true,
-    });
+    } as MongoClientOptions);
 };
 
-exports.close = async function() {
+async function close() {
     await MongoConnection.close();
 }
 
-exports.db = function() {
+function db() {
     if (DB === undefined) {
         DB = MongoConnection.db('data_publisher');
     }
     return DB;
 }
-
-exports.newSession = function() {
+function newSession() {
     return MongoConnection.startSession();
 }
+
+export {connect, close, db, newSession}

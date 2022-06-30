@@ -1,4 +1,4 @@
-const fs = require('fs');
+import * as fs from 'fs';
 const fsPromises = fs.promises;
 const path = require('path');
 const http = require('http');
@@ -87,7 +87,7 @@ exports.uploadFileFromUrl = async function(req, res, next) {
               writeStream.close();
               FileModel.markUploaded(uuid)
               .then(() => {
-                resolve();
+                resolve(true);
               });
             });
           } catch(err) {
@@ -113,17 +113,17 @@ exports.uploadFileFromUrl = async function(req, res, next) {
       }).then((response) => {
   
         if(response.status != 200) {
-          reject(new Util.InputError(`Download from url failed: ${err}`));
+          Promise.reject(new Util.InputError(`Download from url failed: ${response.err}`));
         }
         //ensure that the user can call `then()` only when the file has
         //been downloaded entirely.
   
         return new Promise((resolve, reject) => {
           response.data.pipe(writeStream);
-          let error = null;
+          let error: any = null;
           writeStream.on('error', err => {
             error = err;
-            writer.close();
+            writeStream.close();
             reject(err);
           });
           writeStream.on('close', () => {
@@ -135,7 +135,7 @@ exports.uploadFileFromUrl = async function(req, res, next) {
           });
         });
       });
-    } catch (err) {
+    } catch (err: any) {
       await fsPromises.unlink(file_destination);
       if(err.isAxiosError) {
         throw new Util.InputError(`Fetching the file from the given url failed with the given message:
@@ -154,9 +154,9 @@ exports.uploadFileFromUrl = async function(req, res, next) {
 }
 
 exports.getFile = async function(req, res, next) {
-  let uuid = req.params.uuid;
-  let state = Util.initializeState(req);
   try {
+    let uuid = req.params.uuid;
+    let state = Util.initializeState(req);
     if(!(await SharedFunctions.exists(FileModel.collection(), uuid))) {
       throw new Util.NotFoundError(`File with uuid ${uuid} does not exist`);
     }
@@ -170,12 +170,11 @@ exports.getFile = async function(req, res, next) {
     if(!file_metadata.uploaded) {
       throw new Util.NotFoundError(`Uuid ${uuid} exists but no file for it has been uploaded.`);
     }
+    const file = path.join(FileModel.uploadDestination(), req.params.uuid);
+    res.sendFile(file);
   } catch(err) {
     next(err);
   }
-
-  const file = path.join(FileModel.uploadDestination(), req.params.uuid);
-  res.sendFile(file);
 }
 
 // With AWS: https://www.youtube.com/watch?v=NZElg91l_ms

@@ -28,7 +28,7 @@ describe("create (and get draft)", () => {
 
     test("No related datasets", async () => {
 
-      let template = {
+      let template: any = {
         "name":"t1"
       };
       template = await Helper.templateCreatePersistTest(template);
@@ -43,7 +43,7 @@ describe("create (and get draft)", () => {
 
     test("only one related dataset", async () => {
 
-      let template = {
+      let template: any = {
         name:"t1",
         related_templates:[{
           name: "t2"
@@ -65,7 +65,7 @@ describe("create (and get draft)", () => {
 
     test("Create dataset with related datasets going 6 nodes deep", async () => {
   
-      let template = { 
+      let template: any = { 
         "name": "t1",
         "related_templates": [
           { 
@@ -130,7 +130,7 @@ describe("create (and get draft)", () => {
 
     test("one related dataset, which already exists", async () => {
 
-      let template = {
+      let template: any = {
         name:"t1",
         related_templates:[{
           name: "t2"
@@ -155,7 +155,7 @@ describe("create (and get draft)", () => {
 
     test("link one related dataset user only has view permissions for, and one the user has no permissions for", async () => {
 
-      let template = {
+      let template: any = {
         name:"t1",
         related_templates:[{
           name: "t1.1"
@@ -166,10 +166,10 @@ describe("create (and get draft)", () => {
       };
       template = await Helper.templateCreatePersistTest(template);
 
-      let related_dataset_1 = {
+      let related_dataset_1: any = {
         template_id: template.related_templates[0]._id
       };
-      let related_dataset_2 = {
+      let related_dataset_2: any = {
         template_id: template.related_templates[1]._id
       };
 
@@ -201,7 +201,7 @@ describe("create (and get draft)", () => {
 
     test("group ids are the same for datasets created together, but different for anything linked that was created elsewhere", async () => {
 
-      let template = {
+      let template: any = {
         name:"t1",
         related_templates:[
           {
@@ -228,7 +228,7 @@ describe("create (and get draft)", () => {
       }
       dataset12 = await Helper.datasetCreateAndTest(dataset12);
 
-      let dataset1 = {
+      let dataset1: any = {
         template_id: template._id,
         related_datasets: [
           {
@@ -252,7 +252,7 @@ describe("create (and get draft)", () => {
 
     test("Can match dataset to template even if the order of related_datasets does not match related_templates", async () => {
 
-      let template = {
+      let template: any = {
         name:"t1",
         related_templates: [
           {name: "t1.1"},
@@ -263,7 +263,7 @@ describe("create (and get draft)", () => {
       template = await Helper.templateCreatePersistTest(template);
 
       // uuid list using the templates in the wrong order
-      dataset = {
+      let dataset = {
         template_id: template._id,
         related_datasets: [
           { 
@@ -274,13 +274,13 @@ describe("create (and get draft)", () => {
           }
         ]
       };
-      response = await Helper.datasetCreate(dataset);
+      let response = await Helper.datasetCreate(dataset);
       expect(response.statusCode).toBe(200);
     });
 
     test("two related_datasets pointing to the same related_template", async () => {
 
-      let template = {
+      let template: any = {
         name:"t1",
         related_templates:[{
           name: "t2"
@@ -332,7 +332,7 @@ describe("create (and get draft)", () => {
       expect(response.statusCode).toBe(400);
 
       // template exists with this _id but has not been persisted
-      let template = {
+      let template: any = {
         name: "t1"
       };
       template = await Helper.templateCreateAndTest(template);
@@ -361,14 +361,14 @@ describe("create (and get draft)", () => {
 
     test("All properties must be of the correct type", async () => {
 
-      let template = {
+      let template: any = {
         name:"t1",
         public_date: (new Date()).toISOString(),
       };
 
       template = await Helper.templateCreatePersistTest(template);
 
-      let dataset = {
+      let dataset: any = {
         public_date: (new Date()).toISOString(),
         template_id: template._id,
         related_datasets: []
@@ -380,7 +380,7 @@ describe("create (and get draft)", () => {
         template_id: template._id,
         related_datasets: []
       };
-      response = await Helper.datasetCreate(dataset);
+      let response = await Helper.datasetCreate(dataset);
       expect(response.statusCode).toBe(400);
 
       dataset = {
@@ -395,7 +395,7 @@ describe("create (and get draft)", () => {
 
     test("Dataset must match format of template", async () => {
 
-      let template = {
+      let template: any = {
         name:"t1",
         related_templates: [
           {name: "t1.1"},
@@ -406,7 +406,7 @@ describe("create (and get draft)", () => {
       template = await Helper.templateCreatePersistTest(template);
 
       // all related templates match validly
-      let dataset = {
+      let dataset: any = {
         template_id: template._id,
         related_datasets: [
           { 
@@ -444,7 +444,7 @@ describe("create (and get draft)", () => {
 
     test("Create dataset with related_datasets going 6 nodes deep, but 2nd-to last dataset is invalid", async () => {
   
-      let template = { 
+      let template: any = { 
         "name": "t1",
         "related_templates": [
           { 
@@ -509,7 +509,7 @@ describe("create (and get draft)", () => {
 
     test("Public date must be greater than template public date", async () => {
 
-      let template = {
+      let template: any = {
         name:"t1"
       };
 
@@ -527,7 +527,7 @@ describe("create (and get draft)", () => {
 
     test("there must be at least one related_dataset pointing to each related_template from the template", async () => {
 
-      let template = {
+      let template: any = {
         name:"t1",
         related_templates:[{
           name: "t2"
@@ -546,7 +546,7 @@ describe("create (and get draft)", () => {
 
     test("related_dataset can't point to a related_template not supported by the template", async () => {
 
-      let template = {
+      let template: any = {
         name:"t1",
         related_templates:[{
           name: "t2"
@@ -554,7 +554,7 @@ describe("create (and get draft)", () => {
       };
       template = await Helper.templateCreatePersistTest(template);
 
-      let other_template = {
+      let other_template: any = {
         name: "other"
       }
       other_template = await Helper.templateCreatePersistTest(other_template);
@@ -574,7 +574,7 @@ describe("create (and get draft)", () => {
 
     test("A given dataset may only have a maximum of one instance of a related_dataset", async () => {
   
-      let template = { 
+      let template: any = { 
         name: "kakashi",
         related_templates: [{
           name: "naruto"
@@ -597,7 +597,7 @@ describe("create (and get draft)", () => {
 
     test("A related_dataset can't reference a related_template not supported by the dataset's template", async () => {
   
-      let template = { 
+      let template: any = { 
         name: "kakashi",
         related_templates: [{
           name: "naruto"
@@ -605,7 +605,7 @@ describe("create (and get draft)", () => {
       };
       template = await Helper.templateCreatePersistTest(template);
 
-      let other_template = {
+      let other_template: any = {
         name: "sasuke"
       };
       other_template = await Helper.templateCreatePersistTest(other_template);
@@ -626,7 +626,7 @@ describe("create (and get draft)", () => {
 
 const populateWithDummyTemplateAndDataset = async () => {
 
-  let template = { 
+  let template: any = { 
     "name": "t1",
     public_date: (new Date()).toISOString(),
     "related_templates": [
@@ -664,7 +664,7 @@ describe("update (and get draft)", () => {
     });
 
     test("Change template used by the dataset", async () => {
-      let new_template = { name: "t2"};
+      let new_template: any = { name: "t2"};
       new_template = await Helper.templateCreatePersistTest(new_template);
 
       dataset = {
@@ -713,19 +713,19 @@ describe("update (and get draft)", () => {
     });
 
     test("template_uuid and public date", async () => {
-      let template = {
+      let template: any = {
         name: "naruto",
         public_date: (new Date()).toISOString()
       };
       template = await Helper.templateCreatePersistTest(template);
   
-      let dataset = {
+      let dataset: any = {
         template_id: template._id
       };
       dataset = await Helper.datasetCreatePersistTest(dataset);
       expect(await Helper.datasetDraftExistingAndTest(dataset.uuid)).toBe(false);
   
-      let template_2 = {
+      let template_2: any = {
         name: "sasuke",
         public_date: (new Date()).toISOString()
       };
@@ -788,7 +788,7 @@ describe("update (and get draft)", () => {
 
     test("updating a related_dataset creates drafts of parents but not children", async () => {
       // Create and persist template
-      let template = {
+      let template: any = {
         "name":"t1",
         "related_templates":[{
           "name": "t2",
@@ -803,7 +803,7 @@ describe("update (and get draft)", () => {
       };
       template = await Helper.templateCreatePersistTest(template);
 
-      let dataset = {
+      let dataset: any = {
         template_id: template._id,
         related_datasets: [{
           template_id: template.related_templates[0]._id,
@@ -836,16 +836,16 @@ describe("update (and get draft)", () => {
 
     test("if a subscribed template is updated and persisted but the dataset's subscribed reference doesn't change, dataset doesn't update", async () => {
 
-      let subscribed_template = {name: "sub"};
+      let subscribed_template: any = {name: "sub"};
       subscribed_template = await Helper.templateCreatePersistTest(subscribed_template);
 
-      let template = {
+      let template: any = {
         name: "t", 
         subscribed_templates: [subscribed_template]
       };
       template = await Helper.templateCreatePersistTest(template);
 
-      let dataset = {
+      let dataset: any = {
         template_id: template._id,
         related_datasets: [
           {
@@ -870,11 +870,11 @@ describe("update (and get draft)", () => {
 
 describe("get draft", () => {
   test("must have edit permission", async () => {
-    let template = {
+    let template: any = {
       name: "t"
     }
     template = await Helper.templateCreatePersistTest(template);
-    let dataset = {
+    let dataset: any = {
       template_id: template._id
     };
     dataset = await Helper.datasetCreateAndTest(dataset);
@@ -887,7 +887,7 @@ describe("get draft", () => {
 
   test("if user has view but not edit access to linked dataset, the pubished version replaces that dataset", async () => {
 
-    let template = { 
+    let template: any = { 
       name: "t1",
       related_templates: [{name: "t2"}],
       public_date: (new Date()).toISOString()
@@ -899,7 +899,7 @@ describe("get draft", () => {
     };
     related_dataset = await Helper.datasetCreatePersistTest(related_dataset);
 
-    let dataset = {
+    let dataset: any = {
       template_id: template._id,
       related_datasets: [related_dataset]
     };
@@ -925,19 +925,19 @@ describe("get draft", () => {
 
   test("if user has neither view nor edit access to linked properties, an empty object replaces that property", async () => {
 
-    let template = { 
+    let template: any = { 
       name: "t1",
       related_templates: [{name: "t2"}],
       public_date: (new Date()).toISOString()
     };
     template = await Helper.templateCreatePersistTest(template);  
 
-    let related_dataset = {
+    let related_dataset: any = {
       template_id: template.related_templates[0]._id
     };
     related_dataset = await Helper.datasetCreatePersistTest(related_dataset);
 
-    let dataset = {
+    let dataset: any = {
       template_id: template._id,
       related_datasets: [related_dataset]
     };
@@ -960,7 +960,7 @@ describe("get draft", () => {
 describe("persist (and get persisted)", () => {
   describe("Success cases", () => {
     test("Simple persist - no related datasets", async () => {
-      let template = { 
+      let template: any = { 
         "name": "t1"
       };
       template = await Helper.templateCreatePersistTest(template);
@@ -973,7 +973,7 @@ describe("persist (and get persisted)", () => {
 
     test("Complex persist - with a related dataset", async () => {
 
-      let template = {
+      let template: any = {
         name:"t1",
         related_templates:[{
           name: "t2"
@@ -994,14 +994,14 @@ describe("persist (and get persisted)", () => {
       let related_dataset_uuid = persisted.related_datasets[0].uuid;
 
       // Check that the related dataset was also persisted
-      response = await Helper.datasetLatestPersisted(related_dataset_uuid);
+      let response = await Helper.datasetLatestPersisted(related_dataset_uuid);
       expect(response.statusCode).toBe(200);
       expect(response.body).toMatchObject(related_dataset);
     });
 
     test("Complex persist - changes in a nested property result in persisting for all parent properties", async () => {
 
-      let template = {
+      let template: any = {
         "name":"t1",
         "related_templates":[{
           "name": "t2",
@@ -1016,7 +1016,7 @@ describe("persist (and get persisted)", () => {
       };
       template = await Helper.templateCreatePersistTest(template);
 
-      let dataset = {
+      let dataset: any = {
         template_id: template._id,
         "related_datasets":[{
           template_id: template.related_templates[0]._id,
@@ -1054,7 +1054,7 @@ describe("persist (and get persisted)", () => {
 
     test("Complex persist - persist parent who's child changed previously and no other changes are present", async () => {
 
-      let template = {
+      let template: any = {
         "name":"1",
         "related_templates":[{
           "name": "2",
@@ -1064,7 +1064,7 @@ describe("persist (and get persisted)", () => {
       // Create initial data
       template = await Helper.templateCreatePersistTest(template);
 
-      let dataset = {
+      let dataset: any = {
         template_id: template._id,
         "related_datasets":[{
           template_id: template.related_templates[0]._id,
@@ -1108,7 +1108,7 @@ describe("persist (and get persisted)", () => {
     });
 
     test("Still able to persist parent even if don't have permission to persist child", async () => {
-      let template = {
+      let template: any = {
         name:"t1",
         public_date: (new Date()).toISOString(),
         related_templates:[{
@@ -1118,7 +1118,7 @@ describe("persist (and get persisted)", () => {
       };
       template = await Helper.templateCreatePersistTest(template);
 
-      let dataset = {
+      let dataset: any = {
         template_id: template._id,
         related_datasets:[{
           template_id: template.related_templates[0]._id
@@ -1163,12 +1163,12 @@ describe("persist (and get persisted)", () => {
     });
 
     test("Simple change - only template was updated", async () => {
-      let template = { 
+      let template: any = { 
         "name": "t1"
       };
       template = await Helper.templateCreatePersistTest(template);
       
-      let dataset = {
+      let dataset: any = {
         template_id: template._id
       }
       let dataset_persisted = await Helper.datasetCreatePersistTest(dataset);
@@ -1189,7 +1189,7 @@ describe("persist (and get persisted)", () => {
       };
       subscribed_template = await Helper.templateCreatePersistTest(subscribed_template);
 
-      let template = {
+      let template: any = {
         name:"t1",
         subscribed_templates:[subscribed_template]
       };
@@ -1212,12 +1212,12 @@ describe("persist (and get persisted)", () => {
   describe("Failure cases", () => {
     test("Dataset with uuid must exist", async () => {
 
-      let template = {
+      let template: any = {
         name:"t1"
       };
       template = await Helper.templateCreatePersistTest(template);
 
-      let dataset = {
+      let dataset: any = {
         template_id: template._id
       }
       dataset = await Helper.datasetCreateAndTest(dataset);
@@ -1232,19 +1232,19 @@ describe("persist (and get persisted)", () => {
     });
 
     test("There must be changes to persist", async () => {
-      let template = {
+      let template: any = {
         name:"t1"
       };
       template = await Helper.templateCreatePersistTest(template);
 
-      let dataset = {
+      let dataset: any = {
         template_id: template._id
       }
       dataset = await Helper.datasetCreateAndTest(dataset);
 
       let last_update = await Helper.testAndExtract(Helper.datasetLastUpdate, dataset.uuid);
 
-      response = await Helper.datasetPersist(dataset.uuid, last_update);
+      let response = await Helper.datasetPersist(dataset.uuid, last_update);
       expect(response.statusCode).toBe(200);
 
       response = await Helper.datasetPersist(dataset.uuid, last_update);
@@ -1252,7 +1252,7 @@ describe("persist (and get persisted)", () => {
     });
 
     test("Internal refrences must be valid", async () => {
-      let template = {
+      let template: any = {
         name:"t1",
         related_templates: [{
           name: "t1.1"
@@ -1260,7 +1260,7 @@ describe("persist (and get persisted)", () => {
       };
       template = await Helper.templateCreatePersistTest(template);
 
-      let dataset = {
+      let dataset: any = {
         template_id: template._id,
         related_datasets: [{
           template_id: template.related_templates[0]._id
@@ -1288,12 +1288,12 @@ describe("persist (and get persisted)", () => {
     });
 
     test("Last update provided must match to actual last update in the database", async () => {
-      let template = {
+      let template: any = {
         name: "t1"
       };
       template = await Helper.templateCreatePersistTest(template);
 
-      let dataset = {
+      let dataset: any = {
         template_id: template._id
       };
       dataset = await Helper.datasetCreateAndTest(dataset);
@@ -1303,7 +1303,7 @@ describe("persist (and get persisted)", () => {
     });
 
     test("Last update provided must match to actual last update of dataset and all sub-datasets in the database", async () => {
-      let template = {
+      let template: any = {
         name: "t1",
         related_templates: [
           {
@@ -1314,7 +1314,7 @@ describe("persist (and get persisted)", () => {
       };
       template = await Helper.templateCreatePersistTest(template);
 
-      let dataset = {
+      let dataset: any = {
         template_id: template._id,
         related_datasets: [{
           template_id: template.related_templates[0]._id
@@ -1323,7 +1323,7 @@ describe("persist (and get persisted)", () => {
       dataset = await Helper.datasetCreateAndTest(dataset);
       let old_update = dataset.updated_at;
 
-      let related_dataset = dataset.related_datasets[0];
+      let related_dataset: any = dataset.related_datasets[0];
       related_dataset.public_date = (new Date()).toISOString();
 
       let response = await Helper.datasetUpdate(related_dataset.uuid, related_dataset);
@@ -1345,12 +1345,12 @@ describe("persist (and get persisted)", () => {
 
     test("User must have admin permission to persist", async () => {
 
-      let template = {
+      let template: any = {
         name:"t1"
       };
       template = await Helper.templateCreatePersistTest(template);
 
-      let dataset = {
+      let dataset: any = {
         template_id: template._id
       };
       dataset = await Helper.datasetCreateAndTest(dataset);
@@ -1360,7 +1360,7 @@ describe("persist (and get persisted)", () => {
 
       Helper.setAgent(agent2);
 
-      response = await Helper.datasetPersist(dataset.uuid, last_update);
+      let response = await Helper.datasetPersist(dataset.uuid, last_update);
       expect(response.statusCode).toBe(401);
 
       await Helper.setAgent(agent1);
@@ -1381,7 +1381,7 @@ describe("persist (and get persisted)", () => {
 
     test("Dataset must match format of template", async () => {
 
-      let template = {
+      let template: any = {
         name:"t1",
         related_templates: [
           {name: "t1.1"}
@@ -1390,7 +1390,7 @@ describe("persist (and get persisted)", () => {
       template = await Helper.templateCreatePersistTest(template);
 
       // create dataset, matching template format
-      let dataset = {
+      let dataset: any = {
         template_id: template._id,
         related_datasets: [
           { 
@@ -1412,7 +1412,7 @@ describe("persist (and get persisted)", () => {
 
     test("If user doesn't have admin access to linked dataset and that dataset doesn't have a persisted version, then we can't persist", async () => {
       let public_date = (new Date()).toISOString();
-      let template = {
+      let template: any = {
         name:"t1",
         public_date,
         related_templates:[{
@@ -1425,14 +1425,14 @@ describe("persist (and get persisted)", () => {
 
       Helper.setAgent(agent2);
 
-      let related_dataset = {
+      let related_dataset: any = {
         template_id: template.related_templates[0]._id
       };
       related_dataset = await Helper.datasetCreateAndTest(related_dataset);
 
       await Helper.setAgent(agent1);
 
-      let dataset = {
+      let dataset: any = {
         template_id: template._id,
         related_datasets:[{uuid: related_dataset.uuid}]
       };
@@ -1448,13 +1448,13 @@ describe("persist (and get persisted)", () => {
 describe("get persisted", () => {
   test("if user does not have view access to linked properties, an empty object replaces that property", async () => {
     
-    let template = { 
+    let template: any = { 
       name: "t1",
       related_templates: [{name: "t1.1"}]
     };
     template = await Helper.templateCreatePersistTest(template);  
     
-    let dataset = { 
+    let dataset: any = { 
       template_id: template._id,
       related_datasets: [{
         template_id: template.related_templates[0]._id
@@ -1480,12 +1480,12 @@ describe("get persisted", () => {
   });
 
   test("must have view permissions", async () => {
-    let template = { 
+    let template: any = { 
       name: "t1"
     };
     template = await Helper.templateCreatePersistTest(template);  
 
-    let dataset = { 
+    let dataset: any = { 
       template_id: template._id
     };
     dataset = await Helper.datasetCreatePersistTest(dataset);  
@@ -1498,13 +1498,13 @@ describe("get persisted", () => {
 });
 
 test("get persisted for a certain date", async () => {
-  let template = {
+  let template: any = {
     name:"t1",
     public_date: (new Date()).toISOString()
   };
   template = await Helper.templateCreatePersistTest(template);
 
-  let dataset = {
+  let dataset: any = {
     template_id: template._id
   };
   dataset = await Helper.datasetCreateAndTest(dataset);
@@ -1564,13 +1564,13 @@ describe("lastUpdate", () => {
 
   describe("success", () => {
     test("basic draft, no related datasets", async () => {
-      let template = {
+      let template: any = {
         "name":"t1"
       };
       template = await Helper.templateCreatePersistTest(template);
 
       let timestamp = new Date();
-      let dataset = {
+      let dataset: any = {
         template_id: template._id
       };
       dataset = await Helper.datasetCreateAndTest(dataset);
@@ -1581,12 +1581,12 @@ describe("lastUpdate", () => {
     });
 
     test("basic persisted, with related_datasets. available to anyone with view permissions", async () => {
-      let template = {
+      let template: any = {
         name:"t1"
       };
       template = await Helper.templateCreatePersistTest(template);
       let timestamp = new Date();
-      let dataset = {
+      let dataset: any = {
         template_id: template._id
       };
       dataset = await Helper.datasetCreatePersistTest(dataset);
@@ -1609,7 +1609,7 @@ describe("lastUpdate", () => {
     });
 
     test("sub dataset updated later than parent dataset", async () => {
-      let template = {
+      let template: any = {
         "name": "t1",
         "related_templates": [{
           "name": "t2",
@@ -1621,7 +1621,7 @@ describe("lastUpdate", () => {
       };
       template = await Helper.templateCreatePersistTest(template);
 
-      let dataset = {
+      let dataset: any = {
         template_id: template._id,
         related_datasets: [{
           template_id: template.related_templates[0]._id,
@@ -1640,7 +1640,7 @@ describe("lastUpdate", () => {
       dataset3.public_date = (new Date()).toISOString()
 
 
-      response = await Helper.datasetUpdate(dataset3.uuid, dataset3);
+      let response = await Helper.datasetUpdate(dataset3.uuid, dataset3);
       expect(response.statusCode).toBe(200);
 
       let timestamp_after_update = new Date();
@@ -1659,7 +1659,7 @@ describe("lastUpdate", () => {
 
     test("sub dataset updated and persisted later than parent dataset", async () => {
 
-      let template = {
+      let template: any = {
         "name": "1",
         "related_templates": [{
           "name": "2",
@@ -1668,7 +1668,7 @@ describe("lastUpdate", () => {
       };
       template = await Helper.templateCreatePersistTest(template);
 
-      let dataset = {
+      let dataset: any = {
         template_id: template._id,
         related_datasets: [{
           template_id: template.related_templates[0]._id
@@ -1693,7 +1693,7 @@ describe("lastUpdate", () => {
     });
 
     test("grandchild updated, but child deleted. Updated time should still be grandchild updated", async () => {
-      let template = {
+      let template: any = {
         "name": "1",
         "related_templates": [{
           "name": "2",
@@ -1705,7 +1705,7 @@ describe("lastUpdate", () => {
       };
       template = await Helper.templateCreatePersistTest(template);
 
-      let dataset = {
+      let dataset: any = {
         template_id: template._id,
         related_datasets: [{
           template_id: template.related_templates[0]._id,
@@ -1717,7 +1717,7 @@ describe("lastUpdate", () => {
       dataset = await Helper.datasetCreateAndTest(dataset);
 
       let dataset2 = dataset.related_datasets[0];
-      let dataset3 = dataset2.related_datasets[0];
+      let dataset3: any = dataset2.related_datasets[0];
 
       // persist
       await Helper.datasetPersistAndFetch(dataset.uuid, Helper);
@@ -1725,7 +1725,7 @@ describe("lastUpdate", () => {
       // Update grandchild
       dataset3.public_date = (new Date()).toISOString();
 
-      response = await Helper.datasetUpdate(dataset3.uuid, dataset3);
+      let response = await Helper.datasetUpdate(dataset3.uuid, dataset3);
       expect(response.statusCode).toBe(200);
 
       response = await Helper.datasetDraftGet(dataset3.uuid, Helper);
@@ -1751,12 +1751,12 @@ describe("lastUpdate", () => {
     });
 
     test("must have edit permissions to get last update of draft", async () => {
-      let template = {
+      let template: any = {
         "name":"t1"
       };
       template = await Helper.templateCreatePersistTest(template);
 
-      let dataset = {
+      let dataset: any = {
         template_id: template._id
       };
       dataset = await Helper.datasetCreateAndTest(dataset);
@@ -1768,12 +1768,12 @@ describe("lastUpdate", () => {
     });
 
     test("must have view permissions to get last update of persisted", async () => {
-      let template = {
+      let template: any = {
         "name":"t1"
       };
       template = await Helper.templateCreatePersistTest(template);
 
-      let dataset = {
+      let dataset: any = {
         template_id: template._id
       };
       dataset = await Helper.datasetCreatePersistTest(dataset);
@@ -1788,13 +1788,13 @@ describe("lastUpdate", () => {
 
 describe("delete", () => {
   test("delete a draft, not a persisted version", async () => {
-    let template = {
+    let template: any = {
       name: "t1",
       public_date: (new Date()).toISOString()
     };
     template = await Helper.templateCreatePersistTest(template);
 
-    let dataset = {
+    let dataset: any = {
       template_id: template._id
     }
     dataset = await Helper.datasetCreatePersistTest(dataset);
@@ -1802,7 +1802,7 @@ describe("delete", () => {
     dataset.public_date = (new Date()).toISOString();
   
     // Change the draft, but don't persist the change
-    response = await Helper.datasetUpdate(dataset.uuid, dataset);
+    let response = await Helper.datasetUpdate(dataset.uuid, dataset);
     expect(response.statusCode).toBe(200);
   
     // Verify that the draft is what we changed it to
@@ -1826,11 +1826,11 @@ describe("delete", () => {
   });
 
   test("if there are no persisted versions, permissions get deleted as well", async () => {
-    let template = {
+    let template: any = {
       name: "t"
     };
     template = await Helper.templateCreatePersistTest(template);
-    let dataset = {
+    let dataset: any = {
       template_id: template._id
     };
     dataset = await Helper.datasetCreateAndTest(dataset);
@@ -1846,7 +1846,7 @@ describe("delete", () => {
     
     await Helper.testAndExtract(Helper.datasetDelete, uuid);
     
-    response = await Helper.getPermissionGroup(uuid, PermissionTypes.admin);
+    let response = await Helper.getPermissionGroup(uuid, PermissionTypes.admin);
     expect(response.statusCode).toBe(404);
 
     user_permissions = await Helper.testAndExtract(Helper.accountPermissions);
@@ -1859,12 +1859,12 @@ describe("delete", () => {
   });
 
   test("need admin permissions", async () => {
-    let template = {
+    let template: any = {
       name: "t1"
     };
     template = await Helper.templateCreatePersistTest(template);
 
-    let dataset = {
+    let dataset: any = {
       template_id: template._id
     };
     dataset = await Helper.datasetCreateAndTest(dataset);
@@ -1879,7 +1879,7 @@ describe("delete", () => {
 describe("duplicate", () => {
   describe("success", () => {
     test("normal test, some things in the same group_uuid and some not", async () => {
-      let template = {
+      let template: any = {
         name:"t1",
         related_templates:[
           {
@@ -1898,7 +1898,7 @@ describe("duplicate", () => {
       };
       template = await Helper.templateCreatePersistTest(template);
 
-      let dataset12 = {
+      let dataset12: any = {
         template_id: template.related_templates[1]._id,
         related_datasets: [{
           template_id: template.related_templates[1].related_templates[0]._id
@@ -1906,7 +1906,7 @@ describe("duplicate", () => {
       };
       dataset12 = await Helper.datasetCreateAndTest(dataset12);
 
-      let dataset1 = {
+      let dataset1: any = {
         template_id: template._id,
         related_datasets: [
           {
@@ -1966,7 +1966,7 @@ describe("duplicate", () => {
     });
     
     test("if don't have a permission to a related_template, it is dropped and parent is still duplicated", async () => {
-      let template = {
+      let template: any = {
         name:"t1",
         public_date: (new Date()).toISOString(),
         related_templates:[
@@ -1982,7 +1982,7 @@ describe("duplicate", () => {
       };
       related_dataset = await Helper.datasetCreatePersistTest(related_dataset);
 
-      let dataset = {
+      let dataset: any = {
         template_id: template._id,
         public_date: (new Date()).toISOString(),
         related_datasets: [related_dataset]
@@ -1991,7 +1991,7 @@ describe("duplicate", () => {
 
       Helper.setAgent(agent2);
 
-      response = await Helper.datasetDuplicate(dataset.uuid);
+      let response = await Helper.datasetDuplicate(dataset.uuid);
       expect(response.statusCode).toBe(200);
       let new_dataset = response.body;
 
@@ -2000,7 +2000,7 @@ describe("duplicate", () => {
     });
 
     test("Duplicate a dataset with a couple references to the same dataset uuid", async () => {
-      let template = {
+      let template: any = {
         name:"t1",
         related_templates:[
           {
@@ -2015,7 +2015,7 @@ describe("duplicate", () => {
       template.related_templates[1].related_templates.push(template.related_templates[0]);
       template = await Helper.templateUpdatePersistTest(template);
 
-      let dataset = {
+      let dataset: any = {
         template_id: template._id,
         related_datasets: [
           {
@@ -2046,19 +2046,19 @@ describe("duplicate", () => {
 
   describe("failure", () => {
     test("need read permissions to duplicate", async () => {
-      let template = {
+      let template: any = {
         name:"t1"
       };
       template = await Helper.templateCreatePersistTest(template);
 
-      let dataset = {
+      let dataset: any = {
         template_id: template._id
       };
       dataset = await Helper.datasetCreatePersistTest(dataset);
 
       Helper.setAgent(agent2);
 
-      response = await Helper.datasetDuplicate(dataset.uuid);
+      let response = await Helper.datasetDuplicate(dataset.uuid);
       expect(response.statusCode).toBe(401);
     });
   });
@@ -2068,14 +2068,14 @@ describe("publish", () => {
 
   test("basic test that it works", async () => {
 
-    let template = {
+    let template: any = {
       name:"t1",
       public_date: (new Date()).toISOString()
     };
     template = await Helper.templateCreatePersistTest(template);
   
     let public_date_1 = (new Date()).toISOString();
-    let dataset = {
+    let dataset: any = {
       template_id: template._id,
       public_date: public_date_1
     };
@@ -2112,7 +2112,7 @@ describe("publish", () => {
   describe("Failure cases", () => {
 
     const createDummyTemplateAndDataset = async () => {
-      let template = {
+      let template: any = {
         name: "t"
       };
       template = await Helper.templateCreatePersistTest(template);
@@ -2125,7 +2125,7 @@ describe("publish", () => {
     }
 
     const createDummyTemplateAndPersistedDataset = async () => {
-      dataset = await createDummyTemplateAndDataset();
+      let dataset: any = await createDummyTemplateAndDataset();
       return await Helper.datasetPersistAndFetch(dataset.uuid);
     }
 
@@ -2141,7 +2141,7 @@ describe("publish", () => {
       let response = await Helper.datasetPublish(Helper.VALID_UUID, "name");
       expect(response.statusCode).toBe(404);
 
-      let dataset = await createDummyTemplateAndDataset();
+      let dataset: any = await createDummyTemplateAndDataset();
       response = await Helper.datasetPublish(dataset.uuid, "name");
       expect(response.statusCode).toBe(404);
     });
@@ -2151,13 +2151,13 @@ describe("publish", () => {
 
       Helper.setAgent(agent2);
 
-      response = await Helper.datasetPublish(dataset.uuid, "name");
+      let response = await Helper.datasetPublish(dataset.uuid, "name");
       expect(response.statusCode).toBe(401);
     });
 
     test("Cannot publish with the same name twice", async () => {
       let dataset = await createDummyTemplateAndPersistedDataset();
-      response = await Helper.datasetPublish(dataset.uuid, "name");
+      let response = await Helper.datasetPublish(dataset.uuid, "name");
       expect(response.statusCode).toBe(200);
       response = await Helper.datasetPublish(dataset.uuid, "name");
       expect(response.statusCode).toBe(400);
@@ -2183,7 +2183,7 @@ describe("publish", () => {
     // Get all records in the second publish. It should be the 2nd version of the dataset, 1st record 4th version ... 4th record 1st version
 
     // Create and persist the dataset, and create four records. 
-    let template = {
+    let template: any = {
       name:"t1",
       fields: [
         {
@@ -2195,7 +2195,7 @@ describe("publish", () => {
     template = await Helper.templateCreatePersistTest(template);
   
     let public_date_1 = (new Date()).toISOString();
-    let dataset = {
+    let dataset: any = {
       template_id: template._id,
       public_date: public_date_1
     };
@@ -2299,7 +2299,7 @@ describe("publish", () => {
 });
 
 test("full range of operations with big data", async () => {
-  let template = {
+  let template: any = {
     name: "1",
     related_templates: [
       {
@@ -2372,7 +2372,7 @@ test("all public datasets uuids", async () => {
 
   let public_date = (new Date()).toISOString();
   let one_hour_late = (new Date((new Date(public_date)).getTime() + 1*60*60*1000)).toISOString();
-  let template = { 
+  let template: any = { 
     name: "t1",
     public_date,
     related_templates: [
@@ -2402,7 +2402,7 @@ test("all public datasets uuids", async () => {
   };
   template = await Helper.templateCreatePersistTest(template);
 
-  let dataset = { 
+  let dataset: any = { 
     template_id: template._id,
     public_date,
     related_datasets: [

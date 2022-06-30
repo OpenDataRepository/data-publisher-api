@@ -1,6 +1,6 @@
 const MongoDB = require('../lib/mongoDB');
 const { v4: uuidv4, validate: uuidValidate } = require('uuid');
-const Util = require('../lib/util');
+import * as Util from '../lib/util';
 const TemplateModel = require('./template');
 const UserPermissionsModel = require('./user_permissions');
 const PermissionGroupModel = require('./permission_group');
@@ -68,11 +68,11 @@ async function collection() {
   return Dataset;
 }
 
-exports.init = async function() {
+async function init() {
   Dataset = await collection();
 }
 
-exports.collection = function() {
+function collectionExport() {
   return Dataset;
 }
 
@@ -80,7 +80,7 @@ class Model {
 
   collection = Dataset;
 
-  constructor(state){
+  constructor(public state){
     this.state = state;
   }
 
@@ -95,7 +95,7 @@ class Model {
     delete draft.persist_date;
 
     // Replace each of the related_dataset _ids with uuids. 
-    let related_datasets = [];
+    let related_datasets: string[] = [];
     for(let _id of persisted.related_datasets) {
       let uuid = await SharedFunctions.uuidFor_id(Dataset, _id, this.state.session);
       if(uuid) {
@@ -142,8 +142,8 @@ class Model {
     return false;
   }
 
-  async #extractRelatedDatasetsFromCreateOrUpdate(input_related_datasets, template, group_uuid, updated_at) {
-    let return_datasets = [];
+  async #extractRelatedDatasetsFromCreateOrUpdate(input_related_datasets, template, group_uuid, updated_at): Promise<[any[], boolean]> {
+    let return_datasets: any[] = [];
     let changes = false;
     // Recurse into related_datasets
     if(!input_related_datasets) {
@@ -197,7 +197,7 @@ class Model {
       unseen_templates.delete(related_dataset.template_id);
 
       try {
-        let new_changes;
+        let new_changes: boolean;
         [new_changes, related_dataset] = await this.#validateAndCreateOrUpdateRecurser(related_dataset, related_template, group_uuid, updated_at);
         changes = changes || new_changes;
       } catch(err) {
@@ -269,7 +269,7 @@ class Model {
     }
 
     // Build object to create/update
-    let new_dataset = {
+    let new_dataset: any = {
       uuid,
       template_id: SharedFunctions.convertToMongoId(input_dataset.template_id),
       group_uuid,
@@ -403,8 +403,8 @@ class Model {
     }
 
     // Now recurse into each related_dataset, replacing each uuid with an imbedded object
-    let related_datasets = [];
-    let related_dataset_uuids = [];
+    let related_datasets: any[] = [];
+    let related_dataset_uuids: string[] = [];
     for(let i = 0; i < dataset_draft.related_datasets.length; i++) {
       let related_dataset_uuid = dataset_draft.related_datasets[i];
       let related_dataset;
@@ -488,7 +488,7 @@ class Model {
   }
 
   async #persistRelatedDatasets(input_related_dataset_uuids, template) {
-    let result_dataset_ids = [];
+    let result_dataset_ids: any[] = [];
     // For each dataset's related_datasets, persist that related_dataset, then replace the uuid with the internal_id.
     // It is possible there weren't any changes to persist, so keep track of whether we actually persisted anything.
     // Requirements:
@@ -652,7 +652,7 @@ class Model {
 
     let current_pipeline = pipeline;
 
-    let pipeline_addons = [
+    let pipeline_addons: any[] = [
       {
         '$lookup': {
           'from': "datasets",
@@ -767,7 +767,7 @@ class Model {
     let uuid = uuidv4();
     uuid_dictionary[original_dataset.uuid] = uuid;
 
-    let new_dataset = {
+    let new_dataset: any = {
       uuid,
       updated_at: new Date(),
       template_id: original_dataset.template_id,
@@ -811,7 +811,7 @@ class Model {
   async #createMissingDatasetForImport(template, updated_at) {
     let uuid = uuidv4();
     await (new UserPermissionsModel.model(this.state)).initialize_permissions_for(this.state.user_id, uuid, SharedFunctions.DocumentTypes.Dataset);
-    let dataset = {
+    let dataset: any = {
       uuid,
       template_uuid: template.uuid,
       updated_at,
@@ -878,7 +878,7 @@ class Model {
     // continue here with normal update procedures
 
     // Build object to create/update
-    let new_dataset = {
+    let new_dataset: any = {
       uuid: dataset_uuid,
       imported_dataset_uuid: old_uuid,
       template_uuid: new_template_uuid,
@@ -910,7 +910,7 @@ class Model {
     // Go through list of related_datasets. If it's It must be in supported templates, and not in seen datasets.
     // At the end, check if unseen datasets still has anything
     let supported_templates = {};
-    let unseen_templates = new Set();
+    let unseen_templates = new Set<any>();
     let seen_datasets = new Set();
     for (let related_template of template.related_templates) {
       supported_templates[related_template.uuid] = related_template;
@@ -930,7 +930,7 @@ class Model {
       if(!related_dataset.template_uuid ||  related_dataset.template_uuid == "") {
         continue;
       } 
-      let new_related_template_uuid = await uuid_mapper_model_instance.get_new_uuid_from_old(related_dataset.template_uuid, session);
+      let new_related_template_uuid = await uuid_mapper_model_instance.get_new_uuid_from_old(related_dataset.template_uuid);
       if(!(new_related_template_uuid in supported_templates)) {
         throw new Util.InputError(`related_template uuid ${new_related_template_uuid} is not supported by template ${template.uuid}`);
       }
@@ -958,7 +958,7 @@ class Model {
     for(let unseen_template of unseen_templates) {
       let related_template = supported_templates[unseen_template];
       changes = true;
-      related_dataset = await this.#createMissingDatasetForImport(related_template, updated_at);
+      let related_dataset = await this.#createMissingDatasetForImport(related_template, updated_at);
       new_dataset.related_datasets.push(related_dataset);
     }
 
@@ -999,7 +999,7 @@ class Model {
   }
 
   #newDatasetForTemplate(template) {
-    let dataset = {
+    let dataset: any = {
       template_id: template._id,
       related_datasets: []
     };
@@ -1032,7 +1032,7 @@ class Model {
       await user_permissions_model_instance.initialize_permissions_for(this.state.user_id, dataset_uuid, SharedFunctions.DocumentTypes.Dataset);
     }
 
-    let dataset = {
+    let dataset: any = {
       uuid: dataset_uuid,
       old_system_uuid: old_template_uuid,
       template_id: new_template._id,
@@ -1190,3 +1190,9 @@ class Model {
 
 };
 exports.model = Model;
+
+export {
+  init,
+  collectionExport as collection,
+  Model as model
+};
