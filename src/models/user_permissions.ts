@@ -1,7 +1,8 @@
+import { ObjectId } from 'mongodb';
 const MongoDB = require('../lib/mongoDB');
 const PermissionGroupModel = require('./permission_group');
 const SharedFunctions = require('./shared_functions');
-const Util = require('../lib/util');
+import * as Util from '../lib/util';
 
 const uuids_schema = Object.freeze({
   bsonType: "array",
@@ -61,18 +62,18 @@ async function collection() {
   return UserPermissions;
 }
 
-exports.init = async function() {
+async function init() {
   UserPermissions = await collection();
 }
 
 class Model {
   collection = UserPermissions;
 
-  constructor(state){
+  constructor(public state){
     this.state = state;
   }
 
-  async create(user_id) {
+  async create(user_id: ObjectId): Promise<void> {
     let session = this.state.session;
     let response = await UserPermissions.insertOne(
       {
@@ -100,11 +101,11 @@ class Model {
     }
   }
   
-  static async get(user_id) {
+  static async get(user_id: ObjectId): Promise<Record<string, any>> {
     return await UserPermissions.findOne({user_id});
   }
   
-  async has_permission(user_id, uuid, category) {
+  async has_permission(user_id: ObjectId, uuid: string, category): Promise<boolean> {
     let user_permission = await Model.get(user_id);
     if(user_permission.admin || user_permission.super) {
       return true;
@@ -113,7 +114,7 @@ class Model {
     return await permission_group_model_instance.has_permission(user_id, uuid, category);
   }
   
-  async hasAccessToPersistedResource(collection, uuid, user_id){
+  async hasAccessToPersistedResource(collection, uuid: string, user_id: ObjectId): Promise<boolean>{
     let latest_persisted = await SharedFunctions.latestPersisted(collection, uuid, this.state.session);
     if(!latest_persisted) {
       return false;
@@ -127,7 +128,7 @@ class Model {
     return await this.has_permission(user_id, uuid, PermissionGroupModel.PermissionTypes.view);
   }
   
-  async #getCurrentUuids(user_id, document_type, permission_type) {
+  async #getCurrentUuids(user_id: ObjectId, document_type, permission_type): Promise<string[]> {
     let current_permissions = await UserPermissions.findOne({user_id});
     if(!current_permissions) {
       throw new Error(`No permissions exist with user_id ${user_id}`);
@@ -142,7 +143,7 @@ class Model {
     return uuids;
   }
   
-  async #addPermission(user_id, document_type, permission_type, document_uuid) {
+  async #addPermission(user_id: ObjectId, document_type, permission_type, document_uuid: string): Promise<void> {
     let uuids = await this.#getCurrentUuids(user_id, document_type, permission_type);
     if(uuids.includes(document_uuid)) {
       return;
@@ -159,7 +160,7 @@ class Model {
     }
   }
   
-  async #removePermission(user_id, document_type, permission_type, document_uuid) {
+  async #removePermission(user_id: ObjectId, document_type, permission_type, document_uuid: string): Promise<void> {
     let uuids = await this.#getCurrentUuids(user_id, document_type, permission_type);
     if(!uuids.includes(document_uuid)) {
       return;
@@ -176,25 +177,27 @@ class Model {
     }
   }
   
-  async addUserIdsToUuidAndCategory (document_uuid, document_type, permission_type, user_ids) {
+  async addUserIdsToUuidAndCategory (document_uuid: string, document_type, permission_type, 
+  user_ids: ObjectId[]): Promise<void> {
     for(let user_id of user_ids) {
       await this.#addPermission(user_id, document_type, permission_type, document_uuid);
     }
   }
   
-  async removeUserIdsFromUuidAndCategory(document_uuid, document_type, permission_type, user_ids) {
+  async removeUserIdsFromUuidAndCategory(document_uuid: string, document_type, permission_type, 
+  user_ids: ObjectId[]): Promise<void> {
     for(let user_id of user_ids) {
       await this.#removePermission(user_id, document_type, permission_type, document_uuid);
     }
   }
   
-  async initialize_permissions_for(user_id, document_uuid, document_type) {
+  async initialize_permissions_for(user_id: ObjectId, document_uuid: string, document_type): Promise<void> {
     await this.#addPermission(user_id, document_type, PermissionGroupModel.PermissionTypes.admin, document_uuid);
     let permission_group_model_instance = new PermissionGroupModel.model(this.state);
     await permission_group_model_instance.initialize_permissions_for(user_id, document_uuid);
   }
   
-  static async setAdmin(user_id) {
+  static async setAdmin(user_id: ObjectId): Promise<void> {
     let response = await UserPermissions.updateOne(
       {user_id},
       {$set: {admin: true}}
@@ -204,7 +207,7 @@ class Model {
     }
   }
   
-  static async setSuper(user_id) {
+  static async setSuper(user_id: ObjectId): Promise<void> {
     let response = await UserPermissions.updateOne(
       {user_id},
       {$set: {super: true}}
@@ -214,7 +217,7 @@ class Model {
     }
   }
   
-  static async isSuper(user_id) {
+  static async isSuper(user_id: ObjectId): Promise<boolean> {
     let permissions = await Model.get(user_id);
     if(!permissions) {
       return false;
@@ -222,7 +225,7 @@ class Model {
     return permissions.super;
   }
   
-  static async isAdmin(user_id) {
+  static async isAdmin(user_id: ObjectId): Promise<boolean> {
     let permissions = await Model.get(user_id);
     if(!permissions) {
       return false;
@@ -231,4 +234,5 @@ class Model {
   }
 
 };
-exports.model = Model;
+
+export {init, Model as model};

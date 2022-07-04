@@ -1,5 +1,6 @@
 const MongoDB = require('../lib/mongoDB');
 const { v4: uuidv4, validate: uuidValidate } = require('uuid');
+import { ObjectId } from 'mongodb';
 import * as Util from '../lib/util';
 const TemplateFieldModel = require('./template_field');
 const TemplateModel = require('./template');
@@ -144,7 +145,7 @@ class Model {
   }
 
 
-  #fieldsEqual(fields1, fields2) {
+  #fieldsEqual(fields1: Record<string, any>, fields2: Record<string, any>): boolean {
     if(!Array.isArray(fields1) || !Array.isArray(fields2)) {
       throw new Error(`fieldsEqual: did not provide 2 valid arrays`);
     }
@@ -214,7 +215,7 @@ class Model {
   }
 
   // Creates a draft from the persisted version.
-  async #createDraftFromPersisted(persisted) {
+  async #createDraftFromPersisted(persisted: Record<string, any>): Promise<Record<string, any>> {
 
     // Create a copy of persisted
     let draft = Object.assign({}, persisted);
@@ -244,7 +245,7 @@ class Model {
   // Fetches a record draft 
   // If it does not exist, it creates a draft from the latest persisted.
   // Does not lookup related_records
-  async #fetchDraftOrCreateFromPersisted(uuid) {
+  async #fetchDraftOrCreateFromPersisted(uuid: string) {
     let record_draft = await SharedFunctions.draft(Record, uuid, this.state.session);
     if(record_draft) {
       return record_draft;
@@ -259,7 +260,7 @@ class Model {
     return record_draft;
   }
 
-  #draftsEqual(draft1, draft2) {
+  #draftsEqual(draft1: Record<string, any>, draft2: Record<string, any>): boolean {
     return draft1.uuid == draft2.uuid &&
           draft1.dataset_uuid == draft2.dataset_uuid &&
           Util.datesEqual(draft1.public_date, draft2.public_date) &&
@@ -268,7 +269,7 @@ class Model {
   }
 
   // Returns true if the draft has any changes from it's previous persisted version
-  async #draftDifferentFromLastPersisted(draft) {
+  async #draftDifferentFromLastPersisted(draft: Record<string, any>): Promise<boolean> {
     // If there is no persisted version, obviously there are changes
     let latest_persisted = await SharedFunctions.latestPersisted(Record, draft.uuid, this.state.session);
     if(!latest_persisted) {
@@ -298,7 +299,8 @@ class Model {
     return false;
   }
 
-  async #createOutputFileFromInputFile(input_file, record_uuid, field_uuid) {
+  async #createOutputFileFromInputFile(input_file: Record<string, any>, record_uuid: string, 
+  field_uuid: string): Promise<Record<string, any>> {
     let output_file: any = {};
     if(!Util.isObject(input_file)) {
       throw new Util.InputError(`Each file/image supplied in record field must be an object`);
@@ -329,7 +331,8 @@ class Model {
     return output_file;
   }
 
-  async #createRecordFieldsFromTemplateFieldsAndMap(template_fields, record_field_map, record_uuid) {
+  async #createRecordFieldsFromTemplateFieldsAndMap(template_fields: Record<string, any>[], 
+  record_field_map: Record<string, any>, record_uuid: string): Promise<Record<string, any>[]> {
     let result_fields: any[] = [];
 
     for (let field of template_fields) {
@@ -394,7 +397,7 @@ class Model {
     return result_fields;
   }
 
-  async #deleteDraftFiles(draft) {
+  async #deleteDraftFiles(draft: Record<string, any>): Promise<void> {
     let file_uuids: any[] = [];
     for(let field of draft.fields) {
       if(field.file) {
@@ -414,7 +417,7 @@ class Model {
   }
 
   // For each lost file, try to delete it. Of course, if it hasn't been persisted, it won't work
-  async #deleteFilesWithUUids(file_uuids) {
+  async #deleteFilesWithUUids(file_uuids: string[]): Promise<void> {
     for(let file_uuid of file_uuids) {
       try{
         await FileModel.delete(file_uuid, this.state.session);
@@ -428,9 +431,9 @@ class Model {
     }
   }
 
-  async #deleteLostFiles(old_fields, new_fields) {
+  async #deleteLostFiles(old_fields: Record<string, any>[], new_fields: Record<string, any>[]): Promise<void> {
     // First find the file uuids that have been lost
-    let old_file_uuids = new Set();
+    let old_file_uuids = new Set<string>();
     for(let field of old_fields) {
       if(field.type && field.type == FieldTypes.File && field.file) {
         old_file_uuids.add(field.file.uuid);
@@ -441,7 +444,7 @@ class Model {
         }
       }
     }
-    let new_file_uuids = new Set();
+    let new_file_uuids = new Set<string>();
     for(let field of new_fields) {
       if(field.type && field.type == FieldTypes.File && field.file) {
         new_file_uuids.add(field.file.uuid);
@@ -454,14 +457,15 @@ class Model {
     }
 
     // set difference
-    let lost_file_uuids = [...old_file_uuids].filter(x => !new_file_uuids.has(x));
+    let lost_file_uuids: string[] = [...old_file_uuids].filter(x => !new_file_uuids.has(x));
     
     // then delete them
     await this.#deleteFilesWithUUids(lost_file_uuids);
 
   }
 
-  async #createRecordFieldsFromInputRecordAndTemplate(record_fields, template_fields, record_uuid) {
+  async #createRecordFieldsFromInputRecordAndTemplate(record_fields: Record<string, any>[], 
+  template_fields: Record<string, any>[], record_uuid: string): Promise<Record<string, any>[]> {
     if(!record_fields) {
       record_fields = [];
     }
@@ -503,7 +507,8 @@ class Model {
 
   // For each field, converts import record to the format of a normal input record, 
   // then calls a function which creates a new record from field + record
-  async #createRecordFieldsFromImportRecordAndTemplate(record_fields, template_fields, record_uuid) {
+  async #createRecordFieldsFromImportRecordAndTemplate(record_fields: Record<string, any>[], 
+  template_fields: Record<string, any>[], record_uuid: string): Promise<Record<string, any>[]> {
     let uuid_mapper_model_instance = new LegacyUuidToNewUuidMapperModel.model(this.state);
 
     // Fields are a bit more complicated
@@ -514,7 +519,7 @@ class Model {
       throw new Util.InputError('fields property must be of type array');
     }
     // Create a map of records to fields
-    let record_field_map = {};
+    let record_field_map: Record<string, any> = {};
     for (let field of record_fields) {
       if(!Util.isObject(field)) {
         throw new Util.InputError(`Each field in the record must be a json object`);
@@ -563,8 +568,10 @@ class Model {
   }
 
   // TODO: add updated_at to the state
-  async #extractRelatedRecordsFromCreateOrUpdate(input_related_records, related_datasets, template, updated_at, seen_uuids) {
-    let return_records: any[] = [];
+  async #extractRelatedRecordsFromCreateOrUpdate(input_related_records: Record<string, any>[], 
+  related_datasets: Record<string, any>[], template: Record<string, any>, updated_at: Date, seen_uuids: Set<string>)
+  : Promise<[string[], boolean]> {
+    let return_record_uuids: string[] = [];
     let changes = false;
     // Recurse into related_records
     if(!input_related_records) {
@@ -600,32 +607,34 @@ class Model {
       } 
       let related_dataset = related_dataset_map[related_record.dataset_uuid];
       let related_template = related_template_map[related_dataset.template_id];
+      let related_record_uuid: string;
       try {
         let new_changes;
-        [new_changes, related_record] = await this.#validateAndCreateOrUpdateRecurser(related_record, related_dataset, related_template, updated_at, seen_uuids);
+        [new_changes, related_record_uuid] = await this.#validateAndCreateOrUpdateRecurser(related_record, related_dataset, related_template, updated_at, seen_uuids);
         changes = changes || new_changes;
       } catch(err) {
         if (err instanceof Util.NotFoundError) {
           throw new Util.InputError(err.message);
         } else if (err instanceof Util.PermissionDeniedError) {
           // If we don't have admin permissions to the related_record, don't try to update/create it. Just link it
-          related_record = related_record.uuid;
+          related_record_uuid = related_record.uuid;
         } else {
           throw err;
         }
       }
       // After validating and updating the related_record, replace the related_record with a uuid reference
-      return_records.push(related_record);
+      return_record_uuids.push(related_record_uuid);
     }
     // Related_records is really a set, not a list. But Mongo doesn't store sets well, so have to manage it ourselves.
-    if(Util.anyDuplicateInArray(return_records)) {
+    if(Util.anyDuplicateInArray(return_record_uuids)) {
       throw new Util.InputError(`Each record may only have one instance of every related_record.`);
     }
-    return [return_records, changes];
+    return [return_record_uuids, changes];
   }
 
   // A recursive helper for validateAndCreateOrUpdate.
-  async #validateAndCreateOrUpdateRecurser(input_record, dataset, template, updated_at, seen_uuids) {
+  async #validateAndCreateOrUpdateRecurser(input_record: Record<string, any>, dataset: Record<string, any>, 
+  template: Record<string, any>, updated_at: Date, seen_uuids: Set<string>): Promise<[boolean, string]> {
 
     // Record must be an object or valid uuid
     if (!Util.isObject(input_record)) {
@@ -746,7 +755,7 @@ class Model {
   // Return:
   // 1. A boolean indicating true if there were changes from the last persisted.
   // 2. The uuid of the record created / updated
-  async #validateAndCreateOrUpdate(record) {
+  async #validateAndCreateOrUpdate(record: Record<string, any>): Promise<[boolean, string]>  {
 
     // Record must be an object
     if (!Util.isObject(record)) {
@@ -776,7 +785,7 @@ class Model {
 
   // Fetches the record draft with the given uuid, recursively looking up related_records.
   // If a draft of a given template doesn't exist, a new one will be generated using the last persisted record.
-  async #draftFetchOrCreate(uuid) {
+  async #draftFetchOrCreate(uuid: string): Promise<Record<string, any> | null> {
 
     // See if a draft of this template exists. 
     let record_draft = await this.#fetchDraftOrCreateFromPersisted(uuid);
@@ -828,7 +837,8 @@ class Model {
 
   }
 
-  async #persistRelatedRecords(related_record_uuids, related_datasets, template) {
+  async #persistRelatedRecords(related_record_uuids: string[], related_datasets: Record<string, any>[], 
+  template: Record<string, any>): Promise<ObjectId[]> {
     let return_record_ids: any[] = [];
     // For each records's related_records, persist that related_record, then replace the uuid with the internal_id.
     // It is possible there weren't any changes to persist, so keep track of whether we actually persisted anything.
@@ -878,7 +888,7 @@ class Model {
     return return_record_ids;
   }
 
-  async #persistRecurser(uuid, dataset, template) {
+  async #persistRecurser(uuid: string, dataset: Record<string, any>, template: Record<string, any>): Promise<ObjectId> {
 
     let persisted_record = await SharedFunctions.latestPersisted(Record, uuid, this.state.session);
 
@@ -950,7 +960,7 @@ class Model {
   //   uuid: the uuid of a record to be persisted
   //   session: the mongo session that must be used to make transactions atomic
   //   last_update: the timestamp of the last known update by the user. Cannot persist if the actual last update and that expected by the user differ.
-  async #persist(record_uuid, last_update) {
+  async #persist(record_uuid: string, last_update: Date): Promise<void> {
 
     let record = await SharedFunctions.draft(Record, record_uuid, this.state.session);
     if (!record) {
@@ -984,7 +994,7 @@ class Model {
 
   }
 
-  async #latestPersistedBeforeDateWithJoins(uuid, date) {
+  async #latestPersistedBeforeDateWithJoins(uuid: string, date: Date): Promise<Record<string, any> | null> {
     // Construct a mongodb aggregation pipeline that will recurse into related records up to 5 levels deep.
     // Thus, the tree will have a depth of 6 nodes
     let pipeline = [
@@ -1066,7 +1076,7 @@ class Model {
   }
 
   // This function will provide the timestamp of the last update made to this record and all of it's related_records
-  async lastUpdate(uuid) {
+  async lastUpdate(uuid: string): Promise<Date> {
 
     let user_permissions_model_instance = new UserPermissionsModel.model(this.state);
 
@@ -1109,7 +1119,7 @@ class Model {
 
   }
 
-  async #userHasAccessToPersistedRecord(record) {
+  async #userHasAccessToPersistedRecord(record: Record<string, any>): Promise<boolean> {
     let dataset = await SharedFunctions.latestPersisted(DatasetModel.collection(), record.dataset_uuid, this.state.session);
     // If both the dataset and the record are public, then everyone has view access
     if (Util.isPublic(dataset.public_date) 
@@ -1122,7 +1132,7 @@ class Model {
     return await (new UserPermissionsModel.model(this.state)).has_permission(this.state.user_id, dataset.uuid, PermissionGroupModel.PermissionTypes.view);
   }
 
-  async #filterPersistedForPermissionsRecursor(record) {
+  async #filterPersistedForPermissionsRecursor(record: Record<string, any>): Promise<void> {
     for(let i = 0; i < record.related_records.length; i++) {
       if(!(await this.#userHasAccessToPersistedRecord(record.related_records[i]))) {
         record.related_records[i] = {uuid: record.related_records[i].uuid};
@@ -1133,14 +1143,14 @@ class Model {
   }
 
   // Ignore record specific permissions until I remember how they work
-  async #filterPersistedForPermissions(record) {
+  async #filterPersistedForPermissions(record: Record<string, any>): Promise<void> {
     if(!(await this.#userHasAccessToPersistedRecord(record))) {
       throw new Util.PermissionDeniedError(`Do not have view access to records in dataset ${record.dataset_uuid}`);
     }
     await this.#filterPersistedForPermissionsRecursor(record);
   }
 
-  async #latestPersistedBeforeDateWithJoinsAndPermissions(uuid, date) {
+  async #latestPersistedBeforeDateWithJoinsAndPermissions(uuid: string, date: Date): Promise<Record<string, any> | null> {
     let record = await this.#latestPersistedBeforeDateWithJoins(uuid, date);
     if(!record) {
       return null;
@@ -1151,11 +1161,12 @@ class Model {
 
   // Fetches the last persisted record with the given uuid. 
   // Also recursively looks up related_datasets.
-  async #latestPersistedWithJoinsAndPermissions(uuid) {
+  async #latestPersistedWithJoinsAndPermissions(uuid: string): Promise<Record<string, any> | null> {
     return await this.#latestPersistedBeforeDateWithJoinsAndPermissions(uuid, new Date());
   }
 
-  async #importRecordFromCombinedRecursor(input_record, dataset, template, updated_at) {
+  async #importRecordFromCombinedRecursor(input_record: Record<string, any>, dataset: Record<string, any>, 
+  template: Record<string, any>, updated_at: Date): Promise<[boolean, string]> {
     let uuid_mapper_model_instance = new LegacyUuidToNewUuidMapperModel.model(this.state);
 
     if(!Util.isObject(input_record)) {
@@ -1277,7 +1288,7 @@ class Model {
 
   }
 
-  async #importDatasetAndRecord(record) {
+  async #importDatasetAndRecord(record: Record<string, any>): Promise<string> {
     // If importing dataset and record together, import dataset and persist it before importing the record draft
 
     // A couple options here:
@@ -1321,7 +1332,7 @@ class Model {
     return new_record_uuid;
   }
 
-  async #importDatasetsAndRecords(records) {
+  async #importDatasetsAndRecords(records: Record<string, any>[]): Promise<string[]> {
     if(!Array.isArray(records)) {
       throw new Util.InputError(`'records' must be a valid array`);
     }
@@ -1333,7 +1344,8 @@ class Model {
     return result_uuids;
   }
 
-  async #importRelatedRecordsFromRecord(input_record, dataset, template, updated_at, seen_uuids) {
+  async #importRelatedRecordsUuidsFromRecord(input_record: Record<string, any>, dataset: Record<string, any>, 
+  template: Record<string, any>, updated_at: Date, seen_uuids: Set<string>): Promise<string[]> {
     let uuid_mapper_model_instance = new LegacyUuidToNewUuidMapperModel.model(this.state);
 
     if(!input_record.records) {
@@ -1342,7 +1354,7 @@ class Model {
     if(!Array.isArray(input_record.records)) {
       throw new Util.InputError(`Records object in record to import must be an array`);
     }
-    let result_records: any[] = [];
+    let result_record_uuids: string[] = [];
     // Requirements:
     // - related_records is a set, so there can't be any duplicates
     // - Every related_record must point to a related_dataset supported by the dataset
@@ -1378,16 +1390,17 @@ class Model {
         }
       }
       // After validating and updating the related_record, replace the related_record with a uuid reference
-      result_records.push(related_record);
+      result_record_uuids.push(related_record);
     }
     // Related_records is really a set, not a list. But Mongo doesn't store sets well, so have to manage it ourselves.
-    if(Util.anyDuplicateInArray(result_records)) {
+    if(Util.anyDuplicateInArray(result_record_uuids)) {
       throw new Util.InputError(`Each record may only have one instance of every related_record.`);
     }
-    return result_records;
+    return result_record_uuids;
   }
 
-  async #importRecordRecursor(input_record, dataset, template, updated_at, seen_uuids) {
+  async #importRecordRecursor(input_record: Record<string, any>, dataset: Record<string, any>, 
+  template: Record<string, any>, updated_at: Date, seen_uuids: Set<string>): Promise<string> {
     let uuid_mapper_model_instance = new LegacyUuidToNewUuidMapperModel.model(this.state);
 
     if(!Util.isObject(input_record)) {
@@ -1439,7 +1452,7 @@ class Model {
 
     new_record.fields = await this.#createRecordFieldsFromImportRecordAndTemplate(input_record.fields, template.fields, new_record_uuid);
 
-    new_record.related_records = await this.#importRelatedRecordsFromRecord(input_record, dataset, template, updated_at, seen_uuids)
+    new_record.related_records = await this.#importRelatedRecordsUuidsFromRecord(input_record, dataset, template, updated_at, seen_uuids)
 
     // If a draft of this record already exists: overwrite it, using it's same uuid
     // If a draft of this record doesn't exist: create a new draft
@@ -1458,7 +1471,7 @@ class Model {
     return new_record_uuid;
   }
 
-  async #importRecord(record, updated_at, seen_uuids) {
+  async #importRecord(record: Record<string, any>, updated_at: Date, seen_uuids: Set<string>): Promise<string> {
     if(!Util.isObject(record)) {
       throw new Util.InputError('Record to import must be a json object.');
     }
@@ -1483,16 +1496,16 @@ class Model {
     return this.#importRecordRecursor(record, dataset, template, updated_at, seen_uuids);
   }
 
-  async #importRecords(records) {
+  async #importRecords(records: Record<string, any>[]): Promise<string[]> {
     if(!Array.isArray(records)) {
       throw new Util.InputError(`'records' must be a valid array`);
     }
 
     let updated_at = new Date();
 
-    let seen_uuids = new Set();
+    let seen_uuids = new Set<string>();
 
-    let result_uuids: any[] = [];
+    let result_uuids: string[] = [];
     for(let record of records) {
       result_uuids.push(await this.#importRecord(record, updated_at, seen_uuids));
     }
@@ -1500,7 +1513,7 @@ class Model {
   }
 
   // Wraps the actual request to create with a transaction
-  async create(record) {
+  async create(record: Record<string, any>): Promise<string> {
     let callback = async () => {
       let results = await this.#validateAndCreateOrUpdate(record);
       let inserted_uuid = results[1];
@@ -1512,7 +1525,7 @@ class Model {
   draftGet = this.#draftFetchOrCreate;
 
   // Wraps the actual request to update with a transaction
-  update = async function(record) {
+  update = async function(record: Record<string, any>): Promise<void> {
     let callback = async () => {
       await this.#validateAndCreateOrUpdate(record);
     };
@@ -1520,7 +1533,7 @@ class Model {
   }
 
   // Wraps the actual request to persist with a transaction
-  persist = async function(uuid, last_update) {
+  persist = async function(uuid: string, last_update: Date): Promise<void> {
     let callback = async () => {
       await this.#persist(uuid, last_update);
     };
@@ -1535,7 +1548,7 @@ class Model {
   // Also recursively looks up related_templates.
   persistedBeforeDate = this.#latestPersistedBeforeDateWithJoinsAndPermissions;
 
-  async draftDelete(uuid) {
+  async draftDelete(uuid: string): Promise<void> {
     // if draft doesn't exist, return not found
     let draft = await SharedFunctions.draft(Record, uuid, this.state.session);
     if(!draft) {
@@ -1551,11 +1564,11 @@ class Model {
     await this.#deleteDraftFiles(draft);
   }
 
-  async draftExisting(uuid) {
+  async draftExisting(uuid: string): Promise<boolean> {
     return (await SharedFunctions.draft(Record, uuid, this.state.session)) ? true : false;
   }
 
-  async userHasPermissionsTo(record_uuid, permissionLevel, user) {
+  async userHasPermissionsTo(record_uuid: string, permissionLevel, user: ObjectId): Promise<boolean> {
     let record = await SharedFunctions.latestDocument(Record, record_uuid, this.state.session);
     return await (new UserPermissionsModel.model(this.state)).has_permission(user, record.dataset_uuid, permissionLevel);
   }
@@ -1576,7 +1589,7 @@ class Model {
   }
 
   // Wraps the actual request to importDatasetsAndRecords with a transaction
-  async importDatasetsAndRecords(records) {
+  async importDatasetsAndRecords(records: Record<string, any>[]): Promise<string[]> {
     let callback = async () => {
       return await this.#importDatasetsAndRecords(records);
     };
@@ -1584,7 +1597,7 @@ class Model {
   }
 
   // Wraps the actual request to importRecords with a transaction
-  async importRecords(records) {
+  async importRecords(records: Record<string, any>[]): Promise<string[]> {
     let callback = async () => {
       return await this.#importRecords(records);
     };
@@ -1592,7 +1605,7 @@ class Model {
   }
 
   // At some point for optimization, could modify this query to accept a timestamp and filter further based on that
-  async uniqueUuidsInDataset(dataset_uuid) {
+  async uniqueUuidsInDataset(dataset_uuid: string): Promise<string[]> {
     return await Record.distinct(
       "uuid",
       {dataset_uuid}

@@ -1,16 +1,16 @@
 const MongoDB = require('../lib/mongoDB');
-const Util = require('../lib/util');
-const ObjectId = require('mongodb').ObjectId;
+import * as Util from '../lib/util';
+import {ObjectId} from 'mongodb';
 
-exports.DocumentTypes = {
-  Dataset: "dataset",
-  Template: "template",
-  TemplateField: "template_field"
+export enum DocumentTypes {
+  Dataset = "dataset",
+  Template = "template",
+  TemplateField = "template_field"
 };
 
 // Fetches the draft with the given uuid. 
 // Does not look up fields or related documents
-const draft = async (collection, uuid, session) => {
+export const draft = async (collection, uuid: string, session?): Promise<Record<string, any> | null> => {
   let cursor = await collection.find(
     {uuid, 'persist_date': {'$exists': false}}, 
     {session}
@@ -25,9 +25,8 @@ const draft = async (collection, uuid, session) => {
   }
   return draft;
 }
-exports.draft = draft;
 
-function convertToMongoId(_id) {
+export function convertToMongoId(_id: string | ObjectId): ObjectId {
   if(typeof(_id) === 'string') {
     if(!ObjectId.isValid(_id)) {
       throw new Util.InputError(`Invalid _id provided: ${_id}`);
@@ -37,11 +36,10 @@ function convertToMongoId(_id) {
     return _id
   }
 }
-exports.convertToMongoId = convertToMongoId;
 
 // Fetches the latest persisted document with the given uuid. 
 // Does not look up related documents
-const latestPersisted = async (collection, uuid, session) => {
+export const latestPersisted = async (collection, uuid: string, session?): Promise<Record<string, any> | null> => {
   let cursor = await collection.find(
     {"uuid": uuid, 'persist_date': {'$exists': true}}, 
     {session}
@@ -52,9 +50,8 @@ const latestPersisted = async (collection, uuid, session) => {
   }
   return await cursor.next();
 }
-exports.latestPersisted = latestPersisted;
 
-exports.latestDocument = async (collection, uuid, session) => {
+export const latestDocument = async (collection, uuid: string, session?): Promise<Record<string, any> | null> => {
   let result = await draft(collection, uuid, session);
   if(result) {
     return result;
@@ -64,7 +61,7 @@ exports.latestDocument = async (collection, uuid, session) => {
 }
 
 // Returns true if the document exists
-exports.exists = async (collection, uuid, session) => {
+export const exists = async (collection, uuid: string, session?): Promise<boolean>  => {
   let cursor = await collection.find(
     {"uuid": uuid},
     {session}
@@ -73,7 +70,7 @@ exports.exists = async (collection, uuid, session) => {
 }
 
 // Finds the uuid of the document with the given _id
-exports.uuidFor_id = async (collection, _id, session) => {
+export const uuidFor_id = async (collection, _id: ObjectId, session?): Promise<string | null> => {
   _id = convertToMongoId(_id);
   let cursor = await collection.find(
     {_id}, 
@@ -87,12 +84,12 @@ exports.uuidFor_id = async (collection, _id, session) => {
 }
 
 // TODO: should this take a session?
-exports.latest_persisted_id_for_uuid = async (collection, uuid) => {
+export const latest_persisted_id_for_uuid = async (collection, uuid: string): Promise<ObjectId | null> => {
   let document = await latestPersisted(collection, uuid);
   return document ? document._id : null;
 }
 
-exports.draftDelete = async (collection, uuid, session) => {
+export const draftDelete = async (collection, uuid: string, session?): Promise<void> => {
   let response = await collection.deleteMany(
     { uuid, persist_date: {'$exists': false} },
     { session }
@@ -102,7 +99,7 @@ exports.draftDelete = async (collection, uuid, session) => {
   }
 }
 
-exports.persistDateFor_id = async (collection, _id, session) => {
+export const persistDateFor_id = async (collection, _id: ObjectId, session?): Promise<Date | null> => {
   let cursor = await collection.find(
     {"_id": _id}, 
     {session}
@@ -114,12 +111,12 @@ exports.persistDateFor_id = async (collection, _id, session) => {
   return document.persist_date;
 }
 
-exports.latest_persisted_time_for_uuid = async (collection, uuid) => {
+export const latest_persisted_time_for_uuid = async (collection, uuid: string): Promise<Date | null> => {
   let document = await latestPersisted(collection, uuid);
   return document ? document.persist_date : null;
 }
 
-exports.executeWithTransaction = async (state, callback) => {
+export const executeWithTransaction = async (state, callback) => {
   const session = MongoDB.newSession();
   state.session = session;
   let result;

@@ -1,6 +1,7 @@
 const MongoDB = require('../lib/mongoDB');
 const { v4: uuidv4, validate: uuidValidate } = require('uuid');
 import * as Util from '../lib/util';
+import { ObjectId } from 'mongodb';
 const TemplateFieldModel = require('./template_field');
 const UserPermissionsModel = require('./user_permissions');
 const PermissionGroupModel = require('./permission_group');
@@ -101,7 +102,7 @@ class Model {
   }
 
   // Creates a draft from the persisted version.
-  async #createDraftFromPersisted(persisted) {
+  async #createDraftFromPersisted(persisted: Record<string, any>): Promise<Record<string, any>> {
 
     // Create a copy of persisted
     let draft = Object.assign({}, persisted);
@@ -150,7 +151,7 @@ class Model {
   // Fetches a template draft 
   // If it does not exist, it creates a draft from the latest persisted.
   // Does not lookup fields or related_templates
-  async #fetchDraftOrCreateFromPersisted(uuid) {
+  async #fetchDraftOrCreateFromPersisted(uuid: string): Promise<Record<string, any> | null> {
     let template_draft = await SharedFunctions.draft(Template, uuid, this.state.session);
     if(template_draft) {
       return template_draft;
@@ -165,7 +166,7 @@ class Model {
     return template_draft;
   }
 
-  #convertObjectIdArrayToStringArray(object_ids) {
+  #convertObjectIdArrayToStringArray(object_ids: ObjectId[]): string[] {
     let string_array: any[] = [];
     for(let object_id of object_ids) {
       string_array.push(object_id.toString())
@@ -174,7 +175,7 @@ class Model {
   }
 
   // Returns true if the provided templates are equal
-  #equals(template_1, template_2) {
+  #equals(template_1: Record<string, any>, template_2: Record<string, any>): boolean {
     return template_1.uuid == template_2.uuid && 
           template_1.name == template_2.name &&
           template_1.description == template_2.description &&
@@ -187,7 +188,7 @@ class Model {
   }
 
   // Returns true if the draft has any changes from it's previous persisted version
-  async #draftDifferentFromLastPersisted(draft) {
+  async #draftDifferentFromLastPersisted(draft: Record<string, any>): Promise<boolean> {
     // If there is no persisted version, obviously there are changes
     let latest_persisted = await SharedFunctions.latestPersisted(Template, draft.uuid);
     if(!latest_persisted) {
@@ -219,7 +220,7 @@ class Model {
     return false;
   }
 
-  async #templateUUIDsThatReference(uuid, templateOrField) {
+  async #templateUUIDsThatReference(uuid: string, templateOrField: string): Promise<string[]> {
     // Get the last 3 _ids associated with this uuid. Then use those _ids to find the uuids of the templates referencing this template.
 
     // First, get the three _ids last persisted by this uuid
@@ -290,19 +291,22 @@ class Model {
     return uuids;
   }
 
-  async #createDraftFromLastPersisted(uuid) {
+  async #createDraftFromLastPersisted(uuid: string): Promise<void> {
     let draft = await this.#draftFetchOrCreate(uuid);
+    if(!draft) {
+      throw new Util.NotFoundError();
+    }
     await this.#validateAndCreateOrUpdate(draft, new Date(), new Set());
   }
 
-  async #createDraftFromLastPersistedWithSession(uuid) {
+  async #createDraftFromLastPersistedWithSession(uuid: string): Promise<void> {
     let callback = async () => {
       await this.#createDraftFromLastPersisted(uuid);
     }
     await SharedFunctions.executeWithTransaction(this.state, callback);
   }
 
-  #initializeNewDraftWithPropertiesSharedWithImport(input_template, uuid, updated_at) {
+  #initializeNewDraftWithPropertiesSharedWithImport(input_template: Record<string, any>, uuid: string, updated_at: Date): Record<string, any> {
     let output_template = {
       uuid, 
       name: "",
@@ -327,7 +331,7 @@ class Model {
     return output_template;
   }
 
-  async #initializeNewDraftWithProperties(input_template, uuid, updated_at) {
+  async #initializeNewDraftWithProperties(input_template: Record<string, any>, uuid: string, updated_at: Date): Promise<Record<string, any>> {
     let output_template: any = this.#initializeNewDraftWithPropertiesSharedWithImport(input_template, uuid, updated_at);
     if (input_template.public_date) {
       if (!Date.parse(input_template.public_date)){
@@ -342,7 +346,7 @@ class Model {
     return output_template;
   }
 
-  #initializeNewImportedDraftWithProperties(input_template, uuid, updated_at) {
+  #initializeNewImportedDraftWithProperties(input_template: Record<string, any>, uuid: string, updated_at: Date): Record<string, any> {
     let output_template: any = this.#initializeNewDraftWithPropertiesSharedWithImport(input_template, uuid, updated_at);
     if (input_template._database_metadata && Util.isObject(input_template._database_metadata) && 
         input_template._database_metadata._public_date && Date.parse(input_template._database_metadata._public_date)) {
@@ -352,7 +356,7 @@ class Model {
     return output_template;
   }
 
-  async #getUuidFromCreateOrUpdate(input_template) {
+  async #getUuidFromCreateOrUpdate(input_template: Record<string, any>): Promise<string> {
     let uuid;
     let user_permissions_model_instance = new UserPermissionsModel.model(this.state);
     // If a template uuid is provided, this is an update
@@ -384,7 +388,7 @@ class Model {
     return uuid;
   }
 
-  async #extractFieldsFromCreateOrUpdate(input_fields, updated_at) {
+  async #extractFieldsFromCreateOrUpdate(input_fields: Record<string, any>[], updated_at: Date): Promise<[Record<string, any>[], boolean]> {
     let return_fields: any[] = [];
     let changes = false;
     if (input_fields === undefined) {
@@ -416,7 +420,7 @@ class Model {
     return [return_fields, changes];
   }
 
-  async #extractRelatedTemplatesFromCreateOrUpdate(input_related_templates, updated_at, ancestor_uuids): Promise<[any[], boolean]> {
+  async #extractRelatedTemplatesFromCreateOrUpdate(input_related_templates: Record<string, any>[], updated_at: Date, ancestor_uuids: Set<string>): Promise<[any[], boolean]> {
     let return_related_templates: any[] = [];
     let changes = false;
     if (input_related_templates === undefined) {
@@ -449,7 +453,7 @@ class Model {
     return [return_related_templates, changes];
   }
 
-  #buildUuidSetForPublishedTemplate(template, uuidSet) {
+  #buildUuidSetForPublishedTemplate(template: Record<string, any>, uuidSet: Set<string>): void {
     uuidSet.add(template.uuid);
     for(let related_template of template.related_templates) {
       this.#buildUuidSetForPublishedTemplate(related_template, uuidSet);
@@ -458,13 +462,13 @@ class Model {
       this.#buildUuidSetForPublishedTemplate(subscribed_template, uuidSet);
     }
   }
-  #createUuidSetForPublishedTemplate(template) {
-    let uuidSet = new Set();
+  #createUuidSetForPublishedTemplate(template: Record<string, any>): Set<string> {
+    let uuidSet = new Set<string>();
     this.#buildUuidSetForPublishedTemplate(template, uuidSet);
     return uuidSet;
   }
 
-  async #extractSubscribedTemplateFromCreateOrUpdate(input_subscribed_template, previous_subscribed_template_ids, seen_uuids, ancestor_uuids) {
+  async #extractSubscribedTemplateFromCreateOrUpdate(input_subscribed_template: Record<string, any>, previous_subscribed_template_ids: Set<ObjectId>, seen_uuids: Set<string>, ancestor_uuids: Set<string>): Promise<ObjectId> {
     if(!Util.isObject(input_subscribed_template)) {
       throw new Util.InputError("Each entry in subscribed_templates must be an object");
     }
@@ -499,7 +503,7 @@ class Model {
     // Use a helper function getting all uuids recursively for the subscribed template
     // Do a set intersection to see if there are any overlapping
     let subscribed_template = await this.#persistedByIdWithJoins(subscribed_id);
-    let subscribed_template_id_set = this.#createUuidSetForPublishedTemplate(subscribed_template);
+    let subscribed_template_id_set = this.#createUuidSetForPublishedTemplate(subscribed_template as Record<string, any>);
     let intersection = [...subscribed_template_id_set].filter(i => ancestor_uuids.has(i));
     if(intersection.length > 0) {
       throw new Util.InputError(`Circular reference ${intersection[0]} is not permitted.`);
@@ -512,7 +516,7 @@ class Model {
   // Rules: can only subscribe to the latest version or maintain the version we were subscribing to. 
   // The output will of course just be that version of the persisted template fetched.
   // How will the input indicate if it wants to update? It will submit the latest persisted version of that template
-  async #extractSubscribedTemplatesFromCreateOrUpdate(input_subscribed_templates, parent_uuid, ancestor_uuids) {
+  async #extractSubscribedTemplatesFromCreateOrUpdate(input_subscribed_templates: Record<string, any>[], parent_uuid: string, ancestor_uuids: Set<string>): Promise<Record<string, any>[]> {
     let return_subscribed_templates: any[] = [];
     if (input_subscribed_templates === undefined) {
       return return_subscribed_templates;
@@ -522,7 +526,7 @@ class Model {
     }
 
     // build previous_subscribed_ids from last persisted / last draft
-    let previous_subscribed_ids = new Set();
+    let previous_subscribed_ids: Set<ObjectId> = new Set();
     let previous_parent_persisted = await SharedFunctions.latestPersisted(Template, parent_uuid);
     if(previous_parent_persisted) {
       for(let _id of previous_parent_persisted.subscribed_templates) {
@@ -536,7 +540,7 @@ class Model {
       }
     }
 
-    let seen_subscribed_uuids = new Set();
+    let seen_subscribed_uuids: Set<string> = new Set();
 
     for (let subscribed_template of input_subscribed_templates) {
       let subscribed_template_id =  await this.#extractSubscribedTemplateFromCreateOrUpdate(subscribed_template, previous_subscribed_ids, seen_subscribed_uuids, ancestor_uuids);
@@ -553,7 +557,7 @@ class Model {
   // Return:
   // 1. A boolean indicating true if there were changes from the last persisted.
   // 2. The uuid of the template created / updated
-  async #validateAndCreateOrUpdate(input_template, updated_at, ancestor_uuids) {
+  async #validateAndCreateOrUpdate(input_template: Record<string, any>, updated_at: Date, ancestor_uuids: Set<string>): Promise<[boolean, string]> {
 
     // Template must be an object
     if (!Util.isObject(input_template)) {
@@ -621,8 +625,8 @@ class Model {
 
   }
 
-  async #persistFields(input_field_uuids) {
-    let return_field_ids: any[] = [];
+  async #persistFields(input_field_uuids: string[]): Promise<ObjectId[]> {
+    let return_field_ids: ObjectId[] = [];
     // For each template field, persist that field, then replace the uuid with the internal_id.
     // It is possible there weren't any changes to persist, so keep track of whether we actually persisted anything.
     let template_field_model_instance = new TemplateFieldModel.model(this.state);
@@ -657,8 +661,8 @@ class Model {
     return return_field_ids;
   }
 
-  async #persistRelatedTemplates(input_related_templates_uuids) {
-    let result_related_templates_ids: any[] = [];
+  async #persistRelatedTemplates(input_related_templates_uuids: string[]): Promise<ObjectId[]> {
+    let result_related_templates_ids: ObjectId[] = [];
     // For each template's related_templates, persist that related_template, then replace the uuid with the internal_id.
     // It is possible there weren't any changes to persist, so keep track of whether we actually persisted anything.
     for(let related_template_uuid of input_related_templates_uuids) {
@@ -693,7 +697,7 @@ class Model {
   //   session: the mongo session that must be used to make transactions atomic
   // Returns:
   //   internal_id: the internal id of the persisted template
-  async #persistRecursor(uuid) {
+  async #persistRecursor(uuid: string): Promise<ObjectId> {
 
     var return_id;
 
@@ -754,7 +758,7 @@ class Model {
   //   uuid: the uuid of a template to be persisted
   //   session: the mongo session that must be used to make transactions atomic
   //   last_update: the timestamp of the last known update by the user. Cannot persist if the actual last update and that expected by the user differ.
-  async #persist(uuid, last_update) {
+  async #persist(uuid: string, last_update: Date): Promise<void> {
 
     // Check if a draft with this uuid exists
     let template_draft = await SharedFunctions.draft(Template, uuid, this.state.session);
@@ -782,7 +786,7 @@ class Model {
     await this.#persistRecursor(uuid);
   }
 
-  #recursiveBuildPersistedQuery(current_pipeline, count) {
+  #recursiveBuildPersistedQuery(current_pipeline: Record<string, any>[], count: number): void {
     if(count >= 5) {
       return;
     }
@@ -851,7 +855,7 @@ class Model {
   }
 
   // Fetches the template with the specified match conditions, including fetching fields and related_records
-  async #persistedWithJoins(pipelineMatchConditions) {
+  async #persistedWithJoins(pipelineMatchConditions: Record<string, any>): Promise<Record<string, any> | null> {
     // Construct a mongodb aggregation pipeline that will recurse into related templates up to 5 levels deep.
     // Thus, the tree will have a depth of 6 nodes
     let pipeline = [
@@ -886,7 +890,7 @@ class Model {
   }
 
   // Fetches the last template with the given _id
-  async #persistedByIdWithJoins(_id) {
+  async #persistedByIdWithJoins(_id: ObjectId): Promise<Record<string, any> | null> {
 
     let pipelineMatchConditions = { 
       _id
@@ -897,7 +901,7 @@ class Model {
 
   // Fetches the last template with the given uuid persisted before the given date. 
   // Also recursively looks up fields and related_templates.
-  async #latestPersistedBeforeDateWithJoins(uuid, date) {
+  async #latestPersistedBeforeDateWithJoins(uuid: string, date: Date): Promise<Record<string, any> | null> {
     let pipelineMatchConditions = { 
       uuid,
       'persist_date': {'$lte': date}
@@ -906,7 +910,7 @@ class Model {
     return await this.#persistedWithJoins(pipelineMatchConditions);
   }
 
-  async #filterPersistedTemplateForPermissionsRecursor(template) {
+  async #filterPersistedTemplateForPermissionsRecursor(template: Record<string, any>): Promise<void> {
     let user_permissions_model_instance = new UserPermissionsModel.model(this.state);
     for(let i = 0; i < template.fields.length; i++) {
       if(!(await user_permissions_model_instance.hasAccessToPersistedResource(TemplateField, template.fields[i].uuid, this.state.user_id))) {
@@ -922,14 +926,14 @@ class Model {
     }
   }
 
-  async #filterPersistedTemplateForPermissions(template) {
+  async #filterPersistedTemplateForPermissions(template: Record<string, any>): Promise<void> {
     if(!(await (new UserPermissionsModel.model(this.state)).hasAccessToPersistedResource(Template, template.uuid, this.state.user_id))) {
       throw new Util.PermissionDeniedError(`Do not have view access to template ${template.uuid}`);
     }
     await this.#filterPersistedTemplateForPermissionsRecursor(template);
   }
 
-  async #persistedByIdWithJoinsAndPermissions(_id) {
+  async #persistedByIdWithJoinsAndPermissions(_id: ObjectId): Promise<Record<string, any> | null> {
     let template = await this.#persistedByIdWithJoins(_id);
     if(!template) {
       return null;
@@ -938,7 +942,7 @@ class Model {
     return template;
   } 
 
-  async #latestPersistedBeforeDateWithJoinsAndPermissions(uuid, date) {
+  async #latestPersistedBeforeDateWithJoinsAndPermissions(uuid: string, date: Date): Promise<Record<string, any> | null> {
     let template = await this.#latestPersistedBeforeDateWithJoins(uuid, date);
     if(!template) {
       return null;
@@ -949,12 +953,12 @@ class Model {
 
   // Fetches the last persisted template with the given uuid. 
   // Also recursively looks up fields and related_templates.
-  async #latestPersistedWithJoinsAndPermissions(uuid) {
+  async #latestPersistedWithJoinsAndPermissions(uuid: string): Promise<Record<string, any> | null> {
     return await this.#latestPersistedBeforeDateWithJoinsAndPermissions(uuid, new Date());
   }
 
-  async #draftFetchFields(input_field_uuids) {
-    let fields: any[] = [];
+  async #draftFetchFields(input_field_uuids: string[]): Promise<[Record<string, any>[], string[]]> {
+    let fields: Record<string, any>[] = [];
     let field_uuids: string[] = [];
     let template_field_model_instance = new TemplateFieldModel.model(this.state);
     for(let field_uuid of input_field_uuids) {
@@ -989,8 +993,8 @@ class Model {
     return [fields, field_uuids];
   }
 
-  async #draftFetchRelatedTemplates(input_related_template_uuids) {
-    let related_templates: any[] = [];
+  async #draftFetchRelatedTemplates(input_related_template_uuids: string[]): Promise<[Record<string, any>[], string[]]> {
+    let related_templates: Record<string, any>[] = [];
     let related_template_uuids: string[] = [];
     for(let related_template_uuid of input_related_template_uuids) {
       let related_template;
@@ -1030,7 +1034,7 @@ class Model {
 
   // Fetches the template draft with the given uuid, recursively looking up fields and related_templates.
   // If a draft of a given template doesn't exist, a new one will be generated using the last persisted template.
-  async #draftFetchOrCreate(uuid) {
+  async #draftFetchOrCreate(uuid: string): Promise<Record<string, any> | null> {
 
     // See if a draft of this template exists. 
     let template_draft = await this.#fetchDraftOrCreateFromPersisted(uuid);
@@ -1090,7 +1094,7 @@ class Model {
   }
 
   // This function will provide the timestamp of the last update made to this template and all of it's sub-properties
-  async #lastUpdateFor(uuid) {
+  async #lastUpdateFor(uuid: string): Promise<Date> {
 
     let template_draft = await this.#fetchDraftOrCreateFromPersisted(uuid);
     let user_permissions_model_instance = new UserPermissionsModel.model(this.state);
@@ -1143,7 +1147,7 @@ class Model {
 
   }
 
-  async #duplicateRecursor(template) {
+  async #duplicateRecursor(template: Record<string, any>): Promise<string> {
     let user_permissions_model_instance = new UserPermissionsModel.model(this.state);
     let template_field_model_instance = new TemplateFieldModel.model(this.state);
 
@@ -1208,7 +1212,7 @@ class Model {
     return template.uuid
   }
 
-  async #duplicate(uuid) {
+  async #duplicate(uuid: string): Promise<string> {
     let template = await this.#latestPersistedBeforeDateWithJoins(uuid, new Date());
     if(!template) {
       throw new Util.NotFoundError(`Persisted template ${uuid} does not exist`);
@@ -1220,7 +1224,7 @@ class Model {
   }
 
   // TODO: as of now, import doesn't include group_uuids at all
-  async #importTemplate(template, updated_at) {
+  async #importTemplate(template: Record<string, any>, updated_at: Date): Promise<[boolean, string]> {
     let user_permissions_model_instance = new UserPermissionsModel.model(this.state);
     let uuid_mapper_model_instance = new LegacyUuidToNewUuidMapperModel.model(this.state);
 
@@ -1345,7 +1349,7 @@ class Model {
   // Public facing functions
 
   // Wraps the actual request to create with a transaction
-  async create(template) {
+  async create(template: Record<string, any>): Promise<string> {
     let callback = async () => {
       let results = await this.#validateAndCreateOrUpdate(template, new Date(), new Set());
       let inserted_uuid = results[1];
@@ -1355,7 +1359,7 @@ class Model {
   }
 
   // Wraps the actual request to update with a transaction
-  async update(template) {
+  async update(template: Record<string, any>): Promise<void> {
     let callback = async () => {
       await this.#validateAndCreateOrUpdate(template, new Date(), new Set());
     };
@@ -1363,7 +1367,7 @@ class Model {
   }
 
   // Wraps the actual request to get with a transaction
-  async draftGet(uuid) {
+  async draftGet(uuid: string): Promise<Record<string, any> | null> {
     let callback = async () => {
       return await this.#draftFetchOrCreate(uuid);
     };
@@ -1371,7 +1375,7 @@ class Model {
   }
 
   // Wraps the actual request to persist with a transaction
-  async persist(uuid, last_update) {
+  async persist(uuid: string, last_update: Date): Promise<void> {
     let callback = async () => {
       await this.#persist(uuid, last_update);
     };
@@ -1383,7 +1387,7 @@ class Model {
   }
 
   // Wraps the actual request to getUpdate with a transaction
-  async lastUpdate(uuid) {
+  async lastUpdate(uuid: string): Promise<Date> {
     let callback = async () => {
       return await this.#lastUpdateFor(uuid);
     };
@@ -1395,7 +1399,7 @@ class Model {
   }
 
   // Parents 2+ levels up are not updated
-  async updateTemplatesThatReference(uuid, templateOrField) {
+  async updateTemplatesThatReference(uuid: string, templateOrField: string): Promise<void> {
     // Get a list of templates that reference them.
     let uuids = await this.#templateUUIDsThatReference(uuid, templateOrField);
     // For each template, create a draft if it doesn't exist
@@ -1410,20 +1414,20 @@ class Model {
 
   }
 
-  async draftExisting(uuid) {
+  async draftExisting(uuid: string): Promise<boolean> {
     return (await SharedFunctions.draft(Template, uuid, this.state.session)) ? true : false;
   }
 
   latestPersisted = this.#latestPersistedWithJoinsAndPermissions;
   persistedBeforeDate = this.#latestPersistedBeforeDateWithJoinsAndPermissions;
 
-  async latestPersistedWithoutPermissions(uuid) {
+  async latestPersistedWithoutPermissions(uuid: string): Promise<Record<string, any> | null> {
     return await this.#latestPersistedBeforeDateWithJoins(uuid, new Date());
   }
 
   persistedByIdWithoutPermissions = this.#persistedByIdWithJoins;
 
-  async draftDelete(uuid) {
+  async draftDelete(uuid: string): Promise<void> {
 
     if(!(await SharedFunctions.draft(Template, uuid, this.state.session))) {
       throw new Util.NotFoundError(`No draft exists with uuid ${uuid}`);
@@ -1436,17 +1440,17 @@ class Model {
     await SharedFunctions.draftDelete(Template, uuid, this.state.session);
   };
 
-  async latest_persisted_id_for_uuid(uuid) {
+  async latest_persisted_id_for_uuid(uuid: string): Promise<boolean> {
     let template = await SharedFunctions.latestPersisted(Template, uuid, this.state.session);
     return template ? template._id : null;
   }
-  async latest_persisted_time_for_uuid(uuid) {
+  async latest_persisted_time_for_uuid(uuid: string): Promise<Record<string, any> | null> {
     let template = await SharedFunctions.latestPersisted(Template, uuid, this.state.session);
     return template ? template.persist_date : null;
   }
 
   // Wraps the actual request to duplicate with a transaction
-  async duplicate(uuid) {
+  async duplicate(uuid: string): Promise<string> {
     let callback = async () => {
       return await this.#duplicate(uuid);
     };
@@ -1454,7 +1458,7 @@ class Model {
   }
 
   // Wraps the actual request to import with a transaction
-  async importTemplate(template) {
+  async importTemplate(template: Record<string, any>): Promise<string> {
     let callback = async () => {
       let results = await this.#importTemplate(template, new Date());
       let new_template_uuid = results[1];

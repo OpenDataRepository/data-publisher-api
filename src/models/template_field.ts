@@ -1,15 +1,16 @@
 const MongoDB = require('../lib/mongoDB');
 const { v4: uuidv4, validate: uuidValidate } = require('uuid');
+import { ObjectId } from 'mongodb';
 import * as Util from '../lib/util';
 const UserPermissionsModel = require('./user_permissions');
 const { PermissionTypes } = require('./permission_group');
 const SharedFunctions = require('./shared_functions');
 const LegacyUuidToNewUuidMapperModel = require('./legacy_uuid_to_new_uuid_mapper');
 
-const FieldTypes = Object.freeze({
-  File: "File",
-  Image: "Image"
-});
+enum FieldTypes {
+  File = "File",
+  Image = "Image"
+};
 
 const Schema = Object.freeze({
   bsonType: "object",
@@ -111,7 +112,7 @@ class Model {
   }
 
   // Creates a draft from the persisted version.
-  #createDraftFromPersisted(persisted) {
+  #createDraftFromPersisted(persisted: Record<string, any>): Record<string, any> {
     let draft = persisted;
 
     delete draft._id;
@@ -122,7 +123,7 @@ class Model {
   }
 
   // Fetches the latest persisted field with the given uuid. 
-  async #latestPersistedBeforeDate(uuid, date) {
+  async #latestPersistedBeforeDate(uuid: string, date: Date): Promise<Record<string, any> | null> {
     let session = this.state.session;
     let cursor = await TemplateField.find(
       {"uuid": uuid, 'persist_date': {'$lte': date}},
@@ -136,11 +137,11 @@ class Model {
   }
 
   // Fetches the latest persisted field with the given uuid. 
-  async #latestPersisted(uuid) {
+  async #latestPersisted(uuid: string): Promise<Record<string, any> | null> {
     return await this.#latestPersistedBeforeDate(uuid, new Date());
   }
 
-  async #latestPersistedBeforeDateWithPermissions(uuid, date) {
+  async #latestPersistedBeforeDateWithPermissions(uuid: string, date: Date): Promise<Record<string, any> | null> {
     let field = await this.#latestPersistedBeforeDate(uuid, date);
     if(!field) {
       return null;
@@ -154,7 +155,7 @@ class Model {
     return field;
   }
 
-  async #fetchPersistedAndConvertToDraft(uuid) {
+  async #fetchPersistedAndConvertToDraft(uuid: string): Promise<Record<string, any> | null> {
     let persisted_field = await this.#latestPersisted(uuid);
     if(!persisted_field) {
       return null;
@@ -163,7 +164,7 @@ class Model {
     return (await this.#createDraftFromPersisted(persisted_field));
   }
 
-  async #draftDelete(uuid) {
+  async #draftDelete(uuid: string): Promise<void> {
 
     let response = await TemplateField.deleteMany({ uuid, persist_date: {'$exists': false} });
     if (!response.deletedCount) {
@@ -174,7 +175,7 @@ class Model {
     }
   }
 
-  #optionsEqual(options1, options2) {
+  #optionsEqual(options1: Record<string, any>[], options2: Record<string, any>[]): boolean {
     if(!options1 && !options2) {
       return true;
     }
@@ -203,7 +204,7 @@ class Model {
     return true;
   }
 
-  #fieldEquals(field1, field2) {
+  #fieldEquals(field1: Record<string, any>, field2: Record<string, any>): boolean {
     return field1.name == field2.name && 
             field1.description == field2.description && 
             field1.type == field2.type && 
@@ -211,7 +212,9 @@ class Model {
             this.#optionsEqual(field1.options, field2.options);
   }
 
-  #parseOptions(options, previous_options_uuids, current_options_uuids) {
+  // Important to note here that Typescript can only check compile time issues. If any of these arguments are different
+  // at run time, Typescript won't catch that
+  #parseOptions(options: Record<string, any>[], previous_options_uuids: Set<string>, current_options_uuids: Set<string>): Record<string, any> {
     if(!Array.isArray(options)) {
       throw new Util.InputError(`options must be an array.`);
     }
@@ -250,7 +253,7 @@ class Model {
     return return_options;
   }
 
-  #buildOptionSet(options, set) {
+  #buildOptionSet(options: Record<string, any>[], set: Set<string>): void {
     for(let option of options) {
       if(option.uuid) {
         set.add(option.uuid);
@@ -261,7 +264,7 @@ class Model {
     }
   }
 
-  #buildOptionMap(options, map) {
+  #buildOptionMap(options: Record<string, any>[], map: Record<string, any>): void {
     for(let option of options) {
       if(option.uuid) {
         map[option.uuid] = option.name
@@ -287,7 +290,7 @@ class Model {
     return undefined;
   }
 
-  optionUuidsToValues(options, uuids) {
+  optionUuidsToValues(options: Record<string, any>[], uuids: string[]): Record<string, any>[] {
     // First build a map of uuid -> value
     // Then, for each uuid, attach an object with the uuids + values
     let uuid_to_value_map = {};
@@ -304,7 +307,7 @@ class Model {
     return values;
   }
 
-  async #importRadioOptions(radio_options) {
+  async #importRadioOptions(radio_options: Record<string, any>[]): Promise<Record<string, any>[]> {
     if(!Array.isArray(radio_options)) {
       throw new Util.InputError(`Radio options must be an array.`);
     }
@@ -338,7 +341,7 @@ class Model {
     return return_options;
   }
 
-  #initializeNewDraftWithPropertiesSharedWithImport(input_field, uuid, updated_at) {
+  #initializeNewDraftWithPropertiesSharedWithImport(input_field: Record<string, any>, uuid: string, updated_at: Date): Record<string, any> {
     let output_field = {
       uuid, 
       name: "",
@@ -360,7 +363,7 @@ class Model {
     return output_field;
   }
 
-  async #initializeNewDraftWithProperties(input_field, uuid, updated_at) {
+  async #initializeNewDraftWithProperties(input_field: Record<string, any>, uuid: string, updated_at: Date): Promise<Record<string, any>> {
     let output_field: any = this.#initializeNewDraftWithPropertiesSharedWithImport(input_field, uuid, updated_at);
     if (input_field.public_date) {
       if (!Date.parse(input_field.public_date)){
@@ -376,7 +379,7 @@ class Model {
     }
     if(input_field.options) {
       let latest_field = await SharedFunctions.latestDocument(TemplateField, uuid);
-      let previous_options_uuids = new Set();
+      let previous_options_uuids = new Set<string>();
       if(latest_field && latest_field.options) {
         this.#buildOptionSet(latest_field.options, previous_options_uuids);
       }
@@ -395,7 +398,7 @@ class Model {
     return output_field;
   }
 
-  async #initializeNewImportedDraftWithProperties(input_field, uuid, updated_at) {
+  async #initializeNewImportedDraftWithProperties(input_field: Record<string, any>, uuid: string, updated_at: Date): Promise<Record<string, any>> {
     let output_field: any = this.#initializeNewDraftWithPropertiesSharedWithImport(input_field, uuid, updated_at);
     if (input_field._field_metadata && Util.isObject(input_field._field_metadata) && input_field._field_metadata._public_date) {
       if (Date.parse(input_field._field_metadata._public_date)){
@@ -419,7 +422,7 @@ class Model {
   // Return:
   // 1. A boolean: true if there were changes from the last persisted.
   // 2. The uuid of the template field created / updated
-  async validateAndCreateOrUpdate(input_field, updated_at): Promise<[boolean, string]> {
+  async validateAndCreateOrUpdate(input_field: Record<string, any>, updated_at: Date): Promise<[boolean, string]> {
 
     // Field must be an object
     if (!Util.isObject(input_field)) {
@@ -491,7 +494,7 @@ class Model {
     return [true, uuid];
   }
 
-  async #draftFetchOrCreate(uuid) {
+  async #draftFetchOrCreate(uuid: string): Promise<Record<string, any> | null> {
     
     // See if a draft of this template field exists. 
     let template_field_draft = await SharedFunctions.draft(TemplateField, uuid, this.state.session);
@@ -545,7 +548,7 @@ class Model {
   //   user: username of the user performing this operation
   // Returns:
   //   internal_id: the internal id of the persisted field
-  async persistField(uuid, last_update) {
+  async persistField(uuid: string, last_update: Date): Promise<ObjectId> {
     var return_id;
 
     let field_draft = await SharedFunctions.draft(TemplateField, uuid, this.state.session);
@@ -590,7 +593,7 @@ class Model {
     return return_id;
   }
 
-  async lastupdateFor(uuid) {
+  async lastupdateFor(uuid: string): Promise<Date> {
     let draft = await this.#draftFetchOrCreate(uuid);
     if(!draft) {
       throw new Util.NotFoundError();
@@ -602,7 +605,7 @@ class Model {
   latestPersistedWithoutPermissions = this.#latestPersisted;
 
   // Wraps the request to create with a transaction
-  async create(field) {
+  async create(field: Record<string, any>): Promise<string> {
     let callback = async () => {
       return await this.validateAndCreateOrUpdate(field, new Date());
     };
@@ -612,17 +615,15 @@ class Model {
   }
 
   // Wraps the request to get with a transaction. Since fetching a draft creates one if it doesn't already exist
-  async draftGet(uuid) {
-    let field;
+  async draftGet(uuid: string): Promise<Record<string, any>> {
     let callback = async () => {
       return await this.#draftFetchOrCreate(uuid);
     };
-    field = await SharedFunctions.executeWithTransaction(this.state, callback);
-    return field;
+    return await SharedFunctions.executeWithTransaction(this.state, callback);
   }
 
   // Wraps the request to update with a transaction
-  async update(field) {
+  async update(field: Record<string, any>): Promise<void> {
     let callback = async () => {
       return await this.validateAndCreateOrUpdate(field, new Date());
     };
@@ -630,20 +631,20 @@ class Model {
   }
 
   // Wraps the request to persist with a transaction
-  async persist(uuid, last_update) {
+  async persist(uuid: string, last_update: Date): Promise<void> {
     let callback = async () => {
       return await this.persistField(uuid, last_update);
     };
     await SharedFunctions.executeWithTransaction(this.state, callback);
   }
 
-  async latestPersisted(uuid) {
+  async latestPersisted(uuid: string): Promise<Record<string, any> | null> {
     return await this.#latestPersistedBeforeDateWithPermissions(uuid, new Date());
   }
 
   latestPersistedBeforeDate = this.#latestPersistedBeforeDateWithPermissions;
 
-  async draftDelete(uuid) {
+  async draftDelete(uuid: string): Promise<void> {
 
     let field = await SharedFunctions.draft(TemplateField, uuid, this.state.session);
     if(!field) {
@@ -661,7 +662,7 @@ class Model {
     }
   }
 
-  async lastUpdate(uuid) {
+  async lastUpdate(uuid: string): Promise<Date> {
 
     let field_draft = await SharedFunctions.draft(TemplateField, uuid, this.state.session);
     let field_persisted = await this.#latestPersisted(uuid);
@@ -693,11 +694,11 @@ class Model {
     return field_draft.updated_at;
   }
 
-  async draftExisting(uuid) {
+  async draftExisting(uuid: string): Promise<boolean> {
     return (await SharedFunctions.draft(TemplateField, uuid)) ? true : false;
   }
 
-  async duplicate(field) {
+  async duplicate(field: Record<string, any>): Promise<string> {
     // 1. Error checking
     if(!field) {
       throw new Util.NotFoundError();
@@ -730,8 +731,7 @@ class Model {
     return field.uuid;
   }
 
-
-  async importField(field, updated_at) {
+  async importField(field: Record<string, any>, updated_at: Date): Promise<[boolean, string]> {
     if(!Util.isObject(field)) {
       throw new Util.InputError('Field to import must be a json object.');
     }
