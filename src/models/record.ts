@@ -1,6 +1,7 @@
 const MongoDB = require('../lib/mongoDB');
 const { v4: uuidv4, validate: uuidValidate } = require('uuid');
 import { ObjectId } from 'mongodb';
+const assert = require('assert');
 import * as Util from '../lib/util';
 const TemplateFieldModel = require('./template_field');
 const TemplateModel = require('./template');
@@ -145,10 +146,8 @@ class Model {
   }
 
 
-  #fieldsEqual(fields1: Record<string, any>, fields2: Record<string, any>): boolean {
-    if(!Array.isArray(fields1) || !Array.isArray(fields2)) {
-      throw new Error(`fieldsEqual: did not provide 2 valid arrays`);
-    }
+  #fieldsEqual(fields1: Record<string, any>[], fields2: Record<string, any>[]): boolean {
+    assert(Array.isArray(fields1) && Array.isArray(fields2), `fieldsEqual: did not provide 2 valid arrays`);
     if(fields1.length != fields2.length) {
       return false;
     }
@@ -178,9 +177,7 @@ class Model {
           return false;
         } 
       } else if(field1.type == FieldTypes.Image) {
-        if(!Array.isArray(field1.images) || !Array.isArray(field2.images)) {
-          throw new Error(`fieldsEqual: did not provide 2 valid image arrays`);
-        }
+        assert(Array.isArray(field1.images) && Array.isArray(field2.images), `fieldsEqual: did not provide 2 valid image arrays`);
         if(field1.images.length != field2.images.length) {
           return false;
         }
@@ -915,9 +912,8 @@ class Model {
 
     // verify that the dataset uuid on the record draft and the expected dataset uuid match
     // This check should never fail, unless there is a bug in my code. Still, it doesn't hurt to be safe.
-    if (record_draft.dataset_uuid != dataset.uuid) {
-      throw new Error(`The record draft ${record_draft} does not reference the dataset required ${dataset.uuid}. Cannot persist.`);
-    }
+    assert(record_draft.dataset_uuid == dataset.uuid, 
+      `The record draft ${record_draft} does not reference the dataset required ${dataset.uuid}. Cannot persist.`);
 
     for(let field of record_draft.fields) {
       if(field.type == TemplateFieldModel.FieldTypes.File && field.file && field.file.uuid) {

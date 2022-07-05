@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "build": "npx tsc",
-    "start": "nodemon ./out/bin/www",
-    "test": "jest int --runInBand out"
+    "start": "npx tsc && nodemon ./out/bin/www",
+    "test": "npx tsc && jest int --runInBand out"
   },
   "dependencies": {
     "app-root-path": "^3.0.0",

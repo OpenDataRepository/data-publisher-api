@@ -1,6 +1,7 @@
 const MongoDB = require('../lib/mongoDB');
 const { v4: uuidv4, validate: uuidValidate } = require('uuid');
 import { ObjectId } from 'mongodb';
+const assert = require('assert');
 import * as Util from '../lib/util';
 const TemplateModel = require('./template');
 const UserPermissionsModel = require('./user_permissions');
@@ -586,9 +587,8 @@ class Model {
     }
 
     // verify that the template uuid on the dataset draft and the expected template uuid match
-    if (dataset_draft.template_id.toString() != template._id.toString()) {
-      throw new Error(`The draft provided ${dataset_draft} does not reference the template required ${template._id}.`);
-    }
+    assert(dataset_draft.template_id.toString() == template._id.toString(),
+      `The draft provided ${dataset_draft} does not reference the template required ${template._id}.`);
 
     let related_datasets = await this.#persistRelatedDatasets(dataset_draft.related_datasets, template);
 

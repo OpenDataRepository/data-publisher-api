@@ -1,11 +1,4 @@
-// TODO: switch to typescript. The compiler will catch a lot of errors for me in that way
-// so I don't have to hunt them down myself
-
 // TODO: try spending an entire week not using the trackpad. Only the keyboard
-
-// TODO: try finding something to implement contracts in the codebase: http://www.contractsjs.org/
-// TODO: add assert statements everywhere I think "this can't happen": https://www.w3schools.com/nodejs/met_assert.asp#:~:text=Definition%20and%20Usage,an%20alias%20of%20the%20assert.
-// TODO: ask Nate if there's any way we can test whether this application is actually going to fix our scaling problem
 
 const express = require('express');
 const logger = require('morgan');

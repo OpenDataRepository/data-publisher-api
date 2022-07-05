@@ -83,9 +83,8 @@ export const uuidFor_id = async (collection, _id: ObjectId, session?): Promise<s
   return document.uuid;
 }
 
-// TODO: should this take a session?
-export const latest_persisted_id_for_uuid = async (collection, uuid: string): Promise<ObjectId | null> => {
-  let document = await latestPersisted(collection, uuid);
+export const latest_persisted_id_for_uuid = async (collection, uuid: string, session?): Promise<ObjectId | null> => {
+  let document = await latestPersisted(collection, uuid, session);
   return document ? document._id : null;
 }
 
