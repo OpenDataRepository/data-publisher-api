@@ -1,5 +1,3 @@
-// TODO: try spending an entire week not using the trackpad. Only the keyboard
-
 const express = require('express');
 const logger = require('morgan');
 const cookieParser = require("cookie-parser");

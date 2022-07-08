@@ -1197,6 +1197,14 @@ class Model {
     );
   }
 
+  async allViewableUuids(): Promise<string[]> {
+    let public_uuids = await Model.allPublicUuids();
+    let user_permissions_model_instance = new UserPermissionsModel.model(this.state);
+    // let viewable_uuids = user_permissions_model_instance.uuidsWithAccess(PermissionGroupModel.PermissionTypes.view);
+    let viewable_uuids;
+    return Util.arrayUnion(public_uuids, viewable_uuids);
+  }
+
 };
 exports.model = Model;
 

@@ -100,6 +100,8 @@ class Model {
       throw new Error(`UserPermissions.create: Failed to insert user with user_id: ${user_id}`);
     }
   }
+
+  // TODO: write function to get all uuids for a document type under a specific permission level
   
   static async get(user_id: ObjectId): Promise<Record<string, any>> {
     return await UserPermissions.findOne({user_id});

@@ -66,10 +66,15 @@ exports.objectIdsSetDifference = function(list1, list2) {
   return set_difference;
 }
 
+const arrayUnion = function(array1, array2) {
+  return [...new Set([...array1, ...array2])]
+}
+exports.arrayUnion = arrayUnion;
+
 exports.objectIdsSetUnion = function(list1, list2) {
   let list1_strings = list1.map(x => x.toString());
   let list2_strings = list2.map(x => x.toString());
-  let union = [...new Set([...list1_strings, ...list2_strings])]
+  let union = arrayUnion(list1_strings, list2_strings);
   return union.map(x => new ObjectId(x));
 }
 

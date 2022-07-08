@@ -239,3 +239,13 @@ exports.all_public_uuids = async function(req, res, next) {
 }
 
 // TODO: Get a list of all datasets the user has view permissions to
+exports.all_viewable_uuids = async function(req, res, next) {
+  try {
+    let state = Util.initializeState(req);
+    let model_instance = new DatasetModel.model(state);
+    let viewable_uuids = await model_instance.allViewableUuids();
+    res.send(viewable_uuids);
+  } catch(err) {
+    next(err);
+  }
+}
