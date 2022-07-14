@@ -54,6 +54,7 @@ async function collection() {
     let db = MongoDB.db();
     try {
       await db.createCollection('users', {validator: { $jsonSchema: Schema} });
+      await db.collection('users').createIndex({ email: 1 });
     } catch(e) {}
     User = db.collection('users');
   }

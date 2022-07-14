@@ -44,6 +44,7 @@ async function collection() {
     let db = MongoDB.db();
     try {
       await db.createCollection('permissions', {validator: { $jsonSchema: Schema} });
+      await db.collection('permissions').createIndex({ user_id: 1, document_uuid: 1 });
     } catch(e) {}
     Permission = db.collection('permissions');
   }

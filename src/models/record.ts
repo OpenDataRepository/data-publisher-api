@@ -127,6 +127,7 @@ async function collection() {
     let db = MongoDB.db();
     try {
       await db.createCollection('records', {validator: { $jsonSchema: Schema} });
+      await db.collection('records').createIndex({ uuid: 1 });
     } catch(e) {}
     Record = db.collection('records');
   }

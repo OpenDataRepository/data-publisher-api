@@ -77,6 +77,7 @@ async function collection() {
     let db = MongoDB.db();
     try {
       await db.createCollection('templates', {validator: { $jsonSchema: Schema} });
+      await db.collection('templates').createIndex({ uuid: 1 });
     } catch(e) {}
     Template = db.collection('templates');
   }

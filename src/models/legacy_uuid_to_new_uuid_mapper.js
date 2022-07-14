@@ -33,6 +33,9 @@ async function collection() {
     let db = MongoDB.db();
     try {
       await db.createCollection('legacy_uuid_to_new_uuid_mapper', {validator: { $jsonSchema: Schema} });
+      await db.collection('legacy_uuid_to_new_uuid_mapper').createIndex({ old_uuid: 1 });
+      await db.collection('legacy_uuid_to_new_uuid_mapper').createIndex({ new_uuid: 1 });
+      await db.collection('legacy_uuid_to_new_uuid_mapper').createIndex({ secondary_uuid: 1 });
     } catch(e) {}
     LegacyUuidToNewUuidMapper = db.collection('legacy_uuid_to_new_uuid_mapper');
   }
