@@ -1,3 +1,4 @@
+import { ObjectId } from 'mongodb';
 const MongoDB = require('../lib/mongoDB');
 const SharedFunctions = require('./shared_functions');
 const Util = require('../lib/util');
@@ -35,6 +36,12 @@ const Schema = Object.freeze({
     },
     suspended: {
       bsonType: "bool"
+    },
+    super: {
+      bsonType: "bool"
+    },
+    admin: {
+      bsonType: "bool"
     }
   },
   additionalProperties: false
@@ -52,22 +59,22 @@ async function collection() {
   }
   return User;
 }
-exports.collection = function() {
+function collectionExport() {
   return User;
 }
 
-exports.init = async function() {
+async function init() {
   User = await collection();
 }
 
 class Model {
   collection = User;
 
-  constructor(state){
+  constructor(public state){
     this.state = state;
   }
 
-  async create(email, password, confirmed) {
+  async create(email: string, password: string, confirmed: boolean): Promise<ObjectId> {
     let existing = await User.findOne({email});
     if(existing) {
       throw new Util.InputError('email already exists');
@@ -87,13 +94,13 @@ class Model {
     return response.insertedId;
   }
   
-  static async confirmEmail(user_id, email) {
+  static async confirmEmail(user_id: ObjectId, email: string): Promise<void> {
     user_id = SharedFunctions.convertToMongoId(user_id);
   
     let current_user = await User.findOne({_id: user_id});
   
-    let set_properties = {};
-    let unset_properties = {};
+    let set_properties: Record<string, any> = {};
+    let unset_properties: Record<string, any> = {};
     if(!current_user.confirmed) {
       if(email != current_user.email) {
         throw new Util.InputError(`Email being confirmed is not the latest email requested`);
@@ -120,18 +127,19 @@ class Model {
       throw new Error(`User.confirmEmail: matched ${response.matchedCount} accounts with _id: ${user_id}`);
     }
   }
-  static async getByEmail(email) {
+
+  static async getByEmail(email: string): Promise<Record<string, any>> {
     return await User.findOne(
       {email}
     );
   }
   
-  static async getBy_id(_id) {
+  static async getBy_id(_id: ObjectId): Promise<Record<string, any>> {
     _id = SharedFunctions.convertToMongoId(_id);
     return await User.findOne({_id});
   }
   
-  static async suspend(_id) {
+  static async suspend(_id: ObjectId): Promise<void> {
     _id = SharedFunctions.convertToMongoId(_id);
     let response = await User.updateOne(
       {_id},
@@ -144,9 +152,9 @@ class Model {
     }
   }
   
-  async update(_id, input_update_properties) {
+  async update(_id: ObjectId, input_update_properties: Record<string, any>): Promise<void> {
     _id = SharedFunctions.convertToMongoId(_id);
-    let filtered_update_properties = {};
+    let filtered_update_properties: Record<string, any> = {};
     if(input_update_properties.first_name) {
       filtered_update_properties.first_name = input_update_properties.first_name;
     }
@@ -172,5 +180,42 @@ class Model {
     }
   }
 
+  static async setAdmin(user_id: ObjectId): Promise<void> {
+    let response = await User.updateOne(
+      {_id: user_id},
+      {$set: {admin: true}}
+    );
+    if (response.modifiedCount != 1) {
+      throw `User.setAdmin: should be 1 modified document. Instead: ${response.modifiedCount}`;
+    }
+  }
+  
+  static async setSuper(user_id: ObjectId): Promise<void> {
+    let response = await User.updateOne(
+      {_id: user_id},
+      {$set: {super: true}}
+    );
+    if (response.modifiedCount != 1) {
+      throw `User.setSuper: should be 1 modified document. Instead: ${response.modifiedCount}`;
+    }
+  }
+  
+  static async isSuper(user_id: ObjectId): Promise<boolean> {
+    let user = await Model.getBy_id(user_id);
+    if(!user) {
+      return false;
+    }
+    return user.super;
+  }
+  
+  static async isAdmin(user_id: ObjectId): Promise<boolean> {
+    let user = await Model.getBy_id(user_id);
+    if(!user) {
+      return false;
+    }
+    return user.admin;
+  }
+
 };
-exports.model = Model;
+
+export {collectionExport as collection, init, Model as model};

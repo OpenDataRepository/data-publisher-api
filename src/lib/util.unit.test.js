@@ -23,9 +23,12 @@ test('arrayEqual', () => {
   expect(Util.arrayEqual([null], [])).toBeFalsy();
   expect(Util.arrayEqual([0, 1, 2, 3], [0, 1, 2, 4])).toBeFalsy();
 
-  expect(() => Util.arrayEqual(undefined, [])).toThrow();
-  expect(() => Util.arrayEqual([], "")).toThrow();
-  expect(() => Util.arrayEqual(null, null)).toThrow();
+  let non_array = undefined;
+  expect(() => Util.arrayEqual(non_array, [])).toThrow();
+  non_array = "";
+  expect(() => Util.arrayEqual([], non_array)).toThrow();
+  non_array = null;
+  expect(() => Util.arrayEqual(non_array, non_array)).toThrow();
 })
 
 test('datesEqual', () => {

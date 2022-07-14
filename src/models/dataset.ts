@@ -4,8 +4,7 @@ import { ObjectId } from 'mongodb';
 const assert = require('assert');
 import * as Util from '../lib/util';
 const TemplateModel = require('./template');
-const UserPermissionsModel = require('./user_permissions');
-const PermissionGroupModel = require('./permission_group');
+const PermissionModel = require('./permission');
 const SharedFunctions = require('./shared_functions');
 const LegacyUuidToNewUuidMapperModel = require('./legacy_uuid_to_new_uuid_mapper');
 
@@ -227,7 +226,7 @@ class Model {
   async #validateAndCreateOrUpdateRecurser(input_dataset: Record<string, any>, 
   template: Record<string, any>, group_uuid: string, updated_at: Date): Promise<[boolean, string]> {
 
-    let user_permissions_model_instance = new UserPermissionsModel.model(this.state);
+    let permissions_model_instance = new PermissionModel.model(this.state);
     let uuid_mapper_model_instance = new LegacyUuidToNewUuidMapperModel.model(this.state);
 
     // dataset must be an object
@@ -249,7 +248,7 @@ class Model {
       }
 
       // verify that this user is in the 'admin' permission group
-      if (!(await user_permissions_model_instance.has_permission(this.state.user_id, input_dataset.uuid, PermissionGroupModel.PermissionTypes.admin))) {
+      if (!(await permissions_model_instance.hasPermission(input_dataset.uuid, PermissionModel.PermissionTypes.admin))) {
         throw new Util.PermissionDeniedError(`Do not have admin permissions for dataset uuid: ${input_dataset.uuid}`);
       }
 
@@ -259,7 +258,7 @@ class Model {
     // Otherwise, this is a create, so generate a new uuid
     else {
       uuid = uuidv4();
-      await user_permissions_model_instance.initialize_permissions_for(this.state.user_id, uuid, SharedFunctions.DocumentTypes.Dataset);
+      await permissions_model_instance.initializePermissionsFor(uuid);
     }
 
     if(!input_dataset.template_id || typeof(input_dataset.template_id) !== 'string') {
@@ -269,7 +268,7 @@ class Model {
     if(input_dataset.template_id != template._id.toString()) {
       throw new Util.InputError(`The template _id provided by the dataset (${input_dataset.template_id}) does not correspond to the template _id expected by the template (${template._id})`);
     }
-    if(!(await user_permissions_model_instance.hasAccessToPersistedResource(TemplateModel.collection(), template.uuid, this.state.user_id))) {
+    if(!(await permissions_model_instance.hasPermission(template.uuid, PermissionModel.PermissionTypes.view, TemplateModel.collection()))) {
       throw new Util.PermissionDeniedError(`Cannot link to template_id ${template._id}, as you do not have view permissions to it`);
     }
 
@@ -403,7 +402,7 @@ class Model {
     }
     
     // Make sure this user has a permission to be working with drafts
-    if (!(await (new UserPermissionsModel.model(this.state)).has_permission(this.state.user_id, uuid, PermissionGroupModel.PermissionTypes.admin))) {
+    if (!(await (new PermissionModel.model(this.state)).hasPermission(uuid, PermissionModel.PermissionTypes.admin))) {
       throw new Util.PermissionDeniedError(`You do not have the edit permissions required to view draft ${uuid}`);
     }
 
@@ -451,7 +450,7 @@ class Model {
   // This function will provide the timestamp of the last update made to this dataset and all of it's related_datasets
   async #lastUpdateFor(uuid: string): Promise<Date> {
 
-    let user_permissions_model_instance = new UserPermissionsModel.model(this.state);
+    let permissions_model_instance = new PermissionModel.model(this.state);
 
     let draft = await this.#fetchDraftOrCreateFromPersisted(uuid);
     if(!draft) {
@@ -459,8 +458,8 @@ class Model {
     }
 
     let persisted = await SharedFunctions.latestPersisted(Dataset, uuid, this.state.session);
-    let admin_permission = await user_permissions_model_instance.has_permission(this.state.user_id, uuid, PermissionGroupModel.PermissionTypes.admin);
-    let view_permission = await user_permissions_model_instance.has_permission(this.state.user_id, uuid, PermissionGroupModel.PermissionTypes.view);
+    let admin_permission = await permissions_model_instance.hasPermission(uuid, PermissionModel.PermissionTypes.admin);
+    let view_permission = await permissions_model_instance.hasPermission(uuid, PermissionModel.PermissionTypes.view, Dataset);
 
     if(!admin_permission) {
       if(!persisted) {
@@ -582,7 +581,7 @@ class Model {
     }
 
     // verify that this user is in the 'admin' permission group
-    if (!(await (new UserPermissionsModel.model(this.state)).has_permission(this.state.user_id, uuid, PermissionGroupModel.PermissionTypes.admin))) {
+    if (!(await (new PermissionModel.model(this.state)).hasPermission(uuid, PermissionModel.PermissionTypes.admin))) {
       throw new Util.PermissionDeniedError(`Do not have admin permissions for dataset uuid: ${uuid}`);
     }
 
@@ -719,7 +718,7 @@ class Model {
 
   async #filterPersistedForPermissionsRecursor(dataset: Record<string, any>): Promise<void> {
     for(let i = 0; i < dataset.related_datasets.length; i++) {
-      if(!(await (new UserPermissionsModel.model(this.state)).hasAccessToPersistedResource(Dataset, dataset.related_datasets[i].uuid, this.state.user_id))) {
+      if(!(await (new PermissionModel.model(this.state)).hasPermission(dataset.related_datasets[i].uuid, PermissionModel.PermissionTypes.view, Dataset))) {
         dataset.related_datasets[i] = {uuid: dataset.related_datasets[i].uuid};
       } else {
         await this.#filterPersistedForPermissionsRecursor(dataset.related_datasets[i]);
@@ -728,7 +727,7 @@ class Model {
   }
 
   async #filterPersistedForPermissions(dataset: Record<string, any>): Promise<void> {
-    if(!(await (new UserPermissionsModel.model(this.state)).hasAccessToPersistedResource(Dataset, dataset.uuid, this.state.user_id))) {
+    if(!(await (new PermissionModel.model(this.state)).hasPermission(dataset.uuid, PermissionModel.PermissionTypes.view, Dataset))) {
       throw new Util.PermissionDeniedError(`Do not have view access to dataset ${dataset.uuid}`);
     }
     await this.#filterPersistedForPermissionsRecursor(dataset);
@@ -751,10 +750,10 @@ class Model {
 
   async #duplicateRecursor(original_dataset: Record<string, any>, original_group_uuid: string, 
   new_group_uuid: string, uuid_dictionary: Record<string, string>): Promise<string> {
-    let user_permissions_model_instance = new UserPermissionsModel.model(this.state);
+    let permissions_model_instance = new PermissionModel.model(this.state);
 
     // verify that this user is in the 'view' permission group
-    if (!(await user_permissions_model_instance.hasAccessToPersistedResource(Dataset, original_dataset.uuid, this.state.user_id))) {
+    if (!(await permissions_model_instance.hasPermission(original_dataset.uuid, PermissionModel.PermissionTypes.view, Dataset))) {
       throw new Util.PermissionDeniedError(`Do not have view permissions required to duplicate dataset: ${original_dataset.uuid}`);
     }
 
@@ -800,7 +799,7 @@ class Model {
     if (!response.acknowledged) {
       throw new Error(`Dataset.duplicateRecursor: Inserting failed`);
     } 
-    await user_permissions_model_instance.initialize_permissions_for(this.state.user_id, new_dataset.uuid, SharedFunctions.DocumentTypes.Dataset);
+    await permissions_model_instance.initializePermissionsFor(new_dataset.uuid);
 
     return new_dataset.uuid;
   }
@@ -818,7 +817,7 @@ class Model {
 
   async #createMissingDatasetForImport(template: Record<string, any>, updated_at: Date): Promise<string> {
     let uuid = uuidv4();
-    await (new UserPermissionsModel.model(this.state)).initialize_permissions_for(this.state.user_id, uuid, SharedFunctions.DocumentTypes.Dataset);
+    await (new PermissionModel.model(this.state)).initializePermissionsFor(uuid);
     let dataset: any = {
       uuid,
       template_uuid: template.uuid,
@@ -876,7 +875,7 @@ class Model {
     let dataset_uuid = await uuid_mapper_model_instance.get_new_uuid_from_old(old_uuid);
     // If the uuid is found, then this has already been imported. Import again if we have edit permissions
     if(dataset_uuid) {
-      if(!(await user_permissions_model_instance.has_permission(this.state.user_id, dataset_uuid, PermissionGroupModel.PermissionTypes.admin))) {
+      if(!(await user_permissions_model_instance.has_permission(this.state.user_id, dataset_uuid, PermissionModel.PermissionTypes.admin))) {
         throw new Util.PermissionDeniedError(`You do not have edit permissions required to import database ${old_uuid}. It has already been imported.`);
       }
     } else {
@@ -1023,7 +1022,7 @@ class Model {
 
   async #importDatasetForTemplate(template: Record<string, any>, updated_at: Date): Promise<string> {
     let uuid_mapper_model_instance = new LegacyUuidToNewUuidMapperModel.model(this.state);
-    let user_permissions_model_instance = new UserPermissionsModel.model(this.state);
+    let permissions_model_instance = new PermissionModel.model(this.state);
 
     let old_template_uuid = template.template_uuid;
     let new_template_uuid = await uuid_mapper_model_instance.get_new_uuid_from_old(old_template_uuid,);
@@ -1033,12 +1032,12 @@ class Model {
     let dataset_uuid = await uuid_mapper_model_instance.get_secondary_uuid_from_old(old_template_uuid);
     // If the uuid is found, then this has already been imported. Import again if we have edit permissions
     if(dataset_uuid) {
-      if(!(await user_permissions_model_instance.has_permission(this.state.user_id, dataset_uuid, PermissionGroupModel.PermissionTypes.edit))) {
+      if(!(await permissions_model_instance.hasPermission(dataset_uuid, PermissionModel.PermissionTypes.edit))) {
         throw new Util.PermissionDeniedError(`You do not have edit permissions required to import dataset ${old_template_uuid}. It has already been imported.`);
       }
     } else {
       dataset_uuid = await uuid_mapper_model_instance.create_secondary_uuid_for_old(old_template_uuid);
-      await user_permissions_model_instance.initialize_permissions_for(this.state.user_id, dataset_uuid, SharedFunctions.DocumentTypes.Dataset);
+      await permissions_model_instance.initializePermissionsFor(dataset_uuid);
     }
 
     let dataset: any = {
@@ -1144,7 +1143,7 @@ class Model {
       throw new Util.NotFoundError(`No draft exists with uuid ${uuid}`);
     }
     // if don't have admin permissions, return no permissions
-    if(!(await (new UserPermissionsModel.model(this.state)).has_permission(this.state.user_id, uuid, PermissionGroupModel.PermissionTypes.admin))) {
+    if(!(await (new PermissionModel.model(this.state)).hasPermission(uuid, PermissionModel.PermissionTypes.admin))) {
       throw new Util.PermissionDeniedError(`You do not have admin permissions for dataset ${uuid}.`);
     }
 
@@ -1199,8 +1198,8 @@ class Model {
 
   async allViewableUuids(): Promise<string[]> {
     let public_uuids = await Model.allPublicUuids();
-    let user_permissions_model_instance = new UserPermissionsModel.model(this.state);
-    // let viewable_uuids = user_permissions_model_instance.uuidsWithAccess(PermissionGroupModel.PermissionTypes.view);
+    // let user_permissions_model_instance = new PermissionModel.model(this.state);
+    // let viewable_uuids = user_permissions_model_instance.uuidsWithAccess(PermissionModel.PermissionTypes.view);
     let viewable_uuids;
     return Util.arrayUnion(public_uuids, viewable_uuids);
   }

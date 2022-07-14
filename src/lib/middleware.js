@@ -4,7 +4,7 @@ const bcrypt = require("bcryptjs");
 const PassportJwt = require('passport-jwt')
 const jwt = require("jsonwebtoken");
 const User = require('../models/user');
-const UserPermissions = require('../models/user_permissions');
+const Permissions = require('../models/permission');
 const SharedFunctions = require('../models/shared_functions');
 // const { validationResult } = require('express-validator');
 
@@ -55,7 +55,7 @@ exports.ensureLoggedIn = async (req, res, next) => {
 
 exports.ensureAdminOrSuper = async (req, res, next) => {
   try {
-    if(!(await UserPermissions.model.isAdmin(req.user._id)) && !(await UserPermissions.model.isSuper(req.user._id))) {
+    if(!(await User.model.isAdmin(req.user._id)) && !(await User.model.isSuper(req.user._id))) {
       throw new Util.PermissionDeniedError(`Must be an admin or super user to perform this function`);
     }
     next();
@@ -67,7 +67,7 @@ exports.ensureAdminOrSuper = async (req, res, next) => {
 exports.superUserActAs = async (req, res, next) => {
   try {
 
-    if(!req.user || !(await UserPermissions.model.isSuper(req.user._id))) {
+    if(!req.user || !(await User.model.isSuper(req.user._id))) {
       next();
       return;
     }
@@ -96,10 +96,8 @@ exports.superUserActAs = async (req, res, next) => {
 
       let state = Util.initializeState(req);
       let user_model_instance = new User.model(state);
-      let user_permissions_model_instance = new UserPermissions.model(state);
       const callback = async () => {
         let user_id = await user_model_instance.create(new_user_email, hashed_password, true);
-        await user_permissions_model_instance.create(user_id);
       };
       await SharedFunctions.executeWithTransaction(state, callback);
       user = await User.model.getByEmail(new_user_email);

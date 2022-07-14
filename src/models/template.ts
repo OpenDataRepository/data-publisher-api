@@ -3,8 +3,7 @@ const { v4: uuidv4, validate: uuidValidate } = require('uuid');
 import * as Util from '../lib/util';
 import { ObjectId } from 'mongodb';
 const TemplateFieldModel = require('./template_field');
-const UserPermissionsModel = require('./user_permissions');
-const PermissionGroupModel = require('./permission_group');
+const PermissionModel = require('./permission');
 const SharedFunctions = require('./shared_functions');
 const LegacyUuidToNewUuidMapperModel = require('./legacy_uuid_to_new_uuid_mapper');
 
@@ -358,7 +357,7 @@ class Model {
 
   async #getUuidFromCreateOrUpdate(input_template: Record<string, any>): Promise<string> {
     let uuid;
-    let user_permissions_model_instance = new UserPermissionsModel.model(this.state);
+    let permissions_model_instance = new PermissionModel.model(this.state);
     // If a template uuid is provided, this is an update
     if (input_template.uuid) {
       // Template must have a valid uuid. 
@@ -372,7 +371,7 @@ class Model {
       }
       
       // verify that this user is in the 'edit' permission group
-      if (!(await user_permissions_model_instance.has_permission(this.state.user_id, input_template.uuid, PermissionGroupModel.PermissionTypes.edit))) {
+      if (!(await permissions_model_instance.hasPermission(input_template.uuid, PermissionModel.PermissionTypes.edit))) {
         throw new Util.PermissionDeniedError(`Do not have edit permissions for template uuid: ${input_template.uuid}`);
       }
 
@@ -383,7 +382,7 @@ class Model {
       // Generate a uuid for the new template
       uuid = uuidv4();
       // create a permissions group for the new template
-      await user_permissions_model_instance.initialize_permissions_for(this.state.user_id, uuid, SharedFunctions.DocumentTypes.Template);
+      await permissions_model_instance.initializePermissionsFor(uuid);
     }
     return uuid;
   }
@@ -705,7 +704,7 @@ class Model {
 
     let template_draft = await SharedFunctions.draft(Template, uuid, this.state.session);
 
-    let user_permissions_model_instance = new UserPermissionsModel.model(this.state);
+    let permissions_model_instance = new PermissionModel.model(this.state);
 
     // If a draft of this template doesn't exist, we'll use the persisted template instead
     if(!template_draft) {
@@ -713,19 +712,19 @@ class Model {
       if (!persisted_template) {
         throw new Util.NotFoundError(`Template with uuid ${uuid} does not exist`);
       }
-      if(!(await user_permissions_model_instance.hasAccessToPersistedResource(Template, uuid, this.state.user_id))) {
+      if(!(await permissions_model_instance.hasPermission(uuid, PermissionModel.PermissionTypes.view, Template))) {
         throw new Util.PermissionDeniedError(`cannot link template with uuid ${uuid}. Requires at least view permissions.`);
       }
       return persisted_template._id;
     }
 
     // If a user doesn't have edit access to this template, we'll use the persisted template instead
-    if(!(await user_permissions_model_instance.has_permission(this.state.user_id, uuid, PermissionGroupModel.PermissionTypes.edit))) {
+    if(!(await permissions_model_instance.hasPermission(uuid, PermissionModel.PermissionTypes.edit))) {
       // There is no draft of this uuid. Return the latest persisted template instead.
       if (!persisted_template) {
         throw new Util.InputError(`Do not have access to template draft with uuid ${uuid}, and no persisted version exists`);
       }
-      if(!(await user_permissions_model_instance.hasAccessToPersistedResource(Template, uuid, this.state.user_id))) {
+      if(!(await permissions_model_instance.hasPermission(uuid, PermissionModel.PermissionTypes.view, Template))) {
         throw new Util.PermissionDeniedError(`cannot link template with uuid ${uuid}. Requires at least view permissions.`);
       }
       return persisted_template._id;
@@ -771,7 +770,7 @@ class Model {
       }
     }
 
-    if(!(await (new UserPermissionsModel.model(this.state)).has_permission(this.state.user_id, uuid, PermissionGroupModel.PermissionTypes.edit))) {
+    if(!(await (new PermissionModel.model(this.state)).hasPermission(uuid, PermissionModel.PermissionTypes.edit))) {
       throw new Util.PermissionDeniedError(`You do not have the edit permissions required to persist ${uuid}`);
     }
 
@@ -911,14 +910,14 @@ class Model {
   }
 
   async #filterPersistedTemplateForPermissionsRecursor(template: Record<string, any>): Promise<void> {
-    let user_permissions_model_instance = new UserPermissionsModel.model(this.state);
+    let permissions_model_instance = new PermissionModel.model(this.state);
     for(let i = 0; i < template.fields.length; i++) {
-      if(!(await user_permissions_model_instance.hasAccessToPersistedResource(TemplateField, template.fields[i].uuid, this.state.user_id))) {
+      if(!(await permissions_model_instance.hasPermission(template.fields[i].uuid, PermissionModel.PermissionTypes.view, TemplateField))) {
         template.fields[i] = {uuid: template.fields[i].uuid};
       }
     }
     for(let i = 0; i < template.related_templates.length; i++) {
-      if(!(await user_permissions_model_instance.hasAccessToPersistedResource(Template, template.related_templates[i].uuid, this.state.user_id))) {
+      if(!(await permissions_model_instance.hasPermission(template.related_templates[i].uuid, PermissionModel.PermissionTypes.view, Template))) {
         template.related_templates[i] = {uuid: template.related_templates[i].uuid};
       } else {
         await this.#filterPersistedTemplateForPermissionsRecursor(template.related_templates[i]);
@@ -927,7 +926,7 @@ class Model {
   }
 
   async #filterPersistedTemplateForPermissions(template: Record<string, any>): Promise<void> {
-    if(!(await (new UserPermissionsModel.model(this.state)).hasAccessToPersistedResource(Template, template.uuid, this.state.user_id))) {
+    if(!(await (new PermissionModel.model(this.state)).hasPermission(template.uuid, PermissionModel.PermissionTypes.view, Template))) {
       throw new Util.PermissionDeniedError(`Do not have view access to template ${template.uuid}`);
     }
     await this.#filterPersistedTemplateForPermissionsRecursor(template);
@@ -1043,7 +1042,7 @@ class Model {
     }
 
     // Make sure this user has a permission to be working with drafts
-    if (!(await (new UserPermissionsModel.model(this.state)).has_permission(this.state.user_id, uuid, PermissionGroupModel.PermissionTypes.edit))) {
+    if (!(await (new PermissionModel.model(this.state)).hasPermission(uuid, PermissionModel.PermissionTypes.edit))) {
       throw new Util.PermissionDeniedError(`You don't have edit permissions required to view template ${uuid}`);
     }
 
@@ -1097,10 +1096,10 @@ class Model {
   async #lastUpdateFor(uuid: string): Promise<Date> {
 
     let template_draft = await this.#fetchDraftOrCreateFromPersisted(uuid);
-    let user_permissions_model_instance = new UserPermissionsModel.model(this.state);
+    let permissions_model_instance = new PermissionModel.model(this.state);
     let template_persisted = await SharedFunctions.latestPersisted(Template, uuid, this.state.session);
-    let edit_permission = await user_permissions_model_instance.has_permission(this.state.user_id, uuid, PermissionGroupModel.PermissionTypes.edit);
-    let view_permission = await user_permissions_model_instance.has_permission(this.state.user_id, uuid, PermissionGroupModel.PermissionTypes.view);
+    let edit_permission = await permissions_model_instance.hasPermission(uuid, PermissionModel.PermissionTypes.edit);
+    let view_permission = await permissions_model_instance.hasPermission(uuid, PermissionModel.PermissionTypes.view, Template);
 
     if(!template_draft) {
       throw new Util.NotFoundError(`No template  exists with uuid ${uuid}`);
@@ -1148,14 +1147,14 @@ class Model {
   }
 
   async #duplicateRecursor(template: Record<string, any>): Promise<string> {
-    let user_permissions_model_instance = new UserPermissionsModel.model(this.state);
+    let permissions_model_instance = new PermissionModel.model(this.state);
     let template_field_model_instance = new TemplateFieldModel.model(this.state);
 
     // 1. Error checking
     if(!template) {
       throw new Util.NotFoundError();
     }
-    if(!(await user_permissions_model_instance.hasAccessToPersistedResource(Template, template.uuid, this.state.user_id))) {
+    if(!(await permissions_model_instance.hasPermission(template.uuid, PermissionModel.PermissionTypes.view, Template))) {
       throw new Util.PermissionDeniedError();
     }
 
@@ -1166,7 +1165,7 @@ class Model {
     delete template.updated_at;
     delete template.persist_date;
     delete template.public_date;
-    await user_permissions_model_instance.initialize_permissions_for(this.state.user_id, template.uuid, SharedFunctions.DocumentTypes.Template);
+    await permissions_model_instance.initializePermissionsFor(template.uuid);
 
     // 3. For templates and fields, recurse. If they throw an error, just remove them from the copy.
     let fields: any[] = [];
@@ -1217,7 +1216,7 @@ class Model {
     if(!template) {
       throw new Util.NotFoundError(`Persisted template ${uuid} does not exist`);
     }
-    if(!(await (new UserPermissionsModel.model(this.state)).hasAccessToPersistedResource(Template, template.uuid, this.state.user_id))) {
+    if(!(await (new PermissionModel.model(this.state)).hasPermission(template.uuid, PermissionModel.PermissionTypes.view, Template))) {
       throw new Util.PermissionDeniedError(`You do not have view permissions required to duplicate template ${uuid}.`);
     }
     return await this.#duplicateRecursor(template)
@@ -1225,7 +1224,7 @@ class Model {
 
   // TODO: as of now, import doesn't include group_uuids at all
   async #importTemplate(template: Record<string, any>, updated_at: Date): Promise<[boolean, string]> {
-    let user_permissions_model_instance = new UserPermissionsModel.model(this.state);
+    let permissions_model_instance = new PermissionModel.model(this.state);
     let uuid_mapper_model_instance = new LegacyUuidToNewUuidMapperModel.model(this.state);
 
     if(!Util.isObject(template)) {
@@ -1239,12 +1238,12 @@ class Model {
     let uuid = await uuid_mapper_model_instance.get_new_uuid_from_old(old_uuid);
     // If the uuid is found, then this has already been imported. Import again if we have edit permissions
     if(uuid) {
-      if(!(await user_permissions_model_instance.has_permission(this.state.user_id, uuid, PermissionGroupModel.PermissionTypes.edit))) {
+      if(!(await permissions_model_instance.hasPermission(uuid, PermissionModel.PermissionTypes.edit))) {
         throw new Util.PermissionDeniedError(`You do not have edit permissions required to import template ${old_uuid}. It has already been imported.`);
       }
     } else {
       uuid = await uuid_mapper_model_instance.create_new_uuid_for_old(old_uuid);
-      await user_permissions_model_instance.initialize_permissions_for(this.state.user_id, uuid, SharedFunctions.DocumentTypes.Template);
+      await permissions_model_instance.initializePermissionsFor(uuid);
     }
 
     // Populate template properties
@@ -1433,7 +1432,7 @@ class Model {
       throw new Util.NotFoundError(`No draft exists with uuid ${uuid}`);
     }
 
-    if(!(await (new UserPermissionsModel.model(this.state)).has_permission(this.state.user_id, uuid, PermissionGroupModel.PermissionTypes.edit))) {
+    if(!(await (new PermissionModel.model(this.state)).hasPermission(uuid, PermissionModel.PermissionTypes.edit))) {
       throw new Util.PermissionDeniedError(`You do not have edit permissions for template ${uuid}.`);
     }
 

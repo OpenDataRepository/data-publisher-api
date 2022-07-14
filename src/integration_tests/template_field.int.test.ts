@@ -1,6 +1,6 @@
 const request = require("supertest");
 var { app, init: appInit, close: appClose } = require('../app');
-var { PermissionTypes } = require('../models/permission_group');
+var { PermissionTypes } = require('../models/permission');
 const FieldTypes = require('../models/template_field').FieldTypes;
 var HelperClass = require('./common_test_operations')
 var Helper = new HelperClass(app);
@@ -36,7 +36,7 @@ describe("create (and get draft after a create)", () => {
       let uuid = await Helper.templateFieldCreateAndTest(data);
   
       // Now test that all permission groups were created successfully
-      await Helper.testPermissionGroupsInitializedFor(uuid);
+      await Helper.testPermissionsInitializedFor(uuid);
   
     });
 
@@ -757,8 +757,8 @@ describe("delete", () => {
     };
     let uuid = await Helper.templateFieldCreateAndTest(template_field);
 
-    let permission_group = await Helper.testAndExtract(Helper.getPermissionGroup, uuid, PermissionTypes.admin);
-    expect(permission_group).toEqual([Helper.DEF_EMAIL]);
+    let permission = await Helper.testAndExtract(Helper.getPermission, uuid, PermissionTypes.admin);
+    expect(permission).toEqual([Helper.DEF_EMAIL]);
 
     let user_permissions = await Helper.testAndExtract(Helper.accountPermissions);
     expect(user_permissions.template_field.admin).toEqual(expect.arrayContaining([uuid]));
@@ -766,7 +766,7 @@ describe("delete", () => {
     
     await Helper.testAndExtract(Helper.templateFieldDraftDelete, uuid);
     
-    let response = await Helper.getPermissionGroup(uuid, PermissionTypes.admin);
+    let response = await Helper.getPermission(uuid, PermissionTypes.admin);
     expect(response.statusCode).toBe(404);
 
     user_permissions = await Helper.testAndExtract(Helper.accountPermissions);
@@ -862,7 +862,7 @@ describe("lastUpdate", () => {
       let time3 = new Date();
 
       let view_users = [Helper.EMAIL_2, Helper.DEF_EMAIL];
-      response = await Helper.updatePermissionGroup(template.uuid, PermissionTypes.view, view_users);
+      response = await Helper.updatePermission(template.uuid, PermissionTypes.view, view_users);
       expect(response.statusCode).toBe(200);
 
       Helper.setAgent(agent2);

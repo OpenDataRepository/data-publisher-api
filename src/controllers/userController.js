@@ -5,9 +5,11 @@ const Util = require('../lib/util');
 const email_validator = require("email-validator");
 const SharedFunctions = require('../models/shared_functions');
 const User = require('../models/user');
-const UserPermissions = require('../models/user_permissions');
+const PermissionsModel = require('../models/permission');
 const PassportImplementation = require('../lib/passport_implementation');
-const { init } = require("passport/lib");
+const TemplateFieldModel = require('../models/template_field');
+const TemplateModel = require('../models/template');
+const DatasetModel = require('../models/dataset');
 
 // TODO: this needs to be replaced with a real email eventually. 
 // This email is from https://mailtrap.io/
@@ -35,10 +37,8 @@ exports.register = async function(req, res, next) {
     
     let state = Util.initializeState(req);
     let user_model_instance = new User.model(state);
-    let user_permissions_model_instance = new UserPermissions.model(state);
     const callback = async () => {
       let user_id = await user_model_instance.create(email, hashed_password, false);
-      await user_permissions_model_instance.create(user_id);
 
       // jwt.sign(
       //   {user_id},
@@ -291,8 +291,73 @@ exports.getPermissions = async function(req, res, next) {
     } else {
       user = req.user;
     }
-    let user_permissions = await UserPermissions.model.get(user._id)
-    res.send(user_permissions);
+    let state = {user_id: user._id};
+
+    // Get a list of objects with uuids and permission levels
+    let user_permissions = await (new PermissionsModel.model(state)).getUserPermissions();
+
+    // Now we need to figure out which document type belongs to which permission type. 
+    // Unfortunately we can only get this from the collections themselves, so this is pretty complicated. 
+    // Strategy:
+    // - Create a list of uuids from the objects
+    // - Search each of the collections for which uuids they hold. Should result in a list of uuids per collection
+    // - Create a dictionary of uuid -> object
+    // - Using the dictionary, assign document types to each of the objects
+    // - Go through the list of objects and construct the final object
+
+    // Create a list of uuids from the objects
+    let document_uuids = user_permissions.map(x => x.document_uuid);
+
+    // - Search each of the collections for which uuids they hold. Should result in a list of uuids per collection
+    let template_field_uuids = await SharedFunctions.uuidsInThisCollection(TemplateFieldModel.collection(), document_uuids);
+    let template_uuids = await SharedFunctions.uuidsInThisCollection(TemplateModel.collection(), document_uuids);
+    let dataset_uuids = await SharedFunctions.uuidsInThisCollection(DatasetModel.collection(), document_uuids);
+
+    // - Create a dictionary of uuid -> object
+    let uuid_object_dict = {};
+    for(let obj of user_permissions) {
+      uuid_object_dict[obj.document_uuid] = obj;
+    }
+
+    // TODO: too much stuff hardcoded here. See if I can figure out how to make it flexible
+
+    // - Using the dictionary, assign document types to each of the objects
+    for(let uuid of template_field_uuids) {
+      let obj = uuid_object_dict[uuid];
+      obj.document_type = SharedFunctions.DocumentTypes.TemplateField;
+    }
+    for(let uuid of template_uuids) {
+      let obj = uuid_object_dict[uuid];
+      obj.document_type = SharedFunctions.DocumentTypes.Template;
+    }
+    for(let uuid of dataset_uuids) {
+      let obj = uuid_object_dict[uuid];
+      obj.document_type = SharedFunctions.DocumentTypes.Dataset;
+    }
+
+    // - Go through the list of objects and construct the final object
+    let result = {
+      [SharedFunctions.DocumentTypes.TemplateField]: {
+        [PermissionsModel.PermissionTypes.admin]: [],
+        [PermissionsModel.PermissionTypes.edit]: [],
+        [PermissionsModel.PermissionTypes.view]: []
+      },
+      [SharedFunctions.DocumentTypes.Template]: {
+        [PermissionsModel.PermissionTypes.admin]: [],
+        [PermissionsModel.PermissionTypes.edit]: [],
+        [PermissionsModel.PermissionTypes.view]: []
+      },
+      [SharedFunctions.DocumentTypes.Dataset]: {
+        [PermissionsModel.PermissionTypes.admin]: [],
+        [PermissionsModel.PermissionTypes.edit]: [],
+        [PermissionsModel.PermissionTypes.view]: []
+      }
+    };
+    for(let obj of user_permissions) {
+      result[obj.document_type][obj.permission_level].push(obj.document_uuid);
+    }
+
+    res.send(result);
   } catch(err) {
     next(err);
   }
@@ -300,7 +365,7 @@ exports.getPermissions = async function(req, res, next) {
 
 exports.testing_set_admin = async function(req, res, next) {
   try{
-    await UserPermissions.model.setAdmin(req.user._id)
+    await User.model.setAdmin(req.user._id)
     res.sendStatus(200);
   } catch(err) {
     next(err);
@@ -309,7 +374,7 @@ exports.testing_set_admin = async function(req, res, next) {
 
 exports.testing_set_super = async function(req, res, next) {
   try{
-    await UserPermissions.model.setSuper(req.user._id)
+    await User.model.setSuper(req.user._id)
     res.sendStatus(200);
   } catch(err) {
     next(err);

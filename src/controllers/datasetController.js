@@ -1,11 +1,8 @@
 const DatasetModel = require('../models/dataset');
 const DatasetPublishModel = require('../models/datasetPublish');
 const RecordModel = require('../models/record');
-const UserPermissionsModel = require('../models/user_permissions');
-var { PermissionTypes } = require('../models/permission_group');
-const PermissionGroupController = require('./permissionGroupController');
+const { PermissionTypes, model: PermissionModel } = require('../models/permission');
 const SharedFunctions = require('../models/shared_functions');
-
 const Util = require('../lib/util');
 
 exports.draft_get = async function(req, res, next) {
@@ -101,7 +98,7 @@ exports.draft_delete = async function(req, res, next) {
     const callback = async () => {
       await model_instance.draftDelete(uuid);
       if( !(await SharedFunctions.latestPersisted(DatasetModel.collection(), uuid, state.session)) ) {
-        await PermissionGroupController.delete(uuid, SharedFunctions.DocumentTypes.Dataset, state);
+        await (new PermissionModel(state)).documentDeletePermissions(uuid);
       }
     }
     await SharedFunctions.executeWithTransaction(state, callback);
@@ -197,7 +194,7 @@ exports.published_records = async function(req, res, next) {
     let name = req.params.name;
     let state = Util.initializeState(req);
 
-    if(!(await (new UserPermissionsModel.model(state)).has_permission(state.user_id, dataset_uuid, PermissionTypes.view))) {
+    if(!(await (new PermissionModel(state)).hasPermission(dataset_uuid, PermissionTypes.view, DatasetModel.collection()))) {
       throw new Util.PermissionDeniedError();
     }
 

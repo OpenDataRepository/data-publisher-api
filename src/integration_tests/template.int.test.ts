@@ -1,4 +1,4 @@
-var { PermissionTypes } = require('../models/permission_group');
+var { PermissionTypes } = require('../models/permission');
 var { app, init: appInit, close: appClose } = require('../app');
 var HelperClass = require('./common_test_operations');
 var Helper = new HelperClass(app);
@@ -186,7 +186,7 @@ describe("create (and get draft after a create)", () => {
       };
       template = await Helper.templateCreateAndTest(template);
 
-      await Helper.testPermissionGroupsInitializedFor(template.uuid);
+      await Helper.testPermissionsInitializedFor(template.uuid);
 
     });
   
@@ -219,9 +219,9 @@ describe("create (and get draft after a create)", () => {
       Helper.testTemplateFieldsEqual(field, field_draft);
 
       // Now test that all permission groups were created successfully
-      await Helper.testPermissionGroupsInitializedFor(template.uuid);
-      await Helper.testPermissionGroupsInitializedFor(related_template_uuid);
-      await Helper.testPermissionGroupsInitializedFor(field_uuid);
+      await Helper.testPermissionsInitializedFor(template.uuid);
+      await Helper.testPermissionsInitializedFor(related_template_uuid);
+      await Helper.testPermissionsInitializedFor(field_uuid);
     });
   
     test("Create template with related templates going 6 nodes deep", async () => {
@@ -820,10 +820,10 @@ describe("get/fetch draft", () => {
 
     let view_users = [Helper.EMAIL_2, Helper.DEF_EMAIL];
 
-    let response = await Helper.updatePermissionGroup(field_persisted.uuid, PermissionTypes.view, view_users);
+    let response = await Helper.updatePermission(field_persisted.uuid, PermissionTypes.view, view_users);
     expect(response.statusCode).toBe(200);
 
-    response = await Helper.updatePermissionGroup(related_template_persisted.uuid, PermissionTypes.view, view_users);
+    response = await Helper.updatePermission(related_template_persisted.uuid, PermissionTypes.view, view_users);
     expect(response.statusCode).toBe(200);
 
     await Helper.setAgent(agent1);
@@ -860,7 +860,7 @@ describe("get/fetch draft", () => {
     let template_persisted = await Helper.templateCreatePersistTest(template);  
     
     let edit_users = [Helper.EMAIL_2, Helper.DEF_EMAIL];
-    let response = await Helper.updatePermissionGroup(template_persisted.uuid, PermissionTypes.edit, edit_users);
+    let response = await Helper.updatePermission(template_persisted.uuid, PermissionTypes.edit, edit_users);
     expect(response.statusCode).toBe(200);
 
     await Helper.setAgent(agent1);
@@ -1119,10 +1119,10 @@ describe("persist (and get persisted and draft after a persist)", () => {
 
       let view_users = [Helper.EMAIL_2, Helper.DEF_EMAIL];
 
-      let response = await Helper.updatePermissionGroup(field_persisted.uuid, PermissionTypes.view, view_users);
+      let response = await Helper.updatePermission(field_persisted.uuid, PermissionTypes.view, view_users);
       expect(response.statusCode).toBe(200);
 
-      response = await Helper.updatePermissionGroup(related_template_persisted.uuid, PermissionTypes.view, view_users);
+      response = await Helper.updatePermission(related_template_persisted.uuid, PermissionTypes.view, view_users);
       expect(response.statusCode).toBe(200);
 
       await Helper.setAgent(agent1);
@@ -1195,9 +1195,9 @@ describe("persist (and get persisted and draft after a persist)", () => {
 
       // Give user 2 edit and view permissions to parent template
       let view_users = [Helper.DEF_EMAIL, Helper.EMAIL_2];
-      response = await Helper.updatePermissionGroup(parent_uuid, PermissionTypes.view, view_users);
+      response = await Helper.updatePermission(parent_uuid, PermissionTypes.view, view_users);
       expect(response.statusCode).toBe(200);
-      response = await Helper.updatePermissionGroup(parent_uuid, PermissionTypes.edit, view_users);
+      response = await Helper.updatePermission(parent_uuid, PermissionTypes.edit, view_users);
       expect(response.statusCode).toBe(200);
 
       await Helper.setAgent(agent2);
@@ -1354,7 +1354,7 @@ describe("persist (and get persisted and draft after a persist)", () => {
       await Helper.setAgent(agent1);
 
       // Even if that user has view permissions, they still shouldn't be able to persist
-      response = await Helper.updatePermissionGroup(uuid, PermissionTypes.view, [Helper.DEF_EMAIL, Helper.EMAIL_2]);
+      response = await Helper.updatePermission(uuid, PermissionTypes.view, [Helper.DEF_EMAIL, Helper.EMAIL_2]);
       expect(response.statusCode).toBe(200);
 
       await Helper.setAgent(agent2);
@@ -1460,7 +1460,7 @@ describe("get/fetch persisted", () => {
     let template_persisted = await Helper.templateCreatePersistTest(template);  
     
     let view_users = [Helper.EMAIL_2, Helper.DEF_EMAIL];
-    let response = await Helper.updatePermissionGroup(template_persisted.uuid, PermissionTypes.view, view_users);
+    let response = await Helper.updatePermission(template_persisted.uuid, PermissionTypes.view, view_users);
     expect(response.statusCode).toBe(200);
 
     template_persisted.fields[0] = {uuid: template_persisted.fields[0].uuid};
@@ -1586,8 +1586,8 @@ describe("delete", () => {
     template = await Helper.templateCreateAndTest(template);
     let uuid = template.uuid;
 
-    let permission_group = await Helper.testAndExtract(Helper.getPermissionGroup, uuid, PermissionTypes.admin);
-    expect(permission_group).toEqual([Helper.DEF_EMAIL]);
+    let permission = await Helper.testAndExtract(Helper.getPermission, uuid, PermissionTypes.admin);
+    expect(permission).toEqual([Helper.DEF_EMAIL]);
 
     let user_permissions = await Helper.testAndExtract(Helper.accountPermissions);
     expect(user_permissions.template.admin).toEqual(expect.arrayContaining([uuid]));
@@ -1595,7 +1595,7 @@ describe("delete", () => {
     
     await Helper.testAndExtract(Helper.templateDelete, uuid);
     
-    let response = await Helper.getPermissionGroup(uuid, PermissionTypes.admin);
+    let response = await Helper.getPermission(uuid, PermissionTypes.admin);
     expect(response.statusCode).toBe(404);
 
     user_permissions = await Helper.testAndExtract(Helper.accountPermissions);
@@ -1642,7 +1642,7 @@ describe("templateLastUpdate", () => {
       expect((new Date(response.body)).getTime()).toBeGreaterThan(timestamp.getTime());
 
       let view_users = [Helper.EMAIL_2, Helper.DEF_EMAIL];
-      response = await Helper.updatePermissionGroup(persisted.uuid, PermissionTypes.view, view_users);
+      response = await Helper.updatePermission(persisted.uuid, PermissionTypes.view, view_users);
       expect(response.statusCode).toBe(200);
 
       await Helper.setAgent(agent2);

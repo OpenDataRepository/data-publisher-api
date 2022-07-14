@@ -8,6 +8,9 @@ export enum DocumentTypes {
   TemplateField = "template_field"
 };
 
+// TODO: consider writing shared functions as a module that the other models inherit
+// Or better: a mixin that they can attach
+
 // Fetches the draft with the given uuid. 
 // Does not look up fields or related documents
 export const draft = async (collection, uuid: string, session?): Promise<Record<string, any> | null> => {
@@ -39,6 +42,7 @@ export function convertToMongoId(_id: string | ObjectId): ObjectId {
 
 // Fetches the latest persisted document with the given uuid. 
 // Does not look up related documents
+
 export const latestPersisted = async (collection, uuid: string, session?): Promise<Record<string, any> | null> => {
   let cursor = await collection.find(
     {"uuid": uuid, 'persist_date': {'$exists': true}}, 
@@ -134,4 +138,19 @@ export const executeWithTransaction = async (state, callback) => {
     session.endSession();
     throw err;
   }
+}
+
+export const isPublic = async (collection, uuid: string, session?): Promise<boolean> => {
+  let latest_persisted = await latestPersisted(collection, uuid, session);
+  if(!latest_persisted) {
+    return false;
+  }
+  return Util.isPublic(latest_persisted.public_date);
+}
+
+export const uuidsInThisCollection = async (collection, uuids: string[]): Promise<string[]>  => {
+  return await collection.distinct(
+    "uuid",
+    {"uuid": {$in: uuids}}
+  );
 }

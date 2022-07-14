@@ -7,18 +7,18 @@ const Util = require('../lib/util');
 const SharedFunctions = require('../models/shared_functions');
 const FileModel = require('../models/file');
 const RecordModel = require('../models/record');
-const PermissionGroupModel = require(`../models/permission_group`);
+const PermissionModel = require(`../models/permission`);
 
 
 exports.verifyFileUpload = async function(req, res, next) {
   let uuid = req.params.uuid;
-  let user = req.user._id;
+  let state = Util.initializeState(req);
   try {
     if(!(await SharedFunctions.exists(FileModel.collection(), uuid))) {
       throw new Util.NotFoundError(`Cannot upload file to uuid ${uuid}. Does not exist`);
     }
     let file_metadata = await SharedFunctions.latestDocument(FileModel.collection(), uuid);
-    if(!(await (new RecordModel.model({})).userHasPermissionsTo(file_metadata.record_uuid, PermissionGroupModel.PermissionTypes.edit, user))) {
+    if(!(await (new RecordModel.model(state)).userHasPermissionsTo(file_metadata.record_uuid, PermissionModel.PermissionTypes.edit))) {
       throw new Util.PermissionDeniedError(`You do not have the edit permissions required to add a file to record ${file_metadata.record_uuid}`);
     }
     if(file_metadata.uploaded) {
@@ -162,8 +162,8 @@ exports.getFile = async function(req, res, next) {
     }
     let file_metadata = await SharedFunctions.latestDocument(FileModel.collection(), uuid);
     let record_uuid = file_metadata.record_uuid;
-    if(await (new RecordModel.model(state)).userHasPermissionsTo(record_uuid, PermissionGroupModel.PermissionTypes.view, state.user_id)) {
-    } else if (file_metadata.published && await SharedFunctions.userHasAccessToPersistedResource(RecordModel.collection(), record_uuid, state.user_id, PermissionGroupModel.PermissionTypes.view)) {
+    if(await (new RecordModel.model(state)).userHasPermissionsTo(record_uuid, PermissionModel.PermissionTypes.view)) {
+    } else if (file_metadata.published && await SharedFunctions.userHasAccessToPersistedResource(RecordModel.collection(), record_uuid, state.user_id, PermissionModel.PermissionTypes.view)) {
     } else {
       throw new Util.PermissionDeniedError(`You do not have the view permissions required to view a file attached to record ${file_metadata.record_uuid}`);
     }

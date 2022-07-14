@@ -1,6 +1,6 @@
 const TemplateModel = require('../models/template');
 const Util = require('../lib/util');
-const PermissionGroupController = require('./permissionGroupController');
+const PermissionModel = require('../models/permission');
 const SharedFunctions = require('../models/shared_functions');
 
 exports.draft_get = async function(req, res, next) {
@@ -96,7 +96,7 @@ exports.draft_delete = async function(req, res, next) {
     const callback = async () => {
       await template_model_instance.draftDelete(uuid);
       if( !(await SharedFunctions.latestPersisted(TemplateModel.collection(), uuid, state.session)) ) {
-        await PermissionGroupController.delete(uuid, SharedFunctions.DocumentTypes.Template, state);
+        await (new PermissionModel.model(state)).documentDeletePermissions(uuid);
       }
     }
     await SharedFunctions.executeWithTransaction(state, callback);

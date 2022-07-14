@@ -5,7 +5,7 @@ var templateRouter = require('./template');
 var templateFieldRouter = require('./template_field');
 var datasetRouter = require('./dataset');
 var recordRouter = require('./record');
-var permissionGroupRouter = require('./permission_group');
+var PermissionRouter = require('./permission');
 var importRouter = require('./importer');
 var fileRouter = require('./file');
 var userRouter = require('./user');
@@ -22,7 +22,7 @@ router.use('/template', templateRouter);
 router.use('/template_field', templateFieldRouter);
 router.use('/dataset', datasetRouter);
 router.use('/record', recordRouter);
-router.use('/permission_group', permissionGroupRouter);
+router.use('/permission', PermissionRouter);
 router.use('/import', importRouter);
 router.use('/file', fileRouter);
 

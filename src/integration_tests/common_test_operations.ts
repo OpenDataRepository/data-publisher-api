@@ -6,7 +6,7 @@ var http = require('http')
 var serveStatic = require('serve-static')
 import { AddressInfo } from 'net'
 const MongoDB = require('../lib/mongoDB');
-var { PermissionTypes } = require('../models/permission_group');
+var { PermissionTypes } = require('../models/permission');
 const FieldTypes = require('../models/template_field').FieldTypes;
 var appRoot = require('app-root-path');
 
@@ -52,7 +52,7 @@ export = class Helper {
     await db.collection('template_fields').deleteMany();
     await db.collection('datasets').deleteMany();
     await db.collection('records').deleteMany();
-    await db.collection('permission_groups').deleteMany();
+    await db.collection('permissions').deleteMany();
     await db.collection('legacy_uuid_to_new_uuid_mapper').deleteMany();
     await db.collection('files').deleteMany();
   };
@@ -798,21 +798,21 @@ export = class Helper {
 
   // permission group
 
-  getPermissionGroup = async (uuid, category) => {
+  getPermission = async (uuid, category) => {
     return await this.agent
-      .get(`/permission_group/${uuid}/${category}`)
+      .get(`/permission/${uuid}/${category}`)
       .set('Accept', 'application/json');
   };
 
-  updatePermissionGroup = async (uuid, category, users) => {
+  updatePermission = async (uuid, category, users) => {
     return await this.agent
-      .put(`/permission_group/${uuid}/${category}`)
+      .put(`/permission/${uuid}/${category}`)
       .send({users})
       .set('Accept', 'application/json');
   }
 
-  testPermissionGroup = async (uuid, category, statusCode, users) => {
-    let response = await this.getPermissionGroup(uuid, category);
+  testPermission = async (uuid, category, statusCode, users) => {
+    let response = await this.getPermission(uuid, category);
     if(!statusCode) {
       statusCode = 200;
     }
@@ -822,19 +822,13 @@ export = class Helper {
     }
   };
 
-  testPermissionGroupsInitializedFor = async (uuid, user) => {
+  testPermissionsInitializedFor = async (uuid, user) => {
     if(!user) {
       user = this.DEF_EMAIL;
     }
-    await this.testPermissionGroup(uuid, PermissionTypes.admin, 200, [user]);
-    await this.testPermissionGroup(uuid, PermissionTypes.edit, 200, []);
-    await this.testPermissionGroup(uuid, PermissionTypes.view, 200, []);
-  }
-  
-  permissionGroupTestingHasPermission = async (uuid, category) => {
-    return await this.agent
-      .post(`/permission_group/${uuid}/${category}/testing_has_permission`)
-      .set('Accept', 'application/json');
+    await this.testPermission(uuid, PermissionTypes.admin, 200, [user]);
+    await this.testPermission(uuid, PermissionTypes.edit, 200, []);
+    await this.testPermission(uuid, PermissionTypes.view, 200, []);
   }
 
   // files 

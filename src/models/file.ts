@@ -47,7 +47,7 @@ var File;
 
 var Upload_Destination;
 
-// Returns a reference to the permission_groups Mongo Collection
+// Returns a reference to the permissions Mongo Collection
 async function collection() {
   if (File === undefined) {
     let db = MongoDB.db();

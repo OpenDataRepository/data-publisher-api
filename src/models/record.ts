@@ -6,8 +6,7 @@ import * as Util from '../lib/util';
 const TemplateFieldModel = require('./template_field');
 const TemplateModel = require('./template');
 const DatasetModel = require('./dataset');
-const UserPermissionsModel = require('./user_permissions');
-const PermissionGroupModel = require('./permission_group');
+const PermissionModel = require('./permission');
 const SharedFunctions = require('./shared_functions');
 const LegacyUuidToNewUuidMapperModel = require('./legacy_uuid_to_new_uuid_mapper');
 const FileModel = require('./file');
@@ -659,7 +658,7 @@ class Model {
     }
 
     // verify that this user is in the 'edit' permission group
-    if (!(await (new UserPermissionsModel.model(this.state)).has_permission(this.state.user_id, dataset.uuid, PermissionGroupModel.PermissionTypes.edit))) {
+    if (!(await (new PermissionModel.model(this.state)).hasPermission(dataset.uuid, PermissionModel.PermissionTypes.edit))) {
       throw new Util.PermissionDeniedError(`Do not have edit permissions required to create/update records in dataset ${dataset.uuid}`);
     }
 
@@ -791,7 +790,7 @@ class Model {
     }
 
     // Make sure this user has a permission to be working with drafts
-    if (!(await (new UserPermissionsModel.model(this.state)).has_permission(this.state.user_id, record_draft.dataset_uuid, PermissionGroupModel.PermissionTypes.edit))) {
+    if (!(await (new PermissionModel.model(this.state)).hasPermission(record_draft.dataset_uuid, PermissionModel.PermissionTypes.edit))) {
       throw new Util.PermissionDeniedError(`You do not have the edit permissions required to view draft ${uuid}`);
     }
 
@@ -900,7 +899,7 @@ class Model {
     }
 
     // verify that this user is in the 'edit' permission group
-    if (!(await (new UserPermissionsModel.model(this.state)).has_permission(this.state.user_id, dataset.uuid, PermissionGroupModel.PermissionTypes.edit))) {
+    if (!(await (new PermissionModel.model(this.state)).hasPermission(dataset.uuid, PermissionModel.PermissionTypes.edit))) {
       throw new Util.PermissionDeniedError(`Do not have edit permissions required to persist records in dataset ${dataset.uuid}`);
     }
 
@@ -1074,15 +1073,15 @@ class Model {
   // This function will provide the timestamp of the last update made to this record and all of it's related_records
   async lastUpdate(uuid: string): Promise<Date> {
 
-    let user_permissions_model_instance = new UserPermissionsModel.model(this.state);
+    let permissions_model_instance = new PermissionModel.model(this.state);
 
     let draft = await this.#fetchDraftOrCreateFromPersisted(uuid);
     if(!draft) {
       throw new Util.NotFoundError();
     }
 
-    let edit_permission = await user_permissions_model_instance.has_permission(this.state.user_id, draft.dataset_uuid, PermissionGroupModel.PermissionTypes.edit);
-    let view_permission = await user_permissions_model_instance.has_permission(this.state.user_id, draft.dataset_uuid, PermissionGroupModel.PermissionTypes.view);
+    let edit_permission = await permissions_model_instance.hasPermission(draft.dataset_uuid, PermissionModel.PermissionTypes.edit);
+    let view_permission = await permissions_model_instance.hasPermission(draft.dataset_uuid, PermissionModel.PermissionTypes.view, Record);
     let persisted = await SharedFunctions.latestPersisted(Record, uuid, this.state.session);
 
     if(!edit_permission) {
@@ -1125,7 +1124,7 @@ class Model {
     }
 
     // Otherwise, check if we have view permissions
-    return await (new UserPermissionsModel.model(this.state)).has_permission(this.state.user_id, dataset.uuid, PermissionGroupModel.PermissionTypes.view);
+    return await (new PermissionModel.model(this.state)).hasPermission(dataset.uuid, PermissionModel.PermissionTypes.view, DatasetModel.collection());
   }
 
   async #filterPersistedForPermissionsRecursor(record: Record<string, any>): Promise<void> {
@@ -1179,7 +1178,7 @@ class Model {
     let new_record_uuid = await uuid_mapper_model_instance.get_new_uuid_from_old(old_record_uuid);
     // If the uuid is found, then this has already been imported. Import again if we have edit permissions
     if(new_record_uuid) {
-      if(!(await (new UserPermissionsModel.model(this.state)).has_permission(this.state.user_id, new_dataset_uuid, PermissionGroupModel.PermissionTypes.admin))) {
+      if(!(await (new PermissionModel.model(this.state)).has_permission(new_dataset_uuid, PermissionModel.PermissionTypes.admin))) {
         throw new Util.PermissionDeniedError(`You do not have edit permissions required to import record ${old_record_uuid}. It has already been imported.`);
       }
     } else {
@@ -1423,7 +1422,7 @@ class Model {
     let new_record_uuid = await uuid_mapper_model_instance.get_new_uuid_from_old(old_record_uuid);
     // If the uuid is found, then this has already been imported. Import again if we have edit permissions
     if(new_record_uuid) {
-      if(!(await (new UserPermissionsModel.model(this.state)).has_permission(this.state.user_id, new_dataset_uuid, PermissionGroupModel.PermissionTypes.edit))) {
+      if(!(await (new PermissionModel.model(this.state)).hasPermission(new_dataset_uuid, PermissionModel.PermissionTypes.edit))) {
         throw new Util.PermissionDeniedError(`You do not have edit permissions required to import record ${old_record_uuid}. It has already been imported.`);
       }
     } else {
@@ -1551,7 +1550,7 @@ class Model {
       throw new Util.NotFoundError(`No draft exists with uuid ${uuid}`);
     }
     // if don't have admin permissions, return no permissions
-    if(!(await (new UserPermissionsModel.model(this.state)).has_permission(this.state.user_id, draft.dataset_uuid, PermissionGroupModel.PermissionTypes.edit))) {
+    if(!(await (new PermissionModel.model(this.state)).hasPermission(draft.dataset_uuid, PermissionModel.PermissionTypes.edit))) {
       throw new Util.PermissionDeniedError(`You do not have edit permissions for dataset ${draft.dataset_uuid}.`);
     }
 
@@ -1564,9 +1563,9 @@ class Model {
     return (await SharedFunctions.draft(Record, uuid, this.state.session)) ? true : false;
   }
 
-  async userHasPermissionsTo(record_uuid: string, permissionLevel, user: ObjectId): Promise<boolean> {
+  async userHasPermissionsTo(record_uuid: string, permissionLevel): Promise<boolean> {
     let record = await SharedFunctions.latestDocument(Record, record_uuid, this.state.session);
-    return await (new UserPermissionsModel.model(this.state)).has_permission(user, record.dataset_uuid, permissionLevel);
+    return await (new PermissionModel.model(this.state)).hasPermission(record.dataset_uuid, permissionLevel, DatasetModel.collection());
   }
 
   // Just ignore this for now

@@ -1,7 +1,7 @@
 var { app, init: appInit, close: appClose } = require('../app');
 var HelperClass = require('./common_test_operations')
 var Helper = new HelperClass(app);
-var { PermissionTypes } = require('../models/permission_group');
+var { PermissionTypes } = require('../models/permission');
 import { FieldTypes } from "../models/template_field"; '../models/template_field';
 
 var agent1;
@@ -303,16 +303,16 @@ describe("create (and get draft)", () => {
       related_record_2.uuid = related_record_2_persisted.uuid;
 
       let both_users = [Helper.DEF_EMAIL, Helper.EMAIL_2];
-      let response = await Helper.updatePermissionGroup(template.uuid, PermissionTypes.edit, both_users);
+      let response = await Helper.updatePermission(template.uuid, PermissionTypes.edit, both_users);
       expect(response.statusCode).toBe(200);
-      response = await Helper.updatePermissionGroup(dataset.uuid, PermissionTypes.edit, both_users);
+      response = await Helper.updatePermission(dataset.uuid, PermissionTypes.edit, both_users);
       expect(response.statusCode).toBe(200);
-      response = await Helper.updatePermissionGroup(template.related_templates[0].uuid, PermissionTypes.view, both_users);
+      response = await Helper.updatePermission(template.related_templates[0].uuid, PermissionTypes.view, both_users);
       expect(response.statusCode).toBe(200);
-      response = await Helper.updatePermissionGroup(related_record_1.dataset_uuid, PermissionTypes.view, both_users);
+      response = await Helper.updatePermission(related_record_1.dataset_uuid, PermissionTypes.view, both_users);
       expect(response.statusCode).toBe(200);
 
-      // response = await Helper.updatePermissionGroup(Helper.DEF_CURR_USER, template.uuid, PermissionTypes.view, view_users);
+      // response = await Helper.updatePermission(Helper.DEF_CURR_USER, template.uuid, PermissionTypes.view, view_users);
       // expect(response.statusCode).toBe(200);
 
       let record = {
@@ -672,9 +672,9 @@ describe("create (and get draft)", () => {
       dataset = await Helper.datasetCreatePersistTest(dataset);
 
       let both_users = [Helper.DEF_EMAIL, Helper.EMAIL_2];
-      let response = await Helper.updatePermissionGroup(template.uuid, PermissionTypes.view, both_users);
+      let response = await Helper.updatePermission(template.uuid, PermissionTypes.view, both_users);
       expect(response.statusCode).toBe(200);
-      response = await Helper.updatePermissionGroup(dataset.uuid, PermissionTypes.view, both_users);
+      response = await Helper.updatePermission(dataset.uuid, PermissionTypes.view, both_users);
       expect(response.statusCode).toBe(200);
 
       await Helper.setAgent(agent2);
@@ -1457,9 +1457,9 @@ describe("get persisted", () => {
     record = await Helper.recordCreatePersistTest(record);  
     
     let view_users = [Helper.EMAIL_2, Helper.DEF_EMAIL];
-    let response = await Helper.updatePermissionGroup(template.uuid, PermissionTypes.view, view_users);
+    let response = await Helper.updatePermission(template.uuid, PermissionTypes.view, view_users);
     expect(response.statusCode).toBe(200);
-    response = await Helper.updatePermissionGroup(dataset.uuid, PermissionTypes.view, view_users);
+    response = await Helper.updatePermission(dataset.uuid, PermissionTypes.view, view_users);
     expect(response.statusCode).toBe(200);
 
     record.related_records[0] = {uuid: record.related_records[0].uuid};
