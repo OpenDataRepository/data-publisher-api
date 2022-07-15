@@ -52,6 +52,8 @@ export function anyDuplicateInArray(array: any[]) {
 }
 
 export function arrayUnion(array1: any[], array2: any[]): any[] {
+  assert(Array.isArray(array1) && Array.isArray(array2), 
+  `One of the inputs to arrayEqual is not an array: ${array1}, ${array2}`);
   return [...new Set([...array1, ...array2])]
 }
 

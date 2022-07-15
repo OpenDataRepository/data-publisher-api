@@ -226,6 +226,7 @@ exports.published_records = async function(req, res, next) {
   }
 }
 
+// TODO: this and the below export should probably return actual datasets and not just uuids
 exports.all_public_uuids = async function(req, res, next) {
   try {
     let public_uuids = await DatasetModel.model.allPublicUuids();
@@ -235,7 +236,6 @@ exports.all_public_uuids = async function(req, res, next) {
   }
 }
 
-// TODO: Get a list of all datasets the user has view permissions to
 exports.all_viewable_uuids = async function(req, res, next) {
   try {
     let state = Util.initializeState(req);

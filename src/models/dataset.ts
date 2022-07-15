@@ -1199,9 +1199,8 @@ class Model {
 
   async allViewableUuids(): Promise<string[]> {
     let public_uuids = await Model.allPublicUuids();
-    // let user_permissions_model_instance = new PermissionModel.model(this.state);
-    // let viewable_uuids = user_permissions_model_instance.uuidsWithAccess(PermissionModel.PermissionTypes.view);
-    let viewable_uuids;
+    let permissions_model_instance = new PermissionModel.model(this.state);
+    let viewable_uuids = await permissions_model_instance.allUuidsAbovePermissionLevel(PermissionModel.PermissionTypes.view, Dataset);
     return Util.arrayUnion(public_uuids, viewable_uuids);
   }
 

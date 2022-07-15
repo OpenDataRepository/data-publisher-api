@@ -160,7 +160,7 @@ class Model {
         }
       }
       if(!current_user_found) {
-        throw new Util.InputError(`Can not alter permissions without including the current user in the permissions list`);
+        throw new Util.InputError(`Cannot remove current user from admin permissions`);
       }
     }
 
@@ -224,6 +224,15 @@ class Model {
   async documentUuidExists(document_uuid: string): Promise<boolean> {
     let admin_user_ids = await this.usersWithDocumentPermission(document_uuid, PermissionTypes.admin);
     return admin_user_ids.length > 0;
+  }
+
+  async allUuidsAbovePermissionLevel(permission_level: PermissionTypes, collection): Promise<string[]> {
+    let user_id = this.state.user_id;
+    let uuids_all_collections = await Permission.distinct(
+      "document_uuid",
+      {user_id, permission_level: {$in: Model.#equalOrHigherPermissionLevels(permission_level)}}
+    );
+    return await SharedFunctions.uuidsInThisCollection(collection, uuids_all_collections);
   }
 
 };

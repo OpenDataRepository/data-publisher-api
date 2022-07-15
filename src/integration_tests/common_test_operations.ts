@@ -609,6 +609,11 @@ export = class Helper {
       .get(`/dataset/all_public_uuids`);
   }
 
+  datasetAllViewableUuids = async () => {
+    return await this.agent
+      .get(`/dataset/all_viewable_uuids`);
+  }
+
   // record
   
   recordCreate = async (record) => {

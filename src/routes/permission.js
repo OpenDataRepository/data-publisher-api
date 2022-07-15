@@ -1,8 +1,6 @@
 const express = require('express');
 const router = express.Router();
 
-// TODO: rename permission to permission
-
 const { validateUuid, ensureLoggedIn } = require('../lib/middleware');
 const controller = require('../controllers/permissionController');
 

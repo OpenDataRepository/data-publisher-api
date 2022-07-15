@@ -2368,7 +2368,7 @@ test("full range of operations with big data", async () => {
   dataset = await Helper.datasetCreatePersistTest(dataset);
 });
 
-test("all public datasets uuids", async () => {
+test("all public dataset uuids", async () => {
 
   let public_date = (new Date()).toISOString();
   let one_hour_late = (new Date((new Date(public_date)).getTime() + 1*60*60*1000)).toISOString();
@@ -2437,4 +2437,39 @@ test("all public datasets uuids", async () => {
   expect(public_dataset_uuids).toEqual(expect.arrayContaining([dataset.uuid, dataset.related_datasets[0].uuid, 
     dataset.related_datasets[0].related_datasets[0].related_datasets[0].related_datasets[0].uuid]));
 
+});
+
+test("all viewable dataset uuids", async () => {
+
+  let public_date = (new Date()).toISOString();
+  let template: any = { 
+    name: "t",
+    public_date
+  };
+  template = await Helper.templateCreatePersistTest(template);
+
+  Helper.setAgent(agent2);
+
+  let basic_dataset: Record<string, any> = { 
+    template_id: template._id
+  };
+  let admin_dataset = await Helper.datasetCreatePersistTest(basic_dataset);
+  let edit_dataset = await Helper.datasetCreatePersistTest(basic_dataset);
+  let view_dataset = await Helper.datasetCreatePersistTest(basic_dataset);
+  let no_permission_dataset = await Helper.datasetCreatePersistTest(basic_dataset);
+
+  basic_dataset.public_date = public_date;
+  let public_dataset = await Helper.datasetCreatePersistTest(basic_dataset);
+
+  await Helper.testAndExtract(Helper.updatePermission, admin_dataset.uuid, PermissionTypes.admin, [Helper.DEF_EMAIL, Helper.EMAIL_2]);
+  await Helper.testAndExtract(Helper.updatePermission, edit_dataset.uuid, PermissionTypes.edit, [Helper.DEF_EMAIL]);
+  await Helper.testAndExtract(Helper.updatePermission, view_dataset.uuid, PermissionTypes.view, [Helper.DEF_EMAIL]);
+
+  Helper.setAgent(agent1);
+
+  let viewable_dataset_uuids = await Helper.testAndExtract(Helper.datasetAllViewableUuids);
+  expect(viewable_dataset_uuids.length).toBe(4);
+  expect(viewable_dataset_uuids).toEqual(expect.arrayContaining([admin_dataset.uuid, edit_dataset.uuid, 
+    view_dataset.uuid, public_dataset.uuid]));
+  
 });
