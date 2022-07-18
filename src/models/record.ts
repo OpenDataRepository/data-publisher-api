@@ -564,9 +564,8 @@ class Model {
     return await this.#createRecordFieldsFromTemplateFieldsAndMap(template_fields, record_field_map, record_uuid);
   }
 
-  // TODO: add updated_at to the state
   async #extractRelatedRecordsFromCreateOrUpdate(input_related_records: Record<string, any>[], 
-  related_datasets: Record<string, any>[], template: Record<string, any>, updated_at: Date, seen_uuids: Set<string>)
+  related_datasets: Record<string, any>[], template: Record<string, any>, seen_uuids: Set<string>)
   : Promise<[string[], boolean]> {
     let return_record_uuids: string[] = [];
     let changes = false;
@@ -607,7 +606,7 @@ class Model {
       let related_record_uuid: string;
       try {
         let new_changes;
-        [new_changes, related_record_uuid] = await this.#validateAndCreateOrUpdateRecurser(related_record, related_dataset, related_template, updated_at, seen_uuids);
+        [new_changes, related_record_uuid] = await this.#validateAndCreateOrUpdateRecurser(related_record, related_dataset, related_template, seen_uuids);
         changes = changes || new_changes;
       } catch(err) {
         if (err instanceof Util.NotFoundError) {
@@ -631,7 +630,7 @@ class Model {
 
   // A recursive helper for validateAndCreateOrUpdate.
   async #validateAndCreateOrUpdateRecurser(input_record: Record<string, any>, dataset: Record<string, any>, 
-  template: Record<string, any>, updated_at: Date, seen_uuids: Set<string>): Promise<[boolean, string]> {
+  template: Record<string, any>, seen_uuids: Set<string>): Promise<[boolean, string]> {
 
     // Record must be an object or valid uuid
     if (!Util.isObject(input_record)) {
@@ -687,7 +686,7 @@ class Model {
     let new_record: any = {
       uuid,
       dataset_uuid: input_record.dataset_uuid,
-      updated_at,
+      updated_at: this.state.updated_at,
       related_records: []
     };
 
@@ -708,7 +707,7 @@ class Model {
     // Need to determine if this draft is any different from the persisted one.
     let changes;
 
-    [new_record.related_records, changes] = await this.#extractRelatedRecordsFromCreateOrUpdate(input_record.related_records, dataset.related_datasets, template, updated_at, seen_uuids);
+    [new_record.related_records, changes] = await this.#extractRelatedRecordsFromCreateOrUpdate(input_record.related_records, dataset.related_datasets, template, seen_uuids);
 
     // If this draft is identical to the latest persisted, delete it.
     // The reason to do so is so when a change is submitted, we won't create drafts of sub-records.
@@ -774,9 +773,9 @@ class Model {
     }
     let template = await (new TemplateModel.model(this.state)).persistedByIdWithoutPermissions(SharedFunctions.convertToMongoId(dataset.template_id));
 
-    let updated_at = new Date();
+    this.state.updated_at = new Date();
 
-    return await this.#validateAndCreateOrUpdateRecurser(record, dataset, template, updated_at, new Set());
+    return await this.#validateAndCreateOrUpdateRecurser(record, dataset, template, new Set());
 
   }
 
@@ -1162,7 +1161,7 @@ class Model {
   }
 
   async #importRecordFromCombinedRecursor(input_record: Record<string, any>, dataset: Record<string, any>, 
-  template: Record<string, any>, updated_at: Date): Promise<[boolean, string]> {
+  template: Record<string, any>): Promise<[boolean, string]> {
     let uuid_mapper_model_instance = new LegacyUuidToNewUuidMapperModel.model(this.state);
 
     if(!Util.isObject(input_record)) {
@@ -1190,7 +1189,7 @@ class Model {
     let new_record: any = {
       uuid: new_record_uuid,
       dataset_uuid: new_dataset_uuid,
-      updated_at,
+      updated_at: this.state.updated_at,
       related_records: []
     };
 
@@ -1229,7 +1228,7 @@ class Model {
       let related_template = related_template_map[related_dataset.template_uuid];
       try {
         let new_changes;
-        [new_changes, related_record] = await this.#importRecordFromCombinedRecursor(related_record, related_dataset, related_template, updated_at);
+        [new_changes, related_record] = await this.#importRecordFromCombinedRecursor(related_record, related_dataset, related_template);
         changes = changes || new_changes;
       } catch(err) {
         if (err instanceof Util.NotFoundError) {
@@ -1324,7 +1323,8 @@ class Model {
     }
     let dataset = await dataset_model_instance.latestPersisted(dataset_uuid);
     // Import record
-    let new_record_uuid = (await this.#importRecordFromCombinedRecursor(record, dataset, template, new Date()))[1];
+    this.state.updated_at = new Date();
+    let new_record_uuid = (await this.#importRecordFromCombinedRecursor(record, dataset, template))[1];
     return new_record_uuid;
   }
 
@@ -1341,7 +1341,7 @@ class Model {
   }
 
   async #importRelatedRecordsUuidsFromRecord(input_record: Record<string, any>, dataset: Record<string, any>, 
-  template: Record<string, any>, updated_at: Date, seen_uuids: Set<string>): Promise<string[]> {
+  template: Record<string, any>, seen_uuids: Set<string>): Promise<string[]> {
     let uuid_mapper_model_instance = new LegacyUuidToNewUuidMapperModel.model(this.state);
 
     if(!input_record.records) {
@@ -1374,7 +1374,7 @@ class Model {
       }
       let related_template = related_template_map[related_dataset.template_id];
       try {
-        related_record = await this.#importRecordRecursor(related_record, related_dataset, related_template, updated_at, seen_uuids);
+        related_record = await this.#importRecordRecursor(related_record, related_dataset, related_template, seen_uuids);
       } catch(err) {
         if (err instanceof Util.NotFoundError) {
           throw new Util.InputError(err.message);
@@ -1396,7 +1396,7 @@ class Model {
   }
 
   async #importRecordRecursor(input_record: Record<string, any>, dataset: Record<string, any>, 
-  template: Record<string, any>, updated_at: Date, seen_uuids: Set<string>): Promise<string> {
+  template: Record<string, any>, seen_uuids: Set<string>): Promise<string> {
     let uuid_mapper_model_instance = new LegacyUuidToNewUuidMapperModel.model(this.state);
 
     if(!Util.isObject(input_record)) {
@@ -1442,13 +1442,13 @@ class Model {
       uuid: new_record_uuid,
       old_system_uuid: old_record_uuid,
       dataset_uuid: new_dataset_uuid,
-      updated_at,
+      updated_at: this.state.updated_at,
       related_records: []
     };
 
     new_record.fields = await this.#createRecordFieldsFromImportRecordAndTemplate(input_record.fields, template.fields, new_record_uuid);
 
-    new_record.related_records = await this.#importRelatedRecordsUuidsFromRecord(input_record, dataset, template, updated_at, seen_uuids)
+    new_record.related_records = await this.#importRelatedRecordsUuidsFromRecord(input_record, dataset, template, seen_uuids)
 
     // If a draft of this record already exists: overwrite it, using it's same uuid
     // If a draft of this record doesn't exist: create a new draft
@@ -1467,7 +1467,7 @@ class Model {
     return new_record_uuid;
   }
 
-  async #importRecord(record: Record<string, any>, updated_at: Date, seen_uuids: Set<string>): Promise<string> {
+  async #importRecord(record: Record<string, any>, seen_uuids: Set<string>): Promise<string> {
     if(!Util.isObject(record)) {
       throw new Util.InputError('Record to import must be a json object.');
     }
@@ -1489,7 +1489,7 @@ class Model {
 
     let template = await (new TemplateModel.model(this.state)).persistedByIdWithoutPermissions(dataset.template_id);
 
-    return this.#importRecordRecursor(record, dataset, template, updated_at, seen_uuids);
+    return this.#importRecordRecursor(record, dataset, template, seen_uuids);
   }
 
   async #importRecords(records: Record<string, any>[]): Promise<string[]> {
@@ -1497,13 +1497,13 @@ class Model {
       throw new Util.InputError(`'records' must be a valid array`);
     }
 
-    let updated_at = new Date();
+    this.state.updated_at = new Date();
 
     let seen_uuids = new Set<string>();
 
     let result_uuids: string[] = [];
     for(let record of records) {
-      result_uuids.push(await this.#importRecord(record, updated_at, seen_uuids));
+      result_uuids.push(await this.#importRecord(record, seen_uuids));
     }
     return result_uuids;
   }

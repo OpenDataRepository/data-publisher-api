@@ -296,7 +296,8 @@ class Model {
     if(!draft) {
       throw new Util.NotFoundError();
     }
-    await this.#validateAndCreateOrUpdate(draft, new Date(), new Set());
+    this.state.updated_at = new Date();
+    await this.#validateAndCreateOrUpdate(draft, new Set());
   }
 
   async #createDraftFromLastPersistedWithSession(uuid: string): Promise<void> {
@@ -306,12 +307,12 @@ class Model {
     await SharedFunctions.executeWithTransaction(this.state, callback);
   }
 
-  #initializeNewDraftWithPropertiesSharedWithImport(input_template: Record<string, any>, uuid: string, updated_at: Date): Record<string, any> {
+  #initializeNewDraftWithPropertiesSharedWithImport(input_template: Record<string, any>, uuid: string): Record<string, any> {
     let output_template = {
       uuid, 
       name: "",
       description: "",
-      updated_at,
+      updated_at: this.state.updated_at,
       fields: [],
       related_templates: [],
       subscribed_templates: []
@@ -331,8 +332,8 @@ class Model {
     return output_template;
   }
 
-  async #initializeNewDraftWithProperties(input_template: Record<string, any>, uuid: string, updated_at: Date): Promise<Record<string, any>> {
-    let output_template: any = this.#initializeNewDraftWithPropertiesSharedWithImport(input_template, uuid, updated_at);
+  async #initializeNewDraftWithProperties(input_template: Record<string, any>, uuid: string): Promise<Record<string, any>> {
+    let output_template: any = this.#initializeNewDraftWithPropertiesSharedWithImport(input_template, uuid);
     if (input_template.public_date) {
       if (!Date.parse(input_template.public_date)){
         throw new Util.InputError('template public_date property must be in valid date format');
@@ -346,8 +347,8 @@ class Model {
     return output_template;
   }
 
-  #initializeNewImportedDraftWithProperties(input_template: Record<string, any>, uuid: string, updated_at: Date): Record<string, any> {
-    let output_template: any = this.#initializeNewDraftWithPropertiesSharedWithImport(input_template, uuid, updated_at);
+  #initializeNewImportedDraftWithProperties(input_template: Record<string, any>, uuid: string): Record<string, any> {
+    let output_template: any = this.#initializeNewDraftWithPropertiesSharedWithImport(input_template, uuid);
     if (input_template._database_metadata && Util.isObject(input_template._database_metadata) && 
         input_template._database_metadata._public_date && Date.parse(input_template._database_metadata._public_date)) {
       output_template.public_date = new Date(input_template.public_date);
@@ -388,7 +389,7 @@ class Model {
     return uuid;
   }
 
-  async #extractFieldsFromCreateOrUpdate(input_fields: Record<string, any>[], updated_at: Date): Promise<[Record<string, any>[], boolean]> {
+  async #extractFieldsFromCreateOrUpdate(input_fields: Record<string, any>[]): Promise<[Record<string, any>[], boolean]> {
     let return_fields: any[] = [];
     let changes = false;
     if (input_fields === undefined) {
@@ -400,7 +401,7 @@ class Model {
     for (let field of input_fields) {
       let field_uuid;
       try {
-        [changes, field_uuid] = await (new TemplateFieldModel.model(this.state)).validateAndCreateOrUpdate(field, updated_at);
+        [changes, field_uuid] = await (new TemplateFieldModel.model(this.state)).validateAndCreateOrUpdate(field);
       } catch(err) {
         if (err instanceof Util.NotFoundError) {
           throw new Util.InputError(err.message);
@@ -420,7 +421,8 @@ class Model {
     return [return_fields, changes];
   }
 
-  async #extractRelatedTemplatesFromCreateOrUpdate(input_related_templates: Record<string, any>[], updated_at: Date, ancestor_uuids: Set<string>): Promise<[any[], boolean]> {
+  // TODO: add ancestor uuids to the state variable
+  async #extractRelatedTemplatesFromCreateOrUpdate(input_related_templates: Record<string, any>[], ancestor_uuids: Set<string>): Promise<[any[], boolean]> {
     let return_related_templates: any[] = [];
     let changes = false;
     if (input_related_templates === undefined) {
@@ -432,7 +434,7 @@ class Model {
     for (let related_template of input_related_templates) {
       let related_template_uuid;
       try {
-        [changes, related_template_uuid] = await this.#validateAndCreateOrUpdate(related_template, updated_at, ancestor_uuids);
+        [changes, related_template_uuid] = await this.#validateAndCreateOrUpdate(related_template, ancestor_uuids);
       } catch(err) {
         if (err instanceof Util.NotFoundError) {
           throw new Util.InputError(err.message);
@@ -557,7 +559,7 @@ class Model {
   // Return:
   // 1. A boolean indicating true if there were changes from the last persisted.
   // 2. The uuid of the template created / updated
-  async #validateAndCreateOrUpdate(input_template: Record<string, any>, updated_at: Date, ancestor_uuids: Set<string>): Promise<[boolean, string]> {
+  async #validateAndCreateOrUpdate(input_template: Record<string, any>, ancestor_uuids: Set<string>): Promise<[boolean, string]> {
 
     // Template must be an object
     if (!Util.isObject(input_template)) {
@@ -572,15 +574,15 @@ class Model {
     }
 
     // Populate template properties
-    let new_template = await this.#initializeNewDraftWithProperties(input_template, uuid, updated_at);
+    let new_template = await this.#initializeNewDraftWithProperties(input_template, uuid);
 
     // Need to determine if this draft is any different from the persisted one.
     let changes;
 
-    [new_template.fields, changes] = await this.#extractFieldsFromCreateOrUpdate(input_template.fields, updated_at);
+    [new_template.fields, changes] = await this.#extractFieldsFromCreateOrUpdate(input_template.fields);
 
     let more_changes = false;
-    [new_template.related_templates, more_changes] = await this.#extractRelatedTemplatesFromCreateOrUpdate(input_template.related_templates, updated_at, ancestor_uuids);
+    [new_template.related_templates, more_changes] = await this.#extractRelatedTemplatesFromCreateOrUpdate(input_template.related_templates, ancestor_uuids);
     changes = changes || more_changes;
 
     new_template.subscribed_templates = await this.#extractSubscribedTemplatesFromCreateOrUpdate(input_template.subscribed_templates, uuid, ancestor_uuids);
@@ -1224,7 +1226,7 @@ class Model {
   }
 
   // TODO: as of now, import doesn't include group_uuids at all
-  async #importTemplate(template: Record<string, any>, updated_at: Date): Promise<[boolean, string]> {
+  async #importTemplate(template: Record<string, any>): Promise<[boolean, string]> {
     let permissions_model_instance = new PermissionModel.model(this.state);
     let uuid_mapper_model_instance = new LegacyUuidToNewUuidMapperModel.model(this.state);
 
@@ -1248,7 +1250,7 @@ class Model {
     }
 
     // Populate template properties
-    let new_template: any = this.#initializeNewImportedDraftWithProperties(template, uuid, updated_at);
+    let new_template: any = this.#initializeNewImportedDraftWithProperties(template, uuid);
 
     // Need to determine if this draft is any different from the persisted one.
     let changes = false;
@@ -1262,7 +1264,7 @@ class Model {
         let field_uuid;
         try {
           let more_changes: boolean;
-          [more_changes, field_uuid] = await (new TemplateFieldModel.model(this.state)).importField(field, updated_at);
+          [more_changes, field_uuid] = await (new TemplateFieldModel.model(this.state)).importField(field);
           changes ||= more_changes;
         } catch(err) {
           if (err instanceof Util.PermissionDeniedError) {
@@ -1288,7 +1290,7 @@ class Model {
         let related_template_uuid;
         let more_changes;
         try {
-          [more_changes, related_template_uuid] = await this.#importTemplate(related_template, updated_at);
+          [more_changes, related_template_uuid] = await this.#importTemplate(related_template);
           changes ||= more_changes;
         } catch(err) {
           if (err instanceof Util.PermissionDeniedError) {
@@ -1351,7 +1353,8 @@ class Model {
   // Wraps the actual request to create with a transaction
   async create(template: Record<string, any>): Promise<string> {
     let callback = async () => {
-      let results = await this.#validateAndCreateOrUpdate(template, new Date(), new Set());
+      this.state.updated_at = new Date();
+      let results = await this.#validateAndCreateOrUpdate(template, new Set());
       let inserted_uuid = results[1];
       return inserted_uuid;
     };
@@ -1361,7 +1364,8 @@ class Model {
   // Wraps the actual request to update with a transaction
   async update(template: Record<string, any>): Promise<void> {
     let callback = async () => {
-      await this.#validateAndCreateOrUpdate(template, new Date(), new Set());
+      this.state.updated_at = new Date();
+      await this.#validateAndCreateOrUpdate(template, new Set());
     };
     await SharedFunctions.executeWithTransaction(this.state, callback);
   }
@@ -1460,7 +1464,8 @@ class Model {
   // Wraps the actual request to import with a transaction
   async importTemplate(template: Record<string, any>): Promise<string> {
     let callback = async () => {
-      let results = await this.#importTemplate(template, new Date());
+      this.state.updated_at = new Date();
+      let results = await this.#importTemplate(template);
       let new_template_uuid = results[1];
       return new_template_uuid;
     };

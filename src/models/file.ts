@@ -27,10 +27,6 @@ const Schema = Object.freeze({
       bsonType: "string",
       description: "identifies the template_field within the record that this file belongs to"
     },
-    updated_at: {
-      bsonType: "date",
-      description: "identifies the last update for this version of this record"
-    },
     uploaded: {
       bsonType: "bool",
       description: "identifies whether or not an actual file has been uploaded for this file_uuid"

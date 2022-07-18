@@ -6,6 +6,8 @@ const TemplateFieldModel = require('../models/template_field');
 const DatasetModel = require('../models/dataset');
 const UserModel = require('../models/user');
 
+// TODO: try to figure out a way to implement this function without hardcoding the collection names
+// The current implementation is tight coupling
 async function findCollectionForUuid(uuid) {
   if(await ModelsSharedFunctions.exists(DatasetModel.collection(), uuid)) {
     return ModelsSharedFunctions.DocumentTypes.Dataset;
@@ -19,7 +21,6 @@ async function findCollectionForUuid(uuid) {
   return null;
 }
  
-// TODO: rewrite the functions in this controller to use the model directly and not to do much of the logic itself
 exports.update_document_permissions = async function(req, res, next) {
   try {
     let document_uuid = req.params.uuid;
@@ -48,9 +49,8 @@ exports.update_document_permissions = async function(req, res, next) {
     let permission_model_instance = new PermissionModel.model(state);
     let dataset_model_instance = new DatasetModel.model(state);
 
-
     if(document_type == ModelsSharedFunctions.DocumentTypes.Dataset) {
-      // Editing dataset permissions. Ensure every one of the users in this list has_permission on the corresponding template uuid
+      // Editing dataset permissions. Ensure every one of the users in this list has view permissions to the corresponding template uuid
       let template_uuid = await dataset_model_instance.template_uuid(document_uuid);
       for(let i = 0; i < user_ids.length; i++) {
         if(!(await permission_model_instance.hasPermission(template_uuid, PermissionModel.PermissionTypes.view, TemplateModel.collection(), user_ids[i]))) {

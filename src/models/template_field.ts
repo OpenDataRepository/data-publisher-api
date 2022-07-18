@@ -341,12 +341,12 @@ class Model {
     return return_options;
   }
 
-  #initializeNewDraftWithPropertiesSharedWithImport(input_field: Record<string, any>, uuid: string, updated_at: Date): Record<string, any> {
+  #initializeNewDraftWithPropertiesSharedWithImport(input_field: Record<string, any>, uuid: string): Record<string, any> {
     let output_field = {
       uuid, 
       name: "",
       description: "",
-      updated_at
+      updated_at: this.state.updated_at
     };
     if (input_field.name) {
       if (typeof(input_field.name) !== 'string'){
@@ -363,8 +363,8 @@ class Model {
     return output_field;
   }
 
-  async #initializeNewDraftWithProperties(input_field: Record<string, any>, uuid: string, updated_at: Date): Promise<Record<string, any>> {
-    let output_field: any = this.#initializeNewDraftWithPropertiesSharedWithImport(input_field, uuid, updated_at);
+  async #initializeNewDraftWithProperties(input_field: Record<string, any>, uuid: string): Promise<Record<string, any>> {
+    let output_field: any = this.#initializeNewDraftWithPropertiesSharedWithImport(input_field, uuid);
     if (input_field.public_date) {
       if (!Date.parse(input_field.public_date)){
         throw new Util.InputError('template public_date property must be in valid date format');
@@ -398,8 +398,8 @@ class Model {
     return output_field;
   }
 
-  async #initializeNewImportedDraftWithProperties(input_field: Record<string, any>, uuid: string, updated_at: Date): Promise<Record<string, any>> {
-    let output_field: any = this.#initializeNewDraftWithPropertiesSharedWithImport(input_field, uuid, updated_at);
+  async #initializeNewImportedDraftWithProperties(input_field: Record<string, any>, uuid: string): Promise<Record<string, any>> {
+    let output_field: any = this.#initializeNewDraftWithPropertiesSharedWithImport(input_field, uuid);
     if (input_field._field_metadata && Util.isObject(input_field._field_metadata) && input_field._field_metadata._public_date) {
       if (Date.parse(input_field._field_metadata._public_date)){
         output_field.public_date = new Date(input_field.public_date);
@@ -422,7 +422,7 @@ class Model {
   // Return:
   // 1. A boolean: true if there were changes from the last persisted.
   // 2. The uuid of the template field created / updated
-  async validateAndCreateOrUpdate(input_field: Record<string, any>, updated_at: Date): Promise<[boolean, string]> {
+  async validateAndCreateOrUpdate(input_field: Record<string, any>): Promise<[boolean, string]> {
 
     // Field must be an object
     if (!Util.isObject(input_field)) {
@@ -460,7 +460,7 @@ class Model {
     }
 
     // Populate field properties
-    let new_field = await this.#initializeNewDraftWithProperties(input_field, uuid, updated_at);
+    let new_field = await this.#initializeNewDraftWithProperties(input_field, uuid);
 
     // If this draft is identical to the latest persisted, delete it.
     let old_field = await this.#fetchPersistedAndConvertToDraft(uuid);
@@ -607,7 +607,8 @@ class Model {
   // Wraps the request to create with a transaction
   async create(field: Record<string, any>): Promise<string> {
     let callback = async () => {
-      return await this.validateAndCreateOrUpdate(field, new Date());
+      this.state.updated_at = new Date();
+      return await this.validateAndCreateOrUpdate(field);
     };
     let result = await SharedFunctions.executeWithTransaction(this.state, callback);
     let inserted_uuid = result[1];
@@ -625,7 +626,8 @@ class Model {
   // Wraps the request to update with a transaction
   async update(field: Record<string, any>): Promise<void> {
     let callback = async () => {
-      return await this.validateAndCreateOrUpdate(field, new Date());
+      this.state.updated_at = new Date();
+      return await this.validateAndCreateOrUpdate(field);
     };
     await SharedFunctions.executeWithTransaction(this.state, callback);
   }
@@ -731,7 +733,7 @@ class Model {
     return field.uuid;
   }
 
-  async importField(field: Record<string, any>, updated_at: Date): Promise<[boolean, string]> {
+  async importField(field: Record<string, any>): Promise<[boolean, string]> {
     if(!Util.isObject(field)) {
       throw new Util.InputError('Field to import must be a json object.');
     }
@@ -752,7 +754,7 @@ class Model {
       await permissions_model_instance.initializePermissionsFor(uuid);
     }
 
-    let new_field = await this.#initializeNewImportedDraftWithProperties(field, uuid, updated_at);
+    let new_field = await this.#initializeNewImportedDraftWithProperties(field, uuid);
 
     // If this draft is identical to the latest persisted, delete it.
     let old_field = await this.#fetchPersistedAndConvertToDraft(uuid);
