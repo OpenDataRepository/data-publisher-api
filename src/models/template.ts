@@ -297,7 +297,8 @@ class Model {
       throw new Util.NotFoundError();
     }
     this.state.updated_at = new Date();
-    await this.#validateAndCreateOrUpdate(draft, new Set());
+    this.state.ancestor_uuids = new Set();
+    await this.#validateAndCreateOrUpdate(draft);
   }
 
   async #createDraftFromLastPersistedWithSession(uuid: string): Promise<void> {
@@ -421,8 +422,7 @@ class Model {
     return [return_fields, changes];
   }
 
-  // TODO: add ancestor uuids to the state variable
-  async #extractRelatedTemplatesFromCreateOrUpdate(input_related_templates: Record<string, any>[], ancestor_uuids: Set<string>): Promise<[any[], boolean]> {
+  async #extractRelatedTemplatesFromCreateOrUpdate(input_related_templates: Record<string, any>[]): Promise<[any[], boolean]> {
     let return_related_templates: any[] = [];
     let changes = false;
     if (input_related_templates === undefined) {
@@ -434,7 +434,7 @@ class Model {
     for (let related_template of input_related_templates) {
       let related_template_uuid;
       try {
-        [changes, related_template_uuid] = await this.#validateAndCreateOrUpdate(related_template, ancestor_uuids);
+        [changes, related_template_uuid] = await this.#validateAndCreateOrUpdate(related_template);
       } catch(err) {
         if (err instanceof Util.NotFoundError) {
           throw new Util.InputError(err.message);
@@ -470,7 +470,7 @@ class Model {
     return uuidSet;
   }
 
-  async #extractSubscribedTemplateFromCreateOrUpdate(input_subscribed_template: Record<string, any>, previous_subscribed_template_ids: Set<ObjectId>, seen_uuids: Set<string>, ancestor_uuids: Set<string>): Promise<ObjectId> {
+  async #extractSubscribedTemplateFromCreateOrUpdate(input_subscribed_template: Record<string, any>, previous_subscribed_template_ids: Set<ObjectId>, seen_uuids: Set<string>): Promise<ObjectId> {
     if(!Util.isObject(input_subscribed_template)) {
       throw new Util.InputError("Each entry in subscribed_templates must be an object");
     }
@@ -506,7 +506,7 @@ class Model {
     // Do a set intersection to see if there are any overlapping
     let subscribed_template = await this.#persistedByIdWithJoins(subscribed_id);
     let subscribed_template_id_set = this.#createUuidSetForPublishedTemplate(subscribed_template as Record<string, any>);
-    let intersection = [...subscribed_template_id_set].filter(i => ancestor_uuids.has(i));
+    let intersection = [...subscribed_template_id_set].filter(i => this.state.ancestor_uuids.has(i));
     if(intersection.length > 0) {
       throw new Util.InputError(`Circular reference ${intersection[0]} is not permitted.`);
     }
@@ -518,7 +518,7 @@ class Model {
   // Rules: can only subscribe to the latest version or maintain the version we were subscribing to. 
   // The output will of course just be that version of the persisted template fetched.
   // How will the input indicate if it wants to update? It will submit the latest persisted version of that template
-  async #extractSubscribedTemplatesFromCreateOrUpdate(input_subscribed_templates: Record<string, any>[], parent_uuid: string, ancestor_uuids: Set<string>): Promise<Record<string, any>[]> {
+  async #extractSubscribedTemplatesFromCreateOrUpdate(input_subscribed_templates: Record<string, any>[], parent_uuid: string): Promise<Record<string, any>[]> {
     let return_subscribed_templates: any[] = [];
     if (input_subscribed_templates === undefined) {
       return return_subscribed_templates;
@@ -545,7 +545,7 @@ class Model {
     let seen_subscribed_uuids: Set<string> = new Set();
 
     for (let subscribed_template of input_subscribed_templates) {
-      let subscribed_template_id =  await this.#extractSubscribedTemplateFromCreateOrUpdate(subscribed_template, previous_subscribed_ids, seen_subscribed_uuids, ancestor_uuids);
+      let subscribed_template_id =  await this.#extractSubscribedTemplateFromCreateOrUpdate(subscribed_template, previous_subscribed_ids, seen_subscribed_uuids);
       // After validating and updating the related_template, replace the imbedded related_template with a uuid reference
       return_subscribed_templates.push(subscribed_template_id);
     }
@@ -559,7 +559,7 @@ class Model {
   // Return:
   // 1. A boolean indicating true if there were changes from the last persisted.
   // 2. The uuid of the template created / updated
-  async #validateAndCreateOrUpdate(input_template: Record<string, any>, ancestor_uuids: Set<string>): Promise<[boolean, string]> {
+  async #validateAndCreateOrUpdate(input_template: Record<string, any>): Promise<[boolean, string]> {
 
     // Template must be an object
     if (!Util.isObject(input_template)) {
@@ -567,10 +567,10 @@ class Model {
     }
 
     let uuid = await this.#getUuidFromCreateOrUpdate(input_template);
-    if(ancestor_uuids.has(uuid)) {
+    if(this.state.ancestor_uuids.has(uuid)) {
       throw new Util.InputError(`Cannot include circlular references in the template. Template ${uuid} is circular`);
     } else {
-      ancestor_uuids.add(uuid);
+      this.state.ancestor_uuids.add(uuid);
     }
 
     // Populate template properties
@@ -582,10 +582,10 @@ class Model {
     [new_template.fields, changes] = await this.#extractFieldsFromCreateOrUpdate(input_template.fields);
 
     let more_changes = false;
-    [new_template.related_templates, more_changes] = await this.#extractRelatedTemplatesFromCreateOrUpdate(input_template.related_templates, ancestor_uuids);
+    [new_template.related_templates, more_changes] = await this.#extractRelatedTemplatesFromCreateOrUpdate(input_template.related_templates);
     changes = changes || more_changes;
 
-    new_template.subscribed_templates = await this.#extractSubscribedTemplatesFromCreateOrUpdate(input_template.subscribed_templates, uuid, ancestor_uuids);
+    new_template.subscribed_templates = await this.#extractSubscribedTemplatesFromCreateOrUpdate(input_template.subscribed_templates, uuid);
     changes = changes || more_changes;
     
 
@@ -603,7 +603,7 @@ class Model {
             throw err;
           }
         }
-        ancestor_uuids.delete(uuid);
+        this.state.ancestor_uuids.delete(uuid);
         return [false, uuid];
       }
     }
@@ -622,7 +622,7 @@ class Model {
     } 
 
     // If successfull, return the uuid of the created / updated template
-    ancestor_uuids.delete(uuid);
+    this.state.ancestor_uuids.delete(uuid);
     return [true, uuid];
 
   }
@@ -1354,7 +1354,8 @@ class Model {
   async create(template: Record<string, any>): Promise<string> {
     let callback = async () => {
       this.state.updated_at = new Date();
-      let results = await this.#validateAndCreateOrUpdate(template, new Set());
+      this.state.ancestor_uuids = new Set();
+      let results = await this.#validateAndCreateOrUpdate(template);
       let inserted_uuid = results[1];
       return inserted_uuid;
     };
@@ -1365,7 +1366,8 @@ class Model {
   async update(template: Record<string, any>): Promise<void> {
     let callback = async () => {
       this.state.updated_at = new Date();
-      await this.#validateAndCreateOrUpdate(template, new Set());
+      this.state.ancestor_uuids = new Set();
+      await this.#validateAndCreateOrUpdate(template);
     };
     await SharedFunctions.executeWithTransaction(this.state, callback);
   }
