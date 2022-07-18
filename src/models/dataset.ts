@@ -880,7 +880,7 @@ class Model {
       }
     } else {
       dataset_uuid = await uuid_mapper_model_instance.create_new_uuid_for_old(old_uuid);
-      await user_permissions_model_instance.initialize_permissions_for(this.state.user_id, dataset_uuid, SharedFunctions.DocumentTypes.Dataset);
+      await user_permissions_model_instance.initialize_permissions_for(this.state.user_id, dataset_uuid, SharedFunctions.DocumentTypes.dataset);
     }
 
     // continue here with normal update procedures

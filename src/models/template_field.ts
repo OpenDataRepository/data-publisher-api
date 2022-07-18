@@ -456,7 +456,7 @@ class Model {
       // Generate a uuid for the new template_field
       uuid = uuidv4();
       // initialize permissions for the new template_field
-      await permissions_model_instance.initializePermissionsFor(uuid, SharedFunctions.DocumentTypes.TemplateField);
+      await permissions_model_instance.initializePermissionsFor(uuid);
     }
 
     // Populate field properties

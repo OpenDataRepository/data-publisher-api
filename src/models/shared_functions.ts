@@ -3,9 +3,9 @@ import * as Util from '../lib/util';
 import {ObjectId} from 'mongodb';
 
 export enum DocumentTypes {
-  Dataset = "dataset",
-  Template = "template",
-  TemplateField = "template_field"
+  dataset = "dataset",
+  template = "template",
+  template_field = "template_field"
 };
 
 // TODO: consider writing shared functions as a module that the other models inherit

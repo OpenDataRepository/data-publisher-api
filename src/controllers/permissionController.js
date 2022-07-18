@@ -10,13 +10,13 @@ const UserModel = require('../models/user');
 // The current implementation is tight coupling
 async function findCollectionForUuid(uuid) {
   if(await ModelsSharedFunctions.exists(DatasetModel.collection(), uuid)) {
-    return ModelsSharedFunctions.DocumentTypes.Dataset;
+    return ModelsSharedFunctions.DocumentTypes.dataset;
   }
   if(await ModelsSharedFunctions.exists(TemplateModel.collection(), uuid)) {
-    return ModelsSharedFunctions.DocumentTypes.Template;
+    return ModelsSharedFunctions.DocumentTypes.template;
   }
   if(await ModelsSharedFunctions.exists(TemplateFieldModel.collection(), uuid)) {
-    return ModelsSharedFunctions.DocumentTypes.TemplateField;
+    return ModelsSharedFunctions.DocumentTypes.template_field;
   }
   return null;
 }
@@ -49,7 +49,7 @@ exports.update_document_permissions = async function(req, res, next) {
     let permission_model_instance = new PermissionModel.model(state);
     let dataset_model_instance = new DatasetModel.model(state);
 
-    if(document_type == ModelsSharedFunctions.DocumentTypes.Dataset) {
+    if(document_type == ModelsSharedFunctions.DocumentTypes.dataset) {
       // Editing dataset permissions. Ensure every one of the users in this list has view permissions to the corresponding template uuid
       let template_uuid = await dataset_model_instance.template_uuid(document_uuid);
       for(let i = 0; i < user_ids.length; i++) {

@@ -309,9 +309,10 @@ exports.getPermissions = async function(req, res, next) {
     let document_uuids = user_permissions.map(x => x.document_uuid);
 
     // - Search each of the collections for which uuids they hold. Should result in a list of uuids per collection
-    let template_field_uuids = await SharedFunctions.uuidsInThisCollection(TemplateFieldModel.collection(), document_uuids);
-    let template_uuids = await SharedFunctions.uuidsInThisCollection(TemplateModel.collection(), document_uuids);
-    let dataset_uuids = await SharedFunctions.uuidsInThisCollection(DatasetModel.collection(), document_uuids);
+    let separated_document_uuids = {};
+    separated_document_uuids[SharedFunctions.DocumentTypes.template_field] = await SharedFunctions.uuidsInThisCollection(TemplateFieldModel.collection(), document_uuids);
+    separated_document_uuids[SharedFunctions.DocumentTypes.template] = await SharedFunctions.uuidsInThisCollection(TemplateModel.collection(), document_uuids);
+    separated_document_uuids[SharedFunctions.DocumentTypes.dataset] = await SharedFunctions.uuidsInThisCollection(DatasetModel.collection(), document_uuids);
 
     // - Create a dictionary of uuid -> object
     let uuid_object_dict = {};
@@ -319,40 +320,22 @@ exports.getPermissions = async function(req, res, next) {
       uuid_object_dict[obj.document_uuid] = obj;
     }
 
-    // TODO: too much stuff hardcoded here. See if I can figure out how to make it flexible
-
     // - Using the dictionary, assign document types to each of the objects
-    for(let uuid of template_field_uuids) {
-      let obj = uuid_object_dict[uuid];
-      obj.document_type = SharedFunctions.DocumentTypes.TemplateField;
-    }
-    for(let uuid of template_uuids) {
-      let obj = uuid_object_dict[uuid];
-      obj.document_type = SharedFunctions.DocumentTypes.Template;
-    }
-    for(let uuid of dataset_uuids) {
-      let obj = uuid_object_dict[uuid];
-      obj.document_type = SharedFunctions.DocumentTypes.Dataset;
+    for(let document_type in separated_document_uuids) {
+      for(let uuid of separated_document_uuids[document_type]) {
+        let obj = uuid_object_dict[uuid];
+        obj.document_type = document_type;
+      }
     }
 
     // - Go through the list of objects and construct the final object
-    let result = {
-      [SharedFunctions.DocumentTypes.TemplateField]: {
-        [PermissionsModel.PermissionTypes.admin]: [],
-        [PermissionsModel.PermissionTypes.edit]: [],
-        [PermissionsModel.PermissionTypes.view]: []
-      },
-      [SharedFunctions.DocumentTypes.Template]: {
-        [PermissionsModel.PermissionTypes.admin]: [],
-        [PermissionsModel.PermissionTypes.edit]: [],
-        [PermissionsModel.PermissionTypes.view]: []
-      },
-      [SharedFunctions.DocumentTypes.Dataset]: {
-        [PermissionsModel.PermissionTypes.admin]: [],
-        [PermissionsModel.PermissionTypes.edit]: [],
-        [PermissionsModel.PermissionTypes.view]: []
+    let result = {};
+    for(let doc_type in SharedFunctions.DocumentTypes) {
+      result[doc_type] = {};
+      for(let permission_type in PermissionsModel.PermissionTypes) {
+        result[doc_type][permission_type] = [];
       }
-    };
+    }
     for(let obj of user_permissions) {
       result[obj.document_type][obj.permission_level].push(obj.document_uuid);
     }
