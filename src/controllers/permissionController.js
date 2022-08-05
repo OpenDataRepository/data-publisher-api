@@ -6,7 +6,6 @@ const TemplateFieldModel = require('../models/template_field');
 const DatasetModel = require('../models/dataset');
 const UserModel = require('../models/user');
 
-// TODO: try to figure out a way to implement this function without hardcoding the collection names
 // The current implementation is tight coupling
 async function findCollectionForUuid(uuid) {
   if(await ModelsSharedFunctions.exists(DatasetModel.collection(), uuid)) {

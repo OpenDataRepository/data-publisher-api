@@ -10,6 +10,12 @@ var { PermissionTypes } = require('../models/permission');
 const FieldTypes = require('../models/template_field').FieldTypes;
 var appRoot = require('app-root-path');
 
+const dynamicTestFilesPath = appRoot + '/test_data/dynamic_files'
+// Necessary because empty folders like dynamic_tests don't get included with git
+try {
+  fs.mkdirSync(dynamicTestFilesPath);
+} catch (err){}
+
 export = class Helper {
   public constructor(private app) {
     this.app = app;
@@ -839,7 +845,7 @@ export = class Helper {
   // files 
 
   testDataPath = appRoot + '/test_data'
-  dynamicTestFilesPath = appRoot + '/test_data/dynamic_files'
+  dynamicTestFilesPath = dynamicTestFilesPath
   uploadsDirectoryPath = appRoot + "/uploads_testing"
 
   clearFilesAtPath = (directory) => {

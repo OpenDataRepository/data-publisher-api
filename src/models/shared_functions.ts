@@ -8,9 +8,6 @@ export enum DocumentTypes {
   template_field = "template_field"
 };
 
-// TODO: consider writing shared functions as a module that the other models inherit
-// Or better: a mixin that they can attach
-
 // Fetches the draft with the given uuid. 
 // Does not look up fields or related documents
 export const draft = async (collection, uuid: string, session?): Promise<Record<string, any> | null> => {

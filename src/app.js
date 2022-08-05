@@ -10,8 +10,6 @@ var indexRouter = require('./routes/index');
 // const PassportImplementation = require('./lib/passport_implementation');
 const { getUserFromToken, superUserActAs } = require('./lib/middleware');
 
-// TODO: Try adding property-based testing. It could catch a lot of cases I haven't been able to think of
-
 var app = express();
 
 app.use(logger('dev'));
