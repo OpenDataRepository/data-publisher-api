@@ -4,7 +4,7 @@ const userController = require('../controllers/userController')
 const { ensureLoggedIn } = require('../lib/middleware');
 
 router.post('/register', userController.register);
-router.post('/confirm_email/:token', userController.confirm_email);
+router.get('/confirm_email/:token', userController.confirm_email);
 router.post('/login', userController.login);
 
 router.post('/suspend', ensureLoggedIn, userController.suspend);

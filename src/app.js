@@ -36,7 +36,10 @@ app.use(function(err, req, res, next) {
     res.status(401).send(err.message);
   } else if(err instanceof Util.InputError) {
     res.status(400).send(err.message);
-  } else {
+  } else if (err instanceof SyntaxError) {
+    // There was an error processesing the json input
+    res.status(400).send("Error processing input body: " + err.message);
+  }else {
     console.error(err)
     res.sendStatus(500)
   }

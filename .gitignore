@@ -7,3 +7,4 @@ coverage
 requests.rest
 out/
 tsconfig.tsbuildinfo
+ecosystem.config.js

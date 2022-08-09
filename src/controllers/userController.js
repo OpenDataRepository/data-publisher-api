@@ -10,6 +10,7 @@ const PassportImplementation = require('../lib/passport_implementation');
 const TemplateFieldModel = require('../models/template_field');
 const TemplateModel = require('../models/template');
 const DatasetModel = require('../models/dataset');
+var ip = require("ip");
 
 // TODO: this needs to be replaced with a real email eventually. 
 // This email is from https://mailtrap.io/
@@ -65,7 +66,8 @@ exports.register = async function(req, res, next) {
         {expiresIn: '1h'}
       );
 
-      const url = "http://" + req.get('host') + "/user/confirm_email/" + email_token;
+      const url = "http://" + ip.address() + ':' + req.app.settings.port + "/account/confirm_email/" + email_token;
+      console.log(url);
 
       if(!process.env.is_test) {
         await transporter.sendMail({

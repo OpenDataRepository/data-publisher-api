@@ -888,7 +888,7 @@ export = class Helper {
 
   confirmEmail = async (token) => {
     return await this.agent
-      .post(`/account/confirm_email/${token}`);
+      .get(`/account/confirm_email/${token}`);
   }
   
   login = async (email, password) => {
