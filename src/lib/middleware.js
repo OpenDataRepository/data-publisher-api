@@ -77,7 +77,7 @@ exports.superUserActAs = async (req, res, next) => {
     if(req.body.user_email) {
       new_user_email = req.body.user_email;
       delete req.body.user_email;
-      let body_values = req.body.values;
+      let body_values = Object.values(req.body);
       if(body_values.length > 1){
         throw new Util.InputError(`Post request as super user may only supply user_email and primary object`);
       }

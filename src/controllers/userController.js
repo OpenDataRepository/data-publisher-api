@@ -67,9 +67,9 @@ exports.register = async function(req, res, next) {
       );
 
       const url = "http://" + ip.address() + ':' + req.app.settings.port + "/account/confirm_email/" + email_token;
-      console.log(url);
 
       if(!process.env.is_test) {
+        console.log(url);
         await transporter.sendMail({
           to: email,
           subject: 'Confirm Email',
@@ -149,7 +149,7 @@ exports.get = async function(req, res, next) {
 
 async function verifyPassword(input_password, actual_password) {
   if(!input_password) {
-    throw new Util.InputError(`Must provide password to suspend account.`);
+    throw new Util.InputError(`Verification password incorrect.`);
   }
   if(!(await bcrypt.compare(input_password, actual_password))) {
     throw new Util.InputError(`Password incorrect.`);

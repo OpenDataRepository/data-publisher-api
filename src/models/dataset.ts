@@ -392,6 +392,7 @@ class Model {
     return dataset_draft;
   }
 
+  // TODO: Don't force a dataset to specify sub-datasets. Generate new ones automatically
   // Fetches the dataset draft with the given uuid, recursively looking up related_datasets.
   // If a draft of a given dataset doesn't exist, a new one will be generated using the last persisted dataset.
   async #draftFetchOrCreate(uuid: string): Promise<Record<string, any> | null> {

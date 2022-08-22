@@ -272,7 +272,20 @@ describe("user permissions: admin and super", () => {
     expect(response.body.template.admin).toEqual([template.uuid]);
   });
 
-  test("super user can act as anyone", async() => {
+  test("super user can act as anyone - simple test", async () => {
+    await Helper.userTestingSetSuper();
+
+    await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+    Helper.setAgent(agent1);
+    
+    let response = await Helper.actAs(Helper.templateCreate({name: "waffle"}), Helper.EMAIL_2);
+    expect(response.statusCode).toBe(200);
+
+    // Permissions should be user 2 since it was performed as an act-as
+    await Helper.testPermission(response.body.inserted_uuid, 'admin', 200, [Helper.EMAIL_2]);
+  });
+
+  test("super user can act as anyone - complicated test", async() => {
     // user 1 is super user
     await Helper.userTestingSetSuper();
     // user 1 creates child template as self
@@ -294,7 +307,7 @@ describe("user permissions: admin and super", () => {
     let temp_parent = await Helper.templateDraftGetAndTest(parent.uuid);
     expect(temp_parent.related_templates[0].name).toEqual("child");
 
-    // Fetch parent using acting as user 2
+    // Fetch parent using acting as user 2. Shouldn't be able to see child template
     temp_parent = await Helper.testAndExtract(Helper.actAs, Helper.templateDraftGet(parent.uuid), Helper.EMAIL_2);
     expect(temp_parent.related_templates[0].name).toBeFalsy();
 
@@ -338,5 +351,33 @@ describe("user permissions: admin and super", () => {
     let new_user = await Helper.testAndExtract(Helper.userGetByEmail, Helper.EMAIL_2);
     expect(new_user).toEqual({email: Helper.EMAIL_2});
 
+  });
+
+  describe("super user act as: user_email in body", () => {
+    test("basic template create", async () => {
+      await Helper.userTestingSetSuper();
+  
+      await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+      Helper.setAgent(agent1);
+      
+      let template = {name: "waffle"};
+      let wrapper = {user_email: Helper.EMAIL_2, template};
+      let response = await Helper.templateCreate(wrapper);
+      expect(response.statusCode).toBe(200);
+  
+      // Permissions should be user 2 since it was performed as an act-as
+      await Helper.testPermission(response.body.inserted_uuid, 'admin', 200, [Helper.EMAIL_2]);
+    });
+    test("body can only contain user_email and one other object", async () => {
+      await Helper.userTestingSetSuper();
+  
+      await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+      Helper.setAgent(agent1);
+      
+      let template = {name: "waffle"};
+      let wrapper = {user_email: Helper.EMAIL_2, template, something_else: "Not allowed"};
+      let response = await Helper.templateCreate(wrapper);
+      expect(response.statusCode).toBe(400);
+    });
   });
 });

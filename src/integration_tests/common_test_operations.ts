@@ -807,7 +807,7 @@ export = class Helper {
     return persisted_record;
   };
 
-  // permission group
+  // permission
 
   getPermission = async (uuid, category) => {
     return await this.agent
