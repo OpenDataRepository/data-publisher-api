@@ -305,6 +305,37 @@ describe("create (and get draft)", () => {
 
     });
 
+    test("automatically create dataset and related_datasets from template", async () => {
+
+      let public_date = (new Date()).toISOString();
+      let template: any = {
+        name:"t1",
+        public_date,
+        related_templates:[
+          {
+            name: "t2",
+            public_date,
+            related_templates:[
+              {
+                name: "t3",
+                public_date
+              }
+            ]
+          }
+        ]
+      };
+      template = await Helper.templateCreatePersistTest(template);
+
+
+      let dataset = {
+        template_id: template._id,
+        public_date: (new Date()).toISOString()
+      };
+
+      await Helper.datasetCreateAndTest(dataset);
+
+    });
+
   });
 
   describe("Failure cases", () => {
@@ -421,7 +452,8 @@ describe("create (and get draft)", () => {
 
       // arrays must be of same length
       dataset = {
-        template_id: template._id
+        template_id: template._id,
+        related_datasets: []
       };
       let response = await Helper.datasetCreate(dataset);
       expect(response.statusCode).toBe(400);

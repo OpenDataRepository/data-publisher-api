@@ -144,6 +144,36 @@ class Model {
     return false;
   }
 
+  async #createNewDatasetForTemplate(template: Record<string, any>, group_uuid: string, public_date?: Date): Promise<Record<string, any>> {
+    let uuid = uuidv4();
+    await (new PermissionModel.model(this.state)).initializePermissionsFor(uuid);
+    let new_dataset: Record<string, any> = {
+      uuid,
+      template_id: template._id,
+      group_uuid,
+      updated_at: this.state.updated_at,
+      related_datasets: []
+    };
+    if(public_date) {
+      new_dataset.public_date = public_date
+    }
+    for(let related_template of template.related_templates) {
+      let related_dataset = await this.#createNewDatasetForTemplate(related_template, group_uuid, public_date);
+      new_dataset.related_datasets.push(related_dataset.uuid);
+    }
+
+    let session = this.state.session;
+    let response = await Dataset.insertOne(
+      new_dataset, 
+      {session}
+    );
+    if (!response.acknowledged) {
+      throw new Error(`Dataset.#createNewDatasetForTemplate: Inserting failed`);
+    } 
+
+    return new_dataset;
+  }
+
   async #extractRelatedDatasetUuidsFromCreateOrUpdate(input_related_datasets: Record<string, any>[], 
   template: Record<string, any>, group_uuid: string): Promise<[string[], boolean]> {
     let return_dataset_uuids: string[] = [];
@@ -235,6 +265,35 @@ class Model {
       throw new Util.InputError(`dataset provided is not an object or a valid uuid: ${input_dataset}`);
     }
 
+    // Verify template and template access
+
+    if(!input_dataset.template_id || typeof(input_dataset.template_id) !== 'string') {
+      throw new Util.InputError(`dataset template_id property must be a valid string`);
+    }
+    // Verify that the template_id provided by the user is the template_id of a persisted template
+    if(input_dataset.template_id != template._id.toString()) {
+      throw new Util.InputError(`The template _id provided by the dataset (${input_dataset.template_id}) does not correspond to the template _id expected by the template (${template._id})`);
+    }
+    if(!(await permissions_model_instance.hasPermission(template.uuid, PermissionModel.PermissionTypes.view, TemplateModel.collection()))) {
+      throw new Util.PermissionDeniedError(`Cannot link to template_id ${template._id}, as you do not have view permissions to it`);
+    }
+
+    // Verify public_date is valid if provided
+
+    let public_date;
+    if (input_dataset.public_date) {
+      if (!Date.parse(input_dataset.public_date)){
+        throw new Util.InputError('dataset public_date property must be in valid date format');
+      }
+      public_date = new Date(input_dataset.public_date);
+      if(!template.public_date || public_date < (new Date(template.public_date))) {
+        throw new Util.InputError(`public_date for dataset must be later than the public_date for it's template. date provided: ${public_date.toISOString()}, template uuid: ${template.uuid}, template public_date: ${template.public_date}`);
+      }
+    }
+    let old_system_uuid;
+
+    // Differentiate between create and update
+
     let uuid;
     // If a dataset uuid is provided, this is an update
     if (input_dataset.uuid) {
@@ -255,23 +314,21 @@ class Model {
 
       uuid = input_dataset.uuid;
       group_uuid = (await SharedFunctions.latestDocument(Dataset, uuid, this.state.session)).group_uuid;
+      old_system_uuid = await uuid_mapper_model_instance.get_old_uuid_from_new(uuid);
     }
     // Otherwise, this is a create, so generate a new uuid
     else {
+      // If it's a create without related_templates, just create based off of the template
+      if(!input_dataset.related_datasets) {
+        let new_dataset = await this.#createNewDatasetForTemplate(template, group_uuid, public_date);
+        return [true, new_dataset.uuid];
+      }
+      
       uuid = uuidv4();
       await permissions_model_instance.initializePermissionsFor(uuid);
     }
 
-    if(!input_dataset.template_id || typeof(input_dataset.template_id) !== 'string') {
-      throw new Util.InputError(`dataset template_id property must be a valid string`);
-    }
-    // Verify that the template_id provided by the user is the template_id of a persisted template
-    if(input_dataset.template_id != template._id.toString()) {
-      throw new Util.InputError(`The template _id provided by the dataset (${input_dataset.template_id}) does not correspond to the template _id expected by the template (${template._id})`);
-    }
-    if(!(await permissions_model_instance.hasPermission(template.uuid, PermissionModel.PermissionTypes.view, TemplateModel.collection()))) {
-      throw new Util.PermissionDeniedError(`Cannot link to template_id ${template._id}, as you do not have view permissions to it`);
-    }
+    // Construct dataset
 
     // Build object to create/update
     let new_dataset: any = {
@@ -282,24 +339,19 @@ class Model {
       related_datasets: []
     };
 
-    if (input_dataset.public_date) {
-      if (!Date.parse(input_dataset.public_date)){
-        throw new Util.InputError('dataset public_date property must be in valid date format');
-      }
-      new_dataset.public_date = new Date(input_dataset.public_date);
-      if(!template.public_date || new_dataset.public_date < (new Date(template.public_date))) {
-        throw new Util.InputError(`public_date for dataset must be later than the public_date for it's template. date provided: ${new_dataset.public_date.toISOString()}, template uuid: ${template.uuid}, template public_date: ${template.public_date}`);
-      }
-    }
+    // Add optional fields
 
-    let old_system_uuid = await uuid_mapper_model_instance.get_old_uuid_from_new(uuid);
+    if (public_date) {
+      new_dataset.public_date = public_date;
+    }
     if(old_system_uuid) {
       new_dataset.old_system_uuid = old_system_uuid;
     }
 
+    // Determine if there are any changes to publish
+
     // Need to determine if this draft is any different from the persisted one.
     let changes = false;
-
     [new_dataset.related_datasets, changes] = await this.#extractRelatedDatasetUuidsFromCreateOrUpdate(input_dataset.related_datasets, template, group_uuid);
 
     // If this draft is identical to the latest persisted, delete it.
@@ -318,6 +370,8 @@ class Model {
         return [false, uuid];
       }
     }
+
+    // Write changes to db
 
     // If a draft of this dataset already exists: overwrite it, using it's same uuid
     // If a draft of this dataset doesn't exist: create a new draft
@@ -392,7 +446,6 @@ class Model {
     return dataset_draft;
   }
 
-  // TODO: Don't force a dataset to specify sub-datasets. Generate new ones automatically
   // Fetches the dataset draft with the given uuid, recursively looking up related_datasets.
   // If a draft of a given dataset doesn't exist, a new one will be generated using the last persisted dataset.
   async #draftFetchOrCreate(uuid: string): Promise<Record<string, any> | null> {
