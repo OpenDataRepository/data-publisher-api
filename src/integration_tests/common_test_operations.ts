@@ -108,6 +108,11 @@ export = class Helper {
     return 0;
   }
 
+  redirect = async(path) => {
+    return await this.agent
+      .get(path);
+  }
+
   // A wrapper function which calls the api callback with the specified args,
   // verifies that the status code is 200, and returns the response
   testAndExtract = async(callback, ...args) => {
@@ -486,11 +491,9 @@ export = class Helper {
 
   datasetCreateAndTest = async (dataset) => {
     let response = await this.datasetCreate(dataset);
-    expect(response.statusCode).toBe(200);
-    expect(response.body.inserted_uuid).toBeTruthy();
-    let uuid = response.body.inserted_uuid;
-    
-    let created_dataset = await this.datasetDraftGetAndTest(uuid);
+    expect(response.statusCode).toBe(307);
+
+    let created_dataset = await this.testAndExtract(this.redirect, response.header.location);
 
     this.testDatasetDraftsEqual(dataset, created_dataset);
     return created_dataset;

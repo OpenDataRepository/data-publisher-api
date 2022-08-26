@@ -274,8 +274,7 @@ describe("create (and get draft)", () => {
           }
         ]
       };
-      let response = await Helper.datasetCreate(dataset);
-      expect(response.statusCode).toBe(200);
+      await Helper.datasetCreateAndTest(dataset);
     });
 
     test("two related_datasets pointing to the same related_template", async () => {
