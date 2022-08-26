@@ -53,7 +53,7 @@ exports.create = async function(req, res, next) {
     let state = Util.initializeState(req);
     let model_instance = new TemplateModel.model(state);
     let inserted_uuid = await model_instance.create(req.body);
-    res.json({inserted_uuid});
+    res.redirect(307, `/template/${inserted_uuid}/draft`)
   } catch(err) {
     next(err);
   }

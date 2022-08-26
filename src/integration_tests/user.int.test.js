@@ -139,9 +139,12 @@ describe("suspend", () => {
     Helper.setAgent(agent);
     
     let response = await Helper.actAs(Helper.templateCreate({name: "waffle"}), Helper.EMAIL_2);
+    expect(response.statusCode).toBe(307);
+
+    response = await Helper.actAs(Helper.redirect(response.header.location), Helper.EMAIL_2);
     expect(response.statusCode).toBe(200);
 
-    await Helper.testPermission(response.body.inserted_uuid, 'admin', 200, [Helper.EMAIL_2]);
+    await Helper.testPermission(response.body.uuid, 'admin', 200, [Helper.EMAIL_2]);
 
     await Helper.testAndExtract(Helper.actAs, Helper.accountSuspend(Helper.DEF_PASSWORD), Helper.EMAIL_2);
 

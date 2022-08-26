@@ -108,8 +108,8 @@ export = class Helper {
     return 0;
   }
 
-  redirect = async(path) => {
-    return await this.agent
+  redirect = (path) => {
+    return this.agent
       .get(path);
   }
 
@@ -188,13 +188,12 @@ export = class Helper {
     this.testTemplateFieldOptionsEqual(before.options, after.options);
   }
 
-  templateFieldCreateAndTest = async (field) => {
-    let response = await this.templateFieldCreate(field)
-    expect(response.statusCode).toBe(200);
-    expect(response.body.inserted_uuid).toBeTruthy();
+  templateFieldCreateAndTest = async (input_field) => {
+    let response = await this.templateFieldCreate(input_field)
+    expect(response.statusCode).toBe(307);
   
-    let new_field = await this.testAndExtract(this.templateFieldDraftGet, response.body.inserted_uuid);
-    expect(new_field).toMatchObject(field);
+    let new_field = await this.testAndExtract(this.redirect, response.header.location);
+    expect(new_field).toMatchObject(input_field);
     return new_field.uuid;
   };
 
@@ -335,15 +334,14 @@ export = class Helper {
     }
   }
 
-  templateCreateAndTest = async (template) => {
-    let response = await this.templateCreate(template);
-    expect(response.statusCode).toBe(200);
-    let uuid = response.body.inserted_uuid;
-    expect(uuid).toBeTruthy();
+  templateCreateAndTest = async (input_template) => {
+    let response = await this.templateCreate(input_template);
+    expect(response.statusCode).toBe(307);
   
-    let new_draft = await this.testAndExtract(this.templateDraftGet, uuid)
-    this.testTemplateDraftsEqual(template, new_draft);
-    return new_draft;
+    let created_template = await this.testAndExtract(this.redirect, response.header.location);
+
+    this.testTemplateDraftsEqual(input_template, created_template);
+    return created_template;
   };
 
   templateLastUpdate = async(uuid) => {
@@ -701,10 +699,9 @@ export = class Helper {
   
   recordCreateAndTest = async (input_record) => {
     let response = await this.recordCreate(input_record);
-    expect(response.statusCode).toBe(200);
-    let uuid = response.body.inserted_uuid;
+    expect(response.statusCode).toBe(307);
       
-    let created_record = await this.recordDraftGetAndTest(uuid);
+    let created_record = await this.testAndExtract(this.redirect, response.header.location);
     this.testRecordsEqual(input_record, created_record);
     return created_record;
   };

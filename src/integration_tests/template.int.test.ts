@@ -332,22 +332,22 @@ describe("create (and get draft after a create)", () => {
         "name": "t1",
         "fields": [field_persisted]
       };
+
       let response = await Helper.templateCreate(template1);
-      expect(response.statusCode).toBe(200);
-      let uuid = response.body.inserted_uuid;
-      expect(uuid).toBeTruthy();
-      let template_draft = await Helper.testAndExtract(Helper.templateDraftGet, uuid)
+      expect(response.statusCode).toBe(307);
+      let template_draft = await Helper.testAndExtract(Helper.redirect, response.header.location);
+      let uuid = template_draft.uuid;
       expect(template_draft).toMatchObject({uuid});
 
       let template2 = { 
         "name": "t2",
         "related_templates": [related_template_persisted]
       };
+
       response = await Helper.templateCreate(template2);
-      expect(response.statusCode).toBe(200);
-      uuid = response.body.inserted_uuid;
-      expect(uuid).toBeTruthy();
-      template_draft = await Helper.testAndExtract(Helper.templateDraftGet, uuid)
+      expect(response.statusCode).toBe(307);
+      template_draft = await Helper.testAndExtract(Helper.redirect, response.header.location);
+      uuid = template_draft.uuid;
       expect(template_draft).toMatchObject({uuid});
 
     });
