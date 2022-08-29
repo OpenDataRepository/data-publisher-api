@@ -738,7 +738,7 @@ describe("update (and get draft)", () => {
 
       dataset = await Helper.datasetPersistAndFetch(dataset.uuid);
       let response = await Helper.datasetUpdate(dataset.uuid, dataset);
-      expect(response.statusCode).toBe(200);
+      expect(response.statusCode).toBe(307);
       expect(await Helper.datasetDraftExistingAndTest(dataset.uuid)).toBeFalsy();
       expect(await Helper.datasetDraftExistingAndTest(dataset.related_datasets[0].uuid)).toBeFalsy();
     });
@@ -1066,7 +1066,7 @@ describe("persist (and get persisted)", () => {
 
       // Update with change
       let response = await Helper.datasetUpdate(dataset.uuid, dataset);
-      expect(response.statusCode).toBe(200);
+      expect(response.statusCode).toBe(307);
 
       // Record the date before we persist a second time
       let intermediate_persist_date = (new Date()).getTime();
@@ -1111,7 +1111,7 @@ describe("persist (and get persisted)", () => {
 
       // Update second dataset
       let response = await Helper.datasetUpdate(uuid2, dataset.related_datasets[0]);
-      expect(response.statusCode).toBe(200);
+      expect(response.statusCode).toBe(307);
 
       // Record the date before we persist the change to the second dataset
       let persist_date_2 = (new Date()).getTime();
@@ -1126,7 +1126,7 @@ describe("persist (and get persisted)", () => {
       
       // Update with change
       response = await Helper.datasetUpdate(uuid, dataset);
-      expect(response.statusCode).toBe(200);
+      expect(response.statusCode).toBe(307);
 
       // Record the date before we persist the parent dataset again
       let persist_date_3 = (new Date()).getTime();
@@ -1164,7 +1164,7 @@ describe("persist (and get persisted)", () => {
       draft.public_date = (new Date()).toISOString();
       draft.related_datasets[0].public_date = (new Date()).toISOString();
       response = await Helper.datasetUpdate(draft.uuid, draft);
-      expect(response.statusCode).toBe(200);
+      expect(response.statusCode).toBe(307);
 
       // Give user 2 edit permissions to parent dataset
       let admin_users = [Helper.DEF_EMAIL, Helper.EMAIL_2];
@@ -1358,7 +1358,7 @@ describe("persist (and get persisted)", () => {
       related_dataset.public_date = (new Date()).toISOString();
 
       let response = await Helper.datasetUpdate(related_dataset.uuid, related_dataset);
-      expect(response.statusCode).toBe(200);
+      expect(response.statusCode).toBe(307);
 
       // Should fail to update since we don't have the most recent update
       response = await Helper.datasetPersist(dataset.uuid, old_update);
@@ -1557,7 +1557,7 @@ test("get persisted for a certain date", async () => {
   dataset.uuid = uuid;
 
   response = await Helper.datasetUpdate(uuid, dataset);
-  expect(response.statusCode).toBe(200);
+  expect(response.statusCode).toBe(307);
   await Helper.datasetPersistAndFetch(uuid);
 
   let afterSecondPersist = new Date();
@@ -1566,7 +1566,7 @@ test("get persisted for a certain date", async () => {
   dataset.public_date = public_date_2;
 
   response = await Helper.datasetUpdate(uuid, dataset);
-  expect(response.statusCode).toBe(200);
+  expect(response.statusCode).toBe(307);
   await Helper.datasetPersistAndFetch(uuid);
 
   // Now there should be three persisted versions. Search for each based on the date
@@ -1672,7 +1672,7 @@ describe("lastUpdate", () => {
 
 
       let response = await Helper.datasetUpdate(dataset3.uuid, dataset3);
-      expect(response.statusCode).toBe(200);
+      expect(response.statusCode).toBe(307);
 
       let timestamp_after_update = new Date();
 
@@ -1711,7 +1711,7 @@ describe("lastUpdate", () => {
       related_dataset.public_date = (new Date()).toISOString();
 
       let response = await Helper.datasetUpdate(related_dataset.uuid, related_dataset);
-      expect(response.statusCode).toEqual(200);
+      expect(response.statusCode).toEqual(307);
 
       let time1 = new Date();
       await Helper.datasetPersistAndFetch(related_dataset.uuid);
@@ -1757,7 +1757,7 @@ describe("lastUpdate", () => {
       dataset3.public_date = (new Date()).toISOString();
 
       let response = await Helper.datasetUpdate(dataset3.uuid, dataset3);
-      expect(response.statusCode).toBe(200);
+      expect(response.statusCode).toBe(307);
 
       response = await Helper.datasetDraftGet(dataset3.uuid, Helper);
       expect(response.statusCode).toBe(200);
@@ -1834,7 +1834,7 @@ describe("delete", () => {
   
     // Change the draft, but don't persist the change
     let response = await Helper.datasetUpdate(dataset.uuid, dataset);
-    expect(response.statusCode).toBe(200);
+    expect(response.statusCode).toBe(307);
   
     // Verify that the draft is what we changed it to
     response = await Helper.datasetDraftGet(dataset.uuid);

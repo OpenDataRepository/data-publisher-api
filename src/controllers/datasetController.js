@@ -69,7 +69,7 @@ exports.update = async function(req, res, next) {
     let state = Util.initializeState(req);
     let model_instance = new DatasetModel.model(state);
     await model_instance.update(req.body);
-    res.sendStatus(200);
+    res.redirect(307, `/dataset/${req.params.uuid}/draft`)
   } catch(err) {
     next(err);
   }

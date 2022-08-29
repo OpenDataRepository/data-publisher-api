@@ -550,9 +550,9 @@ export = class Helper {
 
   datasetUpdateAndTest = async (dataset) => {
     let response = await this.datasetUpdate(dataset.uuid, dataset);
-    expect(response.statusCode).toBe(200);
-    
-    let updated_dataset = await this.testAndExtract(this.datasetDraftGet, dataset.uuid);
+    expect(response.statusCode).toBe(307);
+
+    let updated_dataset = await this.testAndExtract(this.redirect, response.header.location);
     this.testDatasetDraftsEqual(dataset, updated_dataset);
   };
 
