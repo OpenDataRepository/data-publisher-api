@@ -307,7 +307,7 @@ describe("create (and get draft)", () => {
     test("automatically create dataset and related_datasets from template", async () => {
 
       let public_date = (new Date()).toISOString();
-      let template: any = {
+      let template: Record<string, any> = {
         name:"t1",
         public_date,
         related_templates:[
@@ -326,12 +326,15 @@ describe("create (and get draft)", () => {
       template = await Helper.templateCreatePersistTest(template);
 
 
-      let dataset = {
+      let dataset: Record<string, any> = {
         template_id: template._id,
         public_date: (new Date()).toISOString()
       };
 
-      await Helper.datasetCreateAndTest(dataset);
+      dataset = await Helper.datasetCreateAndTest(dataset);
+
+      expect(dataset.related_datasets[0].template_id).toEqual(template.related_templates[0]._id);
+      expect(dataset.related_datasets[0].related_datasets[0].template_id).toEqual(template.related_templates[0].related_templates[0]._id);
 
     });
 

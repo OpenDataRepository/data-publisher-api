@@ -470,6 +470,50 @@ describe("create (and get draft)", () => {
 
     });
 
+    test("automatically create record and related_records from dataset", async () => {
+
+      let public_date = (new Date()).toISOString();
+      let template: Record<string, any> = {
+        name:"t1",
+        public_date,
+        related_templates:[
+          {
+            name: "t2",
+            public_date,
+            related_templates:[
+              {
+                name: "t3",
+                public_date
+              }
+            ]
+          }
+        ],
+        fields: [
+          {
+            name: "a field"
+          }
+        ]
+      };
+      template = await Helper.templateCreatePersistTest(template);
+
+
+      let dataset: Record<string, any> = {
+        template_id: template._id,
+        public_date: (new Date()).toISOString()
+      };
+
+      dataset = await Helper.datasetCreatePersistTest(dataset);
+
+      let record = await Helper.recordCreateAndTest({dataset_uuid: dataset.uuid});
+
+      expect(record.related_records[0].dataset_uuid).toEqual(dataset.related_datasets[0].uuid);
+      expect(record.related_records[0].related_records[0].dataset_uuid).toEqual(dataset.related_datasets[0].related_datasets[0].uuid);
+
+      expect(record.fields[0].uuid).toEqual(template.fields[0].uuid);
+
+
+    });
+
   });
 
   describe("Failure cases", () => {

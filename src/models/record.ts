@@ -628,6 +628,36 @@ class Model {
     return [return_record_uuids, changes];
   }
 
+  async #createNewRecordForDataset(dataset: Record<string, any>, template: Record<string, any>): Promise<Record<string, any>> {
+    let uuid = uuidv4();
+    let new_record: Record<string, any> = {
+      uuid,
+      dataset_uuid: dataset.uuid,
+      updated_at: this.state.updated_at,
+      related_records: []
+    };
+    let related_template_map = {};
+    for (let related_template of template.related_templates) {
+      related_template_map[related_template._id.toString()] = related_template;
+    }
+    for(let related_dataset of dataset.related_datasets) {
+      let related_record = await this.#createNewRecordForDataset(related_dataset, related_template_map[related_dataset.template_id]);
+      new_record.related_records.push(related_record.uuid);
+    }
+    new_record.fields = await this.#createRecordFieldsFromInputRecordAndTemplate([], template.fields, uuid);
+
+    let session = this.state.session;
+    let response = await Record.insertOne(
+      new_record, 
+      {session}
+    );
+    if (!response.acknowledged) {
+      throw new Error(`Record.#createNewRecordForDataset: Inserting failed`);
+    } 
+
+    return new_record;
+  }
+
   // A recursive helper for validateAndCreateOrUpdate.
   async #validateAndCreateOrUpdateRecurser(input_record: Record<string, any>, dataset: Record<string, any>, 
   template: Record<string, any>, seen_uuids: Set<string>): Promise<[boolean, string]> {
@@ -635,6 +665,11 @@ class Model {
     // Record must be an object or valid uuid
     if (!Util.isObject(input_record)) {
       throw new Util.InputError(`record provided is not an object: ${input_record}`);
+    }
+
+    // verify that this user is in the 'edit' permission group
+    if (!(await (new PermissionModel.model(this.state)).hasPermission(dataset.uuid, PermissionModel.PermissionTypes.edit))) {
+      throw new Util.PermissionDeniedError(`Do not have edit permissions required to create/update records in dataset ${dataset.uuid}`);
     }
 
     let uuid;
@@ -654,12 +689,13 @@ class Model {
     }
     // Otherwise, this is a create, so generate a new uuid
     else {
-      uuid = uuidv4();
-    }
+      // If only the dataset_uuid is supplied, than automatically generate a record from that uuid
+      if(Object.keys(input_record).length == 1 && input_record.dataset_uuid) {
+        let record = await this.#createNewRecordForDataset(dataset, template);
+        return [true, record.uuid];
+      } 
 
-    // verify that this user is in the 'edit' permission group
-    if (!(await (new PermissionModel.model(this.state)).hasPermission(dataset.uuid, PermissionModel.PermissionTypes.edit))) {
-      throw new Util.PermissionDeniedError(`Do not have edit permissions required to create/update records in dataset ${dataset.uuid}`);
+      uuid = uuidv4();
     }
 
     // each record only updates once per update, even if it shows up multiple times in the json input
@@ -763,13 +799,13 @@ class Model {
       dataset = await (new DatasetModel.model(this.state)).latestPersistedWithoutPermissions(record.dataset_uuid);
     } catch(error) {
       if(error instanceof Util.InputError) {
-        throw new Util.InputError(`a valid dataset_uuid was not provided for record ${record.uuid}`);
+        throw new Util.InputError(`a valid dataset_uuid was not provided for record ${record.uuid}. Note dataset must be published`);
       } else {
         throw error;
       }
     }
     if(!dataset) {
-      throw new Util.InputError(`a valid dataset_uuid was not provided for record ${record.uuid}`);
+      throw new Util.InputError(`a valid dataset_uuid was not provided for record ${record.uuid}. Note dataset must be published`);
     }
     let template = await (new TemplateModel.model(this.state)).persistedByIdWithoutPermissions(SharedFunctions.convertToMongoId(dataset.template_id));
 
