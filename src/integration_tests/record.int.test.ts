@@ -1612,7 +1612,7 @@ describe("Helper.recordLastUpdate", () => {
       related_record.fields[0].value = "pokemon";
 
       let response = await Helper.recordUpdate(related_record, related_record.uuid);
-      expect(response.statusCode).toEqual(200);
+      expect(response.statusCode).toEqual(307);
 
       let time1 = new Date();
       await Helper.recordPersistAndTest(related_record);
@@ -1674,7 +1674,7 @@ describe("Helper.recordLastUpdate", () => {
       record3.fields[0].value = "jutsu";
 
       let response = await Helper.recordUpdate(record3, record3.uuid);
-      expect(response.statusCode).toBe(200);
+      expect(response.statusCode).toBe(307);
 
       response = await Helper.recordDraftGet(record3.uuid);
       expect(response.statusCode).toBe(200);
