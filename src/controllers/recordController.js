@@ -54,7 +54,7 @@ exports.draft_delete = async function(req, res, next) {
 
 exports.persist = async function(req, res, next) {
   try {
-    if(Date.parse(req.body.last_update)) {
+    if(Util.isDateValid(req.body.last_update)) {
       let state = Util.initializeState(req);
       let model_instance = new RecordModel.model(state);
       await model_instance.persist(req.params.uuid, new Date(req.body.last_update));

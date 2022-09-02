@@ -282,7 +282,7 @@ class Model {
 
     let public_date;
     if (input_dataset.public_date) {
-      if (!Date.parse(input_dataset.public_date)){
+      if (!Util.isDateValid(input_dataset.public_date)){
         throw new Util.InputError('dataset public_date property must be in valid date format');
       }
       public_date = new Date(input_dataset.public_date);
@@ -949,7 +949,7 @@ class Model {
     };
 
     if (record._record_metadata && Util.isObject(record._record_metadata) && 
-        record._record_metadata._public_date && Date.parse(record._record_metadata._public_date)) {
+        record._record_metadata._public_date && Util.isDateValid(record._record_metadata._public_date)) {
       new_dataset.public_date = new Date(record._record_metadata._public_date);
     }
 

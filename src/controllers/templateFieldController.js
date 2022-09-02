@@ -73,7 +73,7 @@ exports.update = async function(req, res, next) {
 
 exports.persist = async function(req, res, next) {
   try {
-    if(!Date.parse(req.body.last_update)) {
+    if(!Util.isDateValid(req.body.last_update)) {
       throw new Util.InputError(`last_update provided as parameter is not in valid date format: ${req.body.last_update}`);
     } 
     let state = Util.initializeState(req);

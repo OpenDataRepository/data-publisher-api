@@ -336,8 +336,8 @@ class Model {
   async #initializeNewDraftWithProperties(input_template: Record<string, any>, uuid: string): Promise<Record<string, any>> {
     let output_template: any = this.#initializeNewDraftWithPropertiesSharedWithImport(input_template, uuid);
     if (input_template.public_date) {
-      if (!Date.parse(input_template.public_date)){
-        throw new Util.InputError('template public_date property must be in valid date format');
+      if (!Util.isDateValid(input_template.public_date)){
+        throw new Util.InputError(`template (uuid: ${uuid}) public_date property must be in valid date format: ${input_template.public_date}`);
       }
       output_template.public_date = new Date(input_template.public_date);
     }
@@ -351,7 +351,7 @@ class Model {
   #initializeNewImportedDraftWithProperties(input_template: Record<string, any>, uuid: string): Record<string, any> {
     let output_template: any = this.#initializeNewDraftWithPropertiesSharedWithImport(input_template, uuid);
     if (input_template._database_metadata && Util.isObject(input_template._database_metadata) && 
-        input_template._database_metadata._public_date && Date.parse(input_template._database_metadata._public_date)) {
+        input_template._database_metadata._public_date && Util.isDateValid(input_template._database_metadata._public_date)) {
       output_template.public_date = new Date(input_template.public_date);
     }
     output_template.old_system_uuid = input_template.template_uuid;

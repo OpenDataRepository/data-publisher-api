@@ -79,7 +79,7 @@ exports.persist = async function(req, res, next) {
   try {
     let state = Util.initializeState(req);
     let model_instance = new DatasetModel.model(state);
-    if(Date.parse(req.body.last_update)) {
+    if(Util.isDateValid(req.body.last_update)) {
       await model_instance.persist(req.params.uuid, new Date(req.body.last_update));
     } else {
       throw new Util.InputError(`last_update provided as parameter is not in valid date format: ${req.body.last_update}`);

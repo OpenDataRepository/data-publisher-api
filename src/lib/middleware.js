@@ -19,7 +19,7 @@ exports.validateUuid = (req, res, next) => {
 };
 
 exports.validateTimestamp = (req, res, next) => {
-  if (isNaN(Date.parse(req.params.timestamp))) {
+  if (!Util.isDateValid(req.params.timestamp)) {
     throw new Util.InputError(`The timestamp provided (${req.params.timestamp}) is not in proper format.`);
   }
   next();

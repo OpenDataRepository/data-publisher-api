@@ -727,7 +727,7 @@ class Model {
     };
 
     if (input_record.public_date) {
-      if (!Date.parse(input_record.public_date)){
+      if (!Util.isDateValid(input_record.public_date)){
         throw new Util.InputError('record public_date property must be in valid date format');
       }
       new_record.public_date = new Date(input_record.public_date);
@@ -1230,7 +1230,7 @@ class Model {
     };
 
     if (input_record._record_metadata && Util.isObject(input_record._record_metadata) && 
-    input_record._record_metadata._public_date && Date.parse(input_record._record_metadata._public_date)) {
+    input_record._record_metadata._public_date && Util.isDateValid(input_record._record_metadata._public_date)) {
       new_record.public_date = new Date(input_record._record_metadata._public_date);
     }
 

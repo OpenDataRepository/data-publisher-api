@@ -366,8 +366,8 @@ class Model {
   async #initializeNewDraftWithProperties(input_field: Record<string, any>, uuid: string): Promise<Record<string, any>> {
     let output_field: any = this.#initializeNewDraftWithPropertiesSharedWithImport(input_field, uuid);
     if (input_field.public_date) {
-      if (!Date.parse(input_field.public_date)){
-        throw new Util.InputError('template public_date property must be in valid date format');
+      if (!Util.isDateValid(input_field.public_date)){
+        throw new Util.InputError(`template field (uuid: ${uuid}) public_date property must be in valid date format`);
       }
       output_field.public_date = new Date(input_field.public_date);
     }
@@ -401,7 +401,7 @@ class Model {
   async #initializeNewImportedDraftWithProperties(input_field: Record<string, any>, uuid: string): Promise<Record<string, any>> {
     let output_field: any = this.#initializeNewDraftWithPropertiesSharedWithImport(input_field, uuid);
     if (input_field._field_metadata && Util.isObject(input_field._field_metadata) && input_field._field_metadata._public_date) {
-      if (Date.parse(input_field._field_metadata._public_date)){
+      if (Util.isDateValid(input_field._field_metadata._public_date)){
         output_field.public_date = new Date(input_field.public_date);
       }
     }

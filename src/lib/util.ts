@@ -37,6 +37,10 @@ export function isPublic(public_date): boolean {
   return public_date && compareTimeStamp((new Date).getTime(), public_date);
 }
 
+export function isDateValid(date): boolean {
+  return !isNaN(Date.parse(date));
+}
+
 export function datesEqual(d1, d2): boolean {
   if (d1 == d2) {
     return true;

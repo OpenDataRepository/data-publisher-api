@@ -31,6 +31,11 @@ test('arrayEqual', () => {
   expect(() => Util.arrayEqual(non_array, non_array)).toThrow();
 })
 
+test('isDateValid', () => {
+  expect(Util.isDateValid('1970-01-01T00:00:00.000Z')).toBeTruthy();
+  expect(Util.isDateValid('waffle')).toBeFalsy();
+})
+
 test('datesEqual', () => {
   expect(Util.datesEqual(null, null)).toBeTruthy();
   expect(Util.datesEqual(undefined, undefined)).toBeTruthy();
