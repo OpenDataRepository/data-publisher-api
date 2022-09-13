@@ -166,7 +166,7 @@ export = class Helper {
       expect(after[i].name).toEqual(before[i].name);
       // So import can also use this function
       if(!before[i].options) {
-        before[i].options = before[i].radio_options;
+        before[i].options = before[i].radio_options ? before[i].radio_options : before[i].children;
       }
       this.testTemplateFieldOptionsEqual(before[i].options, after[i].options)
     }
@@ -183,7 +183,12 @@ export = class Helper {
     }
     // So import can also use this function
     if(!before.options) {
-      before.options = before.radio_options;
+      if(before.radio_options) {
+        before.options = before.radio_options;
+      }
+      if(before.fieldtype == "Tags") {
+        before.options = before.value;
+      }
     }
     this.testTemplateFieldOptionsEqual(before.options, after.options);
   }
@@ -973,6 +978,13 @@ export = class Helper {
   }
 
   // import 
+
+  importTemplate = async (template) => {
+    return await this.agent
+      .post(`/import/template/`)
+      .send(template)
+      .set('Accept', 'application/json');
+  }
 
   importTemplateDataset = async (template) => {
     return await this.agent

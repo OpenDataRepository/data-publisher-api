@@ -7,6 +7,8 @@ const MongoDB = require('../lib/mongoDB');
 const Util = require('../lib/util');
 const SharedFunctions = require('./shared_functions');
 
+// TODO: at some point implement files to interpret image files and to create thumbnails as well
+
 const Schema = Object.freeze({
   bsonType: "object",
   required: [ "_id", "uuid", "record_uuid", "template_field_uuid", "uploaded", "persisted" ],

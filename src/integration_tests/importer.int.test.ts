@@ -124,6 +124,13 @@ const testTemplatesEqual = (before, after, uuid_mapper) => {
 //   return await Helper.templatePersistAndFetch(uuid, curr_user);
 // }
 
+const importTemplateTest = async (template) => {
+  let response = await Helper.importTemplate(template);
+  expect(response.statusCode).toBe(307);
+  let new_template = await Helper.testAndExtract(Helper.redirect, response.header.location);
+  testTemplatesEqual(template, new_template, {});
+}
+
 const importTemplateDatasetTest = async (template) => {
   let response = await Helper.importTemplateDataset(template);
   expect(response.statusCode).toBe(200);
@@ -726,6 +733,50 @@ describe("template and dataset", () => {
     let rawdata = fs.readFileSync(Helper.testDataPath + '/rruff_sample_template.json');
     let old_template = JSON.parse(rawdata);
     await importTemplateDatasetTest(old_template);
+  });
+
+});
+
+describe("just template", () => {
+  test("field has options - tags", async () => {
+    let template_uuid = "t1";
+    let field_uuid = "t1f1"
+
+    let template: any = {
+      template_uuid, 
+      name: "naruto", 
+      description: "awesome", 
+      updated_at: (new Date()).toISOString(),
+      fields: [
+        {
+          template_field_uuid: field_uuid,
+          fieldtype: "Tags",
+          value: [
+            {
+              template_tag_uuid: "toad", 
+              name: "toad",
+              children: [
+                {
+                  template_tag_uuid: "frog",
+                  name: "frog"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    };
+    await importTemplateTest(template);
+
+  });
+
+
+  test("ahed metadata", async () => {
+    let rawdata = fs.readFileSync(Helper.testDataPath + '/ahed_metadata_template.json');
+    let template = JSON.parse(rawdata);
+
+    await importTemplateTest(template);
+
   });
 
 });

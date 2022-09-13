@@ -307,6 +307,9 @@ class Model {
     return values;
   }
 
+  // TODO: add radio_options and check-box options to types
+  // TODO: support radio options
+
   async #importRadioOptions(radio_options: Record<string, any>[]): Promise<Record<string, any>[]> {
     if(!Array.isArray(radio_options)) {
       throw new Util.InputError(`Radio options must be an array.`);
@@ -322,19 +325,22 @@ class Model {
       }
       cleansed_option.name = radio_option.name;
       
-      if(radio_option.radio_options) {
-        cleansed_option.options = await this.#importRadioOptions(radio_option.radio_options);
+      if(radio_option.radio_options || radio_option.children) {
+        let options = radio_option.radio_options ? radio_option.radio_options : radio_option.children;
+        cleansed_option.options = await this.#importRadioOptions(options);
       } else {
-        if (!radio_option.template_radio_option_uuid) {
-          throw new Util.InputError(`All radio options must include a radio option uuid unless it recurses to further radio options`);
+        if (!radio_option.template_radio_option_uuid && !radio_option.template_tag_uuid) {
+          throw new Util.InputError(`All radio_options / tags must include a radio_option_uuid or template_tag_uuid unless it recurses to further radio options`);
         }
         // Map old radio option to new. If old has been seen before, that's an error
+        let old_uuid = radio_option.template_radio_option_uuid ? radio_option.template_radio_option_uuid : radio_option.template_tag_uuid;
         let uuid_mapper_model_instance = new LegacyUuidToNewUuidMapperModel.model(this.state);
-        let uuid = await uuid_mapper_model_instance.get_new_uuid_from_old(radio_option.template_radio_option_uuid);
+        let uuid = await uuid_mapper_model_instance.get_new_uuid_from_old(old_uuid);
         if(!uuid) {
-          uuid = await uuid_mapper_model_instance.create_new_uuid_for_old(radio_option.template_radio_option_uuid);
+          uuid = await uuid_mapper_model_instance.create_new_uuid_for_old(old_uuid);
         }
         cleansed_option.uuid = uuid;
+        cleansed_option.old_system_uuid = old_uuid;
       }
       return_options.push(cleansed_option);
     }
@@ -407,6 +413,9 @@ class Model {
     }
     if(input_field.radio_options) {
       output_field.options = await this.#importRadioOptions(input_field.radio_options);
+    }
+    if(input_field.fieldtype == 'Tags') {
+      output_field.options = await this.#importRadioOptions(input_field.value);
     }
     output_field.old_system_uuid = input_field.template_field_uuid;
     let type = input_field.fieldtype;

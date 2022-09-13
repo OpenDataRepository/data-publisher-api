@@ -32,6 +32,8 @@ exports.issueJWT = function(user_id) {
     iat: Date.now()
   };
 
+  // TODO: tokens aren't expiring like they should
+
   const signedToken = jwt.sign(payload, process.env.ACCESS_TOKEN_SECRET, { expiresIn: expiresIn });
 
   return {
