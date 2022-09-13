@@ -434,6 +434,7 @@ export = class Helper {
   
     let new_draft = await this.templateDraftGetAndTest(template.uuid);
     this.testTemplateDraftsEqual(template, new_draft);
+    return new_draft;
   }
 
   templateUpdatePersistTest = async (template) => {

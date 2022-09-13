@@ -401,8 +401,10 @@ class Model {
     }
     for (let field of input_fields) {
       let field_uuid;
+      let new_changes;
       try {
-        [changes, field_uuid] = await (new TemplateFieldModel.model(this.state)).validateAndCreateOrUpdate(field);
+        [new_changes, field_uuid] = await (new TemplateFieldModel.model(this.state)).validateAndCreateOrUpdate(field);
+        changes ||= new_changes;
       } catch(err) {
         if (err instanceof Util.NotFoundError) {
           throw new Util.InputError(err.message);
@@ -433,8 +435,10 @@ class Model {
     }
     for (let related_template of input_related_templates) {
       let related_template_uuid;
+      let new_changes;
       try {
-        [changes, related_template_uuid] = await this.#validateAndCreateOrUpdate(related_template);
+        [new_changes, related_template_uuid] = await this.#validateAndCreateOrUpdate(related_template);
+        changes ||= new_changes;
       } catch(err) {
         if (err instanceof Util.NotFoundError) {
           throw new Util.InputError(err.message);
@@ -583,10 +587,10 @@ class Model {
 
     let more_changes = false;
     [new_template.related_templates, more_changes] = await this.#extractRelatedTemplatesFromCreateOrUpdate(input_template.related_templates);
-    changes = changes || more_changes;
+    changes ||= more_changes;
 
     new_template.subscribed_templates = await this.#extractSubscribedTemplatesFromCreateOrUpdate(input_template.subscribed_templates, uuid);
-    changes = changes || more_changes;
+    changes ||= more_changes;
     
 
     // If this draft is identical to the latest persisted, delete it.

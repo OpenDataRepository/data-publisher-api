@@ -607,7 +607,7 @@ class Model {
       try {
         let new_changes;
         [new_changes, related_record_uuid] = await this.#validateAndCreateOrUpdateRecurser(related_record, related_dataset, related_template, seen_uuids);
-        changes = changes || new_changes;
+        changes ||= new_changes;
       } catch(err) {
         if (err instanceof Util.NotFoundError) {
           throw new Util.InputError(err.message);
@@ -1265,7 +1265,7 @@ class Model {
       try {
         let new_changes;
         [new_changes, related_record] = await this.#importRecordFromCombinedRecursor(related_record, related_dataset, related_template);
-        changes = changes || new_changes;
+        changes ||= new_changes;
       } catch(err) {
         if (err instanceof Util.NotFoundError) {
           throw new Util.InputError(err.message);

@@ -233,7 +233,7 @@ class Model {
       try {
         let new_changes: boolean;
         [new_changes, related_dataset_uuid] = await this.#validateAndCreateOrUpdateRecurser(related_dataset, related_template, group_uuid);
-        changes = changes || new_changes;
+        changes ||= new_changes;
       } catch(err) {
         if (err instanceof Util.NotFoundError) {
           throw new Util.InputError(err.message);
@@ -1002,7 +1002,7 @@ class Model {
       try {
         let new_changes;
         [new_changes, related_dataset] = await this.#importDatasetFromCombinedRecursor(related_dataset, related_template);
-        changes = changes || new_changes;
+        changes ||= new_changes;
       } catch(err) {
         if (err instanceof Util.NotFoundError) {
           throw new Util.InputError(err.message);

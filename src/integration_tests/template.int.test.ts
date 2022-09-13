@@ -568,7 +568,7 @@ describe("update (and get draft after an update)", () => {
 
       await Helper.templateUpdateAndTest(og_template);
     });
-  
+
   })
 
   describe("Failure cases", () => {
@@ -1768,6 +1768,31 @@ describe("templateLastUpdate", () => {
       expect(response.statusCode).toBe(200);
       expect(response.body).toEqual(update_3_timestamp);
       
+    });
+
+    test("first template_field updated, but not second", async () => {
+      let template: any = {
+        name:"t",
+        fields: [
+          {
+            name: "f1"
+          },
+          {
+            name: "f2"
+          }
+        ]
+      };
+      template = await Helper.templateCreatePersistTest(template);
+
+      template.fields[0].name = "different name";
+
+      let timestamp = new Date();
+
+      template = await Helper.templateUpdateAndTest(template);
+
+      let response = await Helper.templateLastUpdate(template.uuid);
+      expect(response.statusCode).toBe(200);
+      expect((new Date(response.body)).getTime()).toBeGreaterThan(timestamp.getTime());
     });
   });
 
