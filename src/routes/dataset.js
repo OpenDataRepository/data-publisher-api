@@ -20,5 +20,6 @@ router.get('/:uuid/published/:name/records', validateUuid, controller.published_
 router.get('/:uuid/:timestamp', validateUuid, validateTimestamp, controller.get_persisted_before_timestamp);
 router.get('/all_public_uuids', controller.all_public_uuids);
 router.get('/all_viewable_uuids', controller.all_viewable_uuids);
+// TODO: add an endpoint to set a dataset and all of it's sub-datasets to a given public date
 
 module.exports = router;

@@ -13,5 +13,6 @@ router.post('/', ensureLoggedIn, controller.create);
 router.put('/:uuid', ensureLoggedIn, validateUuid, controller.update);
 router.post('/:uuid/persist', ensureLoggedIn, validateUuid, controller.persist);
 router.delete('/:uuid/draft', ensureLoggedIn, validateUuid, controller.draft_delete);
+// TODO: add an endpoint to set a record and all of it's sub-records to a given public date
 
 module.exports = router;

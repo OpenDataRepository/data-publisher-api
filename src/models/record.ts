@@ -1154,6 +1154,7 @@ class Model {
     let dataset = await SharedFunctions.latestPersisted(DatasetModel.collection(), record.dataset_uuid, this.state.session);
     // If both the dataset and the record are public, then everyone has view access
     if (Util.isPublic(dataset.public_date) 
+        // TODO: add this back in, and enable setting the record public_date if it's not already enabled
         //&& Util.isPublic(record.public_date)
     ){
       return true;
@@ -1163,6 +1164,7 @@ class Model {
     return await (new PermissionModel.model(this.state)).hasPermission(dataset.uuid, PermissionModel.PermissionTypes.view, DatasetModel.collection());
   }
 
+  // TODO: filter also by field based on the template used by the dataset that was in effect when this record was persisted
   async #filterPersistedForPermissionsRecursor(record: Record<string, any>): Promise<void> {
     for(let i = 0; i < record.related_records.length; i++) {
       if(!(await this.#userHasAccessToPersistedRecord(record.related_records[i]))) {
