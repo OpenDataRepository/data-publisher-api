@@ -33,6 +33,21 @@ exports.get_latest_persisted = async function(req, res, next) {
   }
 }
 
+exports.get_persisted_version = async function(req, res, next) {
+  try {
+    let state = Util.initializeState(req);
+    let model_instance = new TemplateModel.model(state);
+    let template = await model_instance.persistedVersion(SharedFunctions.convertToMongoId(req.params.id));
+    if(template) {
+      res.json(template);
+    } else {
+      throw new Util.NotFoundError();
+    }
+  } catch(err) {
+    next(err);
+  }
+}
+
 exports.get_persisted_before_timestamp = async function(req, res, next) {
   try {
     let state = Util.initializeState(req);

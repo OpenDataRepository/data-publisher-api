@@ -1431,6 +1431,20 @@ class Model {
   latestPersisted = this.#latestPersistedWithJoinsAndPermissions;
   persistedBeforeDate = this.#latestPersistedBeforeDateWithJoinsAndPermissions;
 
+  async persistedVersion(_id: ObjectId): Promise<Record<string, any> | null> {
+    let pipelineMatchConditions = { 
+      _id,
+      'persist_date': {'$lte': new Date()}
+    };
+
+    let template =  await this.#persistedWithJoins(pipelineMatchConditions);
+    if(!template) {
+      return null;
+    }
+    await this.#filterPersistedTemplateForPermissions(template);
+    return template;
+  } 
+
   async latestPersistedWithoutPermissions(uuid: string): Promise<Record<string, any> | null> {
     return await this.#latestPersistedBeforeDateWithJoins(uuid, new Date());
   }

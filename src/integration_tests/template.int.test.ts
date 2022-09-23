@@ -1546,6 +1546,18 @@ test("get persisted for a certain date", async () => {
   expect(response.statusCode).toBe(404);
 });
 
+test("get persisted version", async () => {
+  let template: any = {
+    "name":"basic template",
+    "description": "1"
+  };
+  template = await Helper.templateCreateAndTest(template);
+
+  template = await Helper.templatePersistAndFetch(template.uuid);
+
+  await Helper.testAndExtract(Helper.templatePersistedVersion, template._id);
+});
+
 describe("delete", () => {
   test("delete a draft, not a persisted version", async () => {
     let template: any = {

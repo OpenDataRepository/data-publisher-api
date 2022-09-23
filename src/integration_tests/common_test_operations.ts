@@ -376,6 +376,10 @@ export = class Helper {
     return await this.agent
       .get(`/template/${uuid}/${timestamp}`);
   }
+  templatePersistedVersion = async (_id) => {
+    return await this.agent
+      .get(`/template/persisted_version/${_id}`);
+  }
 
   templateDraftExisting = async (uuid) => {
     return await this.agent
