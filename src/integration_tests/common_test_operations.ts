@@ -36,6 +36,8 @@ export = class Helper {
     await this.testAndExtract(this.confirmEmail, email_token);
     body = await this.testAndExtract(this.login, email, password);
     let login_token = body.token.split(" ")[1];
+
+    agent.latest_login_token = login_token;
     this.setAgent(this.agent.auth(login_token, { type: 'bearer' }));
     return agent;
   }

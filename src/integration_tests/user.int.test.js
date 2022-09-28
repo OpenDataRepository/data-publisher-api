@@ -2,6 +2,7 @@ const request = require("supertest");
 var { app, init: appInit, close: appClose } = require('../app');
 var HelperClass = require('./common_test_operations')
 var Helper = new HelperClass(app);
+const jwt = require('jsonwebtoken');
 
 var agent;
 
@@ -98,6 +99,18 @@ describe("normal login process", () => {
     await Helper.testAndExtract(Helper.get_test_unprotected_route);
     let response = await Helper.accountGet();
     expect(response.statusCode).toBe(401);
+  });
+
+  test("JWT tokens should expire after the specified time", async () => {
+    let valid_callback = () => {
+      jwt.verify(agent.latest_login_token, process.env.ACCESS_TOKEN_SECRET, {clockTimestamp: Date.now() / 1000 + 60*60 - 1});
+    };
+    let invalid_callback = () => {
+      jwt.verify(agent.latest_login_token, process.env.ACCESS_TOKEN_SECRET, {clockTimestamp: Date.now() / 1000 + 60 * 60 + 1});
+    };
+    expect(valid_callback).not.toThrow();
+    expect(invalid_callback).toThrow('jwt expired');
+
   });
 
 });
