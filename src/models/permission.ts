@@ -80,18 +80,12 @@ class Model {
   }
 
   // If a user has permission to this category or a superior one, return true
-  async hasPermission(document_uuid: string, permission_level: PermissionTypes, collection?, user_id = this.state.user_id): Promise<boolean> {
+  async hasExplicitPermission(document_uuid: string, permission_level: PermissionTypes, user_id = this.state.user_id): Promise<boolean> {
     if(await UserModel.isAdmin(user_id) || await UserModel.isSuper(user_id)) {
       return true;
     }
 
     let session = this.state.session;
-    if(permission_level == PermissionTypes.view) {
-      assert(collection, 'permission.hasPermission requires collection access if checking view permissions');
-      if(await SharedFunctions.isPublic(collection, document_uuid, session)) {
-        return true;
-      }
-    }
 
     let permission_document = await Permission.findOne(
       {document_uuid, user_id},
@@ -147,7 +141,7 @@ class Model {
 
   async replaceDocumentPermissions(document_uuid: string, permission_level: PermissionTypes, user_ids: ObjectId[]): Promise<void> {
     // The current user must be in the admin permissions group for this uuid to change it's permissions
-    if (!(await this.hasPermission(document_uuid, PermissionTypes.admin))) {
+    if (!(await this.hasExplicitPermission(document_uuid, PermissionTypes.admin))) {
       throw new Util.PermissionDeniedError(`You do not have the permission level (admin) required to modify these permissions`);
     }
 

@@ -18,7 +18,7 @@ exports.verifyFileUpload = async function(req, res, next) {
       throw new Util.NotFoundError(`Cannot upload file to uuid ${uuid}. Does not exist`);
     }
     let file_metadata = await SharedFunctions.latestDocument(FileModel.collection(), uuid);
-    if(!(await (new RecordModel.model(state)).userHasPermissionsTo(file_metadata.record_uuid, PermissionModel.PermissionTypes.edit))) {
+    if(!(await (new RecordModel.model(state)).hasPermissionToDraft(file_metadata.record_uuid, PermissionModel.PermissionTypes.edit))) {
       throw new Util.PermissionDeniedError(`You do not have the edit permissions required to add a file to record ${file_metadata.record_uuid}`);
     }
     if(file_metadata.uploaded) {
@@ -162,10 +162,17 @@ exports.getFile = async function(req, res, next) {
     }
     let file_metadata = await SharedFunctions.latestDocument(FileModel.collection(), uuid);
     let record_uuid = file_metadata.record_uuid;
-    if(await (new RecordModel.model(state)).userHasPermissionsTo(record_uuid, PermissionModel.PermissionTypes.view)) {
-    } else if (file_metadata.published && await SharedFunctions.userHasAccessToPersistedResource(RecordModel.collection(), record_uuid, state.user_id, PermissionModel.PermissionTypes.view)) {
+    let record_model = new RecordModel.model(state);
+
+    let permission_error = new Util.PermissionDeniedError(`You do not have the view permissions required to view a file attached to record ${file_metadata.record_uuid}`);
+    if(file_metadata.persisted) {
+      if(!(await record_model.hasViewPermissionToPersisted(record_uuid))) {
+        throw permission_error;
+      }
     } else {
-      throw new Util.PermissionDeniedError(`You do not have the view permissions required to view a file attached to record ${file_metadata.record_uuid}`);
+      if(!(await record_model.hasPermissionToDraft(record_uuid, PermissionModel.PermissionTypes.edit))) {
+        throw permission_error;
+      }
     }
     if(!file_metadata.uploaded) {
       throw new Util.NotFoundError(`Uuid ${uuid} exists but no file for it has been uploaded.`);

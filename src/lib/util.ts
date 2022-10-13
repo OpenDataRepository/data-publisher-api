@@ -29,12 +29,12 @@ export function objectContainsUUID(object, uuid) {
   }
 }
 
-export function compareTimeStamp(a, b): number {
-  return (new Date(a)).getTime() - (new Date(b)).getTime();
+export function isTimeAAfterB(a, b): boolean {
+  return ((new Date(a)).getTime() - (new Date(b)).getTime()) > 0;
 }
 
 export function isPublic(public_date): boolean {
-  return public_date && compareTimeStamp((new Date).getTime(), public_date);
+  return public_date && isTimeAAfterB((new Date).getTime(), public_date);
 }
 
 export function isDateValid(date): boolean {

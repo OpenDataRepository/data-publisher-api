@@ -205,14 +205,14 @@ class Model {
     let last_persist_date = latest_persisted.persist_date;
     for(let field of draft.fields) {
       let field_last_persisted = (await (new TemplateFieldModel.model(this.state)).latestPersistedWithoutPermissions(field)).persist_date;
-      if (Util.compareTimeStamp(field_last_persisted, last_persist_date) > 0) {
+      if (Util.isTimeAAfterB(field_last_persisted, last_persist_date)) {
         return true;
       }
     }
 
     for(let related_template of draft.related_templates) {
       let related_template_last_persisted = (await SharedFunctions.latestPersisted(Template, related_template)).persist_date;
-      if (Util.compareTimeStamp(related_template_last_persisted, last_persist_date) > 0) {
+      if (Util.isTimeAAfterB(related_template_last_persisted, last_persist_date)) {
         return true;
       }
     }
@@ -374,7 +374,7 @@ class Model {
       }
       
       // verify that this user is in the 'edit' permission group
-      if (!(await permissions_model_instance.hasPermission(input_template.uuid, PermissionModel.PermissionTypes.edit))) {
+      if (!(await permissions_model_instance.hasExplicitPermission(input_template.uuid, PermissionModel.PermissionTypes.edit))) {
         throw new Util.PermissionDeniedError(`Do not have edit permissions for template uuid: ${input_template.uuid}`);
       }
 
@@ -719,19 +719,19 @@ class Model {
       if (!persisted_template) {
         throw new Util.NotFoundError(`Template with uuid ${uuid} does not exist`);
       }
-      if(!(await permissions_model_instance.hasPermission(uuid, PermissionModel.PermissionTypes.view, Template))) {
+      if(!(await this.hasViewPermissionToPersisted(uuid))) {
         throw new Util.PermissionDeniedError(`cannot link template with uuid ${uuid}. Requires at least view permissions.`);
       }
       return persisted_template._id;
     }
 
     // If a user doesn't have edit access to this template, we'll use the persisted template instead
-    if(!(await permissions_model_instance.hasPermission(uuid, PermissionModel.PermissionTypes.edit))) {
+    if(!(await permissions_model_instance.hasExplicitPermission(uuid, PermissionModel.PermissionTypes.edit))) {
       // There is no draft of this uuid. Return the latest persisted template instead.
       if (!persisted_template) {
         throw new Util.InputError(`Do not have access to template draft with uuid ${uuid}, and no persisted version exists`);
       }
-      if(!(await permissions_model_instance.hasPermission(uuid, PermissionModel.PermissionTypes.view, Template))) {
+      if(!(await this.hasViewPermissionToPersisted(uuid))) {
         throw new Util.PermissionDeniedError(`cannot link template with uuid ${uuid}. Requires at least view permissions.`);
       }
       return persisted_template._id;
@@ -777,7 +777,7 @@ class Model {
       }
     }
 
-    if(!(await (new PermissionModel.model(this.state)).hasPermission(uuid, PermissionModel.PermissionTypes.edit))) {
+    if(!(await (new PermissionModel.model(this.state)).hasExplicitPermission(uuid, PermissionModel.PermissionTypes.edit))) {
       throw new Util.PermissionDeniedError(`You do not have the edit permissions required to persist ${uuid}`);
     }
 
@@ -917,14 +917,13 @@ class Model {
   }
 
   async #filterPersistedTemplateForPermissionsRecursor(template: Record<string, any>): Promise<void> {
-    let permissions_model_instance = new PermissionModel.model(this.state);
     for(let i = 0; i < template.fields.length; i++) {
-      if(!(await permissions_model_instance.hasPermission(template.fields[i].uuid, PermissionModel.PermissionTypes.view, TemplateField))) {
+      if(!(await (new TemplateFieldModel.model(this.state)).hasViewPermissionToPersisted(template.fields[i].uuid))) {
         template.fields[i] = {uuid: template.fields[i].uuid};
       }
     }
     for(let i = 0; i < template.related_templates.length; i++) {
-      if(!(await permissions_model_instance.hasPermission(template.related_templates[i].uuid, PermissionModel.PermissionTypes.view, Template))) {
+      if(!(await this.hasViewPermissionToPersisted(template.related_templates[i].uuid))) {
         template.related_templates[i] = {uuid: template.related_templates[i].uuid};
       } else {
         await this.#filterPersistedTemplateForPermissionsRecursor(template.related_templates[i]);
@@ -933,7 +932,7 @@ class Model {
   }
 
   async #filterPersistedTemplateForPermissions(template: Record<string, any>): Promise<void> {
-    if(!(await (new PermissionModel.model(this.state)).hasPermission(template.uuid, PermissionModel.PermissionTypes.view, Template))) {
+    if(!(await this.hasViewPermissionToPersisted(template.uuid))) {
       throw new Util.PermissionDeniedError(`Do not have view access to template ${template.uuid}`);
     }
     await this.#filterPersistedTemplateForPermissionsRecursor(template);
@@ -1049,7 +1048,7 @@ class Model {
     }
 
     // Make sure this user has a permission to be working with drafts
-    if (!(await (new PermissionModel.model(this.state)).hasPermission(uuid, PermissionModel.PermissionTypes.edit))) {
+    if (!(await (new PermissionModel.model(this.state)).hasExplicitPermission(uuid, PermissionModel.PermissionTypes.edit))) {
       throw new Util.PermissionDeniedError(`You don't have edit permissions required to view template ${uuid}`);
     }
 
@@ -1105,8 +1104,8 @@ class Model {
     let template_draft = await this.#fetchDraftOrCreateFromPersisted(uuid);
     let permissions_model_instance = new PermissionModel.model(this.state);
     let template_persisted = await SharedFunctions.latestPersisted(Template, uuid, this.state.session);
-    let edit_permission = await permissions_model_instance.hasPermission(uuid, PermissionModel.PermissionTypes.edit);
-    let view_permission = await permissions_model_instance.hasPermission(uuid, PermissionModel.PermissionTypes.view, Template);
+    let edit_permission = await permissions_model_instance.hasExplicitPermission(uuid, PermissionModel.PermissionTypes.edit);
+    let view_permission = await this.hasViewPermissionToPersisted(uuid);
 
     if(!template_draft) {
       throw new Util.NotFoundError(`No template  exists with uuid ${uuid}`);
@@ -1161,7 +1160,7 @@ class Model {
     if(!template) {
       throw new Util.NotFoundError();
     }
-    if(!(await permissions_model_instance.hasPermission(template.uuid, PermissionModel.PermissionTypes.view, Template))) {
+    if(!(await this.hasViewPermissionToPersisted(template.uuid))) {
       throw new Util.PermissionDeniedError();
     }
 
@@ -1223,10 +1222,22 @@ class Model {
     if(!template) {
       throw new Util.NotFoundError(`Persisted template ${uuid} does not exist`);
     }
-    if(!(await (new PermissionModel.model(this.state)).hasPermission(template.uuid, PermissionModel.PermissionTypes.view, Template))) {
+    if(!(await this.hasViewPermissionToPersisted(template.uuid))) {
       throw new Util.PermissionDeniedError(`You do not have view permissions required to duplicate template ${uuid}.`);
     }
     return await this.#duplicateRecursor(template)
+  }
+
+  async hasViewPermissionToPersisted(document_uuid: string, user_id = this.state.user_id): Promise<boolean> {
+    if(await (new PermissionModel.model(this.state)).hasExplicitPermission(document_uuid, PermissionModel.PermissionTypes.view, user_id)) {
+      return true;
+    }
+
+    if(await SharedFunctions.isPublic(Template, document_uuid, this.state.session)) {
+      return true;
+    }
+
+    return false;
   }
 
   // TODO: as of now, import doesn't include group_uuids at all
@@ -1245,7 +1256,7 @@ class Model {
     let uuid = await uuid_mapper_model_instance.get_new_uuid_from_old(old_uuid);
     // If the uuid is found, then this has already been imported. Import again if we have edit permissions
     if(uuid) {
-      if(!(await permissions_model_instance.hasPermission(uuid, PermissionModel.PermissionTypes.edit))) {
+      if(!(await permissions_model_instance.hasExplicitPermission(uuid, PermissionModel.PermissionTypes.edit))) {
         throw new Util.PermissionDeniedError(`You do not have edit permissions required to import template ${old_uuid}. It has already been imported.`);
       }
     } else {
@@ -1457,7 +1468,7 @@ class Model {
       throw new Util.NotFoundError(`No draft exists with uuid ${uuid}`);
     }
 
-    if(!(await (new PermissionModel.model(this.state)).hasPermission(uuid, PermissionModel.PermissionTypes.edit))) {
+    if(!(await (new PermissionModel.model(this.state)).hasExplicitPermission(uuid, PermissionModel.PermissionTypes.edit))) {
       throw new Util.PermissionDeniedError(`You do not have edit permissions for template ${uuid}.`);
     }
 

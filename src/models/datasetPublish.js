@@ -68,7 +68,7 @@ exports.publish = async function(dataset_uuid, name, user_id) {
   }
 
   // make sure user has admin permissions on this dataset
-  if (!(await new PermissionModel.model({user_id}).hasPermission(dataset_uuid, PermissionModel.PermissionTypes.admin))) {
+  if (!(await new PermissionModel.model({user_id}).hasExplicitPermission(dataset_uuid, PermissionModel.PermissionTypes.admin))) {
     throw new Util.PermissionDeniedError(`Do not have admin permissions required for dataset uuid: ${dataset_uuid}`);
   }
 

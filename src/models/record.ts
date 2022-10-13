@@ -41,6 +41,11 @@ const Schema = Object.freeze({
       bsonType: "date",
       description: "if persisted, identifies the time of persistance for this version of this record"
     },
+    public_date: {
+      bsonType: "date",
+      description: "Sets when the record will become viewable to the public. Only applies if the record is persisted. \
+      If this field is not set, the record is public by default."
+    },
     old_system_uuid: {
       bsonType: "string",
       description: "the uuid of this record as imported from the legacy system"
@@ -65,6 +70,10 @@ const Schema = Object.freeze({
           },
           description: {
             bsonType: "string"
+          },
+          public_date: {
+            bsonType: "date",
+            description: "Sets when the field will become viewable to the public. Only applies if the field is persisted."
           },
           type: {
             enum: Object.values(TemplateFieldModel.FieldTypes)
@@ -288,7 +297,7 @@ class Model {
     // Finally, if any of the dependencies have been persisted more recently than this record, then there are changes
     for(let related_record of draft.related_records) {
       let related_record_last_persisted = (await SharedFunctions.latestPersisted(Record, related_record, this.state.session)).persist_date;
-      if (Util.compareTimeStamp(related_record_last_persisted, latest_persisted.persist_date) > 0) {
+      if (Util.isTimeAAfterB(related_record_last_persisted, latest_persisted.persist_date)) {
         return true;
       }
     }
@@ -337,8 +346,11 @@ class Model {
       let field_object: any = {
         uuid: field_uuid,
         name: field.name,
-        description: field.description,
+        description: field.description
       };
+      if(field.public_date) {
+        field_object.public_date = field.public_date
+      }
       let record_field_data = record_field_map[field_uuid];
       if(field.type && field.type == TemplateFieldModel.FieldTypes.File) {
         field_object.type = TemplateFieldModel.FieldTypes.File;
@@ -668,7 +680,7 @@ class Model {
     }
 
     // verify that this user is in the 'edit' permission group
-    if (!(await (new PermissionModel.model(this.state)).hasPermission(dataset.uuid, PermissionModel.PermissionTypes.edit))) {
+    if (!(await this.hasPermissionToDraft(input_record, PermissionModel.PermissionTypes.edit))) {
       throw new Util.PermissionDeniedError(`Do not have edit permissions required to create/update records in dataset ${dataset.uuid}`);
     }
 
@@ -826,7 +838,7 @@ class Model {
     }
 
     // Make sure this user has a permission to be working with drafts
-    if (!(await (new PermissionModel.model(this.state)).hasPermission(record_draft.dataset_uuid, PermissionModel.PermissionTypes.edit))) {
+    if (!(await this.hasPermissionToDraft(record_draft, PermissionModel.PermissionTypes.edit))) {
       throw new Util.PermissionDeniedError(`You do not have the edit permissions required to view draft ${uuid}`);
     }
 
@@ -935,7 +947,7 @@ class Model {
     }
 
     // verify that this user is in the 'edit' permission group
-    if (!(await (new PermissionModel.model(this.state)).hasPermission(dataset.uuid, PermissionModel.PermissionTypes.edit))) {
+    if (!(await this.hasPermissionToDraft(record_draft, PermissionModel.PermissionTypes.edit))) {
       throw new Util.PermissionDeniedError(`Do not have edit permissions required to persist records in dataset ${dataset.uuid}`);
     }
 
@@ -987,10 +999,6 @@ class Model {
   }
 
   // Persistes the record with the provided uuid
-  // Input: 
-  //   uuid: the uuid of a record to be persisted
-  //   session: the mongo session that must be used to make transactions atomic
-  //   last_update: the timestamp of the last known update by the user. Cannot persist if the actual last update and that expected by the user differ.
   async #persist(record_uuid: string, last_update: Date): Promise<void> {
 
     let record = await SharedFunctions.draft(Record, record_uuid, this.state.session);
@@ -1109,21 +1117,19 @@ class Model {
   // This function will provide the timestamp of the last update made to this record and all of it's related_records
   async lastUpdate(uuid: string): Promise<Date> {
 
-    let permissions_model_instance = new PermissionModel.model(this.state);
-
     let draft = await this.#fetchDraftOrCreateFromPersisted(uuid);
     if(!draft) {
       throw new Util.NotFoundError();
     }
 
-    let edit_permission = await permissions_model_instance.hasPermission(draft.dataset_uuid, PermissionModel.PermissionTypes.edit);
-    let view_permission = await permissions_model_instance.hasPermission(draft.dataset_uuid, PermissionModel.PermissionTypes.view, Record);
-    let persisted = await SharedFunctions.latestPersisted(Record, uuid, this.state.session);
+    let edit_permission = await this.hasPermissionToDraft(draft, PermissionModel.PermissionTypes.edit);
 
     if(!edit_permission) {
+      let persisted = await SharedFunctions.latestPersisted(Record, uuid, this.state.session);
       if(!persisted) {
         throw new Util.PermissionDeniedError(`record ${uuid}: do not have edit permissions for draft, and no persisted version exists`);
       }
+      let view_permission = await this.hasViewPermissionToPersisted(draft.uuid);
       if(!view_permission) {
         throw new Util.PermissionDeniedError(`record ${uuid}: do not have view or admin permissions`);
       }
@@ -1150,35 +1156,34 @@ class Model {
 
   }
 
-  async #userHasAccessToPersistedRecord(record: Record<string, any>): Promise<boolean> {
-    let dataset = await SharedFunctions.latestPersisted(DatasetModel.collection(), record.dataset_uuid, this.state.session);
-    // If both the dataset and the record are public, then everyone has view access
-    if (Util.isPublic(dataset.public_date) 
-        // TODO: add this back in, and enable setting the record public_date if it's not already enabled
-        //&& Util.isPublic(record.public_date)
-    ){
-      return true;
-    }
+  // TODO: after conversation with Nate, change the following:
+  // 1. The file uses the public_date of the latest record
+  // 2. A public date cannot be set to the past, unless it's simply continuing the public_date of the previous persisted record
+  // 3. Once something goes public, it cannot be set back to private
 
-    // Otherwise, check if we have view permissions
-    return await (new PermissionModel.model(this.state)).hasPermission(dataset.uuid, PermissionModel.PermissionTypes.view, DatasetModel.collection());
-  }
-
-  // TODO: filter also by field based on the template used by the dataset that was in effect when this record was persisted
   async #filterPersistedForPermissionsRecursor(record: Record<string, any>): Promise<void> {
     for(let i = 0; i < record.related_records.length; i++) {
-      if(!(await this.#userHasAccessToPersistedRecord(record.related_records[i]))) {
+      if(!(await this.hasViewPermissionToPersisted(record.related_records[i]))) {
         record.related_records[i] = {uuid: record.related_records[i].uuid};
       } else {
         await this.#filterPersistedForPermissionsRecursor(record.related_records[i]);
       }
     }
+
+    let unfiltered_fields: Record<string, any> = record.fields;
+    let filtered_fields: Record<string, any> = [];
+    for(let i = 0; i < unfiltered_fields.length; i++) {
+      if(await (new TemplateFieldModel.model(this.state).hasViewPermissionToPersisted((unfiltered_fields[i].uuid)))) {
+        filtered_fields.push(unfiltered_fields[i]);
+      } 
+    }
+    record.fields = filtered_fields;
   }
 
   // Ignore record specific permissions until I remember how they work
   async #filterPersistedForPermissions(record: Record<string, any>): Promise<void> {
-    if(!(await this.#userHasAccessToPersistedRecord(record))) {
-      throw new Util.PermissionDeniedError(`Do not have view access to records in dataset ${record.dataset_uuid}`);
+    if(!(await this.hasViewPermissionToPersisted(record))) {
+      throw new Util.PermissionDeniedError(`Do not have view access to record ${record.uuid}`);
     }
     await this.#filterPersistedForPermissionsRecursor(record);
   }
@@ -1461,7 +1466,7 @@ class Model {
     let new_record_uuid = await uuid_mapper_model_instance.get_new_uuid_from_old(old_record_uuid);
     // If the uuid is found, then this has already been imported. Import again if we have edit permissions
     if(new_record_uuid) {
-      if(!(await (new PermissionModel.model(this.state)).hasPermission(new_dataset_uuid, PermissionModel.PermissionTypes.edit))) {
+      if(!(await this.hasPermissionToDraft({dataset_uuid: new_dataset_uuid}, PermissionModel.PermissionTypes.edit))) {
         throw new Util.PermissionDeniedError(`You do not have edit permissions required to import record ${old_record_uuid}. It has already been imported.`);
       }
     } else {
@@ -1546,6 +1551,34 @@ class Model {
     return result_uuids;
   }
 
+  async hasViewPermissionToPersisted(record: String | Record<string, any>,): Promise<boolean> {
+    if(typeof(record) == 'string') {
+      record = await SharedFunctions.latestPersisted(Record, record, this.state.session);
+    }
+    // let draft = await this.#fetchDraftOrCreateFromPersisted(uuid);
+    let dataset = await SharedFunctions.latestPersisted(DatasetModel.collection(), (record as Record<string, any>).dataset_uuid, this.state.session);
+    // If both the dataset and the record are public, then everyone has view access
+    if (Util.isPublic(dataset.public_date)){
+      if(!(record as Record<string, any>).public_date || Util.isTimeAAfterB((new Date).getTime(), (record as Record<string, any>).public_date)) {
+        return true;
+      }
+    }
+
+    // Otherwise, check if we have view permissions
+    return await (new PermissionModel.model(this.state)).hasExplicitPermission(dataset.uuid, PermissionModel.PermissionTypes.view);
+  }
+
+  async hasPermissionToDraft(record: String | Record<string, any>, permission_level) {
+    assert(permission_level == PermissionModel.PermissionTypes.edit || permission_level == PermissionModel.PermissionTypes.edit, 
+      "record.hasPermissionToDraft called with permission other than admin or edit");
+    assert(Util.isObject(record) || typeof(record) == 'string', `record.hasPermissionToDraft: record invalid`);
+
+    if(typeof(record) == 'string') {
+      record = await SharedFunctions.latestDocument(Record, record, this.state.session);
+    }
+    return await (new PermissionModel.model(this.state)).hasExplicitPermission((record as Record<string, any>).dataset_uuid, permission_level);
+  }
+
   // Wraps the actual request to create with a transaction
   async create(record: Record<string, any>): Promise<string> {
     let callback = async () => {
@@ -1589,7 +1622,7 @@ class Model {
       throw new Util.NotFoundError(`No draft exists with uuid ${uuid}`);
     }
     // if don't have admin permissions, return no permissions
-    if(!(await (new PermissionModel.model(this.state)).hasPermission(draft.dataset_uuid, PermissionModel.PermissionTypes.edit))) {
+    if(!(await this.hasPermissionToDraft(draft, PermissionModel.PermissionTypes.edit))) {
       throw new Util.PermissionDeniedError(`You do not have edit permissions for dataset ${draft.dataset_uuid}.`);
     }
 
@@ -1600,11 +1633,6 @@ class Model {
 
   async draftExisting(uuid: string): Promise<boolean> {
     return (await SharedFunctions.draft(Record, uuid, this.state.session)) ? true : false;
-  }
-
-  async userHasPermissionsTo(record_uuid: string, permissionLevel): Promise<boolean> {
-    let record = await SharedFunctions.latestDocument(Record, record_uuid, this.state.session);
-    return await (new PermissionModel.model(this.state)).hasPermission(record.dataset_uuid, permissionLevel, DatasetModel.collection());
   }
 
   // Just ignore this for now

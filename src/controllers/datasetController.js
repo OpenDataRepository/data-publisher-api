@@ -194,7 +194,7 @@ exports.published_records = async function(req, res, next) {
     let name = req.params.name;
     let state = Util.initializeState(req);
 
-    if(!(await (new PermissionModel(state)).hasPermission(dataset_uuid, PermissionTypes.view, DatasetModel.collection()))) {
+    if(!(await (new DatasetModel.model(state)).hasViewPermissionToPersisted(dataset_uuid))) {
       throw new Util.PermissionDeniedError();
     }
 

@@ -180,6 +180,11 @@ describe("failure", () => {
     response = await Helper.uploadFileFromUrl(uuid, url);
     expect(response.statusCode).toBe(401);
 
+    Helper.setAgent(agent1);
+    response = await Helper.uploadFileDirect(uuid, file_name);
+    expect(response.statusCode).toBe(200);
+
+    Helper.setAgent(agent2);
     response = await Helper.getFile(uuid);
     expect(response.statusCode).toBe(401);
   });

@@ -148,7 +148,7 @@ class Model {
     }
 
     // Ensure user has permission to view
-    if (!(await (new PermissionModel(this.state)).hasPermission(uuid, PermissionTypes.view, TemplateField))) {
+    if (!(await this.hasViewPermissionToPersisted(uuid))) {
       throw new Util.PermissionDeniedError(`Do not have permission to view template field with uuid ${uuid}`);
     }
 
@@ -425,6 +425,18 @@ class Model {
     return output_field;
   }
 
+  async hasViewPermissionToPersisted(document_uuid: string, user_id = this.state.user_id): Promise<boolean> {
+    if(await (new PermissionModel(this.state)).hasExplicitPermission(document_uuid, PermissionTypes.view, user_id)) {
+      return true;
+    }
+
+    if(await SharedFunctions.isPublic(TemplateField, document_uuid, this.state.session)) {
+      return true;
+    }
+
+    return false;
+  }
+
   // Updates the field with the given uuid if provided in the field object. 
   // If no uuid is included in the field object., create a new field.
   // Also validate input. 
@@ -454,7 +466,7 @@ class Model {
       }
 
       // verify that this user is in the 'edit' permission group
-      if (!(await permissions_model_instance.hasPermission(input_field.uuid, PermissionTypes.edit))) {
+      if (!(await permissions_model_instance.hasExplicitPermission(input_field.uuid, PermissionTypes.edit))) {
         throw new Util.PermissionDeniedError();
       }
 
@@ -513,7 +525,7 @@ class Model {
     // If a draft of this template field already exists, return it.
     if (template_field_draft) {
       // Make sure this user has a permission to be working with drafts
-      if (!(await permissions_model_instance.hasPermission(uuid, PermissionTypes.edit))) {
+      if (!(await permissions_model_instance.hasExplicitPermission(uuid, PermissionTypes.edit))) {
         throw new Util.PermissionDeniedError();
       }
       delete template_field_draft._id;
@@ -527,7 +539,7 @@ class Model {
       return null;
     } else {
       // Make sure this user has a permission to be working with drafts
-      if (!(await permissions_model_instance.hasPermission(uuid, PermissionTypes.edit))) {
+      if (!(await permissions_model_instance.hasExplicitPermission(uuid, PermissionTypes.edit))) {
         throw new Util.PermissionDeniedError();
       }
     }
@@ -573,7 +585,7 @@ class Model {
     }
 
     // if the user doesn't have edit permissions, throw a permission denied error
-    let has_permission = await (new PermissionModel(this.state)).hasPermission(uuid, PermissionTypes.edit);
+    let has_permission = await (new PermissionModel(this.state)).hasExplicitPermission(uuid, PermissionTypes.edit);
     if(!has_permission) {
       throw new Util.PermissionDeniedError();
     }
@@ -663,7 +675,7 @@ class Model {
     }
 
     // user must have edit access to see this endpoint
-    if (!await (new PermissionModel(this.state)).hasPermission(uuid, PermissionTypes.edit)) {
+    if (!await (new PermissionModel(this.state)).hasExplicitPermission(uuid, PermissionTypes.edit)) {
       throw new Util.PermissionDeniedError();
     }
 
@@ -678,8 +690,8 @@ class Model {
     let field_draft = await SharedFunctions.draft(TemplateField, uuid, this.state.session);
     let field_persisted = await this.#latestPersisted(uuid);
     let permissions_model_instance = new PermissionModel(this.state);
-    let edit_permission = await permissions_model_instance.hasPermission(uuid, PermissionTypes.edit);
-    let view_permission = await permissions_model_instance.hasPermission(uuid, PermissionTypes.view, TemplateField);
+    let edit_permission = await permissions_model_instance.hasExplicitPermission(uuid, PermissionTypes.edit);
+    let view_permission = await this.hasViewPermissionToPersisted(uuid);
 
     // Get the lat update for the draft if the user has permission to the draft. Otherwise, the last persisted.
     if(!field_draft) {
@@ -715,7 +727,7 @@ class Model {
       throw new Util.NotFoundError();
     }
     let permissions_model_instance = new PermissionModel(this.state);
-    if(!(await permissions_model_instance.hasPermission(field.uuid, PermissionTypes.view, TemplateField))) {
+    if(!(await this.hasViewPermissionToPersisted(field.uuid))) {
       throw new Util.PermissionDeniedError();
     }
 
@@ -755,7 +767,7 @@ class Model {
     // If the uuid is found, then this has already been imported. Import again if we have edit permissions
     let permissions_model_instance = new PermissionModel(this.state);
     if(uuid) {
-      if(!permissions_model_instance.hasPermission(uuid, PermissionTypes.edit)) {
+      if(!permissions_model_instance.hasExplicitPermission(uuid, PermissionTypes.edit)) {
         throw new Util.PermissionDeniedError(`You do not have edit permissions required to import template field ${field.template_field_uuid}. It has already been imported.`);
       }
     } else {

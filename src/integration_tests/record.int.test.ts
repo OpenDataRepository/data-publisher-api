@@ -1476,67 +1476,140 @@ describe("persist (and get persisted)", () => {
 });
 
 describe("get persisted", () => {
-  test("if user does not have view access to linked properties, an empty object replaces that property", async () => {
+  test("if user does not have view access to linked records, everything for that record except the uuid is hidden", async () => {
     
+    let public_date = (new Date()).toISOString();
     let template: any = { 
       name: "t1",
-      related_templates: [{name: "t1.1"}]
+      public_date,
+      related_templates: [{name: "t1.1", public_date}]
     };
     template = await Helper.templateCreatePersistTest(template);  
 
     let dataset: any = { 
       template_id: template._id,
-      related_datasets: [{
-        template_id: template.related_templates[0]._id
-      }]
+      public_date,
+      related_datasets: [{ template_id: template.related_templates[0]._id}]
     };
     dataset = await Helper.datasetCreatePersistTest(dataset);  
     
     let record: any = { 
       dataset_uuid: dataset.uuid,
-      related_records: [{
-        dataset_uuid: dataset.related_datasets[0].uuid
-      }]
+      related_records: [{dataset_uuid: dataset.related_datasets[0].uuid}]
     };
     record = await Helper.recordCreatePersistTest(record);  
     
     let view_users = [Helper.EMAIL_2, Helper.DEF_EMAIL];
-    let response = await Helper.updatePermission(template.uuid, PermissionTypes.view, view_users);
-    expect(response.statusCode).toBe(200);
-    response = await Helper.updatePermission(dataset.uuid, PermissionTypes.view, view_users);
+    let response = await Helper.updatePermission(dataset.uuid, PermissionTypes.view, view_users);
     expect(response.statusCode).toBe(200);
 
     record.related_records[0] = {uuid: record.related_records[0].uuid};
 
     await Helper.setAgent(agent2);
 
-    // Fetch parent dataset, check that the related_dataset is fetched as blank 
-    // since the second user
     response = await Helper.recordLatestPersistedGet(record.uuid);
     expect(response.statusCode).toBe(200);
     expect(response.body).toMatchObject(record);   
   });
 
-  test("must have view permissions", async () => {
-    let template: any = { 
-      name: "t1"
-    };
-    template = await Helper.templateCreatePersistTest(template);  
+  describe("fetch permissions", () => { 
 
-    let dataset: any = { 
-      template_id: template._id
-    };
-    dataset = await Helper.datasetCreatePersistTest(dataset);  
+    const public_date = (new Date()).toISOString();
 
-    let record: any = { 
-      dataset_uuid: dataset.uuid
-    };
-    record = await Helper.recordCreatePersistTest(record); 
-    
-    Helper.setAgent(agent2);
+    test("dataset is private: cannot view", async () => {
+      let template: Record<string, any> = {name: "t1", public_date};
+      template = await Helper.templateCreatePersistTest(template);  
 
-    let response = await Helper.recordLatestPersistedGet(record.uuid);
-    expect(response.statusCode).toBe(401);
+      let dataset: Record<string, any> = {template_id: template._id};
+      dataset = await Helper.datasetCreatePersistTest(dataset);  
+  
+      let record: Record<string, any> = {dataset_uuid: dataset.uuid};
+      record = await Helper.recordCreatePersistTest(record); 
+      
+      Helper.setAgent(agent2);
+  
+      let response = await Helper.recordLatestPersistedGet(record.uuid);
+      expect(response.statusCode).toBe(401);
+    });
+
+    test("dataset will be public but is still private: cannot view", async () => {
+      let template: Record<string, any> = {name: "t1", public_date};
+      template = await Helper.templateCreatePersistTest(template);  
+
+      let dataset: Record<string, any> = {template_id: template._id, public_date: "3000-01-01T09:17:42.718Z"};
+      dataset = await Helper.datasetCreatePersistTest(dataset);  
+  
+      let record: Record<string, any> = {dataset_uuid: dataset.uuid};
+      record = await Helper.recordCreatePersistTest(record); 
+      
+      Helper.setAgent(agent2);
+  
+      let response = await Helper.recordLatestPersistedGet(record.uuid);
+      expect(response.statusCode).toBe(401);
+    });
+
+    test("dataset is public, but record is private: cannot view", async () => {
+      let template: Record<string, any> = {name: "t1", public_date};
+      template = await Helper.templateCreatePersistTest(template);  
+
+      let dataset: Record<string, any> = {template_id: template._id, public_date};
+      dataset = await Helper.datasetCreatePersistTest(dataset);  
+  
+      let record: Record<string, any> = {dataset_uuid: dataset.uuid, public_date: "3000-01-01T09:17:42.718Z"};
+      record = await Helper.recordCreatePersistTest(record); 
+      
+      Helper.setAgent(agent2);
+  
+      let response = await Helper.recordLatestPersistedGet(record.uuid);
+      expect(response.statusCode).toBe(401);
+    });
+
+    test("dataset and record are both public: viewable", async () => {
+      let template: Record<string, any> = {name: "t1", public_date};
+      template = await Helper.templateCreatePersistTest(template);  
+
+      let dataset: Record<string, any> = {template_id: template._id, public_date};
+      dataset = await Helper.datasetCreatePersistTest(dataset);  
+  
+      let record: Record<string, any> = {dataset_uuid: dataset.uuid, public_date};
+      record = await Helper.recordCreatePersistTest(record); 
+      
+      Helper.setAgent(agent2);
+  
+      let response = await Helper.recordLatestPersistedGet(record.uuid);
+      expect(response.statusCode).toBe(200);
+    });
+
+    test("field is private", async () => {
+      let template: Record<string, any> = {
+        name: "t1", 
+        public_date,
+        fields: [
+          {
+            name: "public",
+            public_date
+          },
+          {
+            name: "private"
+          }
+        ]
+      };
+      template = await Helper.templateCreatePersistTest(template);  
+
+      let dataset: Record<string, any> = {template_id: template._id, public_date};
+      dataset = await Helper.datasetCreatePersistTest(dataset);  
+  
+      let record: Record<string, any> = {dataset_uuid: dataset.uuid};
+      record = await Helper.recordCreatePersistTest(record); 
+      
+      Helper.setAgent(agent2);
+  
+      let persisted_record = await Helper.testAndExtract(Helper.recordLatestPersistedGet, record.uuid);
+      expect(persisted_record.fields.length).toBe(1);
+      expect(persisted_record.fields[0].name).toEqual("public");
+
+    });
+
   });
 });
 
