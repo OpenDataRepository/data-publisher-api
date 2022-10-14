@@ -36,7 +36,9 @@ async function collection() {
     let db = MongoDB.db();
     try {
       await db.createCollection('dataset_published_versions', {validator: { $jsonSchema: Schema} });
-    } catch(e) {}
+    } catch(e) {
+      db.command({collMod:'dataset_published_versions', validator: { $jsonSchema: Schema }});
+    }
     DatasetPublishedVersions = db.collection('dataset_published_versions');
   }
   return DatasetPublishedVersions;

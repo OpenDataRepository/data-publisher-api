@@ -55,7 +55,9 @@ async function collection() {
     try {
       await db.createCollection('users', {validator: { $jsonSchema: Schema} });
       await db.collection('users').createIndex({ email: 1 });
-    } catch(e) {}
+    } catch(e) {
+      db.command({collMod:'users', validator: { $jsonSchema: Schema }});
+    }
     User = db.collection('users');
   }
   return User;

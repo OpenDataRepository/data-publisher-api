@@ -34,7 +34,7 @@ export function isTimeAAfterB(a, b): boolean {
 }
 
 export function isPublic(public_date): boolean {
-  return public_date && isTimeAAfterB((new Date).getTime(), public_date);
+  return public_date && isTimeAAfterB((new Date()).getTime(), public_date);
 }
 
 export function isDateValid(date): boolean {

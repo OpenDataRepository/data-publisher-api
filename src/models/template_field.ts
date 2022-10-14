@@ -90,7 +90,9 @@ async function collection() {
     try {
       await db.createCollection('template_fields', {validator: { $jsonSchema: Schema} });
       await db.collection('template_fields').createIndex({ uuid: 1 });
-    } catch(e) {}
+    } catch(e) {
+      db.command({collMod:'template_fields', validator: { $jsonSchema: Schema }});
+    }
     TemplateField = db.collection('template_fields');
   }
   return TemplateField;

@@ -52,7 +52,9 @@ async function collection() {
     try {
       await db.createCollection('files', {validator: { $jsonSchema: Schema} });
       await db.collection('files').createIndex({ uuid: 1 });
-    } catch(e) {}
+    } catch(e) {
+      db.command({collMod:'files', validator: { $jsonSchema: Schema }});
+    }
     File = db.collection('files');
   }
   return File;

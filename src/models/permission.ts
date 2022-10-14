@@ -45,7 +45,9 @@ async function collection() {
     try {
       await db.createCollection('permissions', {validator: { $jsonSchema: Schema} });
       await db.collection('permissions').createIndex({ user_id: 1, document_uuid: 1 });
-    } catch(e) {}
+    } catch(e) {
+      db.command({collMod:'permissions', validator: { $jsonSchema: Schema }});
+    }
     Permission = db.collection('permissions');
   }
   return Permission;

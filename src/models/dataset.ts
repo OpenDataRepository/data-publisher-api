@@ -64,7 +64,9 @@ async function collection() {
     try {
       await db.createCollection('datasets', {validator: { $jsonSchema: Schema} });
       await db.collection('datasets').createIndex({ uuid: 1 });
-    } catch(e) {}
+    } catch(e) {
+      db.command({collMod:'datasets', validator: { $jsonSchema: Schema }});
+    }
     Dataset = db.collection('datasets');
   }
   return Dataset;

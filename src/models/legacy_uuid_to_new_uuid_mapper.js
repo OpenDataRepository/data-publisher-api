@@ -36,7 +36,9 @@ async function collection() {
       await db.collection('legacy_uuid_to_new_uuid_mapper').createIndex({ old_uuid: 1 });
       await db.collection('legacy_uuid_to_new_uuid_mapper').createIndex({ new_uuid: 1 });
       await db.collection('legacy_uuid_to_new_uuid_mapper').createIndex({ secondary_uuid: 1 });
-    } catch(e) {}
+    } catch(e) {
+      db.command({collMod:'legacy_uuid_to_new_uuid_mapper', validator: { $jsonSchema: Schema }});
+    }
     LegacyUuidToNewUuidMapper = db.collection('legacy_uuid_to_new_uuid_mapper');
   }
   return LegacyUuidToNewUuidMapper;

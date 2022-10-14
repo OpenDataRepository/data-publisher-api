@@ -78,7 +78,9 @@ async function collection() {
     try {
       await db.createCollection('templates', {validator: { $jsonSchema: Schema} });
       await db.collection('templates').createIndex({ uuid: 1 });
-    } catch(e) {}
+    } catch(e) {
+      db.command({collMod:'templates', validator: { $jsonSchema: Schema }});
+    }
     Template = db.collection('templates');
   }
   return Template;

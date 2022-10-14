@@ -137,7 +137,9 @@ async function collection() {
     try {
       await db.createCollection('records', {validator: { $jsonSchema: Schema} });
       await db.collection('records').createIndex({ uuid: 1 });
-    } catch(e) {}
+    } catch(e) {
+      db.command({collMod:'records', validator: { $jsonSchema: Schema }});
+    }
     Record = db.collection('records');
   }
   return Record;
@@ -343,13 +345,13 @@ class Model {
 
     for (let field of template_fields) {
       let field_uuid = field.uuid;
-      let field_object: any = {
+      let field_object: Record<string, any> = {
         uuid: field_uuid,
         name: field.name,
         description: field.description
       };
       if(field.public_date) {
-        field_object.public_date = field.public_date
+        field_object.public_date = field.public_date;
       }
       let record_field_data = record_field_map[field_uuid];
       if(field.type && field.type == TemplateFieldModel.FieldTypes.File) {
@@ -505,6 +507,9 @@ class Model {
       }
       if(field.values) {
         record_field_data.option_uuids = field.values.map(obj => obj.uuid);
+      }
+      if(field.public_date) {
+        record_field_data.public_date = field.public_date;
       }
       record_field_map[field.uuid] = record_field_data;
     }
@@ -673,7 +678,6 @@ class Model {
   // A recursive helper for validateAndCreateOrUpdate.
   async #validateAndCreateOrUpdateRecurser(input_record: Record<string, any>, dataset: Record<string, any>, 
   template: Record<string, any>, seen_uuids: Set<string>): Promise<[boolean, string]> {
-
     // Record must be an object or valid uuid
     if (!Util.isObject(input_record)) {
       throw new Util.InputError(`record provided is not an object: ${input_record}`);
