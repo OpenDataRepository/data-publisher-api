@@ -318,6 +318,9 @@ class Model {
       // Therefore, if record changes fail, file changes should be deleted
       // This works for import as well, since import also needs to upload the files separately (since they can be huge)
       output_file.uuid = await FileModel.newFile(record_uuid, field_uuid, this.state.session);
+      if(input_file.front_end_uuid) {
+        this.state.upload_file_uuids[input_file.front_end_uuid] = output_file.uuid;
+      }
       // Next 2 if cases refer to import
       if(input_file.import_url) {
         output_file.import_url = input_file.import_url;

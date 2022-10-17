@@ -4,9 +4,15 @@ const Util = require('../lib/util');
 exports.create = async function(req, res, next) {
   try {
     let state = Util.initializeState(req);
+    state.upload_file_uuids = {};
     let model_instance = new RecordModel.model(state);
     let inserted_uuid = await model_instance.create(req.body);
-    res.redirect(307, `/record/${inserted_uuid}/draft`);
+    let upload_file_uuids = state.upload_file_uuids;
+
+    state = Util.initializeState(req);
+    model_instance = new RecordModel.model(state);
+    let record = await model_instance.draftGet(inserted_uuid);
+    res.json({record, upload_file_uuids: upload_file_uuids});
   } catch(err) {
     next(err);
   }
@@ -35,7 +41,12 @@ exports.update = async function(req, res, next) {
     let state = Util.initializeState(req);
     let model_instance = new RecordModel.model(state);
     await model_instance.update(req.body);
-    res.redirect(307, `/record/${req.params.uuid}/draft`);
+    let upload_file_uuids = state.upload_file_uuids;
+
+    state = Util.initializeState(req);
+    model_instance = new RecordModel.model(state);
+    let record = await model_instance.draftGet(req.params.uuid);
+    res.json({record, upload_file_uuids: upload_file_uuids});
   } catch(err) {
     next(err);
   }

@@ -1729,7 +1729,7 @@ describe("Helper.recordLastUpdate", () => {
       related_record.fields[0].value = "pokemon";
 
       let response = await Helper.recordUpdate(related_record, related_record.uuid);
-      expect(response.statusCode).toEqual(307);
+      expect(response.statusCode).toEqual(200);
 
       let time1 = new Date();
       await Helper.recordPersistAndTest(related_record);
@@ -1791,11 +1791,8 @@ describe("Helper.recordLastUpdate", () => {
       record3.fields[0].value = "jutsu";
 
       let response = await Helper.recordUpdate(record3, record3.uuid);
-      expect(response.statusCode).toBe(307);
-
-      response = await Helper.recordDraftGet(record3.uuid);
       expect(response.statusCode).toBe(200);
-      let update_3_timestamp = response.body.updated_at;
+      let update_3_timestamp = response.body.record.updated_at;
 
       // Now get the update timestamp for the grandparent. It should be that of the grandchild.
       response = await Helper.recordLastUpdate(record.uuid);
@@ -2216,6 +2213,52 @@ describe("with files", () => {
 
       await Helper.recordPersistAndTest(record);
     });
+
+    test("create returns an upload_file_map with valid uuids to upload the desired files", async () => {
+
+      let file_field: any = {
+        name: "this field holds a file",
+        type: FieldTypes.File
+      };
+      let template: any = {
+        "name":"t1",
+        "fields":[file_field]
+      };
+      template = await Helper.templateCreatePersistTest(template);
+
+      let dataset: any = {
+        template_id: template._id
+      };
+      dataset = await Helper.datasetCreatePersistTest(dataset);
+
+      let record = {
+        dataset_uuid: dataset.uuid,
+        fields: [
+          {
+            uuid: template.fields[0].uuid,
+            file: {
+              uuid: "new",
+              front_end_uuid: "waffle"
+            }
+          }
+        ]
+      };
+      let body = await Helper.testAndExtract(Helper.recordCreate, record);
+      record = body.record;
+      let upload_file_uuids = body.upload_file_uuids;
+
+      expect(upload_file_uuids['waffle']).toEqual(record.fields[0].file.uuid)
+
+  
+      let file_name = "toUpload.txt";
+      let file_contents = "Hello World!";
+  
+      Helper.createFile(file_name, file_contents);
+
+      await Helper.testAndExtract(Helper.uploadFileDirect, record.fields[0].file.uuid, file_name);
+
+    });
+
 
   });
 

@@ -711,9 +711,9 @@ export = class Helper {
   
   recordCreateAndTest = async (input_record) => {
     let response = await this.recordCreate(input_record);
-    expect(response.statusCode).toBe(307);
+    expect(response.statusCode).toBe(200);
       
-    let created_record = await this.testAndExtract(this.redirect, response.header.location);
+    let created_record = response.body.record;
     this.testRecordsEqual(input_record, created_record);
     return created_record;
   };
@@ -726,9 +726,9 @@ export = class Helper {
   
   recordUpdateAndTest = async (record) => {
     let response = await this.recordUpdate(record, record.uuid);
-    expect(response.statusCode).toBe(307);
+    expect(response.statusCode).toBe(200);
     
-    let updated_record = await this.testAndExtract(this.redirect, response.header.location);
+    let updated_record = response.body.record;
     this.testRecordsEqual(record, updated_record);
     return updated_record;
   };
