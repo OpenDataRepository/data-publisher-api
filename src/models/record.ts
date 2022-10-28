@@ -99,7 +99,7 @@ const Schema = Object.freeze({
             uniqueItems: true,
             items: {
               bsonType: "object",
-              required: [ "uuid", "name" ],
+              required: [ "uuid"],
               properties: {
                 uuid: {
                   bsonType: "string"

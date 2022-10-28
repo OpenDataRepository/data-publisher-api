@@ -2259,6 +2259,100 @@ describe("with files", () => {
 
     });
 
+    test("update returns an upload_file_map with valid uuids to upload the desired files", async () => {
+
+      let file_field: any = {
+        name: "this field holds a file",
+        type: FieldTypes.File
+      };
+      let template: any = {
+        "name":"t1",
+        "fields":[file_field]
+      };
+      template = await Helper.templateCreatePersistTest(template);
+
+      let dataset: any = {
+        template_id: template._id
+      };
+      dataset = await Helper.datasetCreatePersistTest(dataset);
+
+      let record: Record<string, any> = {
+        dataset_uuid: dataset.uuid
+      };
+      record = await Helper.recordCreateAndTest(record);
+
+      record.fields = [
+        {
+          uuid: template.fields[0].uuid,
+          file: {
+            uuid: "new",
+            front_end_uuid: "waffle"
+          }
+        }
+      ];
+   
+      let body = await Helper.testAndExtract(Helper.recordUpdate, record, record.uuid);
+      record = body.record;
+      let upload_file_uuids = body.upload_file_uuids;
+
+      expect(upload_file_uuids['waffle']).toEqual(record.fields[0].file.uuid)
+
+  
+      let file_name = "toUpload.txt";
+      let file_contents = "Hello World!";
+  
+      Helper.createFile(file_name, file_contents);
+
+      await Helper.testAndExtract(Helper.uploadFileDirect, record.fields[0].file.uuid, file_name);
+
+    });
+
+    test("also works with images", async () => {
+
+      let file_field: any = {
+        name: "this field holds images",
+        type: FieldTypes.Image
+      };
+      let template: any = {
+        "name":"t1",
+        "fields":[file_field]
+      };
+      template = await Helper.templateCreatePersistTest(template);
+
+      let dataset: any = {
+        template_id: template._id
+      };
+      dataset = await Helper.datasetCreatePersistTest(dataset);
+
+      let record = {
+        dataset_uuid: dataset.uuid,
+        fields: [
+          {
+            uuid: template.fields[0].uuid,
+            images: [
+              {
+                uuid: "new",
+                front_end_uuid: "waffle"
+              }
+            ]
+          }
+        ]
+      };
+      let body = await Helper.testAndExtract(Helper.recordCreate, record);
+      record = body.record;
+      let upload_file_uuids = body.upload_file_uuids;
+
+      expect(upload_file_uuids['waffle']).toEqual(record.fields[0].images[0].uuid)
+
+  
+      let file_name = "toUpload.txt";
+      let file_contents = "Hello World!";
+  
+      Helper.createFile(file_name, file_contents);
+
+      await Helper.testAndExtract(Helper.uploadFileDirect, record.fields[0].images[0].uuid, file_name);
+
+    });
 
   });
 

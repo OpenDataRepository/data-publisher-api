@@ -50,6 +50,9 @@ exports.uploadFileDirect = async function(req, res, next) {
     const callback = async () => {
       await FileModel.markUploaded(uuid, state.session);
       // await updateFileName(uuid, req.file.originalname);
+      if(!req.file) {
+        throw new Error(`req.file was not set by multer and so file cannot be uploaded`);
+      }
       fs.renameSync(req.file.path, path.join(FileModel.uploadDestination(), uuid));
     }
     await SharedFunctions.executeWithTransaction(state, callback);

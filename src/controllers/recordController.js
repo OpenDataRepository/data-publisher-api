@@ -39,6 +39,7 @@ exports.update = async function(req, res, next) {
       throw new Util.InputError(`UUID provided and the body uuid do not match.`)
     }
     let state = Util.initializeState(req);
+    state.upload_file_uuids = {};
     let model_instance = new RecordModel.model(state);
     await model_instance.update(req.body);
     let upload_file_uuids = state.upload_file_uuids;
