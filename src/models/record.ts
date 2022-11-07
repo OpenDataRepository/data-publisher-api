@@ -465,7 +465,7 @@ class Model {
       }
       if(field.type && field.type == FieldTypes.Image && field.images) {
         for(let image of field.images) {
-          old_file_uuids.add(image.uuid);
+          new_file_uuids.add(image.uuid);
         }
       }
     }
@@ -571,12 +571,13 @@ class Model {
         }
       } 
       if(field.value && Array.isArray(field.value)) {
-        record_field_data.option_uuids = 
-          await Promise.all(
-            field.value.map(obj => 
-              uuid_mapper_model_instance.get_new_uuid_from_old(obj.template_radio_option_uuid)
-            )
-          );
+        // record_field_data.option_uuids = 
+        //   await Promise.all(
+        //     field.value.map(obj => 
+        //       uuid_mapper_model_instance.get_new_uuid_from_old(obj.template_radio_option_uuid)
+        //     )
+        //   );
+        record_field_data.option_uuids = field.value.map(obj => obj.template_radio_option_uuid);
       }
       record_field_map[field_uuid] = record_field_data;
     }

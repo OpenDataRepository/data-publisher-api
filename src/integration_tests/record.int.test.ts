@@ -2136,6 +2136,8 @@ describe("with files", () => {
     test("removing the reference to a file. the file should get deleted", async () => {
       let template, dataset, record: any, file_uuid;
       [template, dataset, record, file_uuid] = await basicSetupAndTest();
+
+      await Helper.testAndExtract(Helper.getFile, file_uuid);
       
       record = await Helper.recordDraftGetAndTest(record.uuid);
       delete record.fields[0].file;
@@ -2144,6 +2146,8 @@ describe("with files", () => {
 
       let response = await Helper.getFile(file_uuid);
       expect(response.statusCode).toBe(404);
+
+
     });
 
     test("change file name", async () => {
@@ -2307,7 +2311,7 @@ describe("with files", () => {
 
     });
 
-    test("also works with images", async () => {
+    test("upload_file_map also works with images", async () => {
 
       let file_field: any = {
         name: "this field holds images",
@@ -2351,6 +2355,59 @@ describe("with files", () => {
       Helper.createFile(file_name, file_contents);
 
       await Helper.testAndExtract(Helper.uploadFileDirect, record.fields[0].images[0].uuid, file_name);
+
+    });
+
+    test("removing the reference to an image, the image should get deleted", async () => {
+      let file_field: any = {
+        name: "this field holds images",
+        type: FieldTypes.Image
+      };
+      let template: any = {
+        "name":"t1",
+        "fields":[file_field]
+      };
+      template = await Helper.templateCreatePersistTest(template);
+
+      let dataset: any = {
+        template_id: template._id
+      };
+      dataset = await Helper.datasetCreatePersistTest(dataset);
+
+      let record = {
+        dataset_uuid: dataset.uuid,
+        fields: [
+          {
+            uuid: template.fields[0].uuid,
+            images: [
+              {
+                uuid: "new",
+                front_end_uuid: "waffle"
+              }
+            ]
+          }
+        ]
+      };
+      let body = await Helper.testAndExtract(Helper.recordCreate, record);
+      record = body.record;
+  
+      let file_name = "toUpload.txt";
+      let file_contents = "Hello World!";
+  
+      Helper.createFile(file_name, file_contents);
+
+      let file_uuid = record.fields[0].images[0].uuid;
+      await Helper.testAndExtract(Helper.uploadFileDirect, file_uuid, file_name);
+
+      await Helper.testAndExtract(Helper.getFile, file_uuid);
+      
+      record.fields[0].images = [];
+
+      record = await Helper.recordUpdateAndTest(record);
+
+      let response = await Helper.getFile(file_uuid);
+      expect(response.statusCode).toBe(404);
+
 
     });
 

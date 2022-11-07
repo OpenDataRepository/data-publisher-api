@@ -336,13 +336,15 @@ class Model {
         }
         // Map old radio option to new. If old has been seen before, that's an error
         let old_uuid = radio_option.template_radio_option_uuid ? radio_option.template_radio_option_uuid : radio_option.template_tag_uuid;
-        let uuid_mapper_model_instance = new LegacyUuidToNewUuidMapperModel.model(this.state);
-        let uuid = await uuid_mapper_model_instance.get_new_uuid_from_old(old_uuid);
-        if(!uuid) {
-          uuid = await uuid_mapper_model_instance.create_new_uuid_for_old(old_uuid);
-        }
-        cleansed_option.uuid = uuid;
-        cleansed_option.old_system_uuid = old_uuid;
+        // let uuid_mapper_model_instance = new LegacyUuidToNewUuidMapperModel.model(this.state);
+        // let uuid = await uuid_mapper_model_instance.get_new_uuid_from_old(old_uuid);
+        // if(!uuid) {
+        //   uuid = await uuid_mapper_model_instance.create_new_uuid_for_old(old_uuid);
+        // }
+        // cleansed_option.uuid = uuid;
+        // cleansed_option.old_system_uuid = old_uuid;
+        // Actually, for some instances it's easier just to keep the old_uuid, so that is what we're doing
+        cleansed_option.uuid = old_uuid;
       }
       return_options.push(cleansed_option);
     }
