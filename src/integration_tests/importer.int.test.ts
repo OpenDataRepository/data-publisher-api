@@ -126,7 +126,7 @@ const testTemplatesEqual = (before, after, uuid_mapper) => {
 
 const importTemplateTest = async (template) => {
   let response = await Helper.importTemplate(template);
-  expect(response.statusCode).toBe(307);
+  expect(response.statusCode).toBe(303);
   let new_template = await Helper.testAndExtract(Helper.redirect, response.header.location);
   testTemplatesEqual(template, new_template, {});
 }

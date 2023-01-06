@@ -279,7 +279,7 @@ describe("user permissions: admin and super", () => {
     Helper.setAgent(agent1);
     
     let response = await Helper.actAs(Helper.templateCreate({name: "waffle"}), Helper.EMAIL_2);
-    expect(response.statusCode).toBe(307);
+    expect(response.statusCode).toBe(303);
 
     response = await Helper.actAs(Helper.redirect(response.header.location), Helper.EMAIL_2);
     expect(response.statusCode).toBe(200);
@@ -349,7 +349,7 @@ describe("user permissions: admin and super", () => {
     await Helper.userTestingSetSuper();
     let template = {name: "waffle"};
     let response = await Helper.actAs(Helper.templateCreate(template), Helper.EMAIL_2);
-    expect(response.statusCode).toBe(307);
+    expect(response.statusCode).toBe(303);
 
     let new_user = await Helper.testAndExtract(Helper.userGetByEmail, Helper.EMAIL_2);
     expect(new_user).toEqual({email: Helper.EMAIL_2});
@@ -366,7 +366,7 @@ describe("user permissions: admin and super", () => {
       let template = {name: "waffle"};
       let wrapper = {user_email: Helper.EMAIL_2, template};
       let response = await Helper.templateCreate(wrapper);
-      expect(response.statusCode).toBe(307);
+      expect(response.statusCode).toBe(303);
 
       response = await Helper.actAs(Helper.redirect(response.header.location), Helper.EMAIL_2);
       expect(response.statusCode).toBe(200);

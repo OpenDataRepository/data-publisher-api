@@ -334,7 +334,7 @@ describe("create (and get draft after a create)", () => {
       };
 
       let response = await Helper.templateCreate(template1);
-      expect(response.statusCode).toBe(307);
+      expect(response.statusCode).toBe(303);
       let template_draft = await Helper.testAndExtract(Helper.redirect, response.header.location);
       let uuid = template_draft.uuid;
       expect(template_draft).toMatchObject({uuid});
@@ -345,7 +345,7 @@ describe("create (and get draft after a create)", () => {
       };
 
       response = await Helper.templateCreate(template2);
-      expect(response.statusCode).toBe(307);
+      expect(response.statusCode).toBe(303);
       template_draft = await Helper.testAndExtract(Helper.redirect, response.header.location);
       uuid = template_draft.uuid;
       expect(template_draft).toMatchObject({uuid});

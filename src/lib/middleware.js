@@ -45,7 +45,7 @@ exports.getUserFromToken = async (req, res, next) => {
 exports.ensureLoggedIn = async (req, res, next) => {
   try {
     if(!req.user) {
-      throw new Util.PermissionDeniedError(`Must be looged in`);
+      throw new Util.PermissionDeniedError(`Must be logged in`);
     }
     next();
   } catch(err) {

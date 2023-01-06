@@ -197,7 +197,7 @@ export = class Helper {
 
   templateFieldCreateAndTest = async (input_field) => {
     let response = await this.templateFieldCreate(input_field)
-    expect(response.statusCode).toBe(307);
+    expect(response.statusCode).toBe(303);
   
     let new_field = await this.testAndExtract(this.redirect, response.header.location);
     expect(new_field).toMatchObject(input_field);
@@ -343,7 +343,7 @@ export = class Helper {
 
   templateCreateAndTest = async (input_template) => {
     let response = await this.templateCreate(input_template);
-    expect(response.statusCode).toBe(307);
+    expect(response.statusCode).toBe(303);
   
     let created_template = await this.testAndExtract(this.redirect, response.header.location);
 
@@ -501,7 +501,7 @@ export = class Helper {
 
   datasetCreateAndTest = async (dataset) => {
     let response = await this.datasetCreate(dataset);
-    expect(response.statusCode).toBe(307);
+    expect(response.statusCode).toBe(303);
 
     let created_dataset = await this.testAndExtract(this.redirect, response.header.location);
 
@@ -562,7 +562,7 @@ export = class Helper {
 
   datasetUpdateAndTest = async (dataset) => {
     let response = await this.datasetUpdate(dataset.uuid, dataset);
-    expect(response.statusCode).toBe(307);
+    expect(response.statusCode).toBe(303);
 
     let updated_dataset = await this.testAndExtract(this.redirect, response.header.location);
     this.testDatasetDraftsEqual(dataset, updated_dataset);

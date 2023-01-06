@@ -10,7 +10,7 @@ exports.template = async function(req, res, next) {
   try {
     let state = Util.initializeState(req);
     let new_uuid = await (new TemplateModel.model(state)).importTemplate(req.body);
-    res.redirect(307, `/template/${new_uuid}/draft`)
+    res.redirect(303, `/template/${new_uuid}/draft`)
   } catch(err) {
     next(err);
   }
