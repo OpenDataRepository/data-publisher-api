@@ -1,6 +1,7 @@
 const express = require('express');
 const logger = require('morgan');
 const cookieParser = require("cookie-parser");
+const cors = require("cors");
 // var passport = require('passport');
 const Util = require('./lib/util');
 require('dotenv').config();
@@ -12,6 +13,13 @@ const { getUserFromToken, superUserActAs } = require('./lib/middleware');
 
 var app = express();
 
+// Allow app to be accessed from anywhere
+const corsOptions = {
+  origin:'*', 
+  credentials:true,
+  optionSuccessStatus:200,
+};
+app.use(cors(corsOptions));
 app.use(logger('dev'));
 app.use(express.json({limit: '10mb'}));
 app.use(express.urlencoded({ limit: '10mb', extended: false }));
