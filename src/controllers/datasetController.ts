@@ -1,9 +1,10 @@
 const DatasetModel = require('../models/dataset');
 const DatasetPublishModel = require('../models/datasetPublish');
 const RecordModel = require('../models/record');
-const { PermissionTypes, model: PermissionModel } = require('../models/permission');
+import { PermissionTypes, model as PermissionModel } from '../models/permission';
 const SharedFunctions = require('../models/shared_functions');
 const Util = require('../lib/util');
+const elasticDB = require('../lib/elasticDB');
 
 exports.draft_get = async function(req, res, next) {
   try {
@@ -159,7 +160,45 @@ exports.publish = async function(req, res, next) {
     if(!name || typeof(name) !== 'string') {
       throw new Util.InputError('Must provide a valid name for your published dataset version');
     }
-    await DatasetPublishModel.publish(req.params.uuid, name, req.user._id);
+    let uuid = req.params.uuid;
+    await DatasetPublishModel.publish(uuid, name, req.user._id);
+
+    let createIndexInElastic = async () => {
+      const client = elasticDB.getClient();
+      let index = 'odr2_publisheddataset_' + uuid + '_' + name;
+      let final_record_list: any = await published_records(uuid, name, req);
+      if(final_record_list.length > 0) {
+        let bulk_body: any = [];
+        for (let record of final_record_list) {
+          record.id = record._id;
+          delete record._id;
+          bulk_body.push({
+            index: {
+              _index: index,
+              _id: record.id
+            }
+          });
+          bulk_body.push(record);
+        }
+        try {
+          let response = await client.bulk({
+            body : bulk_body
+          });
+          // console.log('elastic search bulk index response:' + response);
+        } catch (e) {
+          console.log('elastic search bulk index failed:' + e);
+        }
+      } else {
+        try {
+          let response = await client.indices.create({index})
+          // console.log('elastic search create empty index response:' + response);
+        } catch (e) {
+          console.log('elastic search create empty index failed:' + e);
+        }
+      }
+    }
+    await createIndexInElastic();
+
     res.sendStatus(200);
   } catch(err) {
     next(err);
@@ -188,39 +227,91 @@ exports.published = async function(req, res, next) {
   }
 }
 
+const published_records = async function(dataset_uuid, name, req) {
+  let state = Util.initializeState(req);
+
+  if(!(await (new DatasetModel.model(state)).hasViewPermissionToPersisted(dataset_uuid))) {
+    throw new Util.PermissionDeniedError();
+  }
+
+  if(!name || typeof(name) !== 'string') {
+    throw new Util.InputError('Must provide a valid name for your published dataset version');
+  }
+
+  // Get timestamp of published
+  let time = await DatasetPublishModel.publishedTimeForDatasetUUIDAndName(dataset_uuid, name);
+  if(!time) {
+    throw new Util.NotFoundError();
+  }
+
+  // Strategy: First get the list of all unique record uuids in the dataset, then, for each one, the the latest published by timestamp
+  // At some point, when we need to scale, change the above to be in a singe db call. This will definitely be much harder to write, but also much faster
+
+  let record_model_instance = new RecordModel.model(state);
+  let record_uuids_in_dataset = await record_model_instance.uniqueUuidsInDataset(dataset_uuid)
+  let final_record_list: any[] = [];
+  for(let record_uuid of record_uuids_in_dataset) {
+    let record = await record_model_instance.persistedBeforeDate(record_uuid, time);
+    if(record) {
+      final_record_list.push(record);
+    }
+  }
+  return final_record_list;
+}
+
 exports.published_records = async function(req, res, next) {
   try {
     let dataset_uuid = req.params.uuid;
     let name = req.params.name;
-    let state = Util.initializeState(req);
 
-    if(!(await (new DatasetModel.model(state)).hasViewPermissionToPersisted(dataset_uuid))) {
-      throw new Util.PermissionDeniedError();
-    }
-
-    if(!name || typeof(name) !== 'string') {
-      throw new Util.InputError('Must provide a valid name for your published dataset version');
-    }
-
-    // Get timestamp of published
-    let time = await DatasetPublishModel.publishedTimeForDatasetUUIDAndName(dataset_uuid, name);
-    if(!time) {
-      throw new Util.NotFoundError();
-    }
-
-    // Strategy: First get the list of all unique record uuids in the dataset, then, for each one, the the latest published by timestamp
-    // At some point, when we need to scale, change the above to be in a singe db call. This will definitely be much harder to write, but also much faster
-
-    let record_model_instance = new RecordModel.model(state);
-    let record_uuids_in_dataset = await record_model_instance.uniqueUuidsInDataset(dataset_uuid)
-    let final_record_list = [];
-    for(let record_uuid of record_uuids_in_dataset) {
-      let record = await record_model_instance.persistedBeforeDate(record_uuid, time);
-      if(record) {
-        final_record_list.push(record);
-      }
-    }
+    let final_record_list = await published_records(dataset_uuid, name, req);
     res.send(final_record_list);
+  } catch(err) {
+    next(err);
+  }
+}
+
+// TODO: there are a couple problems here that need to be fixed
+// 1. Elastic search is smart enough to parse types, so if the user enters in invalid types, problem
+// 2. Elastic search doesn't handle permissions at all. I have to do that myself
+// 3. Test this endpoint. Won't be as simple
+// 4. Set up different elasticsearch endpoing for testing
+exports.search_published_records = async function(req, res, next) {
+  try {
+    let dataset_uuid = req.params.uuid;
+    let name = req.params.name;
+
+    let index = 'odr2_publisheddataset_' + dataset_uuid + '_' + name;
+
+    console.log(JSON.stringify(req.query));
+
+    const client = elasticDB.getClient();
+    let search_body: any = {index};
+    if(Object.keys(req.query).length !== 0) {
+      let query: any = {
+        bool: {
+          must: []
+        }
+      };
+      for(const key in req.query) {
+        const value = req.query[key];
+        query.bool.must.push({match: {[key]: value}})
+      }
+      search_body.query = query;
+    } else {
+      search_body.query = {"match_all": {}};
+    }
+    console.log(JSON.stringify(search_body));
+    let response = await client.search(search_body);
+
+    let search_results = response.hits.hits;
+    let records = search_results.map(record => {
+      let new_record = record._source;
+      new_record._id = new_record.id;
+      delete new_record.id;
+      return new_record;
+    })
+    res.send(records);
   } catch(err) {
     next(err);
   }
