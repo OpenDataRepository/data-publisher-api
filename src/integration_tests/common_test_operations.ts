@@ -6,6 +6,7 @@ var http = require('http')
 var serveStatic = require('serve-static')
 import { AddressInfo } from 'net'
 const MongoDB = require('../lib/mongoDB');
+const ElasticDB = require('../lib/elasticDB');
 var { PermissionTypes } = require('../models/permission');
 const FieldTypes = require('../models/template_field').FieldTypes;
 var appRoot = require('app-root-path');
@@ -52,7 +53,18 @@ export = class Helper {
     let db = MongoDB.db();
     await db.collection('users').deleteMany();
     await db.collection('user_permissions').deleteMany();
+
   };
+
+  clearElasticSearchDatabase = async () => {
+    const client = ElasticDB.getClient();
+    await client.delete(process.env.elasticsearchIndexPrefix + '*');
+  };
+
+  refreshElasticIndexForSearching = async (index) => {
+    const client = ElasticDB.getClient();
+    await client.indices.refresh(index);
+  }
 
   clearDatabaseExceptForUsers = async () => {
     let db = MongoDB.db();
@@ -621,6 +633,17 @@ export = class Helper {
   datasetPublishedRecords = async (uuid, name) => {
     return await this.agent
       .get(`/dataset/${uuid}/published/${name}/records`);
+  }
+
+  datasetPublishedSearchRecords = async (uuid, name, search_params) => {
+    let url = `/dataset/${uuid}/published/${name}/search_records?`;
+    for(let key in search_params) {
+      let value = search_params[key];
+      url += key + "=" + value + "&";
+    }
+    url = url.slice(0, url.length-1);
+    return await this.agent
+      .get(url);
   }
 
   datasetAllPublicUuids = async () => {

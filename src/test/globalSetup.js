@@ -7,6 +7,7 @@ module.exports = async () => {
   let replset = await MongoMemoryReplSet.create({ replSet: { count: 1, storageEngine: 'wiredTiger'} });
   let uri = replset.getUri();
   process.env.DB = uri;
+  process.env.elasticsearchIndexPrefix = "test_odr2_"
   process.env.uploads_folder = "uploads_testing";
   process.env.is_test = "true";
   global.replset = replset;

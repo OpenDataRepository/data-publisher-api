@@ -4,7 +4,7 @@ const RecordModel = require('../models/record');
 import { PermissionTypes, model as PermissionModel } from '../models/permission';
 const SharedFunctions = require('../models/shared_functions');
 const Util = require('../lib/util');
-const elasticDB = require('../lib/elasticDB');
+const ElasticsearchModel = require ('../models/elasticsearch');
 
 exports.draft_get = async function(req, res, next) {
   try {
@@ -163,41 +163,9 @@ exports.publish = async function(req, res, next) {
     let uuid = req.params.uuid;
     await DatasetPublishModel.publish(uuid, name, req.user._id);
 
-    let createIndexInElastic = async () => {
-      const client = elasticDB.getClient();
-      let index = 'odr2_publisheddataset_' + uuid + '_' + name;
-      let final_record_list: any = await published_records(uuid, name, req);
-      if(final_record_list.length > 0) {
-        let bulk_body: any = [];
-        for (let record of final_record_list) {
-          record.id = record._id;
-          delete record._id;
-          bulk_body.push({
-            index: {
-              _index: index,
-              _id: record.id
-            }
-          });
-          bulk_body.push(record);
-        }
-        try {
-          let response = await client.bulk({
-            body : bulk_body
-          });
-          // console.log('elastic search bulk index response:' + response);
-        } catch (e) {
-          console.log('elastic search bulk index failed:' + e);
-        }
-      } else {
-        try {
-          let response = await client.indices.create({index})
-          // console.log('elastic search create empty index response:' + response);
-        } catch (e) {
-          console.log('elastic search create empty index failed:' + e);
-        }
-      }
-    }
-    await createIndexInElastic();
+    let final_record_list: any = await published_records(uuid, name, req);
+
+    await ElasticsearchModel.createPublishedDatasetIndex(uuid, name, final_record_list);
 
     res.sendStatus(200);
   } catch(err) {
@@ -278,39 +246,7 @@ exports.published_records = async function(req, res, next) {
 // 4. Set up different elasticsearch endpoing for testing
 exports.search_published_records = async function(req, res, next) {
   try {
-    let dataset_uuid = req.params.uuid;
-    let name = req.params.name;
-
-    let index = 'odr2_publisheddataset_' + dataset_uuid + '_' + name;
-
-    console.log(JSON.stringify(req.query));
-
-    const client = elasticDB.getClient();
-    let search_body: any = {index};
-    if(Object.keys(req.query).length !== 0) {
-      let query: any = {
-        bool: {
-          must: []
-        }
-      };
-      for(const key in req.query) {
-        const value = req.query[key];
-        query.bool.must.push({match: {[key]: value}})
-      }
-      search_body.query = query;
-    } else {
-      search_body.query = {"match_all": {}};
-    }
-    console.log(JSON.stringify(search_body));
-    let response = await client.search(search_body);
-
-    let search_results = response.hits.hits;
-    let records = search_results.map(record => {
-      let new_record = record._source;
-      new_record._id = new_record.id;
-      delete new_record.id;
-      return new_record;
-    })
+    let records = await ElasticsearchModel.searchPublishedDatasetIndex(req.params.uuid, req.params.name, req.query);
     res.send(records);
   } catch(err) {
     next(err);
