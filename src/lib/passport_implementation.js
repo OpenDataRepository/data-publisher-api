@@ -25,16 +25,17 @@ const options = {
 // });
 
 exports.issueJWT = function(user_id) {
-  const expiresIn = '1h';
-
   const payload = {
     sub: user_id,
   };
 
-  const signedToken = jwt.sign(payload, process.env.ACCESS_TOKEN_SECRET, { expiresIn: expiresIn });
+  const expiresIn = '1h';
+  const expirationTime = new Date(new Date().getTime() + 1*60*60*1000)
+
+  const signedToken = jwt.sign(payload, process.env.ACCESS_TOKEN_SECRET, { expiresIn });
 
   return {
     token: "Bearer " + signedToken,
-    expires: expiresIn
+    expirationTime: expirationTime.toISOString()
   }
 }

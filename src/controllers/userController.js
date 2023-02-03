@@ -66,24 +66,24 @@ exports.register = async function(req, res, next) {
         {expiresIn: '1h'}
       );
 
-      const url = "http://" + ip.address() + ':' + req.app.settings.port + "/account/confirm_email/" + email_token;
+      // const url = "http://" + ip.address() + ':' + req.app.settings.port + "/account/confirm_email/" + email_token;
 
-      if(!process.env.is_test) {
-        console.log(url);
-        await transporter.sendMail({
-          to: email,
-          subject: 'Confirm Email',
-          html: `Please click this link to confirm your email: <a href="${url}">${url}</a>`,
-        });
-      }
+      // if(!process.env.is_test) {
+      //   console.log(url);
+      //   await transporter.sendMail({
+      //     to: email,
+      //     subject: 'Confirm Email',
+      //     html: `Please click this link to confirm your email: <a href="${url}">${url}</a>`,
+      //   });
+      // }
       
     };
     await SharedFunctions.executeWithTransaction(state, callback);
-    if(process.env.is_test) {
+    // if(process.env.is_test) {
       res.status(200).send({token: email_token});
-    } else {
-      res.sendStatus(200);
-    }
+    // } else {
+    //   res.sendStatus(200);
+    // }
   } catch(err) {
     next(err);
   }
@@ -95,7 +95,7 @@ exports.confirm_email = async function(req, res, next) {
     let user_id = payload.user_id;
     let email = payload.email;
     await User.model.confirmEmail(user_id, email);
-    res.sendStatus(200);
+    res.status(200).send({});
   } catch (err) {
     next(err);
   }
@@ -122,7 +122,7 @@ exports.login = async function(req, res, next) {
         
     const tokenObject = PassportImplementation.issueJWT(account._id);
 
-    res.status(200).json({ token: tokenObject.token, expiresIn: tokenObject.expires });
+    res.status(200).json({ token: tokenObject.token, expirationTime: tokenObject.expirationTime });
 
   } catch(err) {
     next(err);
