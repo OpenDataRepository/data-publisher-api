@@ -21,6 +21,10 @@ const Schema = Object.freeze({
       description: "identifies the dataset, but the uuid is common between all versions of said dataset"
       // uuid should be in a valid uuid format as well
     },
+    name: {
+      bsonType: "string",
+      description: "provides a name by which the database can easily be identified/found"
+    },
     template_id: {
       bsonType: "objectId",
       description: "identifies the specific template and version that this dataset uses"
@@ -80,6 +84,8 @@ function collectionExport() {
   return Dataset;
 }
 
+// TODO: allow dataset drafts to be created off of template drafts.
+// TODO: don't allow dataset to be persisted unless referenced template is persisted
 class Model {
 
   collection = Dataset;
@@ -116,6 +122,7 @@ class Model {
 
   #draftsEqual(draft1: Record<string, any>, draft2: Record<string, any>): boolean {
     return draft1.uuid == draft2.uuid &&
+          draft1.name == draft2.name &&
           draft1.template_id.toString() == draft2.template_id.toString() &&
           Util.datesEqual(draft1.public_date, draft2.public_date) &&
           Util.arrayEqual(draft1.related_datasets, draft2.related_datasets);
@@ -151,6 +158,7 @@ class Model {
     await (new PermissionModel.model(this.state)).initializePermissionsFor(uuid);
     let new_dataset: Record<string, any> = {
       uuid,
+      name: "",
       template_id: template._id,
       group_uuid,
       updated_at: this.state.updated_at,
@@ -331,11 +339,17 @@ class Model {
       await permissions_model_instance.initializePermissionsFor(uuid);
     }
 
+    let name = "";
+    if (input_dataset.name) {
+      name = input_dataset.name;
+    }
+
     // Construct dataset
 
     // Build object to create/update
     let new_dataset: any = {
       uuid,
+      name,
       template_id: SharedFunctions.convertToMongoId(input_dataset.template_id),
       group_uuid,
       updated_at: this.state.updated_at,

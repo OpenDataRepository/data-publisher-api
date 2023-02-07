@@ -746,7 +746,7 @@ describe("update (and get draft)", () => {
       expect(await Helper.datasetDraftExistingAndTest(dataset.related_datasets[0].uuid)).toBeFalsy();
     });
 
-    test("template_uuid and public date", async () => {
+    test("template_uuid, public date and name", async () => {
       let template: any = {
         name: "naruto",
         public_date: (new Date()).toISOString()
@@ -758,6 +758,10 @@ describe("update (and get draft)", () => {
       };
       dataset = await Helper.datasetCreatePersistTest(dataset);
       expect(await Helper.datasetDraftExistingAndTest(dataset.uuid)).toBe(false);
+
+      dataset.name = "different";
+      await Helper.datasetUpdateAndTest(dataset);
+      expect(await Helper.datasetDraftExistingAndTest(dataset.uuid)).toBe(true);
   
       let template_2: any = {
         name: "sasuke",
@@ -765,6 +769,7 @@ describe("update (and get draft)", () => {
       };
       template_2 = await Helper.templateCreatePersistTest(template_2);
       dataset.template_id = template_2._id;
+      dataset.name = "";
       await Helper.datasetUpdateAndTest(dataset);
       expect(await Helper.datasetDraftExistingAndTest(dataset.uuid)).toBe(true);
   
