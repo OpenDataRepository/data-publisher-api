@@ -1094,8 +1094,7 @@ class Model {
     template_draft.fields = fields;
     template_draft.related_templates = related_templates;
     template_draft.subscribed_templates = subscribed_templates;
-    delete template_draft._id;
-
+    
     return template_draft;
 
   }
@@ -1463,6 +1462,17 @@ class Model {
   }
 
   persistedByIdWithoutPermissions = this.#persistedByIdWithJoins;
+
+  async fetchRecursivelyById(_id: ObjectId) {
+    let doc = await SharedFunctions.fetchBy_id(this.collection, _id);
+    if(!doc) {
+      return null;
+    }
+    if(doc.persist_date) {
+      return this.#persistedByIdWithJoins(_id);
+    }
+    return this.draftGet(doc.uuid);
+  }
 
   async draftDelete(uuid: string): Promise<void> {
 

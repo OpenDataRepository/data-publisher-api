@@ -84,8 +84,6 @@ function collectionExport() {
   return Dataset;
 }
 
-// TODO: allow dataset drafts to be created off of template drafts.
-// TODO: don't allow dataset to be persisted unless referenced template is persisted
 class Model {
 
   collection = Dataset;
@@ -281,12 +279,19 @@ class Model {
     if(!input_dataset.template_id || typeof(input_dataset.template_id) !== 'string') {
       throw new Util.InputError(`dataset template_id property must be a valid string`);
     }
-    // Verify that the template_id provided by the user is the template_id of a persisted template
+    // Verify that the dataset matches the template
     if(input_dataset.template_id != template._id.toString()) {
       throw new Util.InputError(`The template _id provided by the dataset (${input_dataset.template_id}) does not correspond to the template _id expected by the template (${template._id})`);
     }
-    if(!(await template_model_instance.hasViewPermissionToPersisted(template.uuid))) {
-      throw new Util.PermissionDeniedError(`Cannot link to template_id ${template._id}, as you do not have view permissions to it`);
+    // Verify we have view permissions to the template if template is persisted, or edit permissions if template is draft
+    if(template.persist_date) {
+      if(!(await template_model_instance.hasViewPermissionToPersisted(template.uuid))) {
+        throw new Util.PermissionDeniedError(`Cannot link to template_id ${template._id}, as you do not have view permissions to it`);
+      }
+    } else {
+      if(!(await permissions_model_instance.hasExplicitPermission(template.uuid, PermissionModel.PermissionTypes.edit))) {
+        throw new Util.PermissionDeniedError(`Cannot link to template draft ${template._id}, as you do not have edit permissions to it`);
+      }
     }
 
     // Verify public_date is valid if provided
@@ -422,7 +427,7 @@ class Model {
       throw new Util.InputError(`dataset provided is not an object: ${dataset}`);
     }
 
-    let template = await (new TemplateModel.model(this.state)).persistedByIdWithoutPermissions(SharedFunctions.convertToMongoId(dataset.template_id));
+    let template = await (new TemplateModel.model(this.state)).fetchRecursivelyById(SharedFunctions.convertToMongoId(dataset.template_id));
     if(!template) {
       throw new Util.InputError(`a valid template_id was not provided for the head dataset`);
     }
@@ -590,7 +595,8 @@ class Model {
       }
       let related_template_id = related_dataset_document.template_id.toString();
       if(!(related_template_id in related_template_map)) {
-        throw new Util.InputError(`One of the dataset's related_datsets points to a related_template not supported by it's template.`);
+        throw new Util.InputError(`Linked in dataset ${related_dataset_uuid} references template ${related_template_id},
+        which does not exist and has most likely been deleted. Please update the dataset before re-attempting to persist it.`);
       } 
       let related_template = related_template_map[related_template_id];
       templates_unseen.delete(related_template_id);
@@ -657,9 +663,13 @@ class Model {
       throw new Util.PermissionDeniedError(`Do not have admin permissions for dataset uuid: ${uuid}`);
     }
 
-    // verify that the template uuid on the dataset draft and the expected template uuid match
+    // verify that the template_id on the dataset draft and the expected template_id match
     assert(dataset_draft.template_id.toString() == template._id.toString(),
       `The draft provided ${dataset_draft} does not reference the template required ${template._id}.`);
+
+    if(!template.persist_date) {
+      throw new Util.InputError(`Cannot persist datsaset ${uuid} without first persisting it's template ${template._id}`);
+    }
 
     let related_datasets = await this.#persistRelatedDatasets(dataset_draft.related_datasets, template);
 
@@ -701,6 +711,11 @@ class Model {
     }
 
     let template = await (new TemplateModel.model(this.state)).persistedByIdWithoutPermissions(SharedFunctions.convertToMongoId(dataset.template_id));
+
+    if(!template) {
+      throw new Util.InputError(`Dataset with uuid ${dataset_uuid} cannot be persisted because the template version it references ${dataset.template_id}
+      does not exist and has most likely been deleted. Please update the dataset before re-attempting to persist it.`)
+    }
 
     await this.#persistRecurser(dataset_uuid, template);
   }

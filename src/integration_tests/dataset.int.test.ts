@@ -41,6 +41,21 @@ describe("create (and get draft)", () => {
 
     });
 
+    test("Template isn't persisted, but have edit permissions", async () => {
+
+      let template: any = {
+        "name":"t1"
+      };
+      template = await Helper.templateCreateAndTest(template);
+
+      let dataset = {
+        template_id: template._id
+      };
+
+      await Helper.datasetCreateAndTest(dataset);
+
+    });
+
     test("only one related dataset", async () => {
 
       let template: any = {
@@ -348,36 +363,17 @@ describe("create (and get draft)", () => {
       expect(response.statusCode).toBe(400);
     });
 
-    test("Template _id must exist, be persisted, and the user has view access to it", async () => {
+    test("Template _id must exist and the user must have access to it", async () => {
 
-      // template uuid isn't even a uuid
+      // no template exists with this _id
       let dataset = {
         template_id: 6
       };
       let response = await Helper.datasetCreate(dataset);
       expect(response.statusCode).toBe(400);
 
-      // no template exists with this uuid
-      dataset = {
-        template_id: Helper.VALID_UUID
-      };
-      response = await Helper.datasetCreate(dataset);
-      expect(response.statusCode).toBe(400);
-
-      // template exists with this _id but has not been persisted
+      // persisted template exists with this uuid but user does not have view access to it
       let template: any = {
-        name: "t1"
-      };
-      template = await Helper.templateCreateAndTest(template);
-      let template_id = template._id;
-      dataset = {
-        template_id
-      };
-      response = await Helper.datasetCreate(dataset);
-      expect(response.statusCode).toBe(400);
-
-      // template exists with this uuid but user does not have view access to it
-      template = {
         name: "t1"
       };
       template = await Helper.templateCreatePersistTest(template);
@@ -389,6 +385,21 @@ describe("create (and get draft)", () => {
 
       response = await Helper.datasetCreate(dataset);
       expect(response.statusCode).toBe(401);
+
+      // persisted template exists with this uuid but user does not have view access to it
+      Helper.setAgent(agent1);
+      template = {
+        name: "t2"
+      };
+      template = await Helper.templateCreateAndTest(template);
+      dataset = {
+        template_id: template._id
+      };
+
+      Helper.setAgent(agent2);
+
+      response = await Helper.datasetCreate(dataset);
+      expect(response.statusCode).toBe(401);      
 
     });
 
@@ -1287,6 +1298,32 @@ describe("persist (and get persisted)", () => {
       expect(response.statusCode).toBe(200);
 
       response = await Helper.datasetPersist(dataset.uuid, last_update);
+      expect(response.statusCode).toBe(400);
+    });
+
+    test("Dataset must match the template to persist", async () => {
+      let template: any = {
+        name:"t1",
+        related_templates: [{
+          name: "t2"
+        }]
+      };
+      template = await Helper.templateCreateAndTest(template);
+
+      let dataset: any = {
+        template_id: template._id,
+        related_datasets: [{
+          template_id: template.related_templates[0]._id
+        }]
+      }
+      dataset = await Helper.datasetCreateAndTest(dataset);
+
+      template.related_templates = [];
+      await Helper.templateUpdateAndTest(template);
+
+      let last_update = await Helper.testAndExtract(Helper.datasetLastUpdate, dataset.uuid);
+
+      let response = await Helper.datasetPersist(dataset.uuid, last_update);
       expect(response.statusCode).toBe(400);
     });
 

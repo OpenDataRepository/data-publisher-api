@@ -117,6 +117,9 @@ export const latest_persisted_time_for_uuid = async (collection, uuid: string): 
 }
 
 export const executeWithTransaction = async (state, callback) => {
+  if(state.session) {
+    return callback();
+  }
   const session = MongoDB.newSession();
   state.session = session;
   let result;
@@ -150,4 +153,16 @@ export const uuidsInThisCollection = async (collection, uuids: string[]): Promis
     "uuid",
     {"uuid": {$in: uuids}}
   );
+}
+
+export const fetchBy_id = async (collection, _id: ObjectId): Promise<Record<string, any> | null> => {
+  let cursor = await collection.find(
+    {_id}
+  );
+
+  if(!(await cursor.hasNext())) {
+    return null;
+  } 
+  let draft = await cursor.next();
+  return draft;
 }
