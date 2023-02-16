@@ -33,6 +33,21 @@ exports.get_latest_persisted = async function(req, res, next) {
   }
 }
 
+exports.get_version = async function(req, res, next) {
+  try {
+    let state = Util.initializeState(req);
+    let model_instance = new TemplateModel.model(state);
+    let template = await model_instance.getVersion(SharedFunctions.convertToMongoId(req.params.id));
+    if(template) {
+      res.json(template);
+    } else {
+      throw new Util.NotFoundError();
+    }
+  } catch(err) {
+    next(err);
+  }
+}
+
 exports.get_persisted_version = async function(req, res, next) {
   try {
     let state = Util.initializeState(req);
@@ -74,6 +89,7 @@ exports.create = async function(req, res, next) {
   }
 }
 
+// TODO: template, dataset and record update should redirect like create
 exports.update = async function(req, res, next) {
   try {
     if(!Util.objectContainsUUID(req.body, req.params.uuid)) {
@@ -82,7 +98,7 @@ exports.update = async function(req, res, next) {
     let state = Util.initializeState(req);
     let model_instance = new TemplateModel.model(state);
     await model_instance.update(req.body);
-    res.sendStatus(200);
+    res.status(200).send({});
   } catch(err) {
     next(err);
   }

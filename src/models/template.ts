@@ -1457,6 +1457,15 @@ class Model {
     return template;
   } 
 
+  async getVersion(_id: ObjectId): Promise<Record<string, any> | null> {
+    let template = await this.persistedVersion(_id);
+    if(template) {
+      return template;
+    }
+    let uuid = await SharedFunctions.uuidFor_id(this.collection, _id);
+    return await this.draftGet(uuid);
+  } 
+
   async latestPersistedWithoutPermissions(uuid: string): Promise<Record<string, any> | null> {
     return await this.#latestPersistedBeforeDateWithJoins(uuid, new Date());
   }

@@ -227,7 +227,7 @@ class Model {
         // In this case, there will be no template_id. Thus, try to fetch the template _id. 
         let existing_dataset = await SharedFunctions.latestDocument(Dataset, related_dataset.uuid, this.state.session);
         if(!existing_dataset) {
-          throw new Util.InputError(`Each related_dataset in the dataset must supply a template_uuid`);
+          throw new Util.InputError(`Each related_dataset in the dataset must supply a template_id`);
         }
         related_dataset.template_id = existing_dataset.template_id.toString();
       }

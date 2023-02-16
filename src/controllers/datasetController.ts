@@ -143,6 +143,7 @@ exports.duplicate = async function(req, res, next) {
   }
 }
 
+// TODO: change this to work for a specific version of the template
 exports.new_dataset_for_template = async function(req, res, next) {
   let state = Util.initializeState(req);
   let model_instance = new DatasetModel.model(state);

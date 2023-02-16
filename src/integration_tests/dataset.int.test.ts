@@ -34,6 +34,7 @@ describe("create (and get draft)", () => {
       template = await Helper.templateCreatePersistTest(template);
 
       let dataset = {
+        name: "waffle",
         template_id: template._id
       };
 
@@ -703,8 +704,11 @@ describe("update (and get draft)", () => {
       [template, dataset] = await populateWithDummyTemplateAndDataset();
     });
 
-    test("Basic update - change dataset public date", async () => {
+    test("Basic update - change dataset public date and name", async () => {
       dataset.public_date = (new Date()).toISOString();
+      await Helper.datasetUpdateAndTest(dataset);
+
+      dataset.name = "waffle";
       await Helper.datasetUpdateAndTest(dataset);
     });
 

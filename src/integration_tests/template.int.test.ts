@@ -1558,6 +1558,20 @@ test("get persisted version", async () => {
   await Helper.testAndExtract(Helper.templatePersistedVersion, template._id);
 });
 
+test("get version", async () => {
+  let template: any = {
+    "name":"basic template",
+    "description": "1"
+  };
+  template = await Helper.templateCreateAndTest(template);
+  let test_template = await Helper.testAndExtract(Helper.templateVersion, template._id);
+  Helper.testTemplateDraftsEqual(template, test_template);
+
+  template = await Helper.templatePersistAndFetch(template.uuid);
+  test_template = await Helper.testAndExtract(Helper.templateVersion, template._id);
+  Helper.testTemplateDraftsEqual(template, test_template);
+});
+
 describe("delete", () => {
   test("delete a draft, not a persisted version", async () => {
     let template: any = {
