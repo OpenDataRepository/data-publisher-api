@@ -334,8 +334,8 @@ class Model {
     }
     // Otherwise, this is a create, so generate a new uuid
     else {
-      // If it's a create without related_templates, just create based off of the template
-      if(!input_dataset.related_datasets) {
+      // If it's a create, and the user hasn't provided the full dataset for the template, just create based off of the template
+      if(!input_dataset.related_datasets && template.related_templates.length > 0) {
         let new_dataset = await this.#createNewDatasetForTemplate(template, group_uuid, public_date);
         return [true, new_dataset.uuid];
       }
@@ -518,8 +518,6 @@ class Model {
     }
 
     dataset_draft.related_datasets = related_datasets;
-    delete dataset_draft._id;
-
     return dataset_draft;
 
   }
@@ -1302,6 +1300,22 @@ class Model {
     return Util.arrayUnion(public_uuids, viewable_uuids);
   }
 
+  async latestShallowDatasetsForUuids(uuids: string[]): Promise<Record<string, any>[]> {
+    let unfiltered_datasets = await Dataset.find({"uuid": {"$in": uuids}})
+      .sort({'updated_at': -1})
+      .toArray();
+    let datasets: Record<string, any>[] = [];
+    let current_uuid = "";
+    // after getting results, use a set to only keep the latest version of each uuid
+    let seen_uuids = new Set();
+    for(let dataset of unfiltered_datasets) {
+      if(!seen_uuids.has(dataset.uuid)) {
+        seen_uuids.add(dataset.uuid);
+        datasets.push(dataset);
+      }
+    }
+    return datasets;
+  }
 };
 exports.model = Model;
 

@@ -514,6 +514,9 @@ export = class Helper {
         this.testDatasetDraftsEqual(original.related_datasets[i], created.related_datasets[i]);
       }
     }
+    if(original.name) {
+      expect(created.name).toEqual(original.name);
+    }
   }
 
   datasetCreateAndTest = async (dataset) => {
@@ -958,6 +961,11 @@ export = class Helper {
   accountGet = async () => {
     return await this.agent
       .get(`/account`);
+  }
+
+  accountGetDatasets = async () => {
+    return await this.agent
+      .get(`/account/datasets`);
   }
 
   changeEmail = async (new_email, password) => {

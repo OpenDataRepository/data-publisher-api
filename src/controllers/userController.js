@@ -11,6 +11,7 @@ const TemplateFieldModel = require('../models/template_field');
 const TemplateModel = require('../models/template');
 const DatasetModel = require('../models/dataset');
 var ip = require("ip");
+const { get_document_permissions } = require("./permissionController");
 
 // TODO: this needs to be replaced with a real email eventually. 
 // This email is from https://mailtrap.io/
@@ -285,6 +286,58 @@ exports.change_other_user_email = async function(req, res, next) {
   }
 };
 
+async function getUserPermissions(user_id) {
+  let state = {user_id};
+
+  // Get a list of objects with uuids and permission levels
+  let user_permissions = await (new PermissionsModel.model(state)).getUserPermissions();
+
+  // Now we need to figure out which document type belongs to which permission type. 
+  // Unfortunately we can only get this from the collections themselves, so this is pretty complicated. 
+  // Strategy:
+  // - Create a list of uuids from the objects
+  // - Search each of the collections for which uuids they hold. Should result in a list of uuids per collection
+  // - Create a dictionary of uuid -> object
+  // - Using the dictionary, assign document types to each of the objects
+  // - Go through the list of objects and construct the final object
+
+  // Create a list of uuids from the objects
+  let document_uuids = user_permissions.map(x => x.document_uuid);
+
+  // - Search each of the collections for which uuids they hold. Should result in a list of uuids per collection
+  let separated_document_uuids = {};
+  separated_document_uuids[SharedFunctions.DocumentTypes.template_field] = await SharedFunctions.uuidsInThisCollection(TemplateFieldModel.collection(), document_uuids);
+  separated_document_uuids[SharedFunctions.DocumentTypes.template] = await SharedFunctions.uuidsInThisCollection(TemplateModel.collection(), document_uuids);
+  separated_document_uuids[SharedFunctions.DocumentTypes.dataset] = await SharedFunctions.uuidsInThisCollection(DatasetModel.collection(), document_uuids);
+
+  // - Create a dictionary of uuid -> object
+  let uuid_object_dict = {};
+  for(let obj of user_permissions) {
+    uuid_object_dict[obj.document_uuid] = obj;
+  }
+
+  // - Using the dictionary, assign document types to each of the objects
+  for(let document_type in separated_document_uuids) {
+    for(let uuid of separated_document_uuids[document_type]) {
+      let obj = uuid_object_dict[uuid];
+      obj.document_type = document_type;
+    }
+  }
+
+  // - Go through the list of objects and construct the final object
+  let result = {};
+  for(let doc_type in SharedFunctions.DocumentTypes) {
+    result[doc_type] = {};
+    for(let permission_type in PermissionsModel.PermissionTypes) {
+      result[doc_type][permission_type] = [];
+    }
+  }
+  for(let obj of user_permissions) {
+    result[obj.document_type][obj.permission_level].push(obj.document_uuid);
+  }
+  return result;
+}
+
 exports.getPermissions = async function(req, res, next) {
   try{
     let user;
@@ -293,56 +346,29 @@ exports.getPermissions = async function(req, res, next) {
     } else {
       user = req.user;
     }
-    let state = {user_id: user._id};
-
-    // Get a list of objects with uuids and permission levels
-    let user_permissions = await (new PermissionsModel.model(state)).getUserPermissions();
-
-    // Now we need to figure out which document type belongs to which permission type. 
-    // Unfortunately we can only get this from the collections themselves, so this is pretty complicated. 
-    // Strategy:
-    // - Create a list of uuids from the objects
-    // - Search each of the collections for which uuids they hold. Should result in a list of uuids per collection
-    // - Create a dictionary of uuid -> object
-    // - Using the dictionary, assign document types to each of the objects
-    // - Go through the list of objects and construct the final object
-
-    // Create a list of uuids from the objects
-    let document_uuids = user_permissions.map(x => x.document_uuid);
-
-    // - Search each of the collections for which uuids they hold. Should result in a list of uuids per collection
-    let separated_document_uuids = {};
-    separated_document_uuids[SharedFunctions.DocumentTypes.template_field] = await SharedFunctions.uuidsInThisCollection(TemplateFieldModel.collection(), document_uuids);
-    separated_document_uuids[SharedFunctions.DocumentTypes.template] = await SharedFunctions.uuidsInThisCollection(TemplateModel.collection(), document_uuids);
-    separated_document_uuids[SharedFunctions.DocumentTypes.dataset] = await SharedFunctions.uuidsInThisCollection(DatasetModel.collection(), document_uuids);
-
-    // - Create a dictionary of uuid -> object
-    let uuid_object_dict = {};
-    for(let obj of user_permissions) {
-      uuid_object_dict[obj.document_uuid] = obj;
-    }
-
-    // - Using the dictionary, assign document types to each of the objects
-    for(let document_type in separated_document_uuids) {
-      for(let uuid of separated_document_uuids[document_type]) {
-        let obj = uuid_object_dict[uuid];
-        obj.document_type = document_type;
-      }
-    }
-
-    // - Go through the list of objects and construct the final object
-    let result = {};
-    for(let doc_type in SharedFunctions.DocumentTypes) {
-      result[doc_type] = {};
-      for(let permission_type in PermissionsModel.PermissionTypes) {
-        result[doc_type][permission_type] = [];
-      }
-    }
-    for(let obj of user_permissions) {
-      result[obj.document_type][obj.permission_level].push(obj.document_uuid);
-    }
-
+    const result = await getUserPermissions(user._id);
     res.send(result);
+  } catch(err) {
+    next(err);
+  }
+};
+
+exports.getDatasets = async function(req, res, next) {
+  try{
+    let user;
+    if(req.params.email) {
+      user = await User.model.getByEmail(req.params.email);
+    } else {
+      user = req.user;
+    }
+    const all_permissions = await getUserPermissions(user._id);
+    const dataset_permissions_split = all_permissions[SharedFunctions.DocumentTypes.dataset];
+    let dataset_uuid_list = [];
+    for(let key in dataset_permissions_split) {
+      dataset_uuid_list = dataset_uuid_list.concat(dataset_permissions_split[key]);
+    }
+    let datasets = await (new DatasetModel.model({})).latestShallowDatasetsForUuids(dataset_uuid_list);
+    res.send(datasets);
   } catch(err) {
     next(err);
   }

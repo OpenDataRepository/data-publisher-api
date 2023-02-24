@@ -279,3 +279,109 @@ describe("update (and get)", () => {
   });
 
 });
+
+describe("datasets", () => {
+
+  test("basic - newest dataset should be included for each uuid", async () => {
+
+    let template1 = { 
+      name: "t1"
+    };
+    template1 = await Helper.templateCreatePersistTest(template1);
+  
+    let dataset1 = {
+      template_id: template1._id,
+      name: "simple just created - should appear"
+    };
+    await Helper.datasetCreateAndTest(dataset1);
+    dataset1 = {
+      template_id: template1._id,
+      name: "simple created and persisted - should appear"
+    };
+    await Helper.datasetCreatePersistTest(dataset1);
+    dataset1 = {
+      template_id: template1._id,
+      name: "simple created, persisted, and another draft created - first persisted - should not appear"
+    };
+    let dataset1_with_uuid = await Helper.datasetCreatePersistTest(dataset1);
+    dataset1_with_uuid.name = "simple created, persisted, and another draft created - updated - should appear"
+    await Helper.datasetUpdateAndTest(dataset1_with_uuid);
+  
+    dataset1 = {
+      template_id: template1._id,
+      name: "simple created, persisted, and persisted again - first persisted - should not appear"
+    };
+    dataset1_with_uuid = await Helper.datasetCreatePersistTest(dataset1);
+    dataset1_with_uuid.name = "simple created, persisted, and persisted again - second persisted - should appear"
+    await Helper.datasetUpdatePersistTest(dataset1_with_uuid);
+        
+    let template2 = { 
+      name: "t1",
+      related_templates: [
+        { 
+          name: "t2"
+        }
+      ]
+    };
+    template2 = await Helper.templateCreatePersistTest(template2);
+  
+    let dataset = {
+      template_id: template2._id,
+      name: "typo - needs to be updated",
+      related_datasets: [
+        { 
+          template_id: template2.related_templates[0]._id,
+          name: "child - should appear"
+        }
+      ]
+    };
+  
+    dataset = await Helper.datasetCreateAndTest(dataset);
+  
+    dataset.name = "parent - should appear";
+    await Helper.datasetUpdateAndTest(dataset);
+  
+    let datasets = await Helper.testAndExtract(Helper.accountGetDatasets);
+    expect(datasets.length).toBe(6);
+  
+    expect(datasets[0].name).toEqual("parent - should appear");
+    expect(datasets[1].name).toEqual("child - should appear");
+    expect(datasets[2].name).toEqual("simple created, persisted, and persisted again - second persisted - should appear");
+    expect(datasets[3].name).toEqual("simple created, persisted, and another draft created - updated - should appear");
+    expect(datasets[4].name).toEqual("simple created and persisted - should appear");
+    expect(datasets[5].name).toEqual("simple just created - should appear");
+  
+  });
+
+  test("only most recent dataset included for each uuid, no matter how scrambled update times are", async () => {
+
+    let template = { 
+      name: "t1"
+    };
+    template = await Helper.templateCreatePersistTest(template);
+  
+    let dataset1 = {
+      template_id: template._id,
+      name: "template 1 version 1"
+    };
+    dataset1 = await Helper.datasetCreatePersistTest(dataset1);
+
+    let dataset2 = {
+      template_id: template._id,
+      name: "template 2"
+    };
+    dataset2 = await Helper.datasetCreateAndTest(dataset2);
+
+    dataset1.name = "template 1 version 2";
+    dataset1 = await Helper.datasetUpdatePersistTest(dataset1);
+  
+    let datasets = await Helper.testAndExtract(Helper.accountGetDatasets);
+    expect(datasets.length).toBe(2);
+  
+    expect(datasets[0].name).toEqual("template 1 version 2");
+    expect(datasets[1].name).toEqual("template 2");
+  
+  });
+
+
+});

@@ -113,7 +113,7 @@ exports.persist = async function(req, res, next) {
     } else {
       throw new Util.InputError(`last_update provided as parameter is not in valid date format: ${req.body.last_update}`);
     }
-    res.sendStatus(200);
+    res.status(200).send({});
   } catch(err) {
     next(err);
   }
@@ -131,7 +131,7 @@ exports.draft_delete = async function(req, res, next) {
       }
     }
     await SharedFunctions.executeWithTransaction(state, callback);
-    res.sendStatus(200);
+    res.status(200).send({});
   } catch(err) {
     return next(err);
   }
