@@ -1512,6 +1512,11 @@ describe("get persisted", () => {
     expect(response.body).toMatchObject(record);   
   });
 
+  test("record does not exist - 404", async () => {
+    let response = await Helper.recordLatestPersistedGet(Helper.VALID_UUID);
+    expect(response.statusCode).toBe(404);
+  });
+
   describe("fetch permissions", () => { 
 
     const public_date = (new Date()).toISOString();

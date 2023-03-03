@@ -586,6 +586,7 @@ export = class Helper {
 
     let updated_dataset = await this.testAndExtract(this.redirect, response.header.location);
     this.testDatasetDraftsEqual(dataset, updated_dataset);
+    return updated_dataset;
   };
 
   datasetUpdatePersistTest = async (dataset) => {
@@ -610,6 +611,12 @@ export = class Helper {
   };
   datasetDraftExistingAndTest = async (uuid) => {
     return await this.testAndExtract(this.datasetDraftExisting, uuid);
+  }
+
+  datasetRecords = async (uuid) => {
+    return await this.agent
+      .get(`/dataset/${uuid}/records`)
+      .set('Accept', 'application/json');
   }
 
   datasetDuplicate = async (uuid) => {

@@ -23,6 +23,42 @@ afterAll(async () => {
   await appClose();
 });
 
+test("new dataset for template", async () => {
+
+  let template: any = {
+    "name":"t1",
+    related_templates: [
+      {
+        name: "t1.1",
+        related_templates: [
+          {
+            name: "t1.1.1"
+          },
+          {
+            name: "t1.1.2"
+          }
+        ]
+      },
+      {
+        name: "t1.2",
+        related_templates: [
+          {
+            name: "t1.2.1"
+          },
+          {
+            name: "t1.2.2"
+          }
+        ]
+      }
+    ]
+  };
+  template = await Helper.templateCreatePersistTest(template);
+
+  let dataset = await Helper.testAndExtract(Helper.newDatasetForTemplate, template.uuid);
+  await Helper.datasetCreateAndTest(dataset);
+
+});
+
 describe("create (and get draft)", () => {
   describe("Success cases", () => {
 
@@ -1954,6 +1990,136 @@ describe("delete", () => {
     let response = await Helper.datasetDelete(dataset.uuid);
     expect(response.statusCode).toBe(401);
   });
+});
+
+describe("datasets", () => {
+
+  test("basic - newest record should be included for each uuid", async () => {
+
+    let template1: any = { 
+      name: "t1",
+      fields: [
+        {
+          name: "name"
+        }
+      ]
+    };
+    template1 = await Helper.templateCreatePersistTest(template1);
+    let dataset1: any = {
+      template_id: template1._id,
+      name: "basic"
+    };
+    dataset1 = await Helper.datasetCreatePersistTest(dataset1);
+
+    let record1 = {
+      dataset_uuid: dataset1.uuid,
+      fields: [
+        {
+          uuid: template1.fields[0].uuid,
+          value: "simple created - should appear"
+        }
+      ]
+    };
+    record1 = await Helper.recordCreatePersistTest(record1);
+
+    record1 = {
+      dataset_uuid: dataset1.uuid,
+      fields: [
+        {
+          uuid: template1.fields[0].uuid,
+          value: "simple created and persisted - should appear"
+        }
+      ]
+    };
+    record1 = await Helper.recordCreatePersistTest(record1);
+
+    record1 = {
+      dataset_uuid: dataset1.uuid,
+      fields: [
+        {
+          uuid: template1.fields[0].uuid,
+          value: "simple created, persisted, and another draft created - first persisted - should not appear"
+        }
+      ]
+    };
+    let record1_with_uuid = await Helper.recordCreatePersistTest(record1);
+    record1_with_uuid.fields[0].value = "simple created, persisted, and another draft created - updated - should appear"
+    await Helper.recordUpdateAndTest(record1_with_uuid);
+  
+    record1 = {
+      dataset_uuid: dataset1.uuid,
+      fields: [
+        {
+          uuid: template1.fields[0].uuid,
+          value: "simple created, persisted, and persisted again - first persisted - should not appear"
+        }
+      ]
+    };
+    record1_with_uuid = await Helper.recordCreatePersistTest(record1);
+    record1_with_uuid.fields[0].value = "simple created, persisted, and persisted again - second persisted - should appear"
+    await Helper.recordUpdatePersistTest(record1_with_uuid);
+
+    let records = await Helper.testAndExtract(Helper.datasetRecords, dataset1.uuid);
+    expect(records.length).toBe(4);
+
+    expect(records[0].fields[0].value).toEqual("simple created, persisted, and persisted again - second persisted - should appear");
+    expect(records[1].fields[0].value).toEqual("simple created, persisted, and another draft created - updated - should appear");
+    expect(records[2].fields[0].value).toEqual("simple created and persisted - should appear");
+    expect(records[3].fields[0].value).toEqual("simple created - should appear");
+    
+  });
+
+  test("only most recent record included for each uuid, no matter how scrambled update times are", async () => {
+
+    let template: any = { 
+      name: "t1",
+      fields: [
+        {
+          name: "name"
+        }
+      ]
+    };
+    template = await Helper.templateCreatePersistTest(template);
+
+    let dataset: any = {
+      template_id: template._id
+    };
+    dataset = await Helper.datasetCreatePersistTest(dataset);
+  
+    let record1 = {
+      dataset_uuid: dataset.uuid,
+      fields: [
+        {
+          uuid: template.fields[0].uuid,
+          value: "record 1 version 1"
+        }
+      ]
+    };
+    record1 = await Helper.recordCreatePersistTest(record1);
+
+    let record2 = {
+      dataset_uuid: dataset.uuid,
+      fields: [
+        {
+          uuid: template.fields[0].uuid,
+          value: "record 2"
+        }
+      ]
+    };
+    record2 = await Helper.recordCreateAndTest(record2);
+
+    record1.fields[0].value = "record 1 version 2";
+    record1 = await Helper.recordUpdatePersistTest(record1);
+  
+    let records = await Helper.testAndExtract(Helper.datasetRecords, dataset.uuid);
+    expect(records.length).toBe(2);
+  
+    expect(records[0].fields[0].value).toEqual("record 1 version 2");
+    expect(records[1].fields[0].value).toEqual("record 2");
+  
+  });
+
+
 });
 
 describe("duplicate", () => {

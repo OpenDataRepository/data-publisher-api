@@ -1682,6 +1682,22 @@ class Model {
     );
   }
 
+  async latestShallowRecordsForDataset(dataset_uuid: string[]): Promise<Record<string, any>[]> {
+    let unfiltered_records = await Record.find({dataset_uuid})
+      .sort({'updated_at': -1})
+      .toArray();
+    let records: Record<string, any>[] = [];
+    // after getting results, use a set to only keep the latest version of each uuid
+    let seen_uuids = new Set();
+    for(let record of unfiltered_records) {
+      if(!seen_uuids.has(record.uuid)) {
+        seen_uuids.add(record.uuid);
+        records.push(record);
+      }
+    }
+    return records;
+  }
+
 };
 
 export {init, Model as model};

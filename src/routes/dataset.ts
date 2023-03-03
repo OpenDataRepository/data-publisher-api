@@ -12,6 +12,7 @@ router.get('/:uuid/last_update', ensureLoggedIn, validateUuid, controller.get_la
 router.post('/', ensureLoggedIn, controller.create);
 router.put('/:uuid', ensureLoggedIn, validateUuid, controller.update);
 router.post('/:uuid/persist', ensureLoggedIn, validateUuid, controller.persist);
+router.get('/:uuid/records', ensureLoggedIn, controller.records)
 router.delete('/:uuid/draft', ensureLoggedIn, validateUuid, controller.draft_delete);
 router.post('/:uuid/duplicate', ensureLoggedIn, validateUuid, controller.duplicate);
 router.post('/:uuid/publish', ensureLoggedIn, validateUuid, controller.publish);

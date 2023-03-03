@@ -155,6 +155,24 @@ exports.new_dataset_for_template = async function(req, res, next) {
   }
 }
 
+exports.records = async function(req, res, next) {
+  try {
+    let dataset_uuid = req.params.uuid;
+
+    let state = Util.initializeState(req);
+
+    if(!(await (new DatasetModel.model(state)).hasViewPermissionToPersisted(dataset_uuid))) {
+      throw new Util.PermissionDeniedError();
+    }
+
+    let record_model_instance = new RecordModel.model(state);
+    let shallow_records_in_dataset = await record_model_instance.latestShallowRecordsForDataset(dataset_uuid);
+    res.send(shallow_records_in_dataset);
+  } catch(err) {
+    next(err);
+  }
+}
+
 exports.publish = async function(req, res, next) {
   try {
     let name = req.body.name;

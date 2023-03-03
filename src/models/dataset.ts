@@ -1305,7 +1305,6 @@ class Model {
       .sort({'updated_at': -1})
       .toArray();
     let datasets: Record<string, any>[] = [];
-    let current_uuid = "";
     // after getting results, use a set to only keep the latest version of each uuid
     let seen_uuids = new Set();
     for(let dataset of unfiltered_datasets) {

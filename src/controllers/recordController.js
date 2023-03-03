@@ -1,6 +1,17 @@
 const RecordModel = require('../models/record');
 const Util = require('../lib/util');
 
+// exports.new_record_for_dataset = async function(req, res, next) {
+//   let state = Util.initializeState(req);
+//   let model_instance = new RecordModel.model(state);
+//   try {
+//     let new_record = await model_instance.newRecordForDataset(req.params.uuid);
+//     res.json(new_record);
+//   } catch(err) {
+//     next(err);
+//   }
+// }
+
 exports.create = async function(req, res, next) {
   try {
     let state = Util.initializeState(req);
@@ -61,7 +72,7 @@ exports.draft_delete = async function(req, res, next) {
   } catch(err) {
     return next(err);
   }
-  res.sendStatus(200);
+  res.status(200).send({});
 }
 
 exports.persist = async function(req, res, next) {
@@ -84,7 +95,11 @@ exports.get_latest_persisted = async function(req, res, next) {
     let state = Util.initializeState(req);
     let model_instance = new RecordModel.model(state);
     let record = await model_instance.latestPersisted(req.params.uuid);
-    res.json(record);
+    if(record) {
+      res.json(record);
+    } else {
+      throw new Util.NotFoundError();
+    }
   } catch(err) {
     next(err);
   }
