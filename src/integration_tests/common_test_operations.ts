@@ -451,11 +451,19 @@ export = class Helper {
     }
   }
 
+  templateLatestDraftOrPersisted = async (uuid)  => {
+    let response = await this.templateDraftGet(uuid);
+    if(response.statusCode == 404) {
+      return await this.templateLatestPersisted(uuid);
+    }
+    return response;
+  }
+
   templateUpdateAndTest = async (template) => {
     let response = await this.templateUpdate(template.uuid, template);
     expect(response.statusCode).toBe(200);
   
-    let new_draft = await this.templateDraftGetAndTest(template.uuid);
+    let new_draft = await this.testAndExtract(this.templateLatestDraftOrPersisted, template.uuid);
     this.testTemplateDraftsEqual(template, new_draft);
     return new_draft;
   }
@@ -686,6 +694,12 @@ export = class Helper {
   };
   recordDraftGetAndTest = async (uuid) => {
     return await this.testAndExtract(this.recordDraftGet, uuid);
+  };
+
+  recordNewDraftFromLatestPersisted = async (uuid) => {
+    return await this.agent
+      .get(`/record/${uuid}/new_draft_from_latest_persisted`)
+      .set('Accept', 'application/json');
   };
   
   testRecordFieldsEqual = (before, after) => {

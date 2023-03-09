@@ -569,6 +569,16 @@ describe("update (and get draft after an update)", () => {
       await Helper.templateUpdateAndTest(og_template);
     });
 
+
+    test("After persist, update parent but not child after persist -  child should be persisted", async () => {
+
+      let template = await Helper.templatePersistAndFetch(og_template.uuid);
+      template.name = 'waffle';
+      let t_draft = await Helper.templateUpdateAndTest(template);
+      expect(t_draft.related_templates[0]._id).toEqual(template.related_templates[0]._id);
+    });
+
+
   })
 
   describe("Failure cases", () => {
@@ -805,7 +815,8 @@ describe("get/fetch draft", () => {
     expect(response.statusCode).toBe(401);
   });
 
-  test("if user has view but not edit access to linked properties, the pubished version replaces that property", async () => {
+  // TODO: this test is not testing what it says it is
+  test("if user has view but not edit access to linked properties, the persisted version replaces that property", async () => {
     let field = {
       "name": "t1f1"
     }
@@ -836,7 +847,7 @@ describe("get/fetch draft", () => {
     let template_persisted = await Helper.templateCreatePersistTest(template);  
 
     // Fetch parent template, check that the two linked properties are fetched as the persisted versions
-    let template_draft = await Helper.templateDraftGetAndTest(template_persisted.uuid);
+    let template_draft = await Helper.testAndExtract(Helper.templateLatestDraftOrPersisted, template_persisted.uuid);
     Helper.testTemplateDraftsEqual(template, template_draft);
 
   });
@@ -865,15 +876,86 @@ describe("get/fetch draft", () => {
 
     await Helper.setAgent(agent1);
 
-    let expected_template_draft = await Helper.testAndExtract(Helper.templateDraftGet, template_persisted.uuid);
+    let expected_template_draft = await Helper.testAndExtract(Helper.templateLatestDraftOrPersisted, template_persisted.uuid);
     expected_template_draft.fields[0] = {uuid: template_persisted.fields[0].uuid};
     expected_template_draft.related_templates[0] = {uuid: template_persisted.related_templates[0].uuid};
     
     // Fetch parent template, check that the two linked properties are fetched as blank 
     // since the default user doesn't have view permissions
-    let template_draft = await Helper.testAndExtract(Helper.templateDraftGet, template_persisted.uuid);
+    let template_draft = await Helper.testAndExtract(Helper.templateLatestDraftOrPersisted, template_persisted.uuid);
     expect(template_draft).toMatchObject(expected_template_draft);    
   });
+
+  describe("parent drafts are created if child drafts are found", () => {
+    test("child draft found - parent draft created", async () => {
+
+      let template: any = {
+        "name":"parent",
+        related_templates:  [
+          {
+            name: "child"
+          }
+        ]
+      };
+      template = await Helper.templateCreatePersistTest(template);
+
+      let related_template = template.related_templates[0];
+      related_template.name = "child edited";
+      related_template = await Helper.templateUpdateAndTest(related_template);
+      expect(await Helper.testAndExtract(Helper.templateDraftExisting, template.uuid)).toBe(false);
+      await Helper.testAndExtract(Helper.templateDraftGet, template.uuid);
+      expect(await Helper.testAndExtract(Helper.templateDraftExisting, template.uuid)).toBe(true);
+    });
+    test("grandparent draft created, and parent draft deleted - parent draft created", async () => {
+
+      let grandparent_template: any = {
+        "name":"grandparent",
+        related_templates:  [
+          {
+            name: "parent",
+            related_templates: [
+              {
+                name: "child"
+              }
+            ]
+          }
+        ]
+      };
+      grandparent_template = await Helper.templateCreatePersistTest(grandparent_template);
+
+      let parent_template = grandparent_template.related_templates[0];
+      let child_template = parent_template.related_templates[0];
+      child_template.name = "child edited";
+      grandparent_template = await Helper.templateUpdateAndTest(grandparent_template);
+      expect(await Helper.testAndExtract(Helper.templateDraftExisting, grandparent_template.uuid)).toBe(true);
+      expect(await Helper.testAndExtract(Helper.templateDraftExisting, parent_template.uuid)).toBe(true);
+      await Helper.testAndExtract(Helper.templateDelete, parent_template.uuid);
+      expect(await Helper.testAndExtract(Helper.templateDraftExisting, parent_template.uuid)).toBe(false);
+      await Helper.testAndExtract(Helper.templateDraftGet, grandparent_template.uuid);
+      expect(await Helper.testAndExtract(Helper.templateDraftExisting, parent_template.uuid)).toBe(true);
+    });
+
+    test("new version of child persisted - parent draft created", async () => {
+
+      let template: any = {
+        "name":"parent",
+        related_templates:  [
+          {
+            name: "child"
+          }
+        ]
+      };
+      template = await Helper.templateCreatePersistTest(template);
+
+      let related_template = template.related_templates[0];
+      related_template.name = "child edited";
+      related_template = await Helper.templateUpdatePersistTest(related_template);
+      expect(await Helper.testAndExtract(Helper.templateDraftExisting, template.uuid)).toBe(false);
+      await Helper.testAndExtract(Helper.templateDraftGet, template.uuid);
+      expect(await Helper.testAndExtract(Helper.templateDraftExisting, template.uuid)).toBe(true);
+    });
+  })
+
 });
 
 describe("persist (and get persisted and draft after a persist)", () => {
@@ -960,8 +1042,7 @@ describe("persist (and get persisted and draft after a persist)", () => {
       };
       let persisted = await Helper.templateCreatePersistTest(template);
 
-      // Check that we can still get a draft version
-      let template_draft = await Helper.testAndExtract(Helper.templateDraftGet, persisted.uuid);
+      let template_draft = await Helper.testAndExtract(Helper.templateLatestPersisted, persisted.uuid);
       expect(template_draft).toMatchObject(template);
     });
 
@@ -1037,45 +1118,42 @@ describe("persist (and get persisted and draft after a persist)", () => {
 
     test("Complex persist - persist parent who's child changed previously and no other changes are present", async () => {
 
-      let template: any = {
-        "name":"1",
+      let parent_template: any = {
+        "name":"parent",
         "related_templates":[{
-          "name": "2"
+          "name": "child"
         }]
       };
       // Create initial data
-      template = await Helper.templateCreatePersistTest(template);
-      let uuid = template.uuid;
+      parent_template = await Helper.templateCreatePersistTest(parent_template);
 
-      // Make a change in the third level of data
-      template.related_templates[0].description = "2 has a new description";
-      let uuid2 = template.related_templates[0].uuid;
+      // Make a change in the 2nd level of data
+      let child_template = parent_template.related_templates[0];
+      child_template.description = "child has a new description";
 
       // Update second template
-      let response = await Helper.templateUpdate(uuid2, template.related_templates[0]);
-      expect(response.statusCode).toBe(200);
+      await Helper.testAndExtract(Helper.templateUpdate, child_template.uuid, child_template);
 
       // Record the date before we persist the change to the second template
       let persist_date_2 = (new Date()).getTime();
 
-      await Helper.templatePersistAndFetch(uuid2);
+      child_template = await Helper.templatePersistAndFetch(child_template.uuid);
       
       // Now we want to get a draft of the parent and persist that draft as it is. It should be successful since the child changed.
       
-      template = await Helper.testAndExtract(Helper.templateDraftGet, uuid);
+      parent_template = await Helper.testAndExtract(Helper.templateLatestDraftOrPersisted, parent_template.uuid);
       
       // Update with change
-      response = await Helper.templateUpdate(uuid, template);
-      expect(response.statusCode).toBe(200);
+      parent_template = await Helper.templateUpdateAndTest(parent_template);
 
       // Record the date before we persist the parent template again
       let persist_date_3 = (new Date()).getTime();
 
-      template = await Helper.templatePersistAndFetch(uuid);
+      parent_template = await Helper.templatePersistAndFetch(parent_template.uuid);
 
-      expect(new Date(template.persist_date).getTime()).toBeGreaterThan(persist_date_3);
-      expect(new Date(template.related_templates[0].persist_date).getTime()).toBeGreaterThan(persist_date_2);
-      expect(new Date(template.related_templates[0].persist_date).getTime()).toBeLessThan(persist_date_3);
+      expect(new Date(parent_template.persist_date).getTime()).toBeGreaterThan(persist_date_3);
+      expect(new Date(parent_template.related_templates[0].persist_date).getTime()).toBeGreaterThan(persist_date_2);
+      expect(new Date(parent_template.related_templates[0].persist_date).getTime()).toBeLessThan(persist_date_3);
     });
 
     test("Include a field and related_template user doesn't have edit permissions to, but are public", async () => {
@@ -1184,7 +1262,7 @@ describe("persist (and get persisted and draft after a persist)", () => {
       let parent_uuid = first_persisted.uuid;
 
       // Update with user 1
-      let draft = await Helper.testAndExtract(Helper.templateDraftGet, parent_uuid);
+      let draft = await Helper.testAndExtract(Helper.templateLatestPersisted, parent_uuid);
       draft.description = "d";
       draft.related_templates[0].description = "d";
       draft.fields[0].description = "d";
@@ -1594,14 +1672,8 @@ describe("delete", () => {
     response = await Helper.templateDelete(template.uuid);
     expect(response.statusCode).toBe(200);
   
-    // Get the draft again. Make sure it matches the latest persisted version
     response = await Helper.templateDraftGet(template.uuid);
-    expect(response.statusCode).toBe(200);
-  
-    template.description = "description";
-    delete template._id;
-    delete template.persist_date;
-    expect(response.body).toMatchObject(template);
+    expect(response.statusCode).toBe(404);
   
   });
 

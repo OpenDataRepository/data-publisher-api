@@ -1152,15 +1152,10 @@ describe("update", () => {
         }]
       };
 
-      record = await Helper.recordCreateAndTest(record);
-
-      // Persist the first time
-      await Helper.recordPersistAndTest(record);
+      record = await Helper.recordCreatePersistTest(record);
 
       //  Submit an update on the 3rd layer
-      let response = await Helper.recordDraftGet(record.uuid);
-      expect(response.statusCode).toBe(200);
-      record = response.body;
+      record = await Helper.testAndExtract(Helper.recordNewDraftFromLatestPersisted, record.uuid);
       record.related_records[0].related_records[0].fields[0].value = "banana";
       await Helper.recordUpdateAndTest(record);
 
@@ -1176,7 +1171,7 @@ describe("update", () => {
       [template, dataset, record] = await populateWithDummyTemplateAndRecord();
 
       await Helper.recordPersistAndTest(record);
-      await Helper.recordUpdateAndTest(record);
+      await Helper.testAndExtract(Helper.recordUpdate, record, record.uuid);
       expect(await Helper.recordDraftExisting(record.uuid)).toBeFalsy();
       expect(await Helper.recordDraftExisting(record.related_records[0].uuid)).toBeFalsy();
     });
@@ -1247,6 +1242,179 @@ describe("delete", () => {
     let response = await Helper.recordDelete(record.uuid);
     expect(response.statusCode).toBe(401);
   });
+
+});
+
+describe("get/fetch draft", () => {
+
+  test("get only fetches draft", async () => {
+
+    let template: any = {
+      "name":"t"
+    };
+    template = await Helper.templateCreatePersistTest(template);
+    let dataset: any = {
+      name:"d",
+      template_id: template._id
+    };
+    dataset = await Helper.datasetCreatePersistTest(dataset);
+
+    let record: any = {
+      dataset_uuid: dataset.uuid
+    };
+    record = await Helper.recordCreateAndTest(record);
+
+    let response = await Helper.recordDraftGet(record.uuid);
+    expect(response.statusCode).toBe(200);
+
+    await Helper.recordPersistAndTest(record);
+
+    response = await Helper.recordDraftGet(record.uuid);
+    expect(response.statusCode).toBe(404);
+
+    response = await Helper.recordNewDraftFromLatestPersisted(record.uuid);
+    expect(response.statusCode).toBe(200);
+  });
+
+  describe("parent drafts are created if child drafts are found", () => {
+    test("child draft found - parent draft created", async () => {
+
+      let template: any = {
+        "name":"parent",
+        related_templates:  [
+          {
+            name: "child"
+          }
+        ]
+      };
+      template = await Helper.templateCreatePersistTest(template);
+      let dataset: any = {
+        name:"parent",
+        template_id: template._id,
+        related_datasets:  [
+          {
+            name: "child",
+            template_id: template.related_templates[0]._id,
+          }
+        ]
+      };
+      dataset = await Helper.datasetCreatePersistTest(dataset);
+
+      let record: any = {
+        dataset_uuid: dataset.uuid,
+        related_records:  [
+          {
+            dataset_uuid: dataset.related_datasets[0].uuid,
+          }
+        ]
+      };
+      record = await Helper.recordCreatePersistTest(record);
+
+      let related_record = record.related_records[0];
+      related_record.public_date = (new Date()).toISOString();
+      related_record = await Helper.recordUpdateAndTest(related_record);
+      expect(await Helper.recordDraftExisting(record.uuid)).toBe(false);
+      await Helper.testAndExtract(Helper.recordDraftGet, record.uuid);
+      expect(await Helper.recordDraftExisting(record.uuid)).toBe(true);
+    });
+    test("grandparent draft created, and parent draft deleted - parent draft created", async () => {
+      let grandparent_template: any = {
+        name: "grandparent",
+        related_templates:  [
+          {
+            name: "parent",
+            related_templates: [
+              {
+                name: "child"
+              }
+            ]
+          }
+        ]
+      };
+      grandparent_template = await Helper.templateCreatePersistTest(grandparent_template);
+      let grandparent_dataset: any = {
+        name: "grandparent",
+        template_id: grandparent_template._id,
+        related_datasets:  [
+          {
+            name: "parent",
+            template_id: grandparent_template.related_templates[0]._id,
+            related_datasets: [
+              {
+                name: "child",
+                template_id: grandparent_template.related_templates[0].related_templates[0]._id,
+              }
+            ]
+          }
+        ]
+      };
+      grandparent_dataset = await Helper.datasetCreatePersistTest(grandparent_dataset);
+      let grandparent_record: any = {
+        dataset_uuid: grandparent_dataset.uuid,
+        related_records:  [
+          {
+            dataset_uuid: grandparent_dataset.related_datasets[0].uuid,
+            related_records: [
+              {
+                dataset_uuid: grandparent_dataset.related_datasets[0].related_datasets[0].uuid,
+              }
+            ]
+          }
+        ]
+      };
+      grandparent_record = await Helper.recordCreatePersistTest(grandparent_record);
+      let parent_record = grandparent_record.related_records[0];
+      let child_record = parent_record.related_records[0];
+      child_record.public_date = (new Date()).toISOString();
+      grandparent_record = await Helper.recordUpdateAndTest(grandparent_record);
+      expect(await Helper.recordDraftExisting(grandparent_record.uuid)).toBe(true);
+      expect(await Helper.recordDraftExisting(parent_record.uuid)).toBe(true);
+      await Helper.testAndExtract(Helper.recordDelete, parent_record.uuid);
+      expect(await Helper.recordDraftExisting(parent_record.uuid)).toBe(false);
+      await Helper.testAndExtract(Helper.recordDraftGet, grandparent_record.uuid);
+      expect(await Helper.recordDraftExisting(parent_record.uuid)).toBe(true);
+    });
+
+    test("new version of child persisted - parent draft created", async () => {
+
+      let template: any = {
+        name: "parent",
+        related_templates:  [
+          {
+            name: "child"
+          }
+        ]
+      };
+      template = await Helper.templateCreatePersistTest(template);
+      let dataset: any = {
+        name: "parent",
+        template_id: template._id,
+        related_datasets:  [
+          {
+            name: "child",
+            template_id: template.related_templates[0]._id
+          }
+        ]
+      };
+      dataset = await Helper.datasetCreatePersistTest(dataset);
+      let record: any = {
+        dataset_uuid: dataset.uuid,
+        related_records:  [
+          {
+            dataset_uuid: dataset.related_datasets[0].uuid,
+          }
+        ]
+      };
+      record = await Helper.recordCreatePersistTest(record);
+
+      let related_record = record.related_records[0];
+      related_record.public_date = (new Date()).toISOString();
+      related_record = await Helper.recordUpdatePersistTest(related_record);
+      expect(await Helper.recordDraftExisting(record.uuid)).toBe(false);
+      await Helper.testAndExtract(Helper.recordDraftGet, record.uuid);
+      expect(await Helper.recordDraftExisting(record.uuid)).toBe(true);
+    });
+  })
 
 });
 
@@ -1334,9 +1502,7 @@ describe("persist (and get persisted)", () => {
       await Helper.recordPersistAndTest(record);
 
       // Edit the third record
-      let response = await Helper.recordDraftGet(record.uuid);
-      expect(response.statusCode).toBe(200);
-      record = response.body;
+      record = await Helper.testAndExtract(Helper.recordNewDraftFromLatestPersisted, record.uuid);
       record.related_records[0].related_records[0].fields[0].value = "banana";
       await Helper.recordUpdateAndTest(record);
 
@@ -2093,7 +2259,7 @@ describe("with files", () => {
 
       record = await Helper.recordPersistAndTest(record);
       
-      record = await Helper.recordDraftGetAndTest(record.uuid);
+      record = await Helper.testAndExtract(Helper.recordNewDraftFromLatestPersisted, record.uuid);
 
       record.fields[1].value = "other value";
 
@@ -2109,7 +2275,7 @@ describe("with files", () => {
       record = await Helper.recordPersistAndTest(record);
 
       // Create a second record version with a new file
-      record = await Helper.recordDraftGetAndTest(record.uuid);
+      record = await Helper.testAndExtract(Helper.recordNewDraftFromLatestPersisted, record.uuid);
       record.fields[0].file.uuid = "new";
       record = await Helper.recordUpdateAndTest(record);
       let file_uuid_2 = record.fields[0].file.uuid;
@@ -2161,7 +2327,7 @@ describe("with files", () => {
 
       record = await Helper.recordPersistAndTest(record);
       
-      record = await Helper.recordDraftGetAndTest(record.uuid);
+      record = await Helper.testAndExtract(Helper.recordNewDraftFromLatestPersisted, record.uuid);
       record.fields[0].file.name = "waffle";
 
       record = await Helper.recordUpdatePersistTest(record);

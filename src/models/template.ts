@@ -103,7 +103,7 @@ class Model {
     this.state = state;
   }
 
-  // Creates a draft from the persisted version.
+  // Creates a draft from the persisted version. Does not recurse
   async #createDraftFromPersisted(persisted: Record<string, any>): Promise<Record<string, any>> {
 
     // Create a copy of persisted
@@ -293,22 +293,22 @@ class Model {
     return uuids;
   }
 
-  async #createDraftFromLastPersisted(uuid: string): Promise<void> {
-    let draft = await this.#draftFetchOrCreate(uuid);
-    if(!draft) {
-      throw new Util.NotFoundError();
-    }
-    this.state.updated_at = new Date();
-    this.state.ancestor_uuids = new Set();
-    await this.#validateAndCreateOrUpdate(draft);
-  }
+  // async #createDraftFromLastPersisted(uuid: string): Promise<void> {
+  //   let draft = await this.#draftFetchOrCreate(uuid);
+  //   if(!draft) {
+  //     throw new Util.NotFoundError();
+  //   }
+  //   this.state.updated_at = new Date();
+  //   this.state.ancestor_uuids = new Set();
+  //   await this.#validateAndCreateOrUpdate(draft);
+  // }
 
-  async #createDraftFromLastPersistedWithSession(uuid: string): Promise<void> {
-    let callback = async () => {
-      await this.#createDraftFromLastPersisted(uuid);
-    }
-    await SharedFunctions.executeWithTransaction(this.state, callback);
-  }
+  // async #createDraftFromLastPersistedWithSession(uuid: string): Promise<void> {
+  //   let callback = async () => {
+  //     await this.#createDraftFromLastPersisted(uuid);
+  //   }
+  //   await SharedFunctions.executeWithTransaction(this.state, callback);
+  // }
 
   #initializeNewDraftWithPropertiesSharedWithImport(input_template: Record<string, any>, uuid: string): Record<string, any> {
     let output_template = {
@@ -1000,6 +1000,14 @@ class Model {
     return [fields, field_uuids];
   }
 
+  async #fetchLatestDraftOrPersisted(uuid: string) {
+    let draft = await this.#draftFetch(uuid);
+    if(draft) {
+      return draft;
+    }
+    return this.#latestPersistedWithJoinsAndPermissions(uuid);
+  }
+
   async #draftFetchRelatedTemplates(input_related_template_uuids: string[]): Promise<[Record<string, any>[], string[]]> {
     let related_templates: Record<string, any>[] = [];
     let related_template_uuids: string[] = [];
@@ -1007,7 +1015,7 @@ class Model {
       let related_template;
       try {
         // First try to get the draft of the related_template
-        related_template = await this.#draftFetchOrCreate(related_template_uuid);
+        related_template = await this.#fetchLatestDraftOrPersisted(related_template_uuid);
       } catch (err) {
         if (err instanceof Util.PermissionDeniedError) {
           // If we don't have permission for the draft, get the latest persisted instead
@@ -1039,12 +1047,50 @@ class Model {
     return [related_templates, related_template_uuids];
   }
 
+  // creates drafts for all templates for which decendants have drafts
+  async #createAncestorDraftsForDecendantDrafts(uuid: string, id?: ObjectId): Promise<boolean> {
+    let template_draft_already_existing = false;
+    let template_draft = await SharedFunctions.draft(Template, uuid, this.state.session);
+    let persisted_template = await SharedFunctions.latestPersisted(Template, uuid);
+    if (template_draft) {
+      template_draft_already_existing = true;
+    } else {
+      if(!persisted_template) {
+        return false;
+      }
+      template_draft = await this.#createDraftFromPersisted(persisted_template);
+    }
+    let child_draft_found = false;
+    if(persisted_template) {
+      for(let related_template_id of persisted_template.related_templates) {
+        let related_uuid = await SharedFunctions.uuidFor_id(Template, related_template_id);
+        child_draft_found ||= await this.#createAncestorDraftsForDecendantDrafts(related_uuid, related_template_id);
+      }
+    } else {
+      for(let related_template_uuid of template_draft.related_templates) {
+        child_draft_found ||= await this.#createAncestorDraftsForDecendantDrafts(related_template_uuid);
+      }
+    }
+    let new_persisted_version = false;
+    if(persisted_template && persisted_template._id.toString() != id?.toString()) {
+      new_persisted_version = true;
+    }
+    if(!template_draft_already_existing && child_draft_found) {
+      template_draft.updated_at = new Date();
+      // Create draft for this level
+      let response = await Template.insertOne(template_draft);
+      if (!response.acknowledged || !response.insertedId) {
+        throw new Error(`Template.createAncestorDraftsForDecendantDrafts: acknowledged: ${response.acknowledged}. insertedId: ${response.insertedId}`);
+      } 
+    }
+    return template_draft_already_existing || child_draft_found || new_persisted_version;
+  }
+
   // Fetches the template draft with the given uuid, recursively looking up fields and related_templates.
-  // If a draft of a given template doesn't exist, a new one will be generated using the last persisted template.
-  async #draftFetchOrCreate(uuid: string): Promise<Record<string, any> | null> {
+  async #draftFetch(uuid: string): Promise<Record<string, any> | null> {
 
     // See if a draft of this template exists. 
-    let template_draft = await this.#fetchDraftOrCreateFromPersisted(uuid);
+    let template_draft = await SharedFunctions.draft(Template, uuid, this.state.session);
     if (!template_draft) {
       return null;
     }
@@ -1388,10 +1434,10 @@ class Model {
     await SharedFunctions.executeWithTransaction(this.state, callback);
   }
 
-  // Wraps the actual request to get with a transaction
   async draftGet(uuid: string): Promise<Record<string, any> | null> {
+    await this.#createAncestorDraftsForDecendantDrafts(uuid);
     let callback = async () => {
-      return await this.#draftFetchOrCreate(uuid);
+      return await this.#draftFetch(uuid);
     };
     return await SharedFunctions.executeWithTransaction(this.state, callback);
   }
@@ -1421,20 +1467,20 @@ class Model {
   }
 
   // Parents 2+ levels up are not updated
-  async updateTemplatesThatReference(uuid: string, templateOrField: string): Promise<void> {
-    // Get a list of templates that reference them.
-    let uuids = await this.#templateUUIDsThatReference(uuid, templateOrField);
-    // For each template, create a draft if it doesn't exist
-    for(uuid of uuids) {
-      // when time starts being a problem, move this into a queue OR just remove the await statement.
-      try {
-        await this.#createDraftFromLastPersistedWithSession(uuid);
-      } catch(err) {
-        console.error(err);
-      }
-    }
+  // async updateTemplatesThatReference(uuid: string, templateOrField: string): Promise<void> {
+  //   // Get a list of templates that reference them.
+  //   let uuids = await this.#templateUUIDsThatReference(uuid, templateOrField);
+  //   // For each template, create a draft if it doesn't exist
+  //   for(uuid of uuids) {
+  //     // when time starts being a problem, move this into a queue OR just remove the await statement.
+  //     try {
+  //       await this.#createDraftFromLastPersistedWithSession(uuid);
+  //     } catch(err) {
+  //       console.error(err);
+  //     }
+  //   }
 
-  }
+  // }
 
   async draftExisting(uuid: string): Promise<boolean> {
     return (await SharedFunctions.draft(Template, uuid, this.state.session)) ? true : false;
