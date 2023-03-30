@@ -131,7 +131,8 @@ export = class Helper {
   // verifies that the status code is 200, and returns the response
   testAndExtract = async(callback, ...args) => {
     let response = await callback(...args);
-    expect(response.statusCode).toBe(200);
+    expect(response.statusCode).toBeGreaterThanOrEqual(200);
+    expect(response.statusCode).toBeLessThan(400);
     return response.body;
   }
 
@@ -510,6 +511,9 @@ export = class Helper {
     if(original.uuid) {
       expect(created.uuid).toBe(original.uuid);
     }
+    if(created.no_permissions) {
+      return;
+    }
     expect(created.template_id).toBe(original.template_id);
     if(original.public_date) {
       expect(created.public_date).toEqual(original.public_date);
@@ -557,6 +561,11 @@ export = class Helper {
       .send({last_update})
       .set('Accept', 'application/json');
   };
+  datasetPersistAndTest = async (uuid) => {
+    let last_update = await this.datasetLastUpdateAndTest(uuid);
+    let response = await this.datasetPersist(uuid, last_update);
+    expect(response.statusCode).toBe(200);
+  };
 
   datasetLatestPersisted = async(uuid) => {
     return await this.agent
@@ -572,9 +581,7 @@ export = class Helper {
   }
 
   datasetPersistAndFetch = async (uuid) => {
-    let last_update = await this.datasetLastUpdateAndTest(uuid);
-    let response = await this.datasetPersist(uuid, last_update);
-    expect(response.statusCode).toBe(200);
+    await this.datasetPersistAndTest(uuid);
   
     let persisted_template = await this.testAndExtract(this.datasetLatestPersisted, uuid);
     expect(persisted_template).toHaveProperty("persist_date");

@@ -835,57 +835,8 @@ class Model {
 
   }
 
-  // TODO: this is an exact copy and paste of the template function doing the same thing. Figure out a way to commonize code
-  // creates drafts for all records for which decendants have drafts
-  async #createAncestorDraftsForDecendantDrafts(uuid: string, id?: ObjectId): Promise<boolean> {
-    let record_draft_already_existing = false;
-    let record_draft = await SharedFunctions.draft(Record, uuid, this.state.session);
-    let persisted_record = await SharedFunctions.latestPersisted(Record, uuid);
-    if (record_draft) {
-      record_draft_already_existing = true;
-    } else {
-      if(!persisted_record) {
-        return false;
-      }
-      record_draft = await this.#createDraftFromPersisted(persisted_record);
-    }
-    let child_draft_found = false;
-    if(persisted_record) {
-      for(let related_record_id of persisted_record.related_records) {
-        let related_uuid = await SharedFunctions.uuidFor_id(Record, related_record_id);
-        child_draft_found ||= await this.#createAncestorDraftsForDecendantDrafts(related_uuid, related_record_id);
-      }
-    } else {
-      for(let related_record_uuid of record_draft.related_records) {
-        child_draft_found ||= await this.#createAncestorDraftsForDecendantDrafts(related_record_uuid);
-      }
-    }
-    let new_persisted_version = false;
-    if(persisted_record && persisted_record._id.toString() != id?.toString()) {
-      new_persisted_version = true;
-    }
-    if(!record_draft_already_existing && child_draft_found) {
-      record_draft.updated_at = new Date();
-      // Create draft for this level
-      let response = await Record.insertOne(record_draft);
-      if (!response.acknowledged || !response.insertedId) {
-        throw new Error(`Record.createAncestorDraftsForDecendantDrafts: acknowledged: ${response.acknowledged}. insertedId: ${response.insertedId}`);
-      } 
-    }
-    return record_draft_already_existing || child_draft_found || new_persisted_version;
-  }
-
-  async #fetchLatestDraftOrPersisted(uuid: string, create_from_persisted_if_no_draft: boolean) {
-    let draft = await this.#draftFetch(uuid, create_from_persisted_if_no_draft);
-    if(draft) {
-      return draft;
-    }
-    return this.#latestPersistedWithJoinsAndPermissions(uuid);
-  }
-
-
   // Fetches the record draft with the given uuid, recursively looking up related_records.
-  // If a draft of a given template doesn't exist, a new one will be generated using the last persisted record.
+  // optional: If a draft of a given template doesn't exist, a new one will be generated using the last persisted record.
   async #draftFetch(uuid: string, create_from_persisted_if_no_draft: boolean): Promise<Record<string, any> | null> {
 
     // See if a draft of this template exists. 
@@ -909,7 +860,8 @@ class Model {
     for(let i = 0; i < record_draft.related_records.length; i++) {
       let related_record;
       try{
-        related_record = await this.#fetchLatestDraftOrPersisted(record_draft.related_records[i], create_from_persisted_if_no_draft);
+        related_record = await SharedFunctions.fetchLatestDraftOrPersisted(this.#draftFetch.bind(this),
+        this.#latestPersistedWithJoinsAndPermissions.bind(this), record_draft.related_records[i], create_from_persisted_if_no_draft);
       } catch (err) {
         if (err instanceof Util.PermissionDeniedError) {
           // If we don't have permission for the draft, get the latest persisted instead
@@ -1650,7 +1602,7 @@ class Model {
   }
 
   async draftGet(uuid: string, create_from_persisted_if_no_draft: boolean): Promise<Record<string, any> | null> {
-    await this.#createAncestorDraftsForDecendantDrafts(uuid);
+    await SharedFunctions.createAncestorDraftsForDecendantDrafts(Record, this.#createDraftFromPersisted.bind(this), uuid);
     let callback = async () => {
       return await this.#draftFetch(uuid, create_from_persisted_if_no_draft);
     };

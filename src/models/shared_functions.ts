@@ -166,3 +166,66 @@ export const fetchBy_id = async (collection, _id: ObjectId): Promise<Record<stri
   let draft = await cursor.next();
   return draft;
 }
+
+// creates drafts for all documents for which decendants have drafts or new persisted versions
+export const createAncestorDraftsForDecendantDrafts = async (collection, createDraftFromPersisted, uuid: string, id?: ObjectId): Promise<boolean> => {
+  let draft_already_existing = false;
+  let draft_: any = await draft(collection, uuid);
+  let persisted_doc = await latestPersisted(collection, uuid);
+  if (draft_) {
+    draft_already_existing = true;
+  } else {
+    if(!persisted_doc) {
+      return false;
+    }
+    draft_ = await createDraftFromPersisted(persisted_doc);
+  }
+  let child_draft_found = false;
+
+  let related_docs = "";
+  if(draft_.related_templates) {
+    related_docs = "related_templates";
+  } else if (draft_.related_datasets) {
+    related_docs = "related_datasets";
+  } else if (draft_.related_records) {
+    related_docs = "related_records";
+  } else {
+    throw new Error('createAncestorDraftsForDecendantDrafts: not record, dataset or template');
+  }
+  if(persisted_doc) {
+    for(let related_id of persisted_doc[related_docs]) {
+      let related_uuid = await uuidFor_id(collection, related_id);
+      child_draft_found ||= await createAncestorDraftsForDecendantDrafts(collection, createDraftFromPersisted, related_uuid as string, related_id);
+    }
+  } else {
+    for(let related_uuid of draft_[related_docs]) {
+      child_draft_found ||= await createAncestorDraftsForDecendantDrafts(collection, createDraftFromPersisted, related_uuid);
+    }
+  }
+  let new_persisted_version = false;
+  if(persisted_doc && persisted_doc._id.toString() != id?.toString()) {
+    new_persisted_version = true;
+  }
+  if(!draft_already_existing && child_draft_found) {
+    draft_.updated_at = new Date();
+    // Create draft for this level
+    let response = await collection.insertOne(draft_);
+    if (!response.acknowledged || !response.insertedId) {
+      throw new Error(`createAncestorDraftsForDecendantDrafts: acknowledged: ${response.acknowledged}. insertedId: ${response.insertedId}`);
+    } 
+  }
+  return draft_already_existing || child_draft_found || new_persisted_version;
+}
+
+export const fetchLatestDraftOrPersisted = async(draftFetch, latestPersistedWithJoinsAndPermissions, uuid, create_from_persisted_if_no_draft?) => {
+  let draft;
+  if(create_from_persisted_if_no_draft) {
+    draft = await draftFetch(uuid, create_from_persisted_if_no_draft);
+  } else {
+    draft = await draftFetch(uuid);
+  }
+  if(draft) {
+    return draft;
+  }
+  return latestPersistedWithJoinsAndPermissions(uuid);
+}

@@ -1000,14 +1000,6 @@ class Model {
     return [fields, field_uuids];
   }
 
-  async #fetchLatestDraftOrPersisted(uuid: string) {
-    let draft = await this.#draftFetch(uuid);
-    if(draft) {
-      return draft;
-    }
-    return this.#latestPersistedWithJoinsAndPermissions(uuid);
-  }
-
   async #draftFetchRelatedTemplates(input_related_template_uuids: string[]): Promise<[Record<string, any>[], string[]]> {
     let related_templates: Record<string, any>[] = [];
     let related_template_uuids: string[] = [];
@@ -1015,7 +1007,8 @@ class Model {
       let related_template;
       try {
         // First try to get the draft of the related_template
-        related_template = await this.#fetchLatestDraftOrPersisted(related_template_uuid);
+        related_template = await SharedFunctions.fetchLatestDraftOrPersisted(this.#draftFetch.bind(this),
+          this.#latestPersistedWithJoinsAndPermissions.bind(this), related_template_uuid);
       } catch (err) {
         if (err instanceof Util.PermissionDeniedError) {
           // If we don't have permission for the draft, get the latest persisted instead
@@ -1045,45 +1038,6 @@ class Model {
       }
     }
     return [related_templates, related_template_uuids];
-  }
-
-  // creates drafts for all templates for which decendants have drafts
-  async #createAncestorDraftsForDecendantDrafts(uuid: string, id?: ObjectId): Promise<boolean> {
-    let template_draft_already_existing = false;
-    let template_draft = await SharedFunctions.draft(Template, uuid, this.state.session);
-    let persisted_template = await SharedFunctions.latestPersisted(Template, uuid);
-    if (template_draft) {
-      template_draft_already_existing = true;
-    } else {
-      if(!persisted_template) {
-        return false;
-      }
-      template_draft = await this.#createDraftFromPersisted(persisted_template);
-    }
-    let child_draft_found = false;
-    if(persisted_template) {
-      for(let related_template_id of persisted_template.related_templates) {
-        let related_uuid = await SharedFunctions.uuidFor_id(Template, related_template_id);
-        child_draft_found ||= await this.#createAncestorDraftsForDecendantDrafts(related_uuid, related_template_id);
-      }
-    } else {
-      for(let related_template_uuid of template_draft.related_templates) {
-        child_draft_found ||= await this.#createAncestorDraftsForDecendantDrafts(related_template_uuid);
-      }
-    }
-    let new_persisted_version = false;
-    if(persisted_template && persisted_template._id.toString() != id?.toString()) {
-      new_persisted_version = true;
-    }
-    if(!template_draft_already_existing && child_draft_found) {
-      template_draft.updated_at = new Date();
-      // Create draft for this level
-      let response = await Template.insertOne(template_draft);
-      if (!response.acknowledged || !response.insertedId) {
-        throw new Error(`Template.createAncestorDraftsForDecendantDrafts: acknowledged: ${response.acknowledged}. insertedId: ${response.insertedId}`);
-      } 
-    }
-    return template_draft_already_existing || child_draft_found || new_persisted_version;
   }
 
   // Fetches the template draft with the given uuid, recursively looking up fields and related_templates.
@@ -1435,7 +1389,7 @@ class Model {
   }
 
   async draftGet(uuid: string): Promise<Record<string, any> | null> {
-    await this.#createAncestorDraftsForDecendantDrafts(uuid);
+    await SharedFunctions.createAncestorDraftsForDecendantDrafts(Template, this.#createDraftFromPersisted.bind(this), uuid);
     let callback = async () => {
       return await this.#draftFetch(uuid);
     };

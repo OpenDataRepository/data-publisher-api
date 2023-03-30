@@ -856,7 +856,7 @@ describe("update (and get draft)", () => {
       dataset = await Helper.datasetPersistAndFetch(dataset.uuid);
       template.description = "des";
       template = await Helper.templateUpdatePersistTest(template);
-      await Helper.datasetUpdateAndTest(dataset);
+      await Helper.testAndExtract(Helper.datasetUpdate, dataset.uuid, dataset);
       expect(await Helper.datasetDraftExistingAndTest(dataset.uuid)).toBeFalsy();
       expect(await Helper.datasetDraftExistingAndTest(dataset.related_datasets[0].uuid)).toBeFalsy();
     });
@@ -910,7 +910,7 @@ describe("update (and get draft)", () => {
       dataset = await Helper.datasetCreatePersistTest(dataset);
 
       //  Submit an update on the 3rd layer
-      let response = await Helper.datasetDraftGet(dataset.uuid);
+      let response = await Helper.datasetLatestPersisted(dataset.uuid);
       expect(response.statusCode).toBe(200);
       dataset = response.body;
       dataset.related_datasets[0].related_datasets[0].public_date = (new Date()).toISOString();
@@ -950,7 +950,7 @@ describe("update (and get draft)", () => {
       subscribed_template = await Helper.templateUpdatePersistTest(subscribed_template);
 
       // Now there shouldn't be any update to the dataset if we try to update
-      await Helper.datasetUpdateAndTest(dataset);
+      await Helper.testAndExtract(Helper.datasetUpdate, dataset.uuid, dataset);
       expect(await Helper.datasetDraftExistingAndTest(dataset.uuid)).toBeFalsy();
       expect(await Helper.datasetDraftExistingAndTest(dataset.related_datasets[0].uuid)).toBeFalsy();
     });
@@ -975,7 +975,7 @@ describe("get draft", () => {
     expect(response.statusCode).toBe(401);
   });
 
-  test("if user has view but not edit access to linked dataset, the pubished version replaces that dataset", async () => {
+  test("if user has view but not edit access to linked dataset draft, an empty object replaces that property", async () => {
 
     let template: any = { 
       name: "t1",
@@ -984,16 +984,16 @@ describe("get draft", () => {
     };
     template = await Helper.templateCreatePersistTest(template);  
 
-    let related_dataset = {
+    let related_dataset: any = {
       template_id: template.related_templates[0]._id
     };
-    related_dataset = await Helper.datasetCreatePersistTest(related_dataset);
+    related_dataset = await Helper.datasetCreateAndTest(related_dataset);
 
     let dataset: any = {
       template_id: template._id,
       related_datasets: [related_dataset]
     };
-    dataset = await Helper.datasetCreatePersistTest(dataset);
+    dataset = await Helper.datasetCreateAndTest(dataset);
 
     let users = [Helper.DEF_EMAIL, Helper.EMAIL_2];
 
@@ -1007,10 +1007,10 @@ describe("get draft", () => {
 
     await Helper.setAgent(agent2);
 
-    // Fetch parent dataset, check that related_dataset is fetched as the persisted version
+    // Fetch parent dataset, check that related_dataset is fetched as an empty object
     let dataset_draft = await Helper.datasetDraftGetAndTest(dataset.uuid);
+    dataset.related_datasets[0] = {uuid: related_dataset.uuid};
     Helper.testDatasetDraftsEqual(dataset, dataset_draft);
-
   });
 
   test("if user has neither view nor edit access to linked properties, an empty object replaces that property", async () => {
@@ -1025,13 +1025,13 @@ describe("get draft", () => {
     let related_dataset: any = {
       template_id: template.related_templates[0]._id
     };
-    related_dataset = await Helper.datasetCreatePersistTest(related_dataset);
+    related_dataset = await Helper.datasetCreateAndTest(related_dataset);
 
     let dataset: any = {
       template_id: template._id,
       related_datasets: [related_dataset]
     };
-    dataset = await Helper.datasetCreatePersistTest(dataset);
+    dataset = await Helper.datasetCreateAndTest(dataset);
 
     let users = [Helper.DEF_EMAIL, Helper.EMAIL_2];
 
@@ -1044,6 +1044,30 @@ describe("get draft", () => {
     let dataset_draft = await Helper.datasetDraftGetAndTest(dataset.uuid);
     dataset.related_datasets[0] = {uuid: related_dataset.uuid};
     Helper.testDatasetDraftsEqual(dataset, dataset_draft);
+  });
+
+  test("if a draft has a related_dataset which is persisted but doesn't have a draft, the persisted version is connected", async () => {
+    let template: any = {
+      name: "t",
+      related_templates: [{
+        name: "t2"
+      }]
+    }
+    template = await Helper.templateCreatePersistTest(template);
+    let dataset: any = {
+      template_id: template._id,
+      related_datasets: [{
+        template_id: template.related_templates[0]._id
+      }]
+    };
+    dataset = await Helper.datasetCreateAndTest(dataset);
+    await Helper.datasetPersistAndTest(dataset.related_datasets[0].uuid);
+
+    
+    dataset = await Helper.testAndExtract(Helper.datasetDraftGet, dataset.uuid);
+    expect(dataset).not.toHaveProperty('persist_date');
+    expect(dataset.related_datasets.length).toBe(1);
+    expect(dataset.related_datasets[0]).toHaveProperty('persist_date');
   });
 });
 
@@ -1217,7 +1241,7 @@ describe("persist (and get persisted)", () => {
       dataset = await Helper.datasetCreatePersistTest(dataset);
 
       // Update with user 1
-      let response = await Helper.datasetDraftGet(dataset.uuid);
+      let response = await Helper.datasetLatestPersisted(dataset.uuid);
       expect(response.statusCode).toBe(200);
       let draft = response.body;
       draft.public_date = (new Date()).toISOString();
@@ -1929,8 +1953,8 @@ describe("delete", () => {
     response = await Helper.datasetDelete(dataset.uuid);
     expect(response.statusCode).toBe(200);
   
-    // Get the draft again. Make sure it matches the latest persisted version
-    response = await Helper.datasetDraftGet(dataset.uuid);
+    // Make sure the latest persisted version still exists and hasn't changed
+    response = await Helper.datasetLatestPersisted(dataset.uuid);
     expect(response.statusCode).toBe(200);
   
     delete dataset._id;

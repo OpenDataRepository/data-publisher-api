@@ -1,7 +1,7 @@
 const DatasetModel = require('../models/dataset');
 const DatasetPublishModel = require('../models/datasetPublish');
 const RecordModel = require('../models/record');
-import { PermissionTypes, model as PermissionModel } from '../models/permission';
+import { model as PermissionModel } from '../models/permission';
 const SharedFunctions = require('../models/shared_functions');
 const Util = require('../lib/util');
 const ElasticsearchModel = require ('../models/elasticsearch');
@@ -10,7 +10,7 @@ exports.draft_get = async function(req, res, next) {
   try {
     let state = Util.initializeState(req);
     let model_instance = new DatasetModel.model(state);
-    let dataset = await model_instance.draftGet(req.params.uuid);
+    let dataset = await model_instance.draftGet(req.params.uuid, false);
     if(dataset) {
       res.json(dataset);
     } else {

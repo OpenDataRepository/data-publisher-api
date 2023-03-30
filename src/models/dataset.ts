@@ -140,7 +140,7 @@ class Model {
       return true;
     }
 
-    // Finally, if any of the dependencies have been persisted more recently than this record, then there are changes
+    // If any of the dependencies have been persisted more recently than this record, then there are changes
     for(let related_dataset of draft.related_datasets) {
       let related_dataset_last_persisted = (await SharedFunctions.latestPersisted(Dataset, related_dataset, this.state.session)).persist_date;
       if (Util.isTimeAAfterB(related_dataset_last_persisted, latest_persisted.persist_date)) {
@@ -469,18 +469,28 @@ class Model {
   }
 
   // Fetches the dataset draft with the given uuid, recursively looking up related_datasets.
-  // If a draft of a given dataset doesn't exist, a new one will be generated using the last persisted dataset.
-  async #draftFetchOrCreate(uuid: string): Promise<Record<string, any> | null> {
+  // optional: If a draft of a given template doesn't exist, a new one will be generated using the last persisted record.
+  async #draftFetch(uuid: string, create_from_persisted_if_no_draft: boolean): Promise<Record<string, any> | null> {
 
     // See if a draft of this dataset exists. 
-    let dataset_draft = await this.#fetchDraftOrCreateFromPersisted(uuid);
-    if (!dataset_draft) {
+    let dataset_draft;
+    if(create_from_persisted_if_no_draft) {
+      dataset_draft = await this.#fetchDraftOrCreateFromPersisted(uuid);
+    } else {
+      dataset_draft = await SharedFunctions.draft(Dataset, uuid, this.state.session);
+    }
+
+    if(!SharedFunctions.exists(Dataset, uuid)) {
       return null;
     }
-    
-    // Make sure this user has a permission to be working with drafts
+
+    // Make sure this user has permission to be working with drafts
     if (!(await (new PermissionModel.model(this.state)).hasExplicitPermission(uuid, PermissionModel.PermissionTypes.admin))) {
       throw new Util.PermissionDeniedError(`You do not have the edit permissions required to view draft ${uuid}`);
+    }
+
+    if (!dataset_draft) {
+      return null;
     }
 
     // Now recurse into each related_dataset, replacing each uuid with an imbedded object
@@ -490,7 +500,8 @@ class Model {
       let related_dataset_uuid = dataset_draft.related_datasets[i];
       let related_dataset;
       try {
-        related_dataset = await this.#draftFetchOrCreate(related_dataset_uuid);
+        related_dataset = await SharedFunctions.fetchLatestDraftOrPersisted(this.#draftFetch.bind(this),
+         this.#latestPersistedWithJoinsAndPermissions.bind(this), related_dataset_uuid, create_from_persisted_if_no_draft);
       } catch (err) {
         if (err instanceof Util.PermissionDeniedError) {
           // If we don't have permission for the draft, get the latest persisted instead
@@ -897,7 +908,7 @@ class Model {
     let original_group_uuid = original_dataset.group_uuid;
     let uuid_dictionary = {};
     let new_uuid = await this.#duplicateRecursor(original_dataset, original_group_uuid, uuidv4(), uuid_dictionary);
-    return await this.#draftFetchOrCreate(new_uuid);
+    return await this.#draftFetch(new_uuid, false);
   }
 
   async #createMissingDatasetForImport(template: Record<string, any>): Promise<string> {
@@ -1195,9 +1206,10 @@ class Model {
   }
 
   // Wraps the actual request to get with a transaction
-  async draftGet(uuid: string): Promise<Record<string, any> | null> {
+  async draftGet(uuid: string, create_from_persisted_if_no_draft: boolean): Promise<Record<string, any> | null> {
+    await SharedFunctions.createAncestorDraftsForDecendantDrafts(Dataset, this.#createDraftFromPersisted.bind(this), uuid);
     let callback = async () => {
-      return await this.#draftFetchOrCreate(uuid);
+      return await this.#draftFetch(uuid, create_from_persisted_if_no_draft);
     }
     if(!this.state.session) {
       return await SharedFunctions.executeWithTransaction(this.state, callback);
