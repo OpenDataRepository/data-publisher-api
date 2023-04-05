@@ -515,6 +515,7 @@ export = class Helper {
       return;
     }
     expect(created.template_id).toBe(original.template_id);
+    expect(created).toHaveProperty("template_uuid");
     if(original.public_date) {
       expect(created.public_date).toEqual(original.public_date);
     }

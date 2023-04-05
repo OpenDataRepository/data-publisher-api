@@ -29,6 +29,10 @@ const Schema = Object.freeze({
       bsonType: "objectId",
       description: "identifies the specific template and version that this dataset uses"
     },
+    template_uuid: {
+      bsonType: "string",
+      description: "extra protection to back up the template in case the template version is deleted"
+    },
     updated_at: {
       bsonType: "date",
       description: "identifies the last update for this version of this dataset"
@@ -151,6 +155,7 @@ class Model {
     return false;
   }
 
+  // TODO: this function shares a lot of code with the main validateAndCreateOrUpdate. Consider commonizing
   async #createNewDatasetForTemplate(template: Record<string, any>, group_uuid: string, public_date?: Date): Promise<Record<string, any>> {
     let uuid = uuidv4();
     await (new PermissionModel.model(this.state)).initializePermissionsFor(uuid);
@@ -158,6 +163,7 @@ class Model {
       uuid,
       name: "",
       template_id: template._id,
+      template_uuid: template.uuid,
       group_uuid,
       updated_at: this.state.updated_at,
       related_datasets: []
@@ -356,6 +362,7 @@ class Model {
       uuid,
       name,
       template_id: SharedFunctions.convertToMongoId(input_dataset.template_id),
+      template_uuid: template.uuid,
       group_uuid,
       updated_at: this.state.updated_at,
       related_datasets: []
@@ -508,13 +515,16 @@ class Model {
           try {
             related_dataset = await this.#latestPersistedWithJoinsAndPermissions(related_dataset_uuid)
           } catch (err) {
-            if (err instanceof Util.PermissionDeniedError || err instanceof Util.NotFoundError) {
+            if (err instanceof Util.PermissionDeniedError) {
               // If we don't have permission for the persisted version, or a persisted version doesn't exist, just attach a uuid and a flag marking no_permissions
               related_dataset = {uuid: related_dataset_uuid, no_permissions: true};
             } 
             else {
               throw err;
             }
+          }
+          if(!related_dataset) {
+            related_dataset = {uuid: related_dataset_uuid, no_permissions: true};
           }
         } else {
           throw err;
@@ -871,6 +881,7 @@ class Model {
       uuid,
       updated_at: new Date(),
       template_id: original_dataset.template_id,
+      template_uuid: original_dataset.template_uuid,
       group_uuid: new_group_uuid,
       related_datasets: []
     }
