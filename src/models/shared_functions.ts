@@ -133,9 +133,11 @@ export const executeWithTransaction = async (state, callback) => {
       }
     });
     session.endSession();
+    delete state.session;
     return result;
   } catch(err) {
     session.endSession();
+    delete state.session;
     throw err;
   }
 }

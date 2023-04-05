@@ -89,7 +89,6 @@ exports.create = async function(req, res, next) {
   }
 }
 
-// TODO: template, dataset and record update should redirect like create
 exports.update = async function(req, res, next) {
   try {
     if(!Util.objectContainsUUID(req.body, req.params.uuid)) {

@@ -791,8 +791,8 @@ describe("update (and get draft)", () => {
       [template, dataset] = await populateWithDummyTemplateAndDataset();
 
       dataset = await Helper.datasetPersistAndFetch(dataset.uuid);
-      let response = await Helper.datasetUpdate(dataset.uuid, dataset);
-      expect(response.statusCode).toBe(303);
+      dataset = await Helper.datasetUpdateAndTest(dataset);
+      expect(dataset).toHaveProperty("persist_date");
       expect(await Helper.datasetDraftExistingAndTest(dataset.uuid)).toBeFalsy();
       expect(await Helper.datasetDraftExistingAndTest(dataset.related_datasets[0].uuid)).toBeFalsy();
     });

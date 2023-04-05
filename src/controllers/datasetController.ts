@@ -64,13 +64,18 @@ exports.create = async function(req, res, next) {
 
 exports.update = async function(req, res, next) {
   try {
-    if(!Util.objectContainsUUID(req.body, req.params.uuid)) {
+    const uuid = req.params.uuid;
+    if(!Util.objectContainsUUID(req.body, uuid)) {
       throw new Util.InputError(`UUID provided and the body uuid do not match.`)
     }
     let state = Util.initializeState(req);
     let model_instance = new DatasetModel.model(state);
     await model_instance.update(req.body);
-    res.redirect(303, `/dataset/${req.params.uuid}/draft`)
+    if(await model_instance.draftExisting(uuid)) {
+      res.redirect(303, `/dataset/${uuid}/draft`)
+    } else {
+      res.redirect(303, `/dataset/${uuid}/latest_persisted`)
+    }
   } catch(err) {
     next(err);
   }
