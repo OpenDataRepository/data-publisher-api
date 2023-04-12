@@ -835,6 +835,10 @@ class Model {
 
   }
 
+
+  // TODO: commonize this code with dataset if possible
+  // TODO: Either here or in createAncestorDraftsForDecendantDrafts, delete draft if there are no changes
+
   // Fetches the record draft with the given uuid, recursively looking up related_records.
   // optional: If a draft of a given template doesn't exist, a new one will be generated using the last persisted record.
   async #draftFetch(uuid: string, create_from_persisted_if_no_draft: boolean): Promise<Record<string, any> | null> {
@@ -1571,7 +1575,7 @@ class Model {
     let dataset = await SharedFunctions.latestPersisted(DatasetModel.collection(), (record as Record<string, any>).dataset_uuid, this.state.session);
     // If both the dataset and the record are public, then everyone has view access
     if (Util.isPublic(dataset.public_date)){
-      if(!(record as Record<string, any>).public_date || Util.isTimeAAfterB((new Date).getTime(), (record as Record<string, any>).public_date)) {
+      if(!(record as Record<string, any>).public_date || Util.isTimeAAfterB(new Date, (record as Record<string, any>).public_date)) {
         return true;
       }
     }

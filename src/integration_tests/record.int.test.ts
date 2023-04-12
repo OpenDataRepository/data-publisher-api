@@ -1416,6 +1416,59 @@ describe("get/fetch draft", () => {
     });
   })
 
+  // TODO: uncomment this test after writing this code
+  // test("draft is deleted if there are no changes", async () => {
+
+  //   let template: any = {
+  //     name: "parent",
+  //     related_templates: [{
+  //       name: "child",
+  //       fields: [{
+  //         name: "child field"
+  //       }]
+  //     }]
+  //   };
+  //   template = await Helper.templateCreatePersistTest(template);
+  //   let dataset: any = {
+  //     name: "parent",
+  //     template_id: template._id,
+  //     related_datasets: [{
+  //       name: "child",
+  //       template_id: template.related_templates[0]._id
+  //     }]
+  //   };
+  //   dataset = await Helper.datasetCreatePersistTest(dataset);
+
+  //   let record: any = {
+  //     dataset_uuid: dataset.uuid,
+  //     related_records: [{
+  //       dataset_uuid: dataset.related_datasets[0].uuid,
+  //       fields: [{
+  //         uuid: template.related_templates[0].fields[0].uuid,
+  //         value: "a"
+  //       }]
+  //     }]
+  //   };
+  //   record = await Helper.recordCreatePersistTest(record);
+
+  //   // update child draft
+  //   let child_record = record.related_records[0];
+  //   child_record.fields[0].value = 'b';
+
+  //   await Helper.recordUpdateAndTest(child_record);
+
+  //   // fetch parent record. A draft should be created for it
+  //   let response = await Helper.recordDraftGet(record.uuid);
+  //   expect(response.statusCode).toBe(200);
+
+  //   // delete child draft
+  //   await Helper.recordDeleteAndTest(child_record.uuid);
+
+  //   // fetch parent draft. It should be deleted and return 404
+  //   response = await Helper.recordDraftGet(record.uuid);
+  //   expect(response.statusCode).toBe(404);
+  // });
+
 });
 
 describe("persist (and get persisted)", () => {

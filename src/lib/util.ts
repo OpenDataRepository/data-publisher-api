@@ -30,11 +30,22 @@ export function objectContainsUUID(object, uuid) {
 }
 
 export function isTimeAAfterB(a, b): boolean {
-  return ((new Date(a)).getTime() - (new Date(b)).getTime()) > 0;
+  if((typeof(a) != 'string' && !(a instanceof Date)) ||
+    (typeof(b) != 'string' && !(b instanceof Date))
+  ) {
+    throw new Error(`isTimeAAfterB: input must be a string in date format or date object`);
+  }
+  if(typeof(a) == 'string') {
+    a = new Date(a);
+  }
+  if(typeof(b) == 'string') {
+    b = new Date(b);
+  }
+  return (a.getTime() - (b.getTime())) > 0;
 }
 
 export function isPublic(public_date): boolean {
-  return public_date && isTimeAAfterB((new Date()).getTime(), public_date);
+  return public_date && isTimeAAfterB(new Date(), public_date);
 }
 
 export function isDateValid(date): boolean {

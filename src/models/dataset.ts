@@ -1309,10 +1309,11 @@ class Model {
     return await this.#importDatasetForTemplate(template);
   };
 
+  // Returns uuids that were public at some point
   static async allPublicUuids(): Promise<string[]> {
     return await Dataset.distinct(
       "uuid",
-      {public_date: {$exists: true, $lte: new Date()}}
+      {public_date: {$exists: true, $lte: new Date()}, persist_date: {$exists: true}}
     );
   }
 
@@ -1334,6 +1335,26 @@ class Model {
       if(!seen_uuids.has(dataset.uuid)) {
         seen_uuids.add(dataset.uuid);
         datasets.push(dataset);
+      }
+    }
+    return datasets;
+  }
+
+  async latestPublicDatasets(): Promise<Record<string, any>[]> {
+    let all_public_uuids = await Model.allPublicUuids();
+    let unfiltered_datasets = await Dataset.find({"uuid": {"$in": all_public_uuids}})
+      .sort({'persist_date': -1})
+      .toArray();
+    let datasets: Record<string, any>[] = [];
+    // after getting results, use a set to only keep the latest version of each uuid
+    // also only keep it if the latest version is public
+    let seen_uuids = new Set();
+    for(let dataset of unfiltered_datasets) {
+      if(!seen_uuids.has(dataset.uuid)) {
+        if(dataset.public_date && Util.isTimeAAfterB(new Date(), dataset.public_date)) {
+          datasets.push(dataset);
+        }
+        seen_uuids.add(dataset.uuid);
       }
     }
     return datasets;

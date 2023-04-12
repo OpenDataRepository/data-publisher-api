@@ -47,6 +47,19 @@ test('datesEqual', () => {
   expect(Util.datesEqual(new Date(), null)).toBeFalsy();
 })
 
+test('isTimeAAfterB', () => {
+  let early = new Date("2011-09-29 14:58:12");
+  let late = new Date("2011-09-29 14:58:13");
+  let earlyString = early.toISOString();
+  let lateString = late.toISOString();
+  
+  expect(Util.isTimeAAfterB(early, late)).toBeFalsy();
+  expect(Util.isTimeAAfterB(late, early)).toBeTruthy();
+  expect(Util.isTimeAAfterB(lateString, earlyString)).toBeTruthy();
+  expect(Util.isTimeAAfterB(lateString, early)).toBeTruthy();
+  expect(Util.isTimeAAfterB(late, earlyString)).toBeTruthy();
+})
+
 test('anyDuplicateInArray', () => {
   expect(Util.anyDuplicateInArray(['a', 'a'])).toBeTruthy();
 

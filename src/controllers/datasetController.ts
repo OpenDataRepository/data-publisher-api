@@ -277,7 +277,6 @@ exports.search_published_records = async function(req, res, next) {
   }
 }
 
-// TODO: this and the below export should probably return actual datasets and not just uuids
 exports.all_public_uuids = async function(req, res, next) {
   try {
     let public_uuids = await DatasetModel.model.allPublicUuids();
@@ -293,6 +292,15 @@ exports.all_viewable_uuids = async function(req, res, next) {
     let model_instance = new DatasetModel.model(state);
     let viewable_uuids = await model_instance.allViewableUuids();
     res.send(viewable_uuids);
+  } catch(err) {
+    next(err);
+  }
+}
+
+exports.all_public_datasets = async function(req, res, next) {
+  try {
+    let datasets = await (new DatasetModel.model({})).latestPublicDatasets();
+    res.send(datasets);
   } catch(err) {
     next(err);
   }
