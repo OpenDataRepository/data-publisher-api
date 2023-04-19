@@ -919,6 +919,12 @@ export = class Helper {
     await this.testPermission(uuid, PermissionTypes.view, 200, []);
   }
 
+  currentUserHasPermission = async (uuid, category) => {
+    return await this.agent
+      .get(`/permission/current_user_has_permission/${uuid}/${category}`)
+      .set('Accept', 'application/json');
+  };
+
   // files 
 
   testDataPath = appRoot + '/test_data'

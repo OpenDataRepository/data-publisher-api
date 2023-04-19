@@ -100,3 +100,22 @@ exports.get_document_permissions = async function(req, res, next) {
     next(err);
   }
 }
+
+exports.current_user_has_permission = async function(req, res, next) {
+  try {
+    const document_uuid = req.params.uuid;
+    const permission_level = req.params.permission_level;
+
+    if(!PermissionModel.model.validPermissionLevel(permission_level)) {
+      throw new Util.NotFoundError();
+    }
+
+    let state = Util.initializeState(req);
+    let model_instance = new PermissionModel.model(state);
+
+    const has_permission = await model_instance.hasExplicitPermission(document_uuid, permission_level);
+    res.send(has_permission);
+  } catch(err) {
+    next(err);
+  }
+}

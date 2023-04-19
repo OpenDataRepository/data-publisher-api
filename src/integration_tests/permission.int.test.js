@@ -387,3 +387,25 @@ describe("user permissions: admin and super", () => {
     });
   });
 });
+
+test("current user has permission", async () => {
+  let template = await Helper.templateCreateAndTest({
+    name: 'template'
+  });
+
+  let result = await Helper.testAndExtract(Helper.currentUserHasPermission, template.uuid, 'admin');
+  expect(result).toBe(true);
+  result = await Helper.testAndExtract(Helper.currentUserHasPermission, template.uuid, 'edit');
+  expect(result).toBe(true);
+  result = await Helper.testAndExtract(Helper.currentUserHasPermission, template.uuid, 'view');
+  expect(result).toBe(true);
+
+  let agent2 = await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
+  result = await Helper.testAndExtract(Helper.currentUserHasPermission, template.uuid, 'admin');
+  expect(result).toBe(false);
+  result = await Helper.testAndExtract(Helper.currentUserHasPermission, template.uuid, 'edit');
+  expect(result).toBe(false);
+  result = await Helper.testAndExtract(Helper.currentUserHasPermission, template.uuid, 'view');
+  expect(result).toBe(false);
+
+});
