@@ -14,14 +14,16 @@ export const draft = async (collection, uuid: string, session?): Promise<Record<
   let cursor = await collection.find(
     {uuid, 'persist_date': {'$exists': false}}, 
     {session}
-  );
+  ).sort({'updated_at': -1});
 
   if(!(await cursor.hasNext())) {
     return null;
   } 
   let draft = await cursor.next();
-  if (await cursor.hasNext()) {
-    throw `Multiple drafts found for uuid ${uuid}`;
+  while (await cursor.hasNext()) {
+    console.error(`Duplicate draft found and deleted for uuid ${uuid}.`);
+    let second_draft = await cursor.next();
+    await draftDeleteBy_id(collection, second_draft._id, session);
   }
   return draft;
 }
@@ -230,4 +232,11 @@ export const fetchLatestDraftOrPersisted = async(draftFetch, latestPersistedWith
     return draft;
   }
   return latestPersistedWithJoinsAndPermissions(uuid);
+}
+
+const draftDeleteBy_id = async (collection, _id: ObjectId, session?): Promise<void> => {
+  await collection.deleteMany(
+    { _id, persist_date: {'$exists': false} },
+    { session }
+  );
 }

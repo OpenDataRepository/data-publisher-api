@@ -475,6 +475,31 @@ class Model {
     return dataset_draft;
   }
 
+  // TODO: the front-end relies on these two functions supplying all of the information they supply. 
+  // Consider writing unit tests. Also in template
+
+  // Gives the bare minimum information to a user who has no view permissions to this draft
+  async #getNoPermissionsLatestDocument(uuid: string) {
+    let raw_doc = await SharedFunctions.latestDocument(Dataset, uuid, this.state.session);
+    return {
+      uuid,
+      template_uuid: raw_doc.template_uuid,
+      template_id: raw_doc.template_id,
+      no_permissions: true
+    }
+  }
+
+  // Gives the bare minimum information to a user who has no view permissions to this draft
+  async #getNoPermissionsPersistedVersion(_id: string) {
+    let raw_dataset = await SharedFunctions.fetchBy_id(Dataset, _id);
+    return {
+      uuid: raw_dataset.uuid,
+      template_uuid: raw_dataset.template_uuid,
+      template_id: raw_dataset.template_id,
+      no_permissions: true
+    }
+  }
+
   // Fetches the dataset draft with the given uuid, recursively looking up related_datasets.
   // optional: If a draft of a given template doesn't exist, a new one will be generated using the last persisted record.
   async #draftFetch(uuid: string, create_from_persisted_if_no_draft: boolean): Promise<Record<string, any> | null> {
@@ -517,14 +542,14 @@ class Model {
           } catch (err) {
             if (err instanceof Util.PermissionDeniedError) {
               // If we don't have permission for the persisted version, or a persisted version doesn't exist, just attach a uuid and a flag marking no_permissions
-              related_dataset = {uuid: related_dataset_uuid, no_permissions: true};
+              related_dataset = await this.#getNoPermissionsLatestDocument(related_dataset_uuid);
             } 
             else {
               throw err;
             }
           }
           if(!related_dataset) {
-            related_dataset = {uuid: related_dataset_uuid, no_permissions: true};
+            related_dataset = await this.#getNoPermissionsLatestDocument(related_dataset_uuid);
           }
         } else {
           throw err;
@@ -825,7 +850,7 @@ class Model {
   async #filterPersistedForPermissionsRecursor(dataset: Record<string, any>): Promise<void> {
     for(let i = 0; i < dataset.related_datasets.length; i++) {
       if(!(await this.hasViewPermissionToPersisted(dataset.related_datasets[i].uuid))) {
-        dataset.related_datasets[i] = {uuid: dataset.related_datasets[i].uuid};
+        dataset.related_datasets[i] = await this.#getNoPermissionsPersistedVersion(dataset.related_datasets[i]._id);
       } else {
         await this.#filterPersistedForPermissionsRecursor(dataset.related_datasets[i]);
       }

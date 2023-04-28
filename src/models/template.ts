@@ -445,6 +445,10 @@ class Model {
         if (err instanceof Util.NotFoundError) {
           throw new Util.InputError(err.message);
         } else if (err instanceof Util.PermissionDeniedError) {
+          // TODO: if user doesn't have view permissions, prevent them from adding the related_dataset 
+          // (although they can keep it if the last version had it - aka someone with view permissions added it)
+          // Do the same for dataset and record
+
           // If the user doesn't have edit permissions, assume they want to link the persisted version of the template, or keep something another editor added
           related_template_uuid = related_template.uuid;
         } else {
@@ -921,12 +925,13 @@ class Model {
   async #filterPersistedTemplateForPermissionsRecursor(template: Record<string, any>): Promise<void> {
     for(let i = 0; i < template.fields.length; i++) {
       if(!(await (new TemplateFieldModel.model(this.state)).hasViewPermissionToPersisted(template.fields[i].uuid))) {
-        template.fields[i] = {uuid: template.fields[i].uuid};
+        template.fields[i] = {uuid: template.fields[i].uuid, no_permissions: true};
       }
     }
     for(let i = 0; i < template.related_templates.length; i++) {
-      if(!(await this.hasViewPermissionToPersisted(template.related_templates[i].uuid))) {
-        template.related_templates[i] = {uuid: template.related_templates[i].uuid};
+      let related_template = template.related_templates[i];
+      if(!(await this.hasViewPermissionToPersisted(related_template.uuid))) {
+        template.related_templates[i] = {uuid: related_template.uuid, _id: related_template._id, no_permissions: true };
       } else {
         await this.#filterPersistedTemplateForPermissionsRecursor(template.related_templates[i]);
       }
@@ -979,7 +984,7 @@ class Model {
           try {
             field = await template_field_model_instance.latestPersisted(field_uuid)
             if(!field) {
-              field = {uuid: field_uuid}
+              field = {uuid: field_uuid, no_permissions: true}
             }
           } catch(err) {
             if (err instanceof Util.PermissionDeniedError) {
@@ -1000,6 +1005,16 @@ class Model {
     return [fields, field_uuids];
   }
 
+  // Gives the bare minimum information to a user who has no view permissions to this draft
+  async #getNoPermissionsLatestDocument(uuid: string) {
+    let raw_doc = await SharedFunctions.latestDocument(Template, uuid, this.state.session);
+    return {
+      uuid,
+      _id: raw_doc._id,
+      no_permissions: true
+    }
+  }
+
   async #draftFetchRelatedTemplates(input_related_template_uuids: string[]): Promise<[Record<string, any>[], string[]]> {
     let related_templates: Record<string, any>[] = [];
     let related_template_uuids: string[] = [];
@@ -1016,12 +1031,12 @@ class Model {
             related_template = await this.#latestPersistedWithJoinsAndPermissions(related_template_uuid);
             if(!related_template) {
               // If a persisted version doesn't exist, just attach a uuid
-              related_template = {uuid: related_template_uuid};
+              related_template = await this.#getNoPermissionsLatestDocument(related_template_uuid);
             }
           } catch (err) {
             if (err instanceof Util.PermissionDeniedError || err instanceof Util.NotFoundError) {
               // If we don't have permission for the persisted version
-              related_template = {uuid: related_template_uuid, no_permissions: true};
+              related_template = await this.#getNoPermissionsLatestDocument(related_template_uuid);
             } else {
               throw err;
             }
