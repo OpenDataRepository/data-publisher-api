@@ -127,3 +127,12 @@ exports.draft_existing = async function(req, res, next) {
   }
   res.send(exists);
 }
+
+exports.all_public_fields = async function(req, res, next) {
+  try {
+    let datasets = await SharedFunctions.latestPublicDocuments(TemplateFieldModel.collection());
+    res.send(datasets);
+  } catch(err) {
+    next(err);
+  }
+}

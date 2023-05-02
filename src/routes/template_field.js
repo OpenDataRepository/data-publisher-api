@@ -21,5 +21,6 @@ router.post('/', ensureLoggedIn, templateFieldController.create);
 router.put('/:uuid', ensureLoggedIn, validateUuid, templateFieldController.update);
 router.post('/:uuid/persist', ensureLoggedIn, validateUuid, templateFieldController.persist);
 router.delete('/:uuid/draft', ensureLoggedIn, validateUuid, templateFieldController.draft_delete);
+router.get('/all_public_fields', templateFieldController.all_public_fields);
 
 module.exports = router;

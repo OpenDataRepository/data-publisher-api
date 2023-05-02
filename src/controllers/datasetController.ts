@@ -279,7 +279,7 @@ exports.search_published_records = async function(req, res, next) {
 
 exports.all_public_uuids = async function(req, res, next) {
   try {
-    let public_uuids = await DatasetModel.model.allPublicUuids();
+    let public_uuids = await SharedFunctions.allPublicPersistedUuids(DatasetModel.collection());
     res.send(public_uuids);
   } catch(err) {
     next(err);
@@ -299,7 +299,7 @@ exports.all_viewable_uuids = async function(req, res, next) {
 
 exports.all_public_datasets = async function(req, res, next) {
   try {
-    let datasets = await (new DatasetModel.model({})).latestPublicDatasets();
+    let datasets = await SharedFunctions.latestPublicDocuments(DatasetModel.collection());
     res.send(datasets);
   } catch(err) {
     next(err);

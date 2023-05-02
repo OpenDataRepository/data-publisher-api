@@ -902,3 +902,55 @@ describe("lastUpdate", () => {
     });
   });
 })
+
+describe("latest public fields", () => {
+
+  test("basic - newest field should be included for each uuid", async () => {
+
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+    const public_date = (new Date()).toISOString();
+
+    let field1: any = {
+      public_date,
+      name: "simple just created - should not appear"
+    };
+    await Helper.templateFieldCreateAndTest(field1);
+    await sleep(1);
+    field1 = {
+      name: "simple created and persisted but not public - should not appear"
+    };
+    await Helper.templateFieldCreatePersistTest(field1);
+    await sleep(1);
+    field1 = {
+      public_date,
+      name: "simple created and persisted - should appear"
+    };
+    await Helper.templateFieldCreatePersistTest(field1);
+    await sleep(1);
+    field1 = {
+      public_date,
+      name: "simple created, persisted, and another draft created - first persisted - should appear"
+    };
+    let field1_with_uuid = await Helper.templateFieldCreatePersistTest(field1);
+    field1_with_uuid.name = "simple created, persisted, and another draft created - updated - should not appear"
+    await Helper.templateFieldUpdateAndTest(field1_with_uuid);
+    await sleep(1);
+    field1 = {
+      public_date,
+      name: "simple created, persisted, and persisted again - first persisted - should not appear"
+    };
+    field1_with_uuid = await Helper.templateFieldCreatePersistTest(field1);
+    field1_with_uuid.name = "simple created, persisted, and persisted again - second persisted - should appear"
+    await Helper.templateFieldUpdatePersistTest(field1_with_uuid);
+  
+    let fields = await Helper.testAndExtract(Helper.allPublicTemplateFields);
+    expect(fields.length).toBe(3);
+  
+    expect(fields[0].name).toEqual("simple created, persisted, and persisted again - second persisted - should appear");
+    expect(fields[1].name).toEqual("simple created, persisted, and another draft created - first persisted - should appear");
+    expect(fields[2].name).toEqual("simple created and persisted - should appear");
+  
+  });
+
+});

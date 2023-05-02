@@ -297,6 +297,11 @@ export = class Helper {
     await this.testAndExtract(this.templateFieldDraftDelete, uuid);
   };
 
+  allPublicTemplateFields = async () => {
+    return await this.agent
+      .get(`/template_field/all_public_fields`);
+  }
+
   // template
 
   templateCreate = (template) => {
@@ -1006,6 +1011,11 @@ export = class Helper {
   accountGetDatasets = async () => {
     return await this.agent
       .get(`/account/datasets`);
+  }
+
+  accountGetTemplateFields = async () => {
+    return await this.agent
+      .get(`/account/template_fields`);
   }
 
   changeEmail = async (new_email, password) => {

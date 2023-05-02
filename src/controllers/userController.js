@@ -10,8 +10,6 @@ const PassportImplementation = require('../lib/passport_implementation');
 const TemplateFieldModel = require('../models/template_field');
 const TemplateModel = require('../models/template');
 const DatasetModel = require('../models/dataset');
-var ip = require("ip");
-const { get_document_permissions } = require("./permissionController");
 
 // TODO: this needs to be replaced with a real email eventually. 
 // This email is from https://mailtrap.io/
@@ -367,8 +365,30 @@ exports.getDatasets = async function(req, res, next) {
     for(let key in dataset_permissions_split) {
       dataset_uuid_list = dataset_uuid_list.concat(dataset_permissions_split[key]);
     }
-    let datasets = await (new DatasetModel.model({})).latestShallowDatasetsForUuids(dataset_uuid_list);
+    let datasets = await SharedFunctions.latestShallowDocumentsForUuids(DatasetModel.collection(), dataset_uuid_list);
     res.send(datasets);
+  } catch(err) {
+    next(err);
+  }
+};
+
+// This function is the same as getDatasets. Consider refactoring
+exports.getTemplateFields = async function(req, res, next) {
+  try{
+    let user;
+    if(req.params.email) {
+      user = await User.model.getByEmail(req.params.email);
+    } else {
+      user = req.user;
+    }
+    const all_permissions = await getUserPermissions(user._id);
+    const field_permissions_split = all_permissions[SharedFunctions.DocumentTypes.template_field];
+    let field_uuid_list = [];
+    for(let key in field_permissions_split) {
+      field_uuid_list = field_uuid_list.concat(field_permissions_split[key]);
+    }
+    let fields = await SharedFunctions.latestShallowDocumentsForUuids(TemplateFieldModel.collection(), field_uuid_list);
+    res.send(fields);
   } catch(err) {
     next(err);
   }

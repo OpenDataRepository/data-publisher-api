@@ -234,6 +234,49 @@ export const fetchLatestDraftOrPersisted = async(draftFetch, latestPersistedWith
   return latestPersistedWithJoinsAndPermissions(uuid);
 }
 
+export const latestShallowDocumentsForUuids = async(collection, uuids: string[]) => {
+  let unfiltered_docs = await collection.find({"uuid": {"$in": uuids}})
+    .sort({'updated_at': -1})
+    .toArray();
+  let docs: Record<string, any>[] = [];
+  // after getting results, use a set to only keep the latest version of each uuid
+  let seen_uuids = new Set();
+  for(let doc of unfiltered_docs) {
+    if(!seen_uuids.has(doc.uuid)) {
+      seen_uuids.add(doc.uuid);
+      docs.push(doc);
+    }
+  }
+  return docs;
+}
+
+export const latestPublicDocuments = async(collection) => {
+  let all_public_uuids = await allPublicPersistedUuids(collection);
+  let unfiltered_docs = await collection.find({"uuid": {"$in": all_public_uuids}})
+    .sort({'persist_date': -1})
+    .toArray();
+  let docs: Record<string, any>[] = [];
+  // after getting results, use a set to only keep the latest version of each uuid
+  // also only keep it if the latest version is public
+  let seen_uuids = new Set();
+  for(let doc of unfiltered_docs) {
+    if(!seen_uuids.has(doc.uuid)) {
+      if(doc.public_date && Util.isTimeAAfterB(new Date(), doc.public_date)) {
+        docs.push(doc);
+      }
+      seen_uuids.add(doc.uuid);
+    }
+  }
+  return docs;
+}
+
+export const allPublicPersistedUuids = async (collection): Promise<string[]> => {
+  return await collection.distinct(
+    "uuid",
+    {public_date: {$exists: true, $lte: new Date()}, persist_date: {$exists: true}}
+  );
+}
+
 const draftDeleteBy_id = async (collection, _id: ObjectId, session?): Promise<void> => {
   await collection.deleteMany(
     { _id, persist_date: {'$exists': false} },

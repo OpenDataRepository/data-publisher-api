@@ -388,3 +388,69 @@ describe("datasets", () => {
 
 
 });
+
+describe("template_fields", () => {
+
+  test("basic - newest template_field should be included for each uuid", async () => {
+
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+    let field1 = {
+      name: "simple just created - should appear"
+    };
+    await Helper.templateFieldCreateAndTest(field1);
+    await sleep(1);
+    field1 = {
+      name: "simple created and persisted - should appear"
+    };
+    await Helper.templateFieldCreatePersistTest(field1);
+    await sleep(1);
+    field1 = {
+      name: "simple created, persisted, and another draft created - first persisted - should not appear"
+    };
+    let field1_with_uuid = await Helper.templateFieldCreatePersistTest(field1);
+    field1_with_uuid.name = "simple created, persisted, and another draft created - updated - should appear"
+    await Helper.templateFieldUpdateAndTest(field1_with_uuid);
+    await sleep(1);
+    field1 = {
+      name: "simple created, persisted, and persisted again - first persisted - should not appear"
+    };
+    field1_with_uuid = await Helper.templateFieldCreatePersistTest(field1);
+    field1_with_uuid.name = "simple created, persisted, and persisted again - second persisted - should appear"
+    await Helper.templateFieldUpdatePersistTest(field1_with_uuid);
+
+    let datasets = await Helper.testAndExtract(Helper.accountGetTemplateFields);
+    expect(datasets.length).toBe(4);
+  
+    expect(datasets[0].name).toEqual("simple created, persisted, and persisted again - second persisted - should appear");
+    expect(datasets[1].name).toEqual("simple created, persisted, and another draft created - updated - should appear");
+    expect(datasets[2].name).toEqual("simple created and persisted - should appear");
+    expect(datasets[3].name).toEqual("simple just created - should appear");
+  
+  });
+
+  test("only most recent template field included for each uuid, no matter how scrambled update times are", async () => {
+
+    let field1 = {
+      name: "field 1 version 1"
+    };
+    field1 = await Helper.templateFieldCreatePersistTest(field1);
+
+    let field2 = {
+      name: "field 2"
+    };
+    field2 = await Helper.templateFieldCreateAndTest(field2);
+
+    field1.name = "field 1 version 2";
+    field1 = await Helper.templateFieldUpdatePersistTest(field1);
+  
+    let fields = await Helper.testAndExtract(Helper.accountGetTemplateFields);
+    expect(fields.length).toBe(2);
+  
+    expect(fields[0].name).toEqual("field 1 version 2");
+    expect(fields[1].name).toEqual("field 2");
+  
+  });
+
+
+});

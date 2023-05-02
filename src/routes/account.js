@@ -13,6 +13,7 @@ router.post('/change_email', ensureLoggedIn, userController.change_email);
 router.get('', ensureLoggedIn, userController.get);
 router.get('/permissions', ensureLoggedIn, userController.getPermissions);
 router.get('/datasets', ensureLoggedIn, userController.getDatasets)
+router.get('/template_fields', ensureLoggedIn, userController.getTemplateFields)
 
 
 if(process.env.is_test) {
