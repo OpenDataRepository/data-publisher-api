@@ -65,3 +65,13 @@ test('anyDuplicateInArray', () => {
 
   expect(Util.anyDuplicateInArray(['a', 'b'])).toBeFalsy();
 })
+
+test('isPublic', () => {
+  let early = new Date("2011-09-29 14:58:12");
+  let late = new Date("3025-09-29 14:58:13");
+  
+  expect(Util.isPublic(early)).toBeTruthy();
+  expect(Util.isPublic(late)).toBeFalsy();
+  expect(Util.isPublic(undefined)).toBeFalsy();
+  expect(Util.isPublic(null)).toBeFalsy();
+})

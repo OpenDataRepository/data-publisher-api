@@ -2016,7 +2016,7 @@ describe("delete", () => {
   });
 });
 
-describe("datasets", () => {
+describe("records", () => {
 
   test("basic - newest record should be included for each uuid", async () => {
 
@@ -2141,6 +2141,38 @@ describe("datasets", () => {
     expect(records[0].fields[0].value).toEqual("record 1 version 2");
     expect(records[1].fields[0].value).toEqual("record 2");
   
+  });
+
+  test("can access if dataset is public", async () => {
+
+    const public_date = (new Date()).toISOString();
+    let template: any = { 
+      name: "t1",
+      public_date
+    };
+    template = await Helper.templateCreatePersistTest(template);
+    let dataset: any = {
+      template_id: template._id,
+      name: "basic",
+      public_date
+    };
+    dataset = await Helper.datasetCreatePersistTest(dataset);
+
+    let record = {
+      dataset_uuid: dataset.uuid
+    };
+    record = await Helper.recordCreatePersistTest(record);
+
+    await Helper.setAgent(agent2);
+
+    let records = await Helper.testAndExtract(Helper.datasetRecords, dataset.uuid);
+    expect(records.length).toBe(1);
+
+    await Helper.logout();
+
+    records = await Helper.testAndExtract(Helper.datasetRecords, dataset.uuid);
+    expect(records.length).toBe(1);
+
   });
 
 

@@ -43,6 +43,10 @@ export = class Helper {
     return agent;
   }
 
+  logout() {
+    this.agent = request.agent(this.app);
+  }
+
   VALID_UUID = "47356e57-eec2-431b-8059-f61d5f9a6bc6";
   DEF_EMAIL = "a@a.com";
   DEF_PASSWORD = "waffle";
