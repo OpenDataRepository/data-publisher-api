@@ -512,7 +512,7 @@ class Model {
       dataset_draft = await SharedFunctions.draft(Dataset, uuid, this.state.session);
     }
 
-    if(!SharedFunctions.exists(Dataset, uuid)) {
+    if(!(await SharedFunctions.exists(Dataset, uuid, this.state.session))) {
       return null;
     }
 
@@ -612,7 +612,7 @@ class Model {
 
   }
 
-  async #persistRelatedDatasets(input_related_dataset_uuids: string[], template: Record<string, any>): Promise<ObjectId[]> {
+  async #persistRelatedDatasets(input_related_datasets: Record<string, any>[], template: Record<string, any>): Promise<ObjectId[]> {
     let result_dataset_ids: any[] = [];
     // For each dataset's related_datasets, persist that related_dataset, then replace the uuid with the internal_id.
     // It is possible there weren't any changes to persist, so keep track of whether we actually persisted anything.
@@ -632,32 +632,23 @@ class Model {
       related_template_map[subscribed_template._id.toString()] = subscribed_template;
       templates_unseen.add(subscribed_template._id.toString());
     }
-    for(let related_dataset_uuid of input_related_dataset_uuids) {
-      let related_dataset_document = await SharedFunctions.latestDocument(Dataset, related_dataset_uuid, this.state.session);
-      if(!related_dataset_document) {
-        throw new Util.InputError(`Cannot persist dataset. One of it's related_references does not exist and was probably deleted after creation.`);
+    for(let related_dataset of input_related_datasets) {
+      if(related_dataset.deleted) {
+        throw new Util.InputError(`dataset ${related_dataset.uuid} has been deleted. Fetch / update the dataset linking it to repair it before persisting.`)
       }
-      let related_template_id = related_dataset_document.template_id.toString();
+      let related_template_id = related_dataset.template_id.toString();
       if(!(related_template_id in related_template_map)) {
-        throw new Util.InputError(`Linked in dataset ${related_dataset_uuid} references template ${related_template_id},
+        throw new Util.InputError(`Dataset ${related_dataset.uuid} references template ${related_template_id} \
         which does not exist and has most likely been deleted. Please update the dataset before re-attempting to persist it.`);
       } 
       let related_template = related_template_map[related_template_id];
       templates_unseen.delete(related_template_id);
       try {
-        let related_dataset_id = await this.#persistRecurser(related_dataset_uuid, related_template);
+        let related_dataset_id = await this.#persistRecurser(related_dataset, related_template);
         result_dataset_ids.push(related_dataset_id);
       } catch(err) {
         if (err instanceof Util.NotFoundError) {
           throw new Util.InputError(`Internal reference within this draft is invalid. Fetch/update draft to cleanse it.`);
-        } else if (err instanceof Util.PermissionDeniedError) {
-          // If the user doesn't have permissions, assume they want to link the persisted version of the dataset
-          // But before we can link the persisted version of the dataset, we must make sure it exists
-          let related_dataset_persisted = await SharedFunctions.latestPersisted(Dataset, related_dataset_uuid, this.state.session);
-          if(!related_dataset_persisted) {
-            throw new Util.InputError(`Invalid link to dataset ${related_dataset_uuid}, which has no persisted version to link.`);
-          }
-          result_dataset_ids.push(related_dataset_persisted._id);
         } else {
           throw err;
         }
@@ -669,76 +660,44 @@ class Model {
     return result_dataset_ids;
   }
 
-  // A recursive helper for persist. 
-  // Persistes the dataset with the provided uuid
-  //   If a draft exists of the dataset, then:
-  //     if a template has been persisted more recently than the dataset, reject
-  //     if the template has been been persisted since the last_update that is a problem. Fail
-  //     if this dataset doesn't conform to the template, fail
-  //     if that draft has changes from the latest persisted (including changes to it's sub-properties):
-  //       persist it, and return the new internal_id
-  //     else: 
-  //       return the internal_id of the latest persisted
-  //   else:
-  //     return the internal_id of the latest_persisted
-  // Input: 
-  //   uuid: the uuid of a dataset to be persisted
-  //   user: the user persisting this template
-  //   session: the mongo session that must be used to make transactions atomic
-  //   template: the template this dataset must conform to
-  // Returns:
-  //   internal_id: the internal id of the persisted dataset
-  async #persistRecurser(uuid: string, template: Record<string, any>): Promise<ObjectId> {
+  async #persistRecurser(dataset: Record<string, any>, template: Record<string, any>): Promise<ObjectId> {
 
-    let persisted_dataset = await SharedFunctions.latestPersisted(Dataset, uuid, this.state.session);
-
-    // Check if a draft with this uuid exists
-    let dataset_draft = await SharedFunctions.draft(Dataset, uuid, this.state.session);
-    if(!dataset_draft) {
-      // There is no draft of this uuid. Return the latest persisted dataset instead.
-      if (!persisted_dataset) {
-        throw new Util.NotFoundError(`Dataset with uuid ${uuid} does not exist`);
-      }
-      return persisted_dataset._id;
+    if(dataset.persist_date) {
+      return dataset._id;
     }
 
     // verify that this user is in the 'admin' permission group
-    if (!(await (new PermissionModel.model(this.state)).hasExplicitPermission(uuid, PermissionModel.PermissionTypes.admin))) {
-      throw new Util.PermissionDeniedError(`Do not have admin permissions for dataset uuid: ${uuid}`);
+    if (dataset.no_permissions) {
+      throw new Util.InputError(`You do not have even view permissions to dataset uuid: ${dataset.uuid}, and thus are not permitted to persist. Please remove the 
+      reference to it or get view permissions.`);
     }
 
     // verify that the template_id on the dataset draft and the expected template_id match
-    assert(dataset_draft.template_id.toString() == template._id.toString(),
-      `The draft provided ${dataset_draft} does not reference the template required ${template._id}.`);
+    assert(dataset.template_id.toString() == template._id.toString(),
+      `The draft provided does not reference the template required ${template._id}.`);
 
     if(!template.persist_date) {
-      throw new Util.InputError(`Cannot persist datsaset ${uuid} without first persisting it's template ${template._id}`);
+      throw new Util.InputError(`Cannot persist datsaset ${dataset.uuid} without first persisting it's template ${template._id}`);
     }
 
-    let related_datasets = await this.#persistRelatedDatasets(dataset_draft.related_datasets, template);
+    let related_datasets = await this.#persistRelatedDatasets(dataset.related_datasets, template);
 
     let persist_time = new Date();
     let session = this.state.session;
     let response = await Dataset.updateOne(
-      {"_id": dataset_draft._id},
+      {"_id": dataset._id},
       {'$set': {'updated_at': persist_time, 'persist_date': persist_time, related_datasets}},
       {session}
     )
     if (response.modifiedCount != 1) {
       throw `Dataset.persist: should be 1 modified document. Instead: ${response.modifiedCount}`;
     }
-    return dataset_draft._id;
+    return dataset._id;
   }
 
-  // Persistes the dataset with the provided uuid
-  // Input: 
-  //   uuid: the uuid of a dataset to be persisted
-  //   user: the user persisting this uuid
-  //   session: the mongo session that must be used to make transactions atomic
-  //   last_update: the timestamp of the last known update by the user. Cannot persist if the actual last update and that expected by the user differ.
   async #persist(dataset_uuid: string, last_update: Date): Promise<void> {
 
-    let dataset = await SharedFunctions.draft(Dataset, dataset_uuid, this.state.session);
+    let dataset = await this.#draftFetch(dataset_uuid, false);
     if (!dataset) {
       dataset = await SharedFunctions.latestPersisted(Dataset, dataset_uuid, this.state.session);
       if (!dataset) {
@@ -761,7 +720,7 @@ class Model {
       does not exist and has most likely been deleted. Please update the dataset before re-attempting to persist it.`)
     }
 
-    await this.#persistRecurser(dataset_uuid, template);
+    await this.#persistRecurser(dataset, template);
   }
 
   // Fetches the last dataset with the given uuid persisted before the given date. 

@@ -1249,9 +1249,12 @@ describe("persist (and get persisted)", () => {
       response = await Helper.datasetUpdate(draft.uuid, draft);
       expect(response.statusCode).toBe(303);
 
-      // Give user 2 edit permissions to parent dataset
-      let admin_users = [Helper.DEF_EMAIL, Helper.EMAIL_2];
-      response = await Helper.updatePermission(dataset.uuid, PermissionTypes.admin, admin_users);
+      // Give user 2 admin permissions to parent dataset and view permissions to the child dataset
+      let users = [Helper.DEF_EMAIL, Helper.EMAIL_2];
+      response = await Helper.updatePermission(dataset.uuid, PermissionTypes.admin, users);
+      expect(response.statusCode).toBe(200);
+
+      response = await Helper.updatePermission(dataset.related_datasets[0].uuid, PermissionTypes.view, users);
       expect(response.statusCode).toBe(200);
 
       await Helper.setAgent(agent2);
@@ -1273,6 +1276,88 @@ describe("persist (and get persisted)", () => {
       expect(response.body).not.toMatchObject(dataset);
       // Also check that it is still pointing to the original persisted related_dataset
       expect(response.body.related_datasets[0]._id).toBe(dataset.related_datasets[0]._id);
+
+    });
+
+    test("Still able to persist parent even if don't have permission to persist child, and the child has a draft", async () => {
+      let public_date_1 = new Date("2011-09-29 14:58:12").toISOString();
+      let public_date_2 = new Date("2012-09-29 14:58:12").toISOString();
+
+      let child_template: any = {
+        name:"t2",
+        public_date: public_date_1
+      };
+      child_template = await Helper.templateCreatePersistTest(child_template);
+      let child_dataset: any = {
+        template_id: child_template._id
+      };
+      child_dataset = await Helper.datasetCreatePersistTest(child_dataset);
+
+      await Helper.setAgent(agent2);
+
+      let parent_template: any = {
+        name:"t1",
+        public_date: public_date_1
+      };
+      parent_template = await Helper.templateCreatePersistTest(parent_template);
+      let parent_dataset: any = {
+        template_id: parent_template._id
+      };
+      parent_dataset = await Helper.datasetCreatePersistTest(parent_dataset);
+
+      await Helper.setAgent(agent1);
+
+      // Give user 2 view permissions to child dataset and template
+      let view_users = [Helper.DEF_EMAIL, Helper.EMAIL_2];
+      await Helper.testAndExtract(Helper.updatePermission, child_template.uuid, PermissionTypes.view, view_users);
+      await Helper.testAndExtract(Helper.updatePermission, child_dataset.uuid, PermissionTypes.view, view_users);
+
+      // Update child with user 1
+      let child_template_draft = await Helper.testAndExtract(Helper.templateLatestPersisted, child_template.uuid);
+      child_template_draft.public_date = public_date_2;
+      child_template_draft = await Helper.templateUpdateAndTest(child_template_draft);
+
+      let child_dataset_draft = await Helper.testAndExtract(Helper.datasetLatestPersisted, child_dataset.uuid);
+      child_dataset_draft.public_date = public_date_2;
+      child_dataset_draft.template_id = child_template_draft._id;
+      child_dataset_draft = await Helper.datasetUpdateAndTest(child_dataset_draft);
+
+      await Helper.setAgent(agent2);
+
+      // Update parent with to reference child
+      parent_template = await Helper.testAndExtract(Helper.templateLatestPersisted, parent_template.uuid);
+      parent_template.public_date = public_date_2;
+      parent_template.related_templates = [child_template];
+      parent_template = await Helper.templateUpdateAndTest(parent_template);
+
+      parent_dataset = await Helper.testAndExtract(Helper.datasetLatestPersisted, parent_dataset.uuid);
+      parent_dataset.public_date = public_date_2;
+      parent_dataset.template_id = parent_template._id;
+      parent_dataset.related_datasets = [child_dataset];
+      parent_dataset = await Helper.datasetUpdateAndTest(parent_dataset);
+
+      // Now let user 2 persist the parent template and dataset
+      await Helper.templatePersistAndFetch(parent_template.uuid);
+      await Helper.datasetPersistAndFetch(parent_dataset.uuid);
+
+      // Now verify that user 2 persisted the parent but not the child.
+      await Helper.setAgent(agent1);
+
+      // Check that the related dataset/template was not persisted
+      let persisted_dataset_child = await Helper.testAndExtract(Helper.datasetLatestPersisted, parent_dataset.related_datasets[0].uuid);
+      expect(persisted_dataset_child).toMatchObject(parent_dataset.related_datasets[0]);
+      let persisted_template_child = await Helper.testAndExtract(Helper.templateLatestPersisted, parent_template.related_templates[0].uuid);
+      expect(persisted_template_child).toMatchObject(parent_template.related_templates[0]);
+
+      // Check that the parent was persisted
+      let persisted_dataset = await Helper.testAndExtract(Helper.datasetLatestPersisted, parent_dataset.uuid);
+      expect(persisted_dataset).not.toMatchObject(parent_dataset);
+      // Also check that it is still pointing to the original persisted related_dataset
+      expect(persisted_dataset.related_datasets[0]._id).toBe(parent_dataset.related_datasets[0]._id);
+
+      let persisted_template = await Helper.testAndExtract(Helper.templateLatestPersisted, parent_template.uuid);
+      expect(persisted_template).not.toMatchObject(parent_template);
+      expect(persisted_template.related_templates[0]._id).toBe(parent_template.related_templates[0]._id);
 
     });
 
@@ -2237,9 +2322,7 @@ describe("duplicate", () => {
       expect(dataset1.group_uuid).not.toEqual(dataset12.group_uuid);
       expect(dataset12.group_uuid).toEqual(dataset12.related_datasets[0].group_uuid);
 
-      let response = await Helper.datasetDuplicate(dataset1.uuid);
-      expect(response.statusCode).toBe(200);
-      let new_dataset = response.body;
+      let new_dataset = await Helper.testAndExtract(Helper.datasetDuplicate, dataset1.uuid);
 
       let new_dataset_11;
       let new_dataset_12;

@@ -862,20 +862,21 @@ class Model {
     // Now recurse into each related_record, replacing each uuid with an imbedded object
     let related_records: any[] = [];
     for(let i = 0; i < record_draft.related_records.length; i++) {
+      let related_record_uuid = record_draft.related_records[i];
       let related_record;
       try{
         related_record = await SharedFunctions.fetchLatestDraftOrPersisted(this.#draftFetch.bind(this),
-        this.#latestPersistedWithJoinsAndPermissions.bind(this), record_draft.related_records[i], create_from_persisted_if_no_draft);
+        this.#latestPersistedWithJoinsAndPermissions.bind(this), related_record_uuid, create_from_persisted_if_no_draft);
       } catch (err) {
         if (err instanceof Util.PermissionDeniedError) {
           // If we don't have permission for the draft, get the latest persisted instead
           try {
-            related_record = await this.#latestPersistedWithJoinsAndPermissions(record_draft.related_records[i]);
+            related_record = await this.#latestPersistedWithJoinsAndPermissions(related_record_uuid);
           } catch (err) {
             if (err instanceof Util.PermissionDeniedError || err instanceof Util.NotFoundError) {
               // If we don't have permission for the persisted version, or a persisted version doesn't exist, just attach a uuid and a flag marking no_permissions
-              related_record = await this.#fetchDraftOrCreateFromPersisted(record_draft.related_records[i]);
-              related_record = {uuid: related_record.uuid, dataset_uuid: related_record.dataset_uuid, no_permissions: true};
+              let temp_related_record = await SharedFunctions.latestDocument(Record, related_record_uuid);
+              related_record = {uuid: related_record_uuid, dataset_uuid: temp_related_record.dataset_uuid, no_permissions: true};
             } 
             else {
               throw err;
@@ -1180,7 +1181,7 @@ class Model {
   async #filterPersistedForPermissionsRecursor(record: Record<string, any>): Promise<void> {
     for(let i = 0; i < record.related_records.length; i++) {
       if(!(await this.hasViewPermissionToPersisted(record.related_records[i]))) {
-        record.related_records[i] = {uuid: record.related_records[i].uuid};
+        record.related_records[i] = {uuid: record.related_records[i].uuid, dataset_uuid: record.related_records[i].dataset_uuid, no_permissions: true};
       } else {
         await this.#filterPersistedForPermissionsRecursor(record.related_records[i]);
       }
@@ -1585,7 +1586,7 @@ class Model {
   }
 
   async hasPermissionToDraft(record: String | Record<string, any>, permission_level) {
-    assert(permission_level == PermissionModel.PermissionTypes.edit || permission_level == PermissionModel.PermissionTypes.edit, 
+    assert(permission_level == PermissionModel.PermissionTypes.admin || permission_level == PermissionModel.PermissionTypes.edit, 
       "record.hasPermissionToDraft called with permission other than admin or edit");
     assert(Util.isObject(record) || typeof(record) == 'string', `record.hasPermissionToDraft: record invalid`);
 
