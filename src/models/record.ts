@@ -3,6 +3,7 @@ const { v4: uuidv4, validate: uuidValidate } = require('uuid');
 import { ObjectId } from 'mongodb';
 const assert = require('assert');
 import * as Util from '../lib/util';
+import { AbstractDocument } from './abstract_document';
 const TemplateFieldModel = require('./template_field');
 const TemplateModel = require('./template');
 const DatasetModel = require('./dataset');
@@ -149,11 +150,12 @@ async function init() {
   Record = await collection();
 }
 
-class Model {
-  collection = Record;
+class Model extends AbstractDocument {
 
   constructor(public state){
+    super();
     this.state = state;
+    this.collection = Record;
   }
 
 
@@ -223,7 +225,7 @@ class Model {
   }
 
   // Creates a draft from the persisted version.
-  async #createDraftFromPersisted(persisted: Record<string, any>): Promise<Record<string, any>> {
+  async createDraftFromPersisted(persisted: Record<string, any>): Promise<Record<string, any>> {
 
     // Create a copy of persisted
     let draft = Object.assign({}, persisted);
@@ -263,7 +265,7 @@ class Model {
     if(!persisted_record) {
       return null;
     }
-    record_draft = await this.#createDraftFromPersisted(persisted_record);
+    record_draft = await this.createDraftFromPersisted(persisted_record);
 
     return record_draft;
   }
@@ -285,7 +287,7 @@ class Model {
     }
 
     // If the properties have changed since the last persisting
-    let latest_persisted_as_draft = await this.#createDraftFromPersisted(latest_persisted);
+    let latest_persisted_as_draft = await this.createDraftFromPersisted(latest_persisted);
     if (!this.#draftsEqual(draft, latest_persisted_as_draft)) {
       return true;
     }
@@ -1015,6 +1017,7 @@ class Model {
     return record_draft._id;
   }
 
+  // TODO: Right now persist doesn't do any verification before persisting. It just persists the draft that is there. Consider adding verification.
   // Persistes the record with the provided uuid
   async #persist(record_uuid: string, last_update: Date): Promise<void> {
 
@@ -1607,7 +1610,7 @@ class Model {
   }
 
   async draftGet(uuid: string, create_from_persisted_if_no_draft: boolean): Promise<Record<string, any> | null> {
-    await SharedFunctions.createAncestorDraftsForDecendantDrafts(Record, this.#createDraftFromPersisted.bind(this), uuid);
+    await this.createAncestorDraftsForDecendantDrafts(uuid);
     let callback = async () => {
       return await this.#draftFetch(uuid, create_from_persisted_if_no_draft);
     };
