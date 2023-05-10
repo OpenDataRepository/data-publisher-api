@@ -1414,6 +1414,66 @@ describe("get/fetch draft", () => {
       await Helper.testAndExtract(Helper.recordDraftGet, record.uuid);
       expect(await Helper.recordDraftExisting(record.uuid)).toBe(true);
     });
+
+    // TODO: test is working, but code is not. Fix createAncestorDraftsForDecendantDrafts
+    test("if child has draft, but parent only has view permissions to child, a parent draft is not created", async () => {
+      let view_users = [Helper.DEF_EMAIL, Helper.EMAIL_2];
+
+      let child_template: any = {name: "child"};
+      child_template = await Helper.templateCreatePersistTest(child_template);
+      let child_dataset: any = {
+        name: "child",
+        template_id: child_template._id,
+      }
+      child_dataset = await Helper.datasetCreatePersistTest(child_dataset);
+      let child_record: any = {
+        dataset_uuid: child_dataset.uuid
+      };
+      child_record = await Helper.recordCreatePersistTest(child_record);
+
+      await Helper.testAndExtract(Helper.updatePermission, child_template.uuid, PermissionTypes.view, view_users);
+      await Helper.testAndExtract(Helper.updatePermission, child_dataset.uuid, PermissionTypes.view, view_users);
+
+      Helper.setAgent(agent2);
+      let parent_template: any = {
+        name: "parent",
+        related_templates: [{uuid: child_template.uuid}]
+      };
+      parent_template = await Helper.templateCreatePersistTest(parent_template);
+      let parent_dataset: any = {
+        name: "parent",
+        template_id: parent_template._id,
+        related_datasets: [
+          {
+            uuid: child_dataset.uuid,
+            template_id: child_dataset.template_id
+          }
+        ]
+      }
+      parent_dataset = await Helper.datasetCreatePersistTest(parent_dataset);
+      let parent_record: any = {
+        dataset_uuid: parent_dataset.uuid,
+        related_records: [
+          {
+            uuid: child_record.uuid,
+            dataset_uuid: child_record.dataset_uuid
+          }
+        ]
+      };
+      parent_record = await Helper.recordCreatePersistTest(parent_record);
+
+      Helper.setAgent(agent1);
+
+      child_record.public_date = (new Date()).toISOString();
+
+      await Helper.recordUpdateAndTest(child_record);
+
+      Helper.setAgent(agent2);
+
+      expect(await Helper.recordDraftExisting(parent_record.uuid)).toBe(false);
+      await Helper.testAndExtract(Helper.recordDraftGet, parent_record.uuid);
+      expect(await Helper.recordDraftExisting(parent_record.uuid)).toBe(false);
+    });
   })
 
   // TODO: uncomment this test after writing this code
