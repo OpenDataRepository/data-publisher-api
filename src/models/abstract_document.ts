@@ -1,4 +1,5 @@
 import { ObjectId } from "mongodb";
+import { PermissionTypes, model as PermissionsModel } from "./permission";
 
 // TODO: re-write the whole code base to use this class instead of shared_functions and delete shared_functions
 
@@ -80,12 +81,26 @@ export class AbstractDocument {
     return document.uuid;
   }
 
-  async createDraftFromPersisted(persisted_doc: Record<string, any>): Promise<Record<string, any>> {
-    throw new Error('createDraftFromPersisted');
+  async isPublic(uuid: string): Promise<boolean>{
+    let latest_persisted = await this.shallowLatestPersisted(uuid);
+    if(!latest_persisted) {
+      return false;
+    }
+    return Util.isPublic(latest_persisted.public_date);
   }
 
-  // TODO: This function needs to consider permissions. If I don't have edit permissions to a child draft, my parent draft shouldn't be created for it.
-  // creates drafts for all documents for which decendants have drafts or new persisted versions
+  async createDraftFromPersisted(persisted_doc: Record<string, any>): Promise<Record<string, any>> {
+    throw new Error('createDraftFromPersisted not implemented');
+  }
+
+  async hasPermission(uuid: string, permission_level: PermissionTypes): Promise<boolean> {
+    let explicit_permission = await (new PermissionsModel(this.state)).hasExplicitPermission(uuid, permission_level);
+    if(permission_level == PermissionTypes.view) {
+      return explicit_permission || await this.isPublic(uuid);
+    }
+    return explicit_permission;
+  }
+ 
   async createAncestorDraftsForDecendantDrafts(uuid: string, id?: ObjectId): Promise<boolean>{
     let draft_already_existing = false;
     let draft_: any = await this.shallowDraft(uuid);
@@ -98,6 +113,10 @@ export class AbstractDocument {
       }
       draft_ = await this.createDraftFromPersisted(persisted_doc);
     }
+    if(!(await this.hasPermission(uuid, PermissionTypes.edit))) {
+      return false;
+    }
+
     let child_draft_found = false;
 
     let related_docs = "";
@@ -124,8 +143,7 @@ export class AbstractDocument {
     if(persisted_doc && persisted_doc._id.toString() != id?.toString()) {
       new_persisted_version = true;
     }
-    // TODO: this depends on whether the user has edit permissions
-    // Add a call has_edit_permission(uuid), and that function needs to be implemented in each specific class
+
     if(!draft_already_existing && child_draft_found) {
       draft_.updated_at = new Date();
       // Create draft for this level

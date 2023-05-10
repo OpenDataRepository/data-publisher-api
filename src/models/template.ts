@@ -2,6 +2,7 @@ const MongoDB = require('../lib/mongoDB');
 const { v4: uuidv4, validate: uuidValidate } = require('uuid');
 import * as Util from '../lib/util';
 import { ObjectId } from 'mongodb';
+import { AbstractDocument } from './abstract_document';
 const TemplateFieldModel = require('./template_field');
 const PermissionModel = require('./permission');
 const SharedFunctions = require('./shared_functions');
@@ -95,16 +96,16 @@ function collectionExport() {
   return Template;
 }
 
-class Model {
-
-  collection = Template;
+class Model extends AbstractDocument{
 
   constructor(public state){
+    super();
     this.state = state;
+    this.collection = Template;
   }
 
   // Creates a draft from the persisted version. Does not recurse
-  async #createDraftFromPersisted(persisted: Record<string, any>): Promise<Record<string, any>> {
+  async createDraftFromPersisted(persisted: Record<string, any>): Promise<Record<string, any>> {
 
     // Create a copy of persisted
     let draft = Object.assign({}, persisted);
@@ -147,7 +148,7 @@ class Model {
   //     return null;
   //   }
 
-  //   return (await this.#createDraftFromPersisted(persisted_template));
+  //   return (await this.createDraftFromPersisted(persisted_template));
   // }
 
   // Fetches a template draft 
@@ -163,7 +164,7 @@ class Model {
     if(!persisted_template) {
       return null;
     }
-    template_draft = await this.#createDraftFromPersisted(persisted_template);
+    template_draft = await this.createDraftFromPersisted(persisted_template);
 
     return template_draft;
   }
@@ -198,7 +199,7 @@ class Model {
     }
 
     // If the properties have changed since the last persisting
-    let latest_persist_as_draft = await this.#createDraftFromPersisted(latest_persisted);
+    let latest_persist_as_draft = await this.createDraftFromPersisted(latest_persisted);
     if (!this.#equals(draft, latest_persist_as_draft)) {
       return true;
     }
@@ -1404,7 +1405,7 @@ class Model {
   }
 
   async draftGet(uuid: string): Promise<Record<string, any> | null> {
-    await SharedFunctions.createAncestorDraftsForDecendantDrafts(Template, this.#createDraftFromPersisted.bind(this), uuid);
+    await this.createAncestorDraftsForDecendantDrafts(uuid);
     let callback = async () => {
       return await this.#draftFetch(uuid);
     };

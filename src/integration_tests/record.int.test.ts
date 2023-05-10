@@ -1415,7 +1415,6 @@ describe("get/fetch draft", () => {
       expect(await Helper.recordDraftExisting(record.uuid)).toBe(true);
     });
 
-    // TODO: test is working, but code is not. Fix createAncestorDraftsForDecendantDrafts
     test("if child has draft, but parent only has view permissions to child, a parent draft is not created", async () => {
       let view_users = [Helper.DEF_EMAIL, Helper.EMAIL_2];
 
@@ -1471,7 +1470,7 @@ describe("get/fetch draft", () => {
       Helper.setAgent(agent2);
 
       expect(await Helper.recordDraftExisting(parent_record.uuid)).toBe(false);
-      await Helper.testAndExtract(Helper.recordDraftGet, parent_record.uuid);
+      await Helper.recordDraftGet(parent_record.uuid);
       expect(await Helper.recordDraftExisting(parent_record.uuid)).toBe(false);
     });
   })

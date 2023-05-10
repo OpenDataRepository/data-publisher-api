@@ -7,7 +7,7 @@ import { AbstractDocument } from './abstract_document';
 const TemplateFieldModel = require('./template_field');
 const TemplateModel = require('./template');
 const DatasetModel = require('./dataset');
-const PermissionModel = require('./permission');
+import { PermissionTypes, model as PermissionsModel } from "./permission";
 const SharedFunctions = require('./shared_functions');
 const LegacyUuidToNewUuidMapperModel = require('./legacy_uuid_to_new_uuid_mapper');
 const FileModel = require('./file');
@@ -690,7 +690,7 @@ class Model extends AbstractDocument {
     }
 
     // verify that this user is in the 'edit' permission group
-    if (!(await this.hasPermissionToDraft(input_record, PermissionModel.PermissionTypes.edit))) {
+    if (!(await this.hasPermissionToDraft(input_record, PermissionTypes.edit))) {
       throw new Util.PermissionDeniedError(`Do not have edit permissions required to create/update records in dataset ${dataset.uuid}`);
     }
 
@@ -857,7 +857,7 @@ class Model extends AbstractDocument {
     }
 
     // Make sure this user has a permission to be working with drafts
-    if (!(await this.hasPermissionToDraft(record_draft, PermissionModel.PermissionTypes.edit))) {
+    if (!(await this.hasPermissionToDraft(record_draft, PermissionTypes.edit))) {
       throw new Util.PermissionDeniedError(`You do not have the edit permissions required to view draft ${uuid}`);
     }
 
@@ -966,7 +966,7 @@ class Model extends AbstractDocument {
     }
 
     // verify that this user is in the 'edit' permission group
-    if (!(await this.hasPermissionToDraft(record_draft, PermissionModel.PermissionTypes.edit))) {
+    if (!(await this.hasPermissionToDraft(record_draft, PermissionTypes.edit))) {
       throw new Util.PermissionDeniedError(`Do not have edit permissions required to persist records in dataset ${dataset.uuid}`);
     }
 
@@ -1142,7 +1142,7 @@ class Model extends AbstractDocument {
       throw new Util.NotFoundError();
     }
 
-    let edit_permission = await this.hasPermissionToDraft(draft, PermissionModel.PermissionTypes.edit);
+    let edit_permission = await this.hasPermissionToDraft(draft, PermissionTypes.edit);
 
     if(!edit_permission) {
       let persisted = await SharedFunctions.latestPersisted(Record, uuid, this.state.session);
@@ -1241,7 +1241,7 @@ class Model extends AbstractDocument {
     let new_record_uuid = await uuid_mapper_model_instance.get_new_uuid_from_old(old_record_uuid);
     // If the uuid is found, then this has already been imported. Import again if we have edit permissions
     if(new_record_uuid) {
-      if(!(await (new PermissionModel.model(this.state)).has_permission(new_dataset_uuid, PermissionModel.PermissionTypes.admin))) {
+      if(!(await (new PermissionsModel(this.state)).hasExplicitPermission(new_dataset_uuid, PermissionTypes.admin))) {
         throw new Util.PermissionDeniedError(`You do not have edit permissions required to import record ${old_record_uuid}. It has already been imported.`);
       }
     } else {
@@ -1486,7 +1486,7 @@ class Model extends AbstractDocument {
     let new_record_uuid = await uuid_mapper_model_instance.get_new_uuid_from_old(old_record_uuid);
     // If the uuid is found, then this has already been imported. Import again if we have edit permissions
     if(new_record_uuid) {
-      if(!(await this.hasPermissionToDraft({dataset_uuid: new_dataset_uuid}, PermissionModel.PermissionTypes.edit))) {
+      if(!(await this.hasPermissionToDraft({dataset_uuid: new_dataset_uuid}, PermissionTypes.edit))) {
         throw new Util.PermissionDeniedError(`You do not have edit permissions required to import record ${old_record_uuid}. It has already been imported.`);
       }
     } else {
@@ -1571,6 +1571,19 @@ class Model extends AbstractDocument {
     return result_uuids;
   }
 
+  async hasPermission(uuid: string, permission_level: PermissionTypes): Promise<boolean> {
+    if(permission_level == PermissionTypes.admin) {
+      throw new Error('admin permissions do not exist on record');
+    }
+    if(permission_level == PermissionTypes.edit) {
+      return await this.hasPermissionToDraft(uuid, permission_level);
+    }
+    if(permission_level == PermissionTypes.view) {
+      return await this.hasViewPermissionToPersisted(uuid);
+    }
+    throw new Error('record hasPermission called with invalid permission type')
+  }
+
   async hasViewPermissionToPersisted(record: String | Record<string, any>,): Promise<boolean> {
     if(typeof(record) == 'string') {
       record = await SharedFunctions.latestPersisted(Record, record, this.state.session);
@@ -1585,18 +1598,18 @@ class Model extends AbstractDocument {
     }
 
     // Otherwise, check if we have view permissions
-    return await (new PermissionModel.model(this.state)).hasExplicitPermission(dataset.uuid, PermissionModel.PermissionTypes.view);
+    return await (new PermissionsModel(this.state)).hasExplicitPermission(dataset.uuid, PermissionTypes.view);
   }
 
   async hasPermissionToDraft(record: String | Record<string, any>, permission_level) {
-    assert(permission_level == PermissionModel.PermissionTypes.admin || permission_level == PermissionModel.PermissionTypes.edit, 
+    assert(permission_level == PermissionTypes.admin || permission_level == PermissionTypes.edit, 
       "record.hasPermissionToDraft called with permission other than admin or edit");
     assert(Util.isObject(record) || typeof(record) == 'string', `record.hasPermissionToDraft: record invalid`);
 
     if(typeof(record) == 'string') {
       record = await SharedFunctions.latestDocument(Record, record, this.state.session);
     }
-    return await (new PermissionModel.model(this.state)).hasExplicitPermission((record as Record<string, any>).dataset_uuid, permission_level);
+    return await (new PermissionsModel(this.state)).hasExplicitPermission((record as Record<string, any>).dataset_uuid, permission_level);
   }
 
   // Wraps the actual request to create with a transaction
@@ -1648,7 +1661,7 @@ class Model extends AbstractDocument {
       throw new Util.NotFoundError(`No draft exists with uuid ${uuid}`);
     }
     // if don't have admin permissions, return no permissions
-    if(!(await this.hasPermissionToDraft(draft, PermissionModel.PermissionTypes.edit))) {
+    if(!(await this.hasPermissionToDraft(draft, PermissionTypes.edit))) {
       throw new Util.PermissionDeniedError(`You do not have edit permissions for dataset ${draft.dataset_uuid}.`);
     }
 

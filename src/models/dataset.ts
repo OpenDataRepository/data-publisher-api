@@ -3,8 +3,9 @@ const { v4: uuidv4, validate: uuidValidate } = require('uuid');
 import { ObjectId } from 'mongodb';
 const assert = require('assert');
 import * as Util from '../lib/util';
+import { AbstractDocument } from './abstract_document';
 const TemplateModel = require('./template');
-const PermissionModel = require('./permission');
+import { PermissionTypes, model as PermissionsModel } from "./permission";
 const SharedFunctions = require('./shared_functions');
 const LegacyUuidToNewUuidMapperModel = require('./legacy_uuid_to_new_uuid_mapper');
 
@@ -88,16 +89,16 @@ function collectionExport() {
   return Dataset;
 }
 
-class Model {
-
-  collection = Dataset;
+class Model extends AbstractDocument {
 
   constructor(public state){
+    super();
     this.state = state;
+    this.collection = Dataset;
   }
 
   // Creates a draft from the persisted version.
-  async #createDraftFromPersisted(persisted: Record<string, any>): Promise<Record<string, any>> {
+  async createDraftFromPersisted(persisted: Record<string, any>): Promise<Record<string, any>> {
 
     // Create a copy of persisted
     let draft = Object.assign({}, persisted);
@@ -139,7 +140,7 @@ class Model {
     }
 
     // If the properties have changed since the last persisting
-    let latest_persisted_as_draft = await this.#createDraftFromPersisted(latest_persisted);
+    let latest_persisted_as_draft = await this.createDraftFromPersisted(latest_persisted);
     if (!this.#draftsEqual(draft, latest_persisted_as_draft)) {
       return true;
     }
@@ -158,7 +159,7 @@ class Model {
   // TODO: this function shares a lot of code with the main validateAndCreateOrUpdate. Consider commonizing
   async #createNewDatasetForTemplate(template: Record<string, any>, group_uuid: string, public_date?: Date): Promise<Record<string, any>> {
     let uuid = uuidv4();
-    await (new PermissionModel.model(this.state)).initializePermissionsFor(uuid);
+    await (new PermissionsModel(this.state)).initializePermissionsFor(uuid);
     let new_dataset: Record<string, any> = {
       uuid,
       name: "",
@@ -272,7 +273,7 @@ class Model {
   template: Record<string, any>, group_uuid: string): Promise<[boolean, string]> {
 
     let template_model_instance = new TemplateModel.model(this.state);
-    let permissions_model_instance = new PermissionModel.model(this.state);
+    let permissions_model_instance = new PermissionsModel(this.state);
     let uuid_mapper_model_instance = new LegacyUuidToNewUuidMapperModel.model(this.state);
 
     // dataset must be an object
@@ -295,7 +296,7 @@ class Model {
         throw new Util.PermissionDeniedError(`Cannot link to template_id ${template._id}, as you do not have view permissions to it`);
       }
     } else {
-      if(!(await permissions_model_instance.hasExplicitPermission(template.uuid, PermissionModel.PermissionTypes.edit))) {
+      if(!(await permissions_model_instance.hasExplicitPermission(template.uuid, PermissionTypes.edit))) {
         throw new Util.PermissionDeniedError(`Cannot link to template draft ${template._id}, as you do not have edit permissions to it`);
       }
     }
@@ -330,7 +331,7 @@ class Model {
       }
 
       // verify that this user is in the 'admin' permission group
-      if (!(await permissions_model_instance.hasExplicitPermission(input_dataset.uuid, PermissionModel.PermissionTypes.admin))) {
+      if (!(await permissions_model_instance.hasExplicitPermission(input_dataset.uuid, PermissionTypes.admin))) {
         throw new Util.PermissionDeniedError(`Do not have admin permissions for dataset uuid: ${input_dataset.uuid}`);
       }
 
@@ -470,7 +471,7 @@ class Model {
     if(!persisted_dataset) {
       return null;
     }
-    dataset_draft = await this.#createDraftFromPersisted(persisted_dataset);
+    dataset_draft = await this.createDraftFromPersisted(persisted_dataset);
 
     return dataset_draft;
   }
@@ -517,7 +518,7 @@ class Model {
     }
 
     // Make sure this user has permission to be working with drafts
-    if (!(await (new PermissionModel.model(this.state)).hasExplicitPermission(uuid, PermissionModel.PermissionTypes.admin))) {
+    if (!(await (new PermissionsModel(this.state)).hasExplicitPermission(uuid, PermissionTypes.admin))) {
       throw new Util.PermissionDeniedError(`You do not have the edit permissions required to view draft ${uuid}`);
     }
 
@@ -571,7 +572,7 @@ class Model {
   // This function will provide the timestamp of the last update made to this dataset and all of it's related_datasets
   async #lastUpdateFor(uuid: string): Promise<Date> {
 
-    let permissions_model_instance = new PermissionModel.model(this.state);
+    let permissions_model_instance = new PermissionsModel(this.state);
 
     let draft = await this.#fetchDraftOrCreateFromPersisted(uuid);
     if(!draft) {
@@ -579,7 +580,7 @@ class Model {
     }
 
     let persisted = await SharedFunctions.latestPersisted(Dataset, uuid, this.state.session);
-    let admin_permission = await permissions_model_instance.hasExplicitPermission(uuid, PermissionModel.PermissionTypes.admin);
+    let admin_permission = await permissions_model_instance.hasExplicitPermission(uuid, PermissionTypes.admin);
     let view_permission = await this.hasViewPermissionToPersisted(uuid);
 
     if(!admin_permission) {
@@ -840,7 +841,7 @@ class Model {
 
   async #duplicateRecursor(original_dataset: Record<string, any>, original_group_uuid: string, 
   new_group_uuid: string, uuid_dictionary: Record<string, string>): Promise<string> {
-    let permissions_model_instance = new PermissionModel.model(this.state);
+    let permissions_model_instance = new PermissionsModel(this.state);
 
     // verify that this user is in the 'view' permission group
     if (!(await this.hasViewPermissionToPersisted(original_dataset.uuid))) {
@@ -908,7 +909,7 @@ class Model {
 
   async #createMissingDatasetForImport(template: Record<string, any>): Promise<string> {
     let uuid = uuidv4();
-    await (new PermissionModel.model(this.state)).initializePermissionsFor(uuid);
+    await (new PermissionsModel(this.state)).initializePermissionsFor(uuid);
     let dataset: any = {
       uuid,
       template_uuid: template.uuid,
@@ -965,7 +966,7 @@ class Model {
     let dataset_uuid = await uuid_mapper_model_instance.get_new_uuid_from_old(old_uuid);
     // If the uuid is found, then this has already been imported. Import again if we have edit permissions
     if(dataset_uuid) {
-      if(!(await user_permissions_model_instance.has_permission(this.state.user_id, dataset_uuid, PermissionModel.PermissionTypes.admin))) {
+      if(!(await user_permissions_model_instance.has_permission(this.state.user_id, dataset_uuid, PermissionTypes.admin))) {
         throw new Util.PermissionDeniedError(`You do not have edit permissions required to import database ${old_uuid}. It has already been imported.`);
       }
     } else {
@@ -1112,7 +1113,7 @@ class Model {
 
   async #importDatasetForTemplate(template: Record<string, any>): Promise<string> {
     let uuid_mapper_model_instance = new LegacyUuidToNewUuidMapperModel.model(this.state);
-    let permissions_model_instance = new PermissionModel.model(this.state);
+    let permissions_model_instance = new PermissionsModel(this.state);
 
     let old_template_uuid = template.template_uuid;
     let new_template_uuid = await uuid_mapper_model_instance.get_new_uuid_from_old(old_template_uuid,);
@@ -1122,7 +1123,7 @@ class Model {
     let dataset_uuid = await uuid_mapper_model_instance.get_secondary_uuid_from_old(old_template_uuid);
     // If the uuid is found, then this has already been imported. Import again if we have edit permissions
     if(dataset_uuid) {
-      if(!(await permissions_model_instance.hasExplicitPermission(dataset_uuid, PermissionModel.PermissionTypes.edit))) {
+      if(!(await permissions_model_instance.hasExplicitPermission(dataset_uuid, PermissionTypes.edit))) {
         throw new Util.PermissionDeniedError(`You do not have edit permissions required to import dataset ${old_template_uuid}. It has already been imported.`);
       }
     } else {
@@ -1174,8 +1175,19 @@ class Model {
     return dataset.uuid;
   }
 
+  async hasPermission(uuid: string, permission_level: PermissionTypes): Promise<boolean> {
+    if(permission_level == PermissionTypes.edit) {
+      permission_level = PermissionTypes.admin;
+    }
+    let explicit_permission = await (new PermissionsModel(this.state)).hasExplicitPermission(uuid, permission_level);
+    if(permission_level == PermissionTypes.view) {
+      return explicit_permission || await this.isPublic(uuid);
+    }
+    return explicit_permission;
+  }
+
   async hasViewPermissionToPersisted(document_uuid: string, user_id = this.state.user_id): Promise<boolean> {
-    if(await (new PermissionModel.model(this.state)).hasExplicitPermission(document_uuid, PermissionModel.PermissionTypes.view, user_id)) {
+    if(await (new PermissionsModel(this.state)).hasExplicitPermission(document_uuid, PermissionTypes.view, user_id)) {
       return true;
     }
 
@@ -1202,7 +1214,7 @@ class Model {
 
   // Wraps the actual request to get with a transaction
   async draftGet(uuid: string, create_from_persisted_if_no_draft: boolean): Promise<Record<string, any> | null> {
-    await SharedFunctions.createAncestorDraftsForDecendantDrafts(Dataset, this.#createDraftFromPersisted.bind(this), uuid);
+    await this.createAncestorDraftsForDecendantDrafts(uuid);
     let callback = async () => {
       return await this.#draftFetch(uuid, create_from_persisted_if_no_draft);
     }
@@ -1246,7 +1258,7 @@ class Model {
       throw new Util.NotFoundError(`No draft exists with uuid ${uuid}`);
     }
     // if don't have admin permissions, return no permissions
-    if(!(await (new PermissionModel.model(this.state)).hasExplicitPermission(uuid, PermissionModel.PermissionTypes.admin))) {
+    if(!(await (new PermissionsModel(this.state)).hasExplicitPermission(uuid, PermissionTypes.admin))) {
       throw new Util.PermissionDeniedError(`You do not have admin permissions for dataset ${uuid}.`);
     }
 
@@ -1295,8 +1307,8 @@ class Model {
 
   async allViewableUuids(): Promise<string[]> {
     let public_uuids = await SharedFunctions.allPublicPersistedUuids(Dataset);
-    let permissions_model_instance = new PermissionModel.model(this.state);
-    let viewable_uuids = await permissions_model_instance.allUuidsAbovePermissionLevel(PermissionModel.PermissionTypes.view, Dataset);
+    let permissions_model_instance = new PermissionsModel(this.state);
+    let viewable_uuids = await permissions_model_instance.allUuidsAbovePermissionLevel(PermissionTypes.view, Dataset);
     return Util.arrayUnion(public_uuids, viewable_uuids);
   }
 };
