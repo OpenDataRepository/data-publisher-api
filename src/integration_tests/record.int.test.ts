@@ -1863,6 +1863,85 @@ describe("get persisted", () => {
       expect(response.statusCode).toBe(200);
     });
 
+    test("child record is private - shows no permissions when parent is fetched", async () => {
+      let template: Record<string, any> = {
+        name: "t1", 
+        public_date,
+        related_templates: [{
+          name: "t1.1",
+          public_date
+        }]
+      };
+      template = await Helper.templateCreatePersistTest(template);  
+
+      let dataset: Record<string, any> = {
+        template_id: template._id, 
+        public_date,
+        related_datasets: [{
+          template_id: template.related_templates[0]._id,
+          public_date
+        }]
+      };
+      dataset = await Helper.datasetCreatePersistTest(dataset);  
+  
+      let record: Record<string, any> = {
+        dataset_uuid: dataset.uuid, 
+        related_records: [{
+          dataset_uuid: dataset.related_datasets[0].uuid,
+          public_date: "3000-01-01T09:17:42.718Z"
+        }]
+      };
+      record = await Helper.recordCreatePersistTest(record); 
+      
+      Helper.setAgent(agent2);
+  
+      let new_record = await Helper.testAndExtract(Helper.recordLatestPersistedGet, record.uuid);
+      expect(new_record.no_permissions).toBeFalsy();
+      expect(new_record.related_records[0].no_permissions).toBeTruthy();
+    });
+
+    test("latest version of child record is private - shows no permissions when parent is fetched, \
+    even if the version referenced by the parent was public", async () => {
+      let template: Record<string, any> = {
+        name: "t1", 
+        public_date,
+        related_templates: [{
+          name: "t1.1",
+          public_date
+        }]
+      };
+      template = await Helper.templateCreatePersistTest(template);  
+
+      let dataset: Record<string, any> = {
+        template_id: template._id, 
+        public_date,
+        related_datasets: [{
+          template_id: template.related_templates[0]._id,
+          public_date
+        }]
+      };
+      dataset = await Helper.datasetCreatePersistTest(dataset);  
+  
+      let record: Record<string, any> = {
+        dataset_uuid: dataset.uuid, 
+        related_records: [{
+          dataset_uuid: dataset.related_datasets[0].uuid
+        }]
+      };
+      record = await Helper.recordCreatePersistTest(record); 
+
+      let child_record = record.related_records[0];
+      child_record.public_date = "3000-01-01T09:17:42.718Z";
+
+      await Helper.recordUpdatePersistTest(child_record);
+      
+      Helper.setAgent(agent2);
+  
+      let new_record = await Helper.testAndExtract(Helper.recordLatestPersistedGet, record.uuid);
+      expect(new_record.no_permissions).toBeFalsy();
+      expect(new_record.related_records[0].no_permissions).toBeTruthy();
+    });
+
     test("field is private", async () => {
       let template: Record<string, any> = {
         name: "t1", 

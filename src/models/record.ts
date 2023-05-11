@@ -1588,11 +1588,12 @@ class Model extends AbstractDocument {
     if(typeof(record) == 'string') {
       record = await SharedFunctions.latestPersisted(Record, record, this.state.session);
     }
-    // let draft = await this.#fetchDraftOrCreateFromPersisted(uuid);
-    let dataset = await SharedFunctions.latestPersisted(DatasetModel.collection(), (record as Record<string, any>).dataset_uuid, this.state.session);
+    record = record as Record<string, any>;
+    let dataset = await SharedFunctions.latestPersisted(DatasetModel.collection(), record.dataset_uuid, this.state.session);
     // If both the dataset and the record are public, then everyone has view access
     if (Util.isPublic(dataset.public_date)){
-      if(!(record as Record<string, any>).public_date || Util.isTimeAAfterB(new Date, (record as Record<string, any>).public_date)) {
+      let latest_persisted_record = await this.shallowLatestPersisted(record.uuid);
+      if(!latest_persisted_record?.public_date || Util.isTimeAAfterB(new Date, latest_persisted_record.public_date)) {
         return true;
       }
     }
