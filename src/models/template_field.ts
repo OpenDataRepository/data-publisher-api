@@ -504,13 +504,18 @@ class Model {
       }
     }
 
+    let mongoUpdateProperties: Record<string, any> = {$set: new_field};
+    if(!new_field.type) {
+      mongoUpdateProperties['$unset'] = {type: ""}
+    }
+
     // If a draft of this field already exists: overwrite it, using it's same uuid
     // If a draft of this field doesn't exist: create a new draft
     // Fortunately both cases can be handled with a single MongoDB UpdateOne query using 'upsert: true'
     let session = this.state.session;
     let response = await TemplateField.updateOne(
       {uuid, 'persist_date': {'$exists': false}}, 
-      {$set: new_field}, 
+      mongoUpdateProperties, 
       {'upsert': true, session}
     );
     if (response.upsertedCount != 1 && response.matchedCount != 1) {

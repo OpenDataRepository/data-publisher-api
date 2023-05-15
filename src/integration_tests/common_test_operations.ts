@@ -171,6 +171,7 @@ export = class Helper {
   
     let new_draft = await this.templateFieldDraftGetAndTest(template_field.uuid);
     this.testTemplateFieldsEqual(template_field, new_draft);
+    return new_draft;
   }
 
   testTemplateFieldOptionsEqual = (before, after) => {
@@ -199,6 +200,9 @@ export = class Helper {
     }
     if(before.public_date) {
       expect(after.public_date).toEqual(before.public_date);
+    }
+    if(before.type) {
+      expect(after.type).toEqual(before.type);
     }
     // So import can also use this function
     if(!before.options) {

@@ -217,6 +217,15 @@ describe("update (and get draft after an update)", () => {
 
     });
 
+    test("can delete field type", async () => {
+
+      template_field.type = "File";
+      template_field = await Helper.templateFieldUpdateAndTest(template_field);
+      delete template_field.type;
+      template_field = await Helper.templateFieldUpdateAndTest(template_field);
+      expect(template_field).not.toHaveProperty('type');
+    });
+
     test("with radio options 1-dimensional", async () => {
       template_field.options = [
         {
