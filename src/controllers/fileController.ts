@@ -9,6 +9,8 @@ const FileModel = require('../models/file');
 const RecordModel = require('../models/record');
 const PermissionModel = require(`../models/permission`);
 
+// No need to store this in long term memory. It only exists while the file is being uploaded
+const uploads = {};
 
 exports.verifyFileUpload = async function(req, res, next) {
   let uuid = req.params.uuid;
@@ -45,22 +47,99 @@ async function updateFileName(uuid, file_name) {
 exports.uploadFileDirect = async function(req, res, next) {
   try {
     let uuid = req.params.uuid;
-    let state = Util.initializeState(req);
-    
-    const callback = async () => {
-      await FileModel.markUploaded(uuid, state.session);
-      // await updateFileName(uuid, req.file.originalname);
-      if(!req.file) {
-        throw new Error(`req.file was not set by multer and so file cannot be uploaded`);
-      }
-      fs.renameSync(req.file.path, path.join(FileModel.uploadDestination(), uuid));
+    const file_path = path.join(FileModel.uploadDestination(), uuid);
+
+    let startByte = parseInt(req.headers['x-start-byte'], 10);
+    let fileSize = parseInt(req.headers['size'], 10);
+    if (uploads[uuid] && fileSize == uploads[uuid].bytesReceived) {
+      res.end();
+      return;
     }
-    await SharedFunctions.executeWithTransaction(state, callback);
-    res.sendStatus(200);
+
+    if (!uploads[uuid])
+      uploads[uuid] = {};
+
+    let upload = uploads[uuid]; //Bytes of file already present
+
+    let fileStream;
+
+    //checking bytes of file uploaded and sending to server
+    if (!startByte) {
+      upload.bytesReceived = 0;
+      fileStream = fs.createWriteStream(file_path, {
+        flags: 'w' //with "w"(write stream ) it keeps on adding data
+      });
+    } else {
+      if (upload.bytesReceived != startByte) {//if same file is sent with different size it will not upload
+        res.status(400).send(`Wrong start byte. Expected ${upload.bytesReceived}`);
+        return;
+      }
+      // append to existing file
+      fileStream = fs.createWriteStream(file_path, {
+        flags: 'a'
+      });
+    }
+
+    req.on('data', function (data) {
+      upload.bytesReceived += data.length; //adding length of data we are adding
+    });
+
+    req.pipe(fileStream);
+
+    // when the request is finished, and all its data is written
+    fileStream.on('close', async function () {
+      if (upload.bytesReceived == fileSize) {
+        delete uploads[uuid];
+        await FileModel.markUploaded(uuid);
+        res.send({ 'status': 'uploaded' });
+      } else {
+        res.send({ "uploaded": upload.bytesReceived });
+      }
+    });
+
+    // in case of I/O error - finish the request
+    fileStream.on('error', function (err) {
+      console.log("fileStream error", err);
+      res.writeHead(500, "File error");
+      res.end();
+    });
+
   } catch(err) {
     next(err);
   }
 }
+
+exports.directUploadStatus = async function(req, res, next) {
+  let uuid = req.params.uuid;
+  let fileSize = parseInt(req.headers['size'], 10);
+  if(!(await SharedFunctions.exists(FileModel.collection(), uuid))) {
+    res.status(404).send(`File ${uuid} does not exist`);
+    return;
+  }
+  try {
+    const file_path = path.join(FileModel.uploadDestination(), uuid);
+    let stats = fs.statSync(file_path);
+
+    if (stats.isFile()) {
+      if (fileSize == stats.size) {
+        res.send({ 'status': 'file is present' })
+        return;
+      }
+      if (!uploads[uuid])
+        uploads[uuid] = {}
+      uploads[uuid]['bytesReceived'] = stats.size;
+    }
+  } catch (er) {
+
+  }
+
+  let upload = uploads[uuid];
+  if (upload)
+    res.send({ "uploaded": upload.bytesReceived });
+  else
+    res.send({ "uploaded": 0 });
+
+};
 
 // maybe at some point it would be a good idea to downoad to a different file first,
 // and then move that file to the correct location. That way we don't write half of a bad file and then delete it

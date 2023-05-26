@@ -140,6 +140,10 @@ export = class Helper {
     return response.body;
   }
 
+  logResponseErrorMessage = (response) => {
+    console.log(response.error.text);
+  }
+
   // template field
 
   templateFieldCreate = async (field) => {
@@ -960,9 +964,27 @@ export = class Helper {
   }
 
   uploadFileDirect = async (uuid, file_name) => {
+    const file_path = path.join(this.dynamicTestFilesPath, file_name)
+    const stats = fs.statSync(file_path);
+    const file_size = stats.size;
+    const file_data = fs.readFileSync(file_path);
     return await this.agent
       .post(`/file/${uuid}/direct`)
-      .attach('file', path.join(this.dynamicTestFilesPath, file_name));
+      .set('size', file_size)
+      .set('x-start-byte', 0)
+      .send(file_data);
+  }
+  uploadFileDataDirect = async (uuid, file_data, start_byte, file_size) => {
+    return await this.agent
+      .post(`/file/${uuid}/direct`)
+      .set('size', file_size)
+      .set('x-start-byte', start_byte)
+      .send(file_data);
+  }
+  fileDirectUploadStatus = async (uuid, file_size) => {
+    return await this.agent
+      .get(`/file/${uuid}/directUploadStatus`)
+      .set('size', file_size)
   }
   uploadFileFromUrl = async (uuid, url) => {
     return await this.agent

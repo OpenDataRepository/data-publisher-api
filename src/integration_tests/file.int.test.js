@@ -1,6 +1,7 @@
 const fs = require('fs');
 const fsPromises = fs.promises;
 const path = require('path');
+const { v4: uuidv4 } = require('uuid');
 var { app, init: appInit, close: appClose } = require('../app');
 const FieldTypes = require('../models/template_field').FieldTypes;
 
@@ -65,88 +66,159 @@ const basicRecordSetup = async () => {
 };
 
 const basicFileSetup = () => {
-  let file_name = "toUpload.txt";
+  let file_name = uuidv4();
   let new_file_path = path.join(Helper.dynamicTestFilesPath, file_name);
   let originalFileContents = 'Hey there!';
   fs.writeFileSync(new_file_path, originalFileContents);
   return [file_name, originalFileContents]
 };
 
-describe("success", () => {
+describe("direct upload", () => {
+  describe("success", () => {
+    test("Upload a file directly (and fetch it)", async () => {
+      let uuid;
+      [, , , uuid] = await basicRecordSetup();
+    
+      let file_name, originalFileContents 
+      [file_name, originalFileContents] = basicFileSetup();
+    
+      await Helper.testAndExtract(Helper.uploadFileDirect, uuid, file_name);
+    
+      let response = await Helper.getFile(uuid);
+      expect(response.statusCode).toBe(200);
+      let newFileBuffer = response.body;
+      let newFileContents = newFileBuffer.toString();
+      expect(newFileContents).toEqual(originalFileContents);
+    });
+    
+    test("Upload a large file directly (and fetch it)", async () => {
+      let uuid;
+      [, , , uuid] = await basicRecordSetup();
+    
+      let file_name = "someFile.txt";
+      let old_file_path = Helper.testDataPath + '/rruff_samples.json'
+      let new_file_path = path.join(Helper.dynamicTestFilesPath, file_name);
+      await fsPromises.copyFile(old_file_path, new_file_path);
+      let raw_data = fs.readFileSync(new_file_path);
+    
+      await Helper.testAndExtract(Helper.uploadFileDirect, uuid, file_name);
+    
+      let response = await Helper.getFile(uuid);
+      expect(response.statusCode).toBe(200);
+      let newFileBuffer = response.body;
+      expect(newFileBuffer.toString()).toEqual(raw_data.toString());
+    });
 
-  test("Upload a file directly (and fetch it)", async () => {
-    let uuid;
-    [, , , uuid] = await basicRecordSetup();
+    test("Upload a file in multiple parts", async () => {
+      let uuid;
+      [, , , uuid] = await basicRecordSetup();
+    
+      let file_name, originalFileContents 
+      [file_name, originalFileContents] = basicFileSetup();
+    
+      const file_path = path.join(Helper.dynamicTestFilesPath, file_name);
+      const stats = fs.statSync(file_path);
+      const file_size = stats.size;
+      let file_data = fs.readFileSync(file_path);
+
+      await Helper.testAndExtract(Helper.uploadFileDataDirect, uuid, file_data.slice(0, file_size/2), 0, file_size);
+
+      let result = await Helper.testAndExtract(Helper.fileDirectUploadStatus, uuid, file_size);
+      expect(result).toHaveProperty('uploaded');
+      expect(result.uploaded).toEqual(file_size/2);
+
+      await Helper.testAndExtract(Helper.uploadFileDataDirect, uuid, file_data.slice(file_size/2, file_size+1), file_size/2, file_size);
+
+      result = await Helper.testAndExtract(Helper.fileDirectUploadStatus, uuid, file_size);
+      expect(result).toHaveProperty('status');
+      expect(result.status).toEqual('file is present');
+    
+      let newFileBuffer = await Helper.testAndExtract(Helper.getFile, uuid);
+      let newFileContents = newFileBuffer.toString();
+      expect(newFileContents).toEqual(originalFileContents);
+    });
   
-    let file_name, originalFileContents 
-    [file_name, originalFileContents] = basicFileSetup();
-  
-    await Helper.testAndExtract(Helper.uploadFileDirect, uuid, file_name);
-  
-    let response = await Helper.getFile(uuid);
-    expect(response.statusCode).toBe(200);
-    let newFileBuffer = response.body;
-    let newFileContents = newFileBuffer.toString();
-    expect(newFileContents).toEqual(originalFileContents);
-  });
-  
-  test("Upload a large file directly (and fetch it)", async () => {
-    let uuid;
-    [, , , uuid] = await basicRecordSetup();
-  
-    let file_name = "someFile.txt";
-    let old_file_path = Helper.testDataPath + '/rruff_samples.json'
-    let new_file_path = path.join(Helper.dynamicTestFilesPath, file_name);
-    await fsPromises.copyFile(old_file_path, new_file_path);
-    let raw_data = fs.readFileSync(new_file_path);
-  
-    await Helper.testAndExtract(Helper.uploadFileDirect, uuid, file_name);
-  
-    let response = await Helper.getFile(uuid);
-    expect(response.statusCode).toBe(200);
-    let newFileBuffer = response.body;
-    expect(newFileBuffer.toString()).toEqual(raw_data.toString());
-  });
-  
-  // If tests start failing with 404 errors, it could be because we need to runInBand. Or, they all are using the same file name
-  test("Upload a file from url (and fetch it)", async () => {
-    let file_name, originalFileContents 
-    [file_name, originalFileContents] = basicFileSetup();
-  
-    let uuid;
-    [, , , uuid] = await basicRecordSetup();
-  
-    let url = serverUrl + file_name;
-    let response = await Helper.uploadFileFromUrl(uuid, url);
-    expect(response.statusCode).toBe(200);
-  
-    response = await Helper.getFile(uuid);
-    expect(response.statusCode).toBe(200);
-    let newFileBuffer = response.body;
-    let newFileContents = newFileBuffer.toString();
-    expect(newFileContents).toEqual(originalFileContents);
-  });
-  
-  test("Upload a large file from url (and fetch it)", async () => {
-    let uuid;
-    [, , , uuid] = await basicRecordSetup();
-  
-    let file_name = "toUpload.txt";
-    let old_file_path = Helper.testDataPath + '/rruff_samples.json'
-    let new_file_path = path.join(Helper.dynamicTestFilesPath, file_name);
-    await fsPromises.copyFile(old_file_path, new_file_path);
-    let raw_data = fs.readFileSync(new_file_path);
-  
-    let url = serverUrl + file_name;
-    let response = await Helper.uploadFileFromUrl(uuid, url);
-    expect(response.statusCode).toBe(200);
-  
-    response = await Helper.getFile(uuid);
-    expect(response.statusCode).toBe(200);
-    let newFileBuffer = response.body;
-    expect(newFileBuffer.toString()).toEqual(raw_data.toString());
   });
 
+  describe("failure", () => {
+
+    test("send wrong start byte", async () => {
+      let uuid;
+      [, , , uuid] = await basicRecordSetup();
+    
+      let file_name, originalFileContents 
+      [file_name, originalFileContents] = basicFileSetup();
+    
+      const file_path = path.join(Helper.dynamicTestFilesPath, file_name);
+      const stats = fs.statSync(file_path);
+      const file_size = stats.size;
+      let file_data = fs.readFileSync(file_path);
+
+      await Helper.testAndExtract(Helper.uploadFileDataDirect, uuid, file_data.slice(0, file_size/2), 0, file_size);
+
+      let result = await Helper.testAndExtract(Helper.fileDirectUploadStatus, uuid, file_size);
+      expect(result).toHaveProperty('uploaded');
+      expect(result.uploaded).toEqual(file_size/2);
+
+      let response = await Helper.uploadFileDataDirect(uuid, file_data.slice(file_size/2, file_size+1), file_size/2+1, file_size);
+      expect(response.statusCode).toBe(400);
+    });
+
+  });
+
+});
+
+describe("from url", () => {
+  describe("success", () => {
+    test("Upload a file from url (and fetch it)", async () => {
+      let file_name, originalFileContents 
+      [file_name, originalFileContents] = basicFileSetup();
+    
+      let uuid;
+      [, , , uuid] = await basicRecordSetup();
+    
+      let url = serverUrl + file_name;
+      let response = await Helper.uploadFileFromUrl(uuid, url);
+      expect(response.statusCode).toBe(200);
+    
+      response = await Helper.getFile(uuid);
+      expect(response.statusCode).toBe(200);
+      let newFileBuffer = response.body;
+      let newFileContents = newFileBuffer.toString();
+      expect(newFileContents).toEqual(originalFileContents);
+    });
+    
+    test("Upload a large file from url (and fetch it)", async () => {
+      let uuid;
+      [, , , uuid] = await basicRecordSetup();
+    
+      let file_name = "toUpload.txt";
+      let old_file_path = Helper.testDataPath + '/rruff_samples.json'
+      let new_file_path = path.join(Helper.dynamicTestFilesPath, file_name);
+      await fsPromises.copyFile(old_file_path, new_file_path);
+      let raw_data = fs.readFileSync(new_file_path);
+    
+      let url = serverUrl + file_name;
+      let response = await Helper.uploadFileFromUrl(uuid, url);
+      expect(response.statusCode).toBe(200);
+    
+      response = await Helper.getFile(uuid);
+      expect(response.statusCode).toBe(200);
+      let newFileBuffer = response.body;
+      expect(newFileBuffer.toString()).toEqual(raw_data.toString());
+    });
+  });
+
+  describe("failure", () => {
+    test("file to upload doesn't exist", async () => {
+      let uuid;
+      [, , , uuid] = await basicRecordSetup();
+  
+      let url = serverUrl + "toUpload.txt";
+      let response = await Helper.uploadFileFromUrl(uuid, url);
+      expect(response.statusCode).toBe(400);
+    });
+  });
 });
 
 describe("failure", () => {
@@ -163,6 +235,10 @@ describe("failure", () => {
 
     response = await Helper.getFile(Helper.VALID_UUID);
     expect(response.statusCode).toBe(404);
+
+    response = await Helper.fileDirectUploadStatus(Helper.VALID_UUID, 10);
+    expect(response.statusCode).toBe(404);
+
   });
 
   test("don't have edit permissions for file", async () => {
@@ -187,15 +263,6 @@ describe("failure", () => {
     Helper.setAgent(agent2);
     response = await Helper.getFile(uuid);
     expect(response.statusCode).toBe(401);
-  });
-
-  test("file to upload doesn't exist", async () => {
-    let uuid;
-    [, , , uuid] = await basicRecordSetup();
-
-    let url = serverUrl + "toUpload.txt";
-    let response = await Helper.uploadFileFromUrl(uuid, url);
-    expect(response.statusCode).toBe(400);
   });
 
   test("file to fetch doesn't exist", async () => {
