@@ -164,6 +164,28 @@ describe("direct upload", () => {
       expect(response.statusCode).toBe(400);
     });
 
+    test("send invalid start byte and filesize", async () => {
+      let uuid;
+      [, , , uuid] = await basicRecordSetup();
+    
+      let file_name, originalFileContents 
+      [file_name, originalFileContents] = basicFileSetup();
+    
+      const file_path = path.join(Helper.dynamicTestFilesPath, file_name);
+      const stats = fs.statSync(file_path);
+      const file_size = stats.size;
+      let file_data = fs.readFileSync(file_path);
+
+      let response = await Helper.uploadFileDataDirect(uuid, file_data.slice(0, file_size/2), 'waffle', file_size);
+      expect(response.statusCode).toBe(400);
+
+      response = await Helper.uploadFileDataDirect(uuid, file_data.slice(0, file_size/2), 0, 'waffle');
+      expect(response.statusCode).toBe(400);
+
+      response = await Helper.fileDirectUploadStatus(uuid, 'waffle');
+      expect(response.statusCode).toBe(400);
+    });
+
   });
 
 });

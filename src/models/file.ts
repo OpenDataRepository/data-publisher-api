@@ -18,7 +18,7 @@ const Schema = Object.freeze({
     },
     uuid: {
       bsonType: "string",
-      description: "identifies the file name, which is just a uuid. A file can be used accross multiple versions of a record."
+      description: "unique identifier for the file. A file can be used accross multiple versions of a record."
       // uuid should be in a valid uuid format as well
     },
     record_uuid: {

@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import { InputError } from '../lib/util';
 const fsPromises = fs.promises;
 const path = require('path');
 const http = require('http');
@@ -50,7 +51,13 @@ exports.uploadFileDirect = async function(req, res, next) {
     const file_path = path.join(FileModel.uploadDestination(), uuid);
 
     let startByte = parseInt(req.headers['x-start-byte'], 10);
+    if(isNaN(startByte)) {
+      throw new InputError('x-start-byte provided in the header must be a valid integer');
+    }
     let fileSize = parseInt(req.headers['size'], 10);
+    if(isNaN(fileSize)) {
+      throw new InputError('fileSize provided in the header must be a valid integer');
+    }
     if (uploads[uuid] && fileSize == uploads[uuid].bytesReceived) {
       res.end();
       return;
@@ -110,35 +117,42 @@ exports.uploadFileDirect = async function(req, res, next) {
 }
 
 exports.directUploadStatus = async function(req, res, next) {
-  let uuid = req.params.uuid;
-  let fileSize = parseInt(req.headers['size'], 10);
-  if(!(await SharedFunctions.exists(FileModel.collection(), uuid))) {
-    res.status(404).send(`File ${uuid} does not exist`);
-    return;
-  }
   try {
-    const file_path = path.join(FileModel.uploadDestination(), uuid);
-    let stats = fs.statSync(file_path);
-
-    if (stats.isFile()) {
-      if (fileSize == stats.size) {
-        res.send({ 'status': 'file is present' })
-        return;
-      }
-      if (!uploads[uuid])
-        uploads[uuid] = {}
-      uploads[uuid]['bytesReceived'] = stats.size;
+    let uuid = req.params.uuid;
+    let fileSize = parseInt(req.headers['size'], 10);
+    if(isNaN(fileSize)) {
+      throw new InputError('fileSize provided in the header must be a valid integer');
     }
-  } catch (er) {
-
+    if(!(await SharedFunctions.exists(FileModel.collection(), uuid))) {
+      res.status(404).send(`File ${uuid} does not exist`);
+      return;
+    }
+    try {
+      const file_path = path.join(FileModel.uploadDestination(), uuid);
+      let stats = fs.statSync(file_path);
+  
+      if (stats.isFile()) {
+        if (fileSize == stats.size) {
+          res.send({ 'status': 'file is present' })
+          return;
+        }
+        if (!uploads[uuid])
+          uploads[uuid] = {}
+        uploads[uuid]['bytesReceived'] = stats.size;
+      }
+    } catch (er) {
+  
+    }
+  
+    let upload = uploads[uuid];
+    if (upload)
+      res.send({ "uploaded": upload.bytesReceived });
+    else
+      res.send({ "uploaded": 0 });
+  
+  } catch (err) {
+    next(err);
   }
-
-  let upload = uploads[uuid];
-  if (upload)
-    res.send({ "uploaded": upload.bytesReceived });
-  else
-    res.send({ "uploaded": 0 });
-
 };
 
 // maybe at some point it would be a good idea to downoad to a different file first,
