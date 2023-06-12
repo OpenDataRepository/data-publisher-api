@@ -2,6 +2,7 @@ const MongoDB = require('../lib/mongoDB');
 const { v4: uuidv4, validate: uuidValidate } = require('uuid');
 import { ObjectId } from 'mongodb';
 import * as Util from '../lib/util';
+import { AbstractDocument } from './abstract_document';
 const { PermissionTypes, model: PermissionModel } = require('./permission');
 const SharedFunctions = require('./shared_functions');
 const LegacyUuidToNewUuidMapperModel = require('./legacy_uuid_to_new_uuid_mapper');
@@ -106,11 +107,13 @@ function collectionExport(){
   return TemplateField
 };
 
-class Model {
+class Model extends AbstractDocument {
   collection = TemplateField;
 
   constructor(public state){
+    super();
     this.state = state;
+    this.collection = TemplateField;
   }
 
   // Creates a draft from the persisted version.

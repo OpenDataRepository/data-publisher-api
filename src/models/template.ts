@@ -1245,6 +1245,10 @@ class Model extends AbstractDocument{
     return await this.#duplicateRecursor(template)
   }
 
+  relatedDocsType() {
+    return "related_templates";
+  }
+
   async hasViewPermissionToPersisted(document_uuid: string, user_id = this.state.user_id): Promise<boolean> {
     if(await (new PermissionModel.model(this.state)).hasExplicitPermission(document_uuid, PermissionModel.PermissionTypes.view, user_id)) {
       return true;
@@ -1405,7 +1409,8 @@ class Model extends AbstractDocument{
   }
 
   async draftGet(uuid: string): Promise<Record<string, any> | null> {
-    await this.createAncestorDraftsForDecendantDrafts(uuid);
+    this.state.updated_at = new Date();
+    await this.repairDraft(uuid);
     let callback = async () => {
       return await this.#draftFetch(uuid);
     };

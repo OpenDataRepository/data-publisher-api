@@ -1175,6 +1175,10 @@ class Model extends AbstractDocument {
     return dataset.uuid;
   }
 
+  relatedDocsType() {
+    return "related_datasets";
+  }
+
   async hasPermission(uuid: string, permission_level: PermissionTypes): Promise<boolean> {
     if(permission_level == PermissionTypes.edit) {
       permission_level = PermissionTypes.admin;
@@ -1214,15 +1218,16 @@ class Model extends AbstractDocument {
 
   // Wraps the actual request to get with a transaction
   async draftGet(uuid: string, create_from_persisted_if_no_draft: boolean): Promise<Record<string, any> | null> {
-    await this.createAncestorDraftsForDecendantDrafts(uuid);
+    this.state.updated_at = new Date();
     let callback = async () => {
-      return await this.#draftFetch(uuid, create_from_persisted_if_no_draft);
+      await this.repairDraft(uuid);
     }
     if(!this.state.session) {
-      return await SharedFunctions.executeWithTransaction(this.state, callback);
+      await SharedFunctions.executeWithTransaction(this.state, callback);
     } else {
-      return await callback();
+      await callback();
     }
+    return await this.#draftFetch(uuid, create_from_persisted_if_no_draft);
   }
 
   // Wraps the actual request to update with a transaction
@@ -1279,6 +1284,24 @@ class Model extends AbstractDocument {
       throw new Util.NotFoundError();
     }
     return await SharedFunctions.uuidFor_id(TemplateModel.collection(), dataset.template_id, this.state.session);
+  }
+
+  async recursiveLatestPersistedOutOfDate(dataset) {
+    let latest_dataset = await this.shallowLatestPersisted(dataset.uuid) as Record<string, any>;
+    if(!dataset._id.equals(latest_dataset._id)) {
+      return true;
+    }
+    for(let related_dataset of dataset.related_datasets) {
+      if(await this.recursiveLatestPersistedOutOfDate(related_dataset)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  async latestPersistedOutOfDate(uuid) {
+    let dataset = await this.latestPersistedWithoutPermissions(uuid)
+    return this.recursiveLatestPersistedOutOfDate(dataset);
   }
 
   // Wraps the actual request to duplicate with a transaction

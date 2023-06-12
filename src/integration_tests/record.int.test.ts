@@ -1064,6 +1064,46 @@ describe("update", () => {
       let response = await Helper.recordUpdate(record, record.uuid);
       expect(response.statusCode).toBe(400);
     });
+
+    test("dataset out of sync - cannot update record until dataset is updated and persisted", async () => {
+      let template: any = { 
+        name: "t1",
+        related_templates: [{
+          name: "t2"
+        }]
+      };
+      template = await Helper.templateCreatePersistTest(template);
+
+      let dataset: any = {
+        template_id: template._id,
+        related_datasets: [{
+          template_id: template.related_templates[0]._id
+        }]
+      };
+      dataset = await Helper.datasetCreatePersistTest(dataset);
+
+      let record: any = {
+        dataset_uuid: dataset.uuid,
+        related_records: [{
+          dataset_uuid: dataset.related_datasets[0].uuid
+        }]
+      };
+      record = await Helper.recordCreatePersistTest(record);
+
+      let related_dataset = dataset.related_datasets[0];
+      related_dataset.name = "new name";
+      related_dataset = await Helper.datasetUpdatePersistTest(related_dataset);
+
+      record.public_date = (new Date()).toISOString();
+      let response = await Helper.recordUpdate(record, record.uuid);
+      expect(response.statusCode).toBe(400);
+
+      dataset = await Helper.datasetDraftGetAndTest(dataset.uuid);
+      dataset = await Helper.datasetUpdatePersistTest(dataset);
+
+      response = await Helper.recordUpdate(record, record.uuid);
+      expect(response.statusCode).toBe(200);
+    });
   });
 
   describe("update after a persist: is draft different and thus created or not?", () => {
@@ -1475,6 +1515,139 @@ describe("get/fetch draft", () => {
     });
   })
 
+  test("draft is automatically created if dataset version has changed", async () => {
+    let template: any = {
+      name:"parent",
+      fields: [{name: "f"}],
+      related_templates: [
+        {
+          name: "child"
+        }
+      ]
+    };
+    template = await Helper.templateCreatePersistTest(template);
+    let dataset: any = {
+      name:"d",
+      template_id: template._id,
+      related_datasets: [
+        {
+          name: "d2",
+          template_id: template.related_templates[0]._id
+        }
+      ]
+    };
+    dataset = await Helper.datasetCreatePersistTest(dataset);
+
+    let record: any = {
+      dataset_uuid: dataset.uuid,
+      fields: [{uuid: template.fields[0].uuid, value: "something"}]
+    };
+    record = await Helper.recordCreatePersistTest(record);
+
+    template.fields = [{name: "different"}];
+    template.related_templates = [];
+    template = await Helper.templateUpdatePersistTest(template);
+
+    dataset.related_datasets = [];
+    dataset.template_id = template._id;
+    dataset = await Helper.datasetUpdatePersistTest(dataset);
+
+    expect(await Helper.recordDraftExisting(record.uuid)).toBe(false);
+
+    record = await Helper.testAndExtract(Helper.recordDraftGet, record.uuid);
+    expect(record.fields[0].name).toBe("different");
+    expect(record.related_records.length).toBe(0);
+
+    expect(await Helper.recordDraftExisting(record.uuid)).toBe(true);
+  });
+
+  test("draft is automatically updated if dataset version has changed", async () => {
+    let template: any = {
+      name:"parent",
+      fields: [{name: "f"}],
+      related_templates: [
+        {
+          name: "child"
+        }
+      ]
+    };
+    template = await Helper.templateCreatePersistTest(template);
+    let dataset: any = {
+      name:"d",
+      template_id: template._id,
+      related_datasets: [
+        {
+          name: "d2",
+          template_id: template.related_templates[0]._id
+        }
+      ]
+    };
+    dataset = await Helper.datasetCreatePersistTest(dataset);
+
+    let record: any = {
+      dataset_uuid: dataset.uuid,
+      fields: [{uuid: template.fields[0].uuid, value: "something"}]
+    };
+    record = await Helper.recordCreateAndTest(record);
+
+    template.fields = [{name: "different"}];
+    template.related_templates = [];
+    template = await Helper.templateUpdatePersistTest(template);
+
+    dataset.related_datasets = [];
+    dataset.template_id = template._id;
+    dataset = await Helper.datasetUpdatePersistTest(dataset);
+
+    record = await Helper.testAndExtract(Helper.recordDraftGet, record.uuid);
+    expect(record.fields[0].name).toBe("different");
+    expect(record.related_records.length).toBe(0);
+
+  });
+
+  describe("failure", () => {
+    test("if dataset is inconsistent, cannot fetch record draft", async () => {
+      let template: any = {
+        name:"parent",
+        related_templates: [
+          {
+            name: "child"
+          }
+        ]
+      };
+      template = await Helper.templateCreatePersistTest(template);
+      let dataset: any = {
+        name:"d",
+        template_id: template._id,
+        related_datasets: [
+          {
+            name: "d2",
+            template_id: template.related_templates[0]._id
+          }
+        ]
+      };
+      dataset = await Helper.datasetCreatePersistTest(dataset);
+  
+      let record: any = {
+        dataset_uuid: dataset.uuid,
+      };
+      record = await Helper.recordCreateAndTest(record);
+  
+      let related_dataset = dataset.related_datasets[0];
+      related_dataset.name = "new name";
+      await Helper.datasetUpdatePersistTest(related_dataset);
+    
+      let response = await Helper.recordDraftGet(record.uuid);
+      expect(response.statusCode).toBe(400);
+
+      dataset = await Helper.testAndExtract(Helper.datasetDraftGet, dataset.uuid);
+      await Helper.datasetUpdatePersistTest(dataset);
+
+      response = await Helper.recordDraftGet(record.uuid);
+      expect(response.statusCode).toBe(200);
+      
+    });
+  });
+
   // TODO: uncomment this test after writing this code
   // test("draft is deleted if there are no changes", async () => {
 
@@ -1748,6 +1921,48 @@ describe("persist (and get persisted)", () => {
       let response = await Helper.recordPersist(record.uuid, last_update);
       expect(response.statusCode).toBe(401);
       
+    });
+
+    test("dataset out of sync - cannot persist record until dataset is updated and persisted", async () => {
+      let template: any = { 
+        name: "t1",
+        related_templates: [{
+          name: "t2"
+        }]
+      };
+      template = await Helper.templateCreatePersistTest(template);
+
+      let dataset: any = {
+        template_id: template._id,
+        related_datasets: [{
+          template_id: template.related_templates[0]._id
+        }]
+      };
+      dataset = await Helper.datasetCreatePersistTest(dataset);
+
+      let record: any = {
+        dataset_uuid: dataset.uuid,
+        related_records: [{
+          dataset_uuid: dataset.related_datasets[0].uuid
+        }]
+      };
+      record = await Helper.recordCreateAndTest(record);
+
+      let related_dataset = dataset.related_datasets[0];
+      related_dataset.name = "new name";
+      related_dataset = await Helper.datasetUpdatePersistTest(related_dataset);
+
+      let response = await Helper.recordPersist(record.uuid, record.updated_at);
+      expect(response.statusCode).toBe(400);
+
+      dataset = await Helper.datasetDraftGetAndTest(dataset.uuid);
+      dataset = await Helper.datasetUpdatePersistTest(dataset);
+
+      record = await Helper.testAndExtract(Helper.recordDraftGet, record.uuid);
+      record = await Helper.recordUpdateAndTest(record);
+
+      response = await Helper.recordPersist(record.uuid, record.updated_at);
+      expect(response.statusCode).toBe(200);
     });
 
   });
@@ -2777,7 +2992,7 @@ describe("with files", () => {
 
   describe("failure", () => {
 
-    test("try to publish without file upload ", async () => {
+    test("try to persist without file upload ", async () => {
       let template, dataset, record, file_uuid;
       [template, dataset, record, file_uuid] = await basicRecordSetup();
 
@@ -2785,19 +3000,31 @@ describe("with files", () => {
       expect(response.statusCode).toBe(400);
     });
 
-    test("try to publish during file upload ", async () => {
+    test("try to persist during file upload", (done) => {
+      let upload_finished = false;
+      let persist_finished = false;
       let template, dataset, record, file_uuid;
-      [template, dataset, record, file_uuid] = await basicRecordSetup();
-
-      let file_name = "toUpload.txt";
-      let file_contents = "Hello World!";
-  
-      Helper.createFile(file_name, file_contents);
-      
-      Helper.uploadFileDirect(file_uuid, file_name);
-
-      let response = await Helper.recordPersist(record);
-      expect(response.statusCode).toBe(400);
+      basicRecordSetup()
+      .then((results) =>  {
+        [template, dataset, record, file_uuid] = results;
+        let file_name = "toUpload.txt";
+        let file_contents = "Hello World!";
+        Helper.createFile(file_name, file_contents);
+        Helper.uploadFileDirect(file_uuid, file_name).then(() => {
+          upload_finished = true;
+          if(persist_finished) {
+            done();
+          }
+        })
+        return Helper.recordPersist(record);
+      })
+      .then(response => {
+        expect(response.statusCode).toBe(400);
+        persist_finished = true;
+        if(upload_finished) {
+          done();
+        }
+      })
     });
 
     test("try to attach a uuid that belongs to a different record + field", async () => {

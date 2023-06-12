@@ -28,7 +28,7 @@ const Schema = Object.freeze({
     },
     dataset_uuid: {
       bsonType: "string",
-      description: "identifies the dataset this record belongs to. Only used for the record draft"
+      description: "identifies the dataset this record belongs to"
     },
     dataset_id: {
       bsonType: "objectId",
@@ -817,8 +817,9 @@ class Model extends AbstractDocument {
     }
 
     let dataset;
+    const dataset_model = new DatasetModel.model(this.state);
     try {
-      dataset = await (new DatasetModel.model(this.state)).latestPersistedWithoutPermissions(record.dataset_uuid);
+      dataset = await dataset_model.latestPersistedWithoutPermissions(record.dataset_uuid);
     } catch(error) {
       if(error instanceof Util.InputError) {
         throw new Util.InputError(`a valid dataset_uuid was not provided for record ${record.uuid}. Note dataset must be published`);
@@ -829,6 +830,12 @@ class Model extends AbstractDocument {
     if(!dataset) {
       throw new Util.InputError(`a valid dataset_uuid was not provided for record ${record.uuid}. Note dataset must be published`);
     }
+
+    // Verify that the dataset is up to date, meaning it references the latest versions of its related_datasets
+    if(await dataset_model.recursiveLatestPersistedOutOfDate(dataset)) {
+      throw new Util.InputError(`dataset ${record.dataset_uuid} is out of date and needs to be updated and persisted before updating this record`);
+    }
+
     let template = await (new TemplateModel.model(this.state)).persistedByIdWithoutPermissions(SharedFunctions.convertToMongoId(dataset.template_id));
 
     this.state.updated_at = new Date();
@@ -839,7 +846,7 @@ class Model extends AbstractDocument {
 
 
   // TODO: commonize this code with dataset if possible
-  // TODO: Either here or in createAncestorDraftsForDecendantDrafts, delete draft if there are no changes
+  // TODO: Either here or in repairDraft, delete draft if there are no changes
 
   // Fetches the record draft with the given uuid, recursively looking up related_records.
   // optional: If a draft of a given template doesn't exist, a new one will be generated using the last persisted record.
@@ -1132,6 +1139,106 @@ class Model extends AbstractDocument {
     } else {
       return null;
     }
+  }
+
+  relatedDocsType() {
+    return "related_records";
+  }
+
+  async godfatherUpdated(uuid: string): Promise<Record<string, any> | null> {
+    let latest_record = (await this.shallowLatestDocument(uuid)) as Record<string, any>;
+    let latest_persisted_dataset = await (new DatasetModel.model(this.state)).shallowLatestPersisted(latest_record.dataset_uuid);
+    if(Util.isTimeAAfterB(latest_persisted_dataset.persist_date, latest_record.updated_at)) {
+      return latest_persisted_dataset;
+    } 
+    return null;
+  }
+
+  async shallowCreateDraftFromPersistedAndUpdatedGodfather(persisted: Record<string, any>, godfather: Record<string, any>) {
+
+    // Create a copy of persisted
+    let draft: Record<string, any> = {
+      uuid: persisted.uuid,
+      dataset_uuid: persisted.dataset_uuid,
+      updated_at: this.state.updated_at
+    };
+    if(persisted.public_date) {
+      draft.public_date = persisted.public_date;
+    }
+    if(persisted.old_system_uuid) {
+      draft.public_date = persisted.public_date;
+    }
+
+    const template = await (new TemplateModel.model(this.state)).fetchBy_id(godfather.template_id);
+    let template_fields: any[] = [];
+    for(let field_id of template.fields) {
+      let field =  await (new TemplateFieldModel.model(this.state)).fetchBy_id(field_id);
+      template_fields.push(field);
+    }
+    let record_field_map = {};
+    for(let field of persisted.fields) {
+      record_field_map[field.uuid] = field;
+    }
+    draft.fields = await this.#createRecordFieldsFromTemplateFieldsAndMap(template_fields, record_field_map, persisted.uuid);
+
+    let related_dataset_ids = new Set();
+    for(let _id of godfather.related_datasets) {
+      related_dataset_ids.add(_id);
+    }
+    let related_records: string[] = [];
+    for(let _id of persisted.related_records) {
+      let shallow_related_record = (await this.fetchBy_id(_id)) as Record<string, any>;
+      if(related_dataset_ids.has(shallow_related_record.dataset_id)) {
+        related_records.push(shallow_related_record.uuid);
+      }
+    }
+    draft.related_records = related_records;
+
+    return draft;
+
+  }
+
+  async shallowUpdateDraftWithUpdatedGodfather(draft: Record<string, any>, godfather: Record<string, any>) {
+
+    draft.updated_at = this.state.updated_at;
+
+    const template = await (new TemplateModel.model(this.state)).fetchBy_id(godfather.template_id);
+    let template_fields: any[] = [];
+    for(let field_id of template.fields) {
+      let field =  await (new TemplateFieldModel.model(this.state)).fetchBy_id(field_id);
+      template_fields.push(field);
+    }
+    let record_field_map = {};
+    for(let field of draft.fields) {
+      record_field_map[field.uuid] = field;
+    }
+    draft.fields = await this.#createRecordFieldsFromTemplateFieldsAndMap(template_fields, record_field_map, draft.uuid);
+
+    let related_dataset_uuids = new Set();
+    let datset_model = new DatasetModel.model(this.state);
+    for(let _id of godfather.related_datasets) {
+      related_dataset_uuids.add(await datset_model.uuidFor_id(_id));
+    }
+    let related_records: string[] = [];
+    for(let uuid of draft.related_records) {
+      let shallow_related_record = (await this.shallowLatestDocument(uuid)) as Record<string, any>;
+      if(related_dataset_uuids.has(shallow_related_record.dataset_uuid)) {
+        related_records.push(shallow_related_record.uuid);
+      }
+    }
+    draft.related_records = related_records;
+
+    let response = await Record.updateOne(
+      {uuid: draft.uuid, 'persist_date': {'$exists': false}}, 
+      {$set: draft}, 
+      {session: this.state.session}
+    );
+    if (response.modifiedCount != 1 && response.matchedCount != 1) {
+      throw new Error(`Record.shallowUpdateDraftWithUpdatedGodfather: Upserted: ${response.upsertedCount}. Matched: ${response.matchedCount}`);
+    } 
+
+    return draft;
+
   }
 
   // This function will provide the timestamp of the last update made to this record and all of it's related_records
@@ -1624,11 +1731,20 @@ class Model extends AbstractDocument {
   }
 
   async draftGet(uuid: string, create_from_persisted_if_no_draft: boolean): Promise<Record<string, any> | null> {
-    await this.createAncestorDraftsForDecendantDrafts(uuid);
+    // TODO: do the same in dataset draft get
+    const latest_doc = await this.shallowLatestDocument(uuid);
+    if(!latest_doc) {
+      throw new Util.NotFoundError();
+    }
+    if(await (new DatasetModel.model(this.state)).latestPersistedOutOfDate(latest_doc.dataset_uuid)) {
+      throw new Util.InputError(`dataset ${latest_doc.dataset_uuid} is out of sync. Please update and persist it before working with this record`);
+    }
+    this.state.updated_at = new Date();
     let callback = async () => {
-      return await this.#draftFetch(uuid, create_from_persisted_if_no_draft);
+      await this.repairDraft(uuid);
     };
-    return await SharedFunctions.executeWithTransaction(this.state, callback);
+    await SharedFunctions.executeWithTransaction(this.state, callback);
+    return await this.#draftFetch(uuid, create_from_persisted_if_no_draft);
   }
 
   // Wraps the actual request to update with a transaction

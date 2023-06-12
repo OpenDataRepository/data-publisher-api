@@ -849,7 +849,7 @@ export = class Helper {
   recordCreatePersistTest = async (record) => {
     let created_record = await this.recordCreateAndTest(record);
     let persisted = await this.recordPersistAndTest(created_record)
-    expect(persisted).toMatchObject(record);
+    this.testRecordsEqual(record, persisted);
     return persisted;
   };
   
