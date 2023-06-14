@@ -4,7 +4,6 @@ import { ObjectId } from 'mongodb';
 import * as Util from '../lib/util';
 import { AbstractDocument } from './abstract_document';
 const { PermissionTypes, model: PermissionModel } = require('./permission');
-const SharedFunctions = require('./shared_functions');
 const LegacyUuidToNewUuidMapperModel = require('./legacy_uuid_to_new_uuid_mapper');
 
 enum FieldTypes {
@@ -109,11 +108,13 @@ function collectionExport(){
 
 class Model extends AbstractDocument {
   collection = TemplateField;
+  permission_model: any;
 
   constructor(public state){
     super();
     this.state = state;
     this.collection = TemplateField;
+    this.permission_model = new PermissionModel(state);
   }
 
   // Creates a draft from the persisted version.
@@ -391,7 +392,7 @@ class Model extends AbstractDocument {
       output_field.type = "file";
     }
     if(input_field.options) {
-      let latest_field = await SharedFunctions.latestDocument(TemplateField, uuid);
+      let latest_field = await this.shallowLatestDocument(uuid);
       let previous_options_uuids = new Set<string>();
       if(latest_field && latest_field.options) {
         this.#buildOptionSet(latest_field.options, previous_options_uuids);
@@ -433,11 +434,11 @@ class Model extends AbstractDocument {
   }
 
   async hasViewPermissionToPersisted(document_uuid: string, user_id = this.state.user_id): Promise<boolean> {
-    if(await (new PermissionModel(this.state)).hasExplicitPermission(document_uuid, PermissionTypes.view, user_id)) {
+    if(await this.permission_model.hasExplicitPermission(document_uuid, PermissionTypes.view, user_id)) {
       return true;
     }
 
-    if(await SharedFunctions.isPublic(TemplateField, document_uuid, this.state.session)) {
+    if(await this.isPublic(document_uuid)) {
       return true;
     }
 
@@ -457,8 +458,6 @@ class Model extends AbstractDocument {
       throw new Util.InputError(`field provided is not an object: ${input_field}`);
     }
 
-    let permissions_model_instance = new PermissionModel(this.state);
-
     let uuid;
     // If a field uuid is provided, this is an update
     if (input_field.uuid) {
@@ -468,12 +467,12 @@ class Model extends AbstractDocument {
       }
 
       // Field uuid must exist
-      if (!(await SharedFunctions.exists(TemplateField, input_field.uuid))) {
+      if (!(await this.exists(input_field.uuid))) {
         throw new Util.NotFoundError(`No field exists with uuid ${input_field.uuid}`);
       }
 
       // verify that this user is in the 'edit' permission group
-      if (!(await permissions_model_instance.hasExplicitPermission(input_field.uuid, PermissionTypes.edit))) {
+      if (!(await this.permission_model.hasExplicitPermission(input_field.uuid, PermissionTypes.edit))) {
         throw new Util.PermissionDeniedError();
       }
 
@@ -484,7 +483,7 @@ class Model extends AbstractDocument {
       // Generate a uuid for the new template_field
       uuid = uuidv4();
       // initialize permissions for the new template_field
-      await permissions_model_instance.initializePermissionsFor(uuid);
+      await this.permission_model.initializePermissionsFor(uuid);
     }
 
     // Populate field properties
@@ -530,14 +529,12 @@ class Model extends AbstractDocument {
   async #draftFetchOrCreate(uuid: string): Promise<Record<string, any> | null> {
     
     // See if a draft of this template field exists. 
-    let template_field_draft = await SharedFunctions.draft(TemplateField, uuid, this.state.session);
-
-    let permissions_model_instance = new PermissionModel(this.state);
+    let template_field_draft = await this.shallowDraft(uuid);
 
     // If a draft of this template field already exists, return it.
     if (template_field_draft) {
       // Make sure this user has a permission to be working with drafts
-      if (!(await permissions_model_instance.hasExplicitPermission(uuid, PermissionTypes.edit))) {
+      if (!(await this.permission_model.hasExplicitPermission(uuid, PermissionTypes.edit))) {
         throw new Util.PermissionDeniedError();
       }
       delete template_field_draft._id;
@@ -551,7 +548,7 @@ class Model extends AbstractDocument {
       return null;
     } else {
       // Make sure this user has a permission to be working with drafts
-      if (!(await permissions_model_instance.hasExplicitPermission(uuid, PermissionTypes.edit))) {
+      if (!(await this.permission_model.hasExplicitPermission(uuid, PermissionTypes.edit))) {
         throw new Util.PermissionDeniedError();
       }
     }
@@ -584,7 +581,7 @@ class Model extends AbstractDocument {
   async persistField(uuid: string, last_update: Date): Promise<ObjectId> {
     var return_id;
 
-    let field_draft = await SharedFunctions.draft(TemplateField, uuid, this.state.session);
+    let field_draft = await this.shallowDraft(uuid);
     let last_persisted = await this.#latestPersisted(uuid);
 
     // Check if a draft with this uuid exists
@@ -597,7 +594,7 @@ class Model extends AbstractDocument {
     }
 
     // if the user doesn't have edit permissions, throw a permission denied error
-    let has_permission = await (new PermissionModel(this.state)).hasExplicitPermission(uuid, PermissionTypes.edit);
+    let has_permission = await this.permission_model.hasExplicitPermission(uuid, PermissionTypes.edit);
     if(!has_permission) {
       throw new Util.PermissionDeniedError();
     }
@@ -643,7 +640,7 @@ class Model extends AbstractDocument {
       this.state.updated_at = new Date();
       return await this.validateAndCreateOrUpdate(field);
     };
-    let result = await SharedFunctions.executeWithTransaction(this.state, callback);
+    let result = await this.executeWithTransaction(callback);
     let inserted_uuid = result[1];
     return inserted_uuid;
   }
@@ -653,7 +650,7 @@ class Model extends AbstractDocument {
     let callback = async () => {
       return await this.#draftFetchOrCreate(uuid);
     };
-    return await SharedFunctions.executeWithTransaction(this.state, callback);
+    return await this.executeWithTransaction(callback);
   }
 
   // Wraps the request to update with a transaction
@@ -662,7 +659,7 @@ class Model extends AbstractDocument {
       this.state.updated_at = new Date();
       return await this.validateAndCreateOrUpdate(field);
     };
-    await SharedFunctions.executeWithTransaction(this.state, callback);
+    await this.executeWithTransaction(callback);
   }
 
   // Wraps the request to persist with a transaction
@@ -670,7 +667,7 @@ class Model extends AbstractDocument {
     let callback = async () => {
       return await this.persistField(uuid, last_update);
     };
-    await SharedFunctions.executeWithTransaction(this.state, callback);
+    await this.executeWithTransaction(callback);
   }
 
   async latestPersisted(uuid: string): Promise<Record<string, any> | null> {
@@ -681,13 +678,13 @@ class Model extends AbstractDocument {
 
   async draftDelete(uuid: string): Promise<void> {
 
-    let field = await SharedFunctions.draft(TemplateField, uuid, this.state.session);
+    let field = await this.shallowDraft(uuid);
     if(!field) {
       throw new Util.NotFoundError();
     }
 
     // user must have edit access to see this endpoint
-    if (!await (new PermissionModel(this.state)).hasExplicitPermission(uuid, PermissionTypes.edit)) {
+    if (!await this.permission_model.hasExplicitPermission(uuid, PermissionTypes.edit)) {
       throw new Util.PermissionDeniedError();
     }
 
@@ -699,10 +696,9 @@ class Model extends AbstractDocument {
 
   async lastUpdate(uuid: string): Promise<Date> {
 
-    let field_draft = await SharedFunctions.draft(TemplateField, uuid, this.state.session);
+    let field_draft = await this.shallowDraft(uuid);
     let field_persisted = await this.#latestPersisted(uuid);
-    let permissions_model_instance = new PermissionModel(this.state);
-    let edit_permission = await permissions_model_instance.hasExplicitPermission(uuid, PermissionTypes.edit);
+    let edit_permission = await this.permission_model.hasExplicitPermission(uuid, PermissionTypes.edit);
     let view_permission = await this.hasViewPermissionToPersisted(uuid);
 
     // Get the lat update for the draft if the user has permission to the draft. Otherwise, the last persisted.
@@ -730,7 +726,7 @@ class Model extends AbstractDocument {
   }
 
   async draftExisting(uuid: string): Promise<boolean> {
-    return (await SharedFunctions.draft(TemplateField, uuid)) ? true : false;
+    return (await this.shallowDraft(uuid)) ? true : false;
   }
 
   async duplicate(field: Record<string, any>): Promise<string> {
@@ -738,7 +734,6 @@ class Model extends AbstractDocument {
     if(!field) {
       throw new Util.NotFoundError();
     }
-    let permissions_model_instance = new PermissionModel(this.state);
     if(!(await this.hasViewPermissionToPersisted(field.uuid))) {
       throw new Util.PermissionDeniedError();
     }
@@ -750,7 +745,7 @@ class Model extends AbstractDocument {
     delete field.updated_at;
     delete field.persist_date;
     delete field.public_date;
-    await permissions_model_instance.initializePermissionsFor(field.uuid);
+    await this.permission_model.initializePermissionsFor(field.uuid);
 
 
     // 3. Actually create everything
@@ -777,14 +772,13 @@ class Model extends AbstractDocument {
     // Now get the matching uuid for the imported uuid
     let uuid = await uuid_mapper_model_instance.get_new_uuid_from_old(field.template_field_uuid);
     // If the uuid is found, then this has already been imported. Import again if we have edit permissions
-    let permissions_model_instance = new PermissionModel(this.state);
     if(uuid) {
-      if(!permissions_model_instance.hasExplicitPermission(uuid, PermissionTypes.edit)) {
+      if(!this.permission_model.hasExplicitPermission(uuid, PermissionTypes.edit)) {
         throw new Util.PermissionDeniedError(`You do not have edit permissions required to import template field ${field.template_field_uuid}. It has already been imported.`);
       }
     } else {
       uuid = await uuid_mapper_model_instance.create_new_uuid_for_old(field.template_field_uuid);
-      await permissions_model_instance.initializePermissionsFor(uuid);
+      await this.permission_model.initializePermissionsFor(uuid);
     }
 
     let new_field = await this.#initializeNewImportedDraftWithProperties(field, uuid);

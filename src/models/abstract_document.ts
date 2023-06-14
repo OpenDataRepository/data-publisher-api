@@ -1,5 +1,8 @@
 import { ObjectId } from "mongodb";
+import { StringLiteralLike } from "typescript";
 import { PermissionTypes, model as PermissionsModel } from "./permission";
+import * as Util from '../lib/util';
+const MongoDB = require('../lib/mongoDB');
 
 // TODO: re-write the whole code base to use this class instead of shared_functions and delete shared_functions
 
@@ -17,6 +20,40 @@ export class AbstractDocument {
     if (this.constructor == AbstractDocument) {
       throw new Error("Abstract classes can't be instantiated.");
     }
+  }
+
+  async executeWithTransaction(callback){
+    if(this.state.session) {
+      return callback();
+    }
+    const session = MongoDB.newSession();
+    this.state.session = session;
+    let result;
+    try {
+      await session.withTransaction(async () => {
+        try {
+          result = await callback();
+        } catch(err) {
+          await session.abortTransaction();
+          throw err;
+        }
+      });
+      session.endSession();
+      delete this.state.session;
+      return result;
+    } catch(err) {
+      session.endSession();
+      delete this.state.session;
+      throw err;
+    }
+  }
+
+  async exists(uuid: StringLiteralLike): Promise<boolean>{
+    let cursor = await this.collection.find(
+      {"uuid": uuid},
+      {session: this.state?.session}
+    );
+    return (await cursor.hasNext());
   }
 
   async shallowDraft(uuid: string): Promise<Record<string, any> | null> {
@@ -102,6 +139,11 @@ export class AbstractDocument {
     return document.uuid;
   }
 
+  async latest_persisted_id_for_uuid(uuid: string): Promise<ObjectId | null>{
+    let document = await this.shallowLatestPersisted(uuid);
+    return document ? document._id : null;
+  }
+
   async isPublic(uuid: string): Promise<boolean>{
     let latest_persisted = await this.shallowLatestPersisted(uuid);
     if(!latest_persisted) {
@@ -114,8 +156,39 @@ export class AbstractDocument {
     throw new Error('createDraftFromPersisted not implemented');
   }
 
+  async shallowDraftDelete(uuid: string): Promise<void>{
+    let response = await this.collection.deleteMany(
+      { uuid, persist_date: {'$exists': false} },
+      { session: this.state.session }
+    );
+    if (response.deletedCount > 1) {
+      console.error(`draftDelete: Document with uuid '${uuid}' had more than one draft to delete.`);
+    }
+  }
+
   relatedDocsType(): string {
     throw new Error('relatedDocsType not implemented');
+  }
+
+  async draftFetch(uuid: string, create_from_persisted_if_no_draft?: boolean): Promise<Record<string, any> | null> {
+    throw new Error('draftFetch not implemented');
+  }
+
+  async latestPersistedWithJoinsAndPermissions(uuid: string): Promise<Record<string, any> | null> {
+    throw new Error('latestPersistedWithJoinsAndPermissions not implemented');
+  }
+
+  async fetchLatestDraftOrPersisted(uuid, create_from_persisted_if_no_draft?){
+    let draft;
+    if(create_from_persisted_if_no_draft) {
+      draft = await this.draftFetch(uuid, create_from_persisted_if_no_draft);
+    } else {
+      draft = await this.draftFetch(uuid);
+    }
+    if(draft) {
+      return draft;
+    }
+    return this.latestPersistedWithJoinsAndPermissions(uuid);
   }
 
   async godfatherUpdated(uuid: string): Promise<Record<string, any> | null> {

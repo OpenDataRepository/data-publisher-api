@@ -96,6 +96,17 @@ export function initializeState(req) {
   return state;
 }
 
+export function convertToMongoId(_id: string | ObjectId): ObjectId {
+  if(typeof(_id) === 'string') {
+    if(!ObjectId.isValid(_id)) {
+      throw new Util.InputError(`Invalid _id provided: ${_id}`);
+    }
+    return new ObjectId(_id);
+  } else {
+    return _id
+  }
+}
+
 export function InputError(message?) {
   this.name = 'InputError';
   this.message = message;
