@@ -3,19 +3,21 @@ const DatasetPublishModel = require('../models/datasetPublish');
 const RecordModel = require('../models/record');
 import { model as PermissionModel } from '../models/permission';
 const SharedFunctions = require('../models/shared_functions');
-const Util = require('../lib/util');
+import * as Util from '../lib/util';
 const ElasticsearchModel = require ('../models/elasticsearch');
+const PluginsModel = require('../models/plugins');
 
 exports.draft_get = async function(req, res, next) {
   try {
     let state = Util.initializeState(req);
     let model_instance = new DatasetModel.model(state);
     let dataset = await model_instance.draftGet(req.params.uuid, false);
-    if(dataset) {
-      res.json(dataset);
-    } else {
+    if(!dataset) {
       throw new Util.NotFoundError();
     }
+    let plugins_model_instance = new PluginsModel.model(state);
+    await plugins_model_instance.appendPlugins(dataset);
+    res.json(dataset);
   } catch(err) {
     next(err);
   }
@@ -25,12 +27,13 @@ exports.get_latest_persisted = async function(req, res, next) {
   try {
     let state = Util.initializeState(req);
     let model_instance = new DatasetModel.model(state);
-    let dataset = await model_instance.latestPersisted(req.params.uuid);
-    if(dataset) {
-      res.json(dataset);
-    } else {
+    let dataset = await model_instance.latestPersisted(req.params.uuid, false);
+    if(!dataset) {
       throw new Util.NotFoundError();
     }
+    let plugins_model_instance = new PluginsModel.model(state);
+    await plugins_model_instance.appendPlugins(dataset);
+    res.json(dataset);
   } catch(err) {
     next(err);
   }
@@ -41,11 +44,12 @@ exports.get_persisted_before_timestamp = async function(req, res, next) {
     let state = Util.initializeState(req);
     let model_instance = new DatasetModel.model(state);
     let dataset = await model_instance.persistedBeforeDate(req.params.uuid, new Date(req.params.timestamp));
-    if(dataset) {
-      res.json(dataset);
-    } else {
+    if(!dataset) {
       throw new Util.NotFoundError();
     }
+    let plugins_model_instance = new PluginsModel.model(state);
+    await plugins_model_instance.appendPlugins(dataset);
+    res.json(dataset);
   } catch(err) {
     next(err);
   }
@@ -55,8 +59,14 @@ exports.create = async function(req, res, next) {
   try {
     let state = Util.initializeState(req);
     let model_instance = new DatasetModel.model(state);
-    let inserted_uuid = await model_instance.create(req.body);
-    res.redirect(303, `/dataset/${inserted_uuid}/draft`)
+    let plugins_model_instance = new PluginsModel.model(state);
+    let inserted_uuid;
+    const callback = async () => {
+      inserted_uuid = await model_instance.create(req.body);
+      await plugins_model_instance.modifyPlugins(req.body);
+    }
+    await SharedFunctions.executeWithTransaction(state, callback);
+    res.redirect(303, `/dataset/${inserted_uuid}/draft`);
   } catch(err) {
     next(err);
   }
@@ -70,7 +80,12 @@ exports.update = async function(req, res, next) {
     }
     let state = Util.initializeState(req);
     let model_instance = new DatasetModel.model(state);
-    await model_instance.update(req.body);
+    let plugins_model_instance = new PluginsModel.model(state);
+    const callback = async () => {
+      await model_instance.update(req.body);
+      await plugins_model_instance.modifyPlugins(req.body);
+    }
+    await SharedFunctions.executeWithTransaction(state, callback);
     if(await model_instance.draftExisting(uuid)) {
       res.redirect(303, `/dataset/${uuid}/draft`)
     } else {

@@ -21,6 +21,30 @@ export function arrayEqual(array1: any[], array2: any[]): boolean {
   return true;
 }
 
+export function objectsEqual(obj1, obj2) {
+  // Check if the objects have the same keys
+  const keys1 = Object.keys(obj1);
+  const keys2 = Object.keys(obj2);
+  if (keys1.length !== keys2.length) {
+    return false;
+  }
+
+  // Recursively compare the properties
+  for (let key of keys1) {
+    const val1 = obj1[key];
+    const val2 = obj2[key];
+    if (typeof val1 === 'object' && typeof val2 === 'object') {
+      if (!objectsEqual(val1, val2)) {
+        return false;
+      }
+    } else if (val1 !== val2) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 export function objectContainsUUID(object, uuid) {
   try {
     return object.uuid == uuid;

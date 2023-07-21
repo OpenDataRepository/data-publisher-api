@@ -7,6 +7,7 @@ const permissionModel = require('../models/permission');
 const legacyUuidToNewUuidMapperModel = require('../models/legacy_uuid_to_new_uuid_mapper');
 const datasetPublishModel = require('../models/datasetPublish');
 const userModel = require('../models/user');
+const pluginsModel = require('../models/plugins');
 const ElasticDB = require('./elasticDB');
 const elasticSearchModel = require('../models/elasticsearch');
 
@@ -21,6 +22,7 @@ module.exports = async function() {
     await legacyUuidToNewUuidMapperModel.init();
     await datasetPublishModel.init();
     await userModel.init();
+    await pluginsModel.init();
     const elasticsearchUri = process.env.elasticsearchUri;
     await ElasticDB.connect(elasticsearchUri);
     await elasticSearchModel.init();

@@ -10,6 +10,7 @@ const ElasticDB = require('../lib/elasticDB');
 var { PermissionTypes } = require('../models/permission');
 const FieldTypes = require('../models/template_field').FieldTypes;
 var appRoot = require('app-root-path');
+const Util = require('../lib/util');
 
 const dynamicTestFilesPath = appRoot + '/test_data/dynamic_files'
 // Necessary because empty folders like dynamic_tests don't get included with git
@@ -369,6 +370,9 @@ export = class Helper {
         expect(created.subscribed_templates[i]._id).toEqual(original.subscribed_templates[i]._id);
       }
     }
+    if(original.plugins) {
+      expect(Util.objectsEqual(original.plugins, created.plugins)).toBeTruthy();
+    }
   }
 
   templateCreateAndTest = async (input_template) => {
@@ -546,6 +550,9 @@ export = class Helper {
     }
     if(original.name) {
       expect(created.name).toEqual(original.name);
+    }
+    if(original.plugins) {
+      expect(Util.objectsEqual(original.plugins, created.plugins)).toBeTruthy();
     }
   }
 
@@ -774,11 +781,12 @@ export = class Helper {
       expect(after.public_date).toEqual(before.public_date);
     }
     if(before.fields) {
-      expect(after.fields.length).toBe(before.fields.length);
-      before.fields.sort(this.sortArrayByNameProperty);
-      after.fields.sort(this.sortArrayByNameProperty);
-      for(let i = 0; i < before.fields.length; i++) {
-        this.testRecordFieldsEqual(before.fields[i], after.fields[i]);
+      let after_field_map: any = {};
+      for(let field in after.fields) {
+        after_field_map[(field as any).uuid] = field;
+      }
+      for(let field in before.fields) {
+        this.testRecordFieldsEqual(field, after_field_map[(field as any).uuid]);
       }
     }
     if(before.related_records) {
