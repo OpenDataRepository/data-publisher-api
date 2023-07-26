@@ -1148,6 +1148,16 @@ class Model extends AbstractDocument{
     return "related_templates";
   }
 
+  async anyFieldUpdated(field_uuids: string[], persisted_template_update: Date) {
+    for(let field_uuid of field_uuids) {
+      let latest_field = await this.template_field_model.shallowLatestDocument(field_uuid);
+      if(!latest_field.persist_date || Util.isTimeAAfterB(latest_field.updated_at, persisted_template_update)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   async hasViewPermissionToPersisted(document_uuid: string, user_id = this.state.user_id): Promise<boolean> {
     if(await this.permission_model.hasExplicitPermission(document_uuid, PermissionModel.PermissionTypes.view, user_id)) {
       return true;

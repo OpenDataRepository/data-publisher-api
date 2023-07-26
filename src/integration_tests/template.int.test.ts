@@ -954,6 +954,28 @@ describe("get/fetch draft", () => {
       await Helper.testAndExtract(Helper.templateDraftGet, template.uuid);
       expect(await Helper.testAndExtract(Helper.templateDraftExisting, template.uuid)).toBe(true);
     });
+
+    test("template field updated - template automatically updates", async () => {
+      let template: any = {
+        name: "template",
+        fields:[
+          {name: "template_field"}
+        ],
+        related_templates:[]
+      };
+      template = await Helper.templateCreatePersistTest(template);
+      expect(await Helper.testAndExtract(Helper.templateDraftExisting, template.uuid)).toBe(false);
+
+      let template_field = template.fields[0];
+      template_field.description = "added description";
+      template_field = await Helper.templateFieldUpdateAndTest(template_field);
+
+      expect(await Helper.testAndExtract(Helper.templateDraftExisting, template.uuid)).toBe(false);
+
+      template = await Helper.testAndExtract(Helper.templateDraftGet, template.uuid);
+      expect(await Helper.testAndExtract(Helper.templateDraftExisting, template.uuid)).toBe(true);
+      expect(template.fields[0].description).toBe("added description");
+    });
   })
 
 });

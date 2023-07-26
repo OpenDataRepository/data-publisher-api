@@ -131,6 +131,10 @@ export function convertToMongoId(_id: string | ObjectId): ObjectId {
   }
 }
 
+export function recursiveLog(object: any) {
+  console.log(JSON.stringify(object, null, 2));
+}
+
 export function InputError(message?) {
   this.name = 'InputError';
   this.message = message;

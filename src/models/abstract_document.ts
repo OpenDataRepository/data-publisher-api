@@ -195,6 +195,10 @@ export class AbstractDocument {
     return Promise.resolve(null);
   }
 
+  async anyFieldUpdated(field_uuids: string[], persisted_template_update: Date): Promise<boolean> {
+    return false;
+  }
+
   async shallowUpdateDraftWithUpdatedGodfather(draft: Record<string, any>, updated_godfather: Record<string, any>): Promise<Record<string, any>> {
     throw new Error('updateDraftWithUpdatedGodfather not implemented')
   }
@@ -214,6 +218,8 @@ export class AbstractDocument {
   // 1. Creating drafts for descendant drafts or new descendant versions
   // 2. Creating a draft if the record's dataset or dataset's template has a new version
   // 3. Updating the draft if the record's dataset or dataset's template has a new version
+  // 4. Create template draft if field is updated
+
   async repairDraft(uuid: string, id?: ObjectId): Promise<boolean>{
     let draft_already_existing = false;
     let draft_: any = await this.shallowDraft(uuid);
@@ -224,35 +230,50 @@ export class AbstractDocument {
 
     if (draft_) {
       draft_already_existing = true;
+      // If a draft is already existing, but the godfather (record's dataset or dataset's template) has been updated, modify the reference to it
       if(updated_godfather) {
         draft_ = await this.shallowUpdateDraftWithUpdatedGodfather(draft_, updated_godfather);
       }
     } else {
+      // doc doesn't exist: return
       if(!persisted_doc) {
         return false;
       }
+      // Create draft based on new godfather version
       if(updated_godfather) {
         draft_ = await this.shallowCreateDraftFromPersistedAndUpdatedGodfather(persisted_doc, updated_godfather);
       } else {
         draft_ = await this.createDraftFromPersisted(persisted_doc);
       }
     }
+    // don't have permissions, don't do anything
     if(!(await this.hasPermission(uuid, PermissionTypes.edit))) {
       return false;
     }
 
-    let child_draft_found = false;
+    let related_doc_changes = false;
 
     let related_docs = this.relatedDocsType();
-    if(persisted_doc) {
+
+    // If we already have a draft, use the draft related_docs
+    // Otherwise, use latest persisted related_docs (include the _ids in case a related_doc has a new version)
+    if(draft_already_existing) {
+      for(let related_uuid of draft_[related_docs]) {
+        related_doc_changes ||= await this.repairDraft(related_uuid);
+      }
+    } else if(persisted_doc) {
       for(let related_id of persisted_doc[related_docs]) {
         let related_uuid = await this.uuidFor_id(related_id);
-        child_draft_found ||= await this.repairDraft(related_uuid as string, related_id);
+        related_doc_changes ||= await this.repairDraft(related_uuid as string, related_id);
       }
     } else {
-      for(let related_uuid of draft_[related_docs]) {
-        child_draft_found ||= await this.repairDraft(related_uuid);
-      }
+      throw "repairDraft: this line should be impossible to reach";
+    }
+
+    // handle fields - only for template
+    if(!related_doc_changes) {
+      let persisted_template_update = persisted_doc ? persisted_doc.updated_at : new Date(0);
+      related_doc_changes ||= await this.anyFieldUpdated(draft_['fields'], persisted_template_update);
     }
 
     let new_persisted_version = false;
@@ -260,15 +281,18 @@ export class AbstractDocument {
       new_persisted_version = true;
     }
 
-    if(!draft_already_existing && (child_draft_found || updated_godfather)) {
+    // There is an update
+    if(!draft_already_existing && (related_doc_changes || updated_godfather)) {
       draft_.updated_at = this.state.updated_at;
       // Create draft for this level
+      // Only need to insert because references are just uuids, and those don't change
+      // Only thing that might change is godfather _id, which is handled separately
       let response = await this.collection.insertOne(draft_);
       if (!response.acknowledged || !response.insertedId) {
         throw new Error(`repairDraft: acknowledged: ${response.acknowledged}. insertedId: ${response.insertedId}`);
-      } 
+      }
     }
-    return draft_already_existing || child_draft_found || new_persisted_version || !!updated_godfather;
+    return draft_already_existing || related_doc_changes || new_persisted_version || !!updated_godfather;
   }
 
 }
