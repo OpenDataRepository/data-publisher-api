@@ -155,6 +155,40 @@ describe("template", () => {
       await Helper.templateUpdateAndTest(template);
     });
 
+    test("If a draft is automatically created, plugins are automatically created with it", async () => {
+
+      let template: any = {
+        name: "template with field and object plugins",
+        fields: [
+          {
+            name: "basic field"
+          }
+        ],
+        related_templates: []
+      };
+      template = await Helper.templateCreateAndTest(template);
+  
+      template.plugins = {
+        field_plugins: {
+          [template.fields[0].uuid]: {
+              "field_plugin": 0.2
+          }
+        },
+        object_plugins: {
+          "object_plugin": 0.1
+        }
+      }
+      await Helper.templateUpdatePersistTest(template);
+
+      let field = template.fields[0];
+      field.name = "still basic";
+      await Helper.templateFieldUpdateAndTest(field);
+
+      template = await Helper.templateDraftGet(template.uuid);
+      expect(template).toHaveProperty('plugins');
+
+    });
+
   });
 });
 
