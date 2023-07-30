@@ -379,6 +379,8 @@ class Model extends AbstractDocument{
 
   // Record
 
+  // This could have much better performance if this info was saved in the record itself, but just do
+  // it the easy way for now
   async appendPluginsToRecord(record: Record<string, any>) {
     if(record.no_permissions) {
       return;
@@ -389,12 +391,15 @@ class Model extends AbstractDocument{
       dataset_id = record.dataset_id;
       corresponding_dataset = await this.dataset_model.fetchBy_id(dataset_id);
     } else {
+      // TODO: dataset_id needs to exist, so datasets layers match _ids
+      console.log("Record doesn't have dataset_id. Probably a bug")
       corresponding_dataset = await this.dataset_model.shallowLatestPersisted(record.dataset_uuid);
       dataset_id = corresponding_dataset._id;
     }
-    let template_id = corresponding_dataset.template_id;
-    let dataset_plugins = await this.#shallowDraftByReferenceId(dataset_id);
-    let template_plugins = await this.#shallowDraftByReferenceId(template_id);
+    let corresponding_template = await this.template_model.fetchBy_id(corresponding_dataset.template_id);
+    
+    let dataset_plugins = corresponding_dataset.plugins;
+    let template_plugins = corresponding_template.plugins;
 
     if(dataset_plugins == null) {
       dataset_plugins = {object_plugins: {}, field_plugins: {}};

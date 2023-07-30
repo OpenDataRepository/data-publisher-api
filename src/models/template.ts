@@ -51,6 +51,41 @@ const Schema = Object.freeze({
       description: "fields this template links to",
       uniqueItems: true
     },
+    plugins: {
+      bsonType: "object",
+      required: [ "field_plugins", "object_plugins" ],
+      properties: {
+        field_plugins: {
+          bsonType: "object",
+          description: "the plugins specified for each field of this template/dataset",
+          // Object has following form: 
+          // {
+          //   "field_uuid": {
+          //     "plugin_name": plugin_version (number),
+          //     ...
+          //   },
+          //   ...
+          // }
+          uniqueItems: true,
+          items: {
+            bsonType: "object"
+          }
+        },
+        object_plugins: {
+          bsonType: "object",
+          description: "the plugins specified for this template/dataset",
+          // Object has following form: 
+          // {
+          //   "plugin_name": plugin_version (number),
+          //   ...
+          // }
+          uniqueItems: true,
+          items: {
+            bsonType: "object"
+          }
+        }
+      }
+    },
     related_templates: {
       bsonType: "array",
       description: "templates this template links to",
@@ -180,7 +215,8 @@ class Model extends AbstractDocument{
           Util.arrayEqual(template_1.related_templates, template_2.related_templates) &&
           Util.arrayEqual(
             this.#convertObjectIdArrayToStringArray(template_1.subscribed_templates), 
-            this.#convertObjectIdArrayToStringArray(template_2.subscribed_templates));
+            this.#convertObjectIdArrayToStringArray(template_2.subscribed_templates)) &&
+          Util.objectsEqual(template_1.plugins, template_2.plugins);
   }
 
   // Returns true if the draft has any changes from it's previous persisted version
@@ -217,7 +253,7 @@ class Model extends AbstractDocument{
   }
 
   #initializeNewDraftWithPropertiesSharedWithImport(input_template: Record<string, any>, uuid: string): Record<string, any> {
-    let output_template = {
+    let output_template: any = {
       uuid, 
       name: "",
       description: "",
@@ -248,6 +284,12 @@ class Model extends AbstractDocument{
         throw new Util.InputError(`template (uuid: ${uuid}) public_date property must be in valid date format: ${input_template.public_date}`);
       }
       output_template.public_date = new Date(input_template.public_date);
+    }
+    if(input_template.plugins) {
+      output_template.plugins = {
+        field_plugins: input_template.plugins.field_plugins ? input_template.plugins.field_plugins : {},
+        object_plugins: input_template.plugins.object_plugins ? input_template.plugins.object_plugins : {}
+      }
     }
     let old_system_uuid = await (new LegacyUuidToNewUuidMapperModel.model(this.state)).get_old_uuid_from_new(uuid);
     if(old_system_uuid) {

@@ -55,6 +55,41 @@ const Schema = Object.freeze({
       bsonType: "string",
       description: "the uuid of this dataset as imported from the legacy system. Note: In the old system template/dataset are combined"
     },
+    plugins: {
+      bsonType: "object",
+      required: [ "field_plugins", "object_plugins" ],
+      properties: {
+        field_plugins: {
+          bsonType: "object",
+          description: "the plugins specified for each field of this template/dataset",
+          // Object has following form: 
+          // {
+          //   "field_uuid": {
+          //     "plugin_name": plugin_version (number),
+          //     ...
+          //   },
+          //   ...
+          // }
+          uniqueItems: true,
+          items: {
+            bsonType: "object"
+          }
+        },
+        object_plugins: {
+          bsonType: "object",
+          description: "the plugins specified for this template/dataset",
+          // Object has following form: 
+          // {
+          //   "plugin_name": plugin_version (number),
+          //   ...
+          // }
+          uniqueItems: true,
+          items: {
+            bsonType: "object"
+          }
+        }
+      }
+    },
     related_datasets: {
       bsonType: "array",
       description: "datasets this dataset links to",
@@ -128,7 +163,8 @@ class Model extends AbstractDocument {
           draft1.name == draft2.name &&
           draft1.template_id.toString() == draft2.template_id.toString() &&
           Util.datesEqual(draft1.public_date, draft2.public_date) &&
-          Util.arrayEqual(draft1.related_datasets, draft2.related_datasets);
+          Util.arrayEqual(draft1.related_datasets, draft2.related_datasets) &&
+          Util.objectsEqual(draft1.plugins, draft2.plugins);;
   }
 
   // Returns true if the draft has any changes from it's previous persisted version
@@ -376,6 +412,13 @@ class Model extends AbstractDocument {
     }
     if(old_system_uuid) {
       new_dataset.old_system_uuid = old_system_uuid;
+    }
+
+    if(input_dataset.plugins) {
+      new_dataset.plugins = {
+        field_plugins: input_dataset.plugins.field_plugins ? input_dataset.plugins.field_plugins : {},
+        object_plugins: input_dataset.plugins.object_plugins ? input_dataset.plugins.object_plugins : {}
+      }
     }
 
     // Determine if there are any changes to publish

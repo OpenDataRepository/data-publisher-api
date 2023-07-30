@@ -22,6 +22,12 @@ export function arrayEqual(array1: any[], array2: any[]): boolean {
 }
 
 export function objectsEqual(obj1, obj2) {
+  if(!obj1 && !obj2) {
+    return true;
+  }
+  if(!obj1 || !obj2) {
+    return false;
+  }
   // Check if the objects have the same keys
   const keys1 = Object.keys(obj1);
   const keys2 = Object.keys(obj2);

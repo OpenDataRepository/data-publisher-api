@@ -122,7 +122,7 @@ describe("template", () => {
       template = await Helper.templatePersistAndFetch(template.uuid);
     });
 
-    test("If no _id provided, update draft or latest_persisted for uuid if uuid provided", async () => {
+    test("template _id not required", async () => {
 
       let template: any = {
         name: "template with field and object plugins",
@@ -184,7 +184,8 @@ describe("template", () => {
       field.name = "still basic";
       await Helper.templateFieldUpdateAndTest(field);
 
-      template = await Helper.templateDraftGet(template.uuid);
+      template = await Helper.testAndExtract(Helper.templateDraftGet, template.uuid);
+
       expect(template).toHaveProperty('plugins');
 
     });
@@ -350,6 +351,42 @@ describe("dataset", () => {
       delete dataset._id;
       await Helper.datasetUpdateAndTest(dataset);
     });
+
+    test("If a draft is automatically created, plugins are automatically created with it", async () => {
+
+      let template: any = {
+        name: "template with field and object plugins",
+        fields: [{
+          name: "field"
+        }],
+        related_templates: []
+      };
+      template = await Helper.templateCreatePersistTest(template);
+
+      let dataset: any = {
+        name: "dataset with field and object plugins",
+        template_id: template._id,
+        plugins: {
+          field_plugins: {
+            [template.fields[0].uuid]: {
+                "field_plugin": 0.2
+            }
+          },
+          object_plugins: {
+            "object_plugin": 0.1
+          }
+        }
+      };
+      dataset = await Helper.datasetCreateAndTest(dataset);
+  
+      template.name = "changed template name";
+      await Helper.templateUpdatePersistTest(template);
+
+      dataset = await Helper.testAndExtract(Helper.datasetDraftGet, dataset.uuid);
+
+      expect(dataset).toHaveProperty('plugins');
+
+    });
   });
 });
 
@@ -489,7 +526,7 @@ describe("record", () => {
         }
       }
 
-      template = await Helper.templateUpdateAndTest(template);
+      template = await Helper.templateUpdatePersistTest(template);
 
       let dataset: any = {
         name: "parent dataset",
