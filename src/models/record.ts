@@ -152,10 +152,15 @@ async function init() {
 
 class Model extends AbstractDocument {
 
+  template_model: any;
+  dataset_model: any;
+
   constructor(public state){
     super();
     this.state = state;
     this.collection = Record;
+    this.dataset_model = new DatasetModel.model(state);
+    this.template_model = new TemplateModel.model(state);
   }
 
 
@@ -1330,6 +1335,75 @@ class Model extends AbstractDocument {
     return await this.#latestPersistedBeforeDateWithJoinsAndPermissions(uuid, new Date());
   }
 
+  async #appendPluginsToRecord(record: Record<string, any>) {
+    if(!record || record.no_permissions) {
+      return;
+    }
+    let corresponding_dataset: Record<string, any> = {};
+    let dataset_id;
+    if(record.dataset_id) {
+      dataset_id = record.dataset_id;
+      corresponding_dataset = await this.dataset_model.fetchBy_id(dataset_id);
+    } else {
+      // TODO: dataset_id needs to exist, so datasets layers match _ids
+      corresponding_dataset = await this.dataset_model.shallowLatestPersisted(record.dataset_uuid);
+      dataset_id = corresponding_dataset._id;
+    }
+    let corresponding_template = await this.template_model.fetchBy_id(corresponding_dataset.template_id);
+    
+    let dataset_plugins = corresponding_dataset.plugins;
+    let template_plugins = corresponding_template.plugins;
+
+    if(dataset_plugins == null) {
+      dataset_plugins = {object_plugins: {}, field_plugins: {}};
+    }
+    if(template_plugins == null) {
+      template_plugins = {object_plugins: {}, field_plugins: {}};
+    }
+
+    record.plugins = this.#joinPlugins(template_plugins.object_plugins, dataset_plugins.object_plugins);
+
+    for(let field of record.fields) {
+      field.plugins = this.#joinFieldPlugins(template_plugins.field_plugins[field.uuid], dataset_plugins.field_plugins[field.uuid]);
+    }
+
+    for(let related_record of record.related_records) {
+      await this.#appendPluginsToRecord(related_record);
+    }
+  }
+
+  #joinPlugins(template_plugins, dataset_plugins) {
+    let plugins: any = {};
+    let keys = Object.keys({...template_plugins, ...dataset_plugins})
+
+    for(let key of keys) {
+      if(key in dataset_plugins) {
+        let value = dataset_plugins[key];
+        if(value == 'deleted') {
+          delete plugins[key];
+        } else {
+          plugins[key] = value;
+        }
+      } else if(key in template_plugins) {
+        plugins[key] = template_plugins[key];
+      }
+    }
+    return plugins;
+  }
+
+  #joinFieldPlugins(template_plugins, dataset_plugins) {
+    if(!template_plugins && !dataset_plugins) {
+      return {};
+    }
+    if(!template_plugins) {
+      return dataset_plugins;
+    }
+    if(!dataset_plugins) {
+      return template_plugins;
+    }
+    return this.#joinPlugins(template_plugins, dataset_plugins);
+  }
+
   async #importRecordFromCombinedRecursor(input_record: Record<string, any>, dataset: Record<string, any>, 
   template: Record<string, any>): Promise<[boolean, string]> {
     let uuid_mapper_model_instance = new LegacyUuidToNewUuidMapperModel.model(this.state);
@@ -1744,7 +1818,9 @@ class Model extends AbstractDocument {
       await this.repairDraft(uuid);
     };
     await SharedFunctions.executeWithTransaction(this.state, callback);
-    return await this.#draftFetch(uuid, create_from_persisted_if_no_draft);
+    let draft = await this.#draftFetch(uuid, create_from_persisted_if_no_draft);
+    await this.#appendPluginsToRecord(draft as Record<string, any>);
+    return draft;
   }
 
   // Wraps the actual request to update with a transaction
@@ -1765,12 +1841,20 @@ class Model extends AbstractDocument {
 
   // Fetches the last persisted record with the given uuid. 
   // Also recursively looks up related_templates.
-  latestPersisted = this.#latestPersistedWithJoinsAndPermissions;
+  latestPersisted = async function(uuid: string): Promise<Record<string, any> | null> {
+    let record = await this.#latestPersistedWithJoinsAndPermissions(uuid);
+    await this.#appendPluginsToRecord(record);
+    return record
+  }
 
   // Fetches the last record with the given uuid persisted before the provided timestamp. 
   // Also recursively looks up related_templates.
-  persistedBeforeDate = this.#latestPersistedBeforeDateWithJoinsAndPermissions;
-
+  persistedBeforeDate = async function(uuid: string, date: Date): Promise<Record<string, any> | null> {
+    let record = await this.#latestPersistedBeforeDateWithJoinsAndPermissions(uuid, date);
+    await this.#appendPluginsToRecord(record);
+    return record
+  }
+  
   async draftDelete(uuid: string): Promise<void> {
     // if draft doesn't exist, return not found
     let draft = await SharedFunctions.draft(Record, uuid, this.state.session);

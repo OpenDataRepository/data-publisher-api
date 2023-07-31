@@ -5,7 +5,6 @@ import { model as PermissionModel } from '../models/permission';
 const SharedFunctions = require('../models/shared_functions');
 import * as Util from '../lib/util';
 const ElasticsearchModel = require ('../models/elasticsearch');
-const PluginsModel = require('../models/plugins');
 
 exports.draft_get = async function(req, res, next) {
   try {

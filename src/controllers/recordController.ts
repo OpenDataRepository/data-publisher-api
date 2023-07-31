@@ -1,6 +1,5 @@
 const RecordModel = require('../models/record');
 import * as Util from '../lib/util';
-const PluginsModel = require('../models/plugins');
 
 exports.create = async function(req, res, next) {
   try {
@@ -13,8 +12,6 @@ exports.create = async function(req, res, next) {
     state = Util.initializeState(req);
     model_instance = new RecordModel.model(state);
     let record = await model_instance.draftGet(inserted_uuid, false);
-    let plugins_model_instance = new PluginsModel.model(state);
-    await plugins_model_instance.appendPluginsToRecord(record);
     res.json({record, upload_file_uuids: upload_file_uuids});
   } catch(err) {
     next(err);
@@ -29,8 +26,6 @@ exports.draft_get = async function(req, res, next) {
     if(!record) {
       throw new Util.NotFoundError();
     }
-    let plugins_model_instance = new PluginsModel.model(state);
-    await plugins_model_instance.appendPluginsToRecord(record);
     res.json(record);
   } catch(err) {
     next(err);
@@ -54,8 +49,6 @@ exports.update = async function(req, res, next) {
     if(!record) {
       record = await model_instance.latestPersisted(req.params.uuid);
     }
-    let plugins_model_instance = new PluginsModel.model(state);
-    await plugins_model_instance.appendPluginsToRecord(record);
     res.json({record, upload_file_uuids: upload_file_uuids});
   } catch(err) {
     next(err);
@@ -96,8 +89,6 @@ exports.get_latest_persisted = async function(req, res, next) {
     if(!record) {
       throw new Util.NotFoundError();
     }
-    let plugins_model_instance = new PluginsModel.model(state);
-    await plugins_model_instance.appendPluginsToRecord(record);
     res.json(record);
   } catch(err) {
     next(err);
@@ -112,8 +103,6 @@ exports.get_persisted_before_timestamp = async function(req, res, next) {
     if(!record) {
       throw new Util.NotFoundError();
     }
-    let plugins_model_instance = new PluginsModel.model(state);
-    await plugins_model_instance.appendPluginsToRecord(record);
     res.json(record);
   } catch(err) {
     next(err);

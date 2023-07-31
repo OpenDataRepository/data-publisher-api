@@ -1007,13 +1007,27 @@ describe("update", () => {
         fields: [field]
       };
       record = await Helper.recordCreatePersistTest(record);
-      expect(record.fields[0].values[0]).toEqual({uuid: options_uuids[0], name: "naruto"});
-      expect(record.fields[0].values[1]).toEqual({uuid: options_uuids[1], name: "sakura"});
+      let option_1 = {uuid: options_uuids[0], name: "naruto"};
+      let option_2 = {uuid: options_uuids[1], name: "sakura"};
+      let option_3 = {uuid: options_uuids[2], name: "sasuke"};
+      if(record.fields[0].values[0].uuid == options_uuids[0]) {
+        expect(record.fields[0].values[0]).toEqual(option_1);
+        expect(record.fields[0].values[1]).toEqual(option_2);
+      } else {
+        expect(record.fields[0].values[0]).toEqual(option_2);
+        expect(record.fields[0].values[1]).toEqual(option_1);
+      }
 
       record.fields[0].values[1].uuid = options_uuids[2];
       record = await Helper.recordUpdateAndTest(record);
-      expect(record.fields[0].values[0]).toEqual({uuid: options_uuids[0], name: "naruto"});
-      expect(record.fields[0].values[1]).toEqual({uuid: options_uuids[2], name: "sasuke"});
+      
+      if(record.fields[0].values[0].uuid == options_uuids[0]) {
+        expect(record.fields[0].values[0]).toEqual(option_1);
+        expect(record.fields[0].values[1]).toEqual(option_3);
+      } else {
+        expect(record.fields[0].values[0]).toEqual(option_3);
+        expect(record.fields[0].values[1]).toEqual(option_1);
+      }
       expect(await Helper.recordDraftExisting(record.uuid)).toBeTruthy();
     });
 
