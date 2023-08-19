@@ -551,6 +551,9 @@ export = class Helper {
     if(original.name) {
       expect(created.name).toEqual(original.name);
     }
+    if(original.group_uuid) {
+      expect(created.group_uuid).toBe(original.group_uuid);
+    }
     if(original.plugins) {
       expect(Util.objectsEqual(original.plugins, created.plugins)).toBeTruthy();
     }

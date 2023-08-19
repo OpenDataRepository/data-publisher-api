@@ -306,7 +306,7 @@ class Model extends AbstractDocument {
 
   // A recursive helper for validateAndCreateOrUpdate.
   async #validateAndCreateOrUpdateRecurser(input_dataset: Record<string, any>, 
-  template: Record<string, any>, group_uuid: string): Promise<[boolean, string]> {
+  template: Record<string, any>, parent_group_uuid: string): Promise<[boolean, string]> {
 
     let template_model_instance = new TemplateModel.model(this.state);
     let permissions_model_instance = new PermissionsModel(this.state);
@@ -350,6 +350,8 @@ class Model extends AbstractDocument {
       }
     }
     let old_system_uuid;
+    let input_group_uuid = input_dataset.group_uuid;
+    let prev_group_uuid;
 
     // Differentiate between create and update
 
@@ -372,19 +374,28 @@ class Model extends AbstractDocument {
       }
 
       uuid = input_dataset.uuid;
-      group_uuid = (await SharedFunctions.latestDocument(Dataset, uuid, this.state.session)).group_uuid;
+      prev_group_uuid = (await SharedFunctions.latestDocument(Dataset, uuid, this.state.session)).group_uuid;
       old_system_uuid = await uuid_mapper_model_instance.get_old_uuid_from_new(uuid);
     }
     // Otherwise, this is a create, so generate a new uuid
     else {
       // If it's a create, and the user hasn't provided the full dataset for the template, just create based off of the template
       if(!input_dataset.related_datasets && template.related_templates.length > 0) {
-        let new_dataset = await this.#createNewDatasetForTemplate(template, group_uuid, public_date);
+        let new_dataset = await this.#createNewDatasetForTemplate(template, input_group_uuid ? input_group_uuid : parent_group_uuid, public_date);
         return [true, new_dataset.uuid];
       }
       
       uuid = uuidv4();
       await permissions_model_instance.initializePermissionsFor(uuid);
+    }
+
+    let group_uuid;
+    if(input_group_uuid) {
+      group_uuid = input_group_uuid;
+    } else if (prev_group_uuid) {
+      group_uuid = prev_group_uuid;
+    } else {
+      group_uuid = parent_group_uuid;
     }
 
     let name = "";
@@ -485,7 +496,9 @@ class Model extends AbstractDocument {
 
     // If this dataset does not already have a group uuid, create one for it
     let group_uuid;
-    if (dataset.uuid) {
+    if(dataset.group_uuid) {
+      group_uuid = dataset.group_uuid;
+    } else if (dataset.uuid) {
       let previous_dataset = await SharedFunctions.latestDocument(Dataset, dataset.uuid, this.state.session);
       if (previous_dataset) {
         group_uuid = previous_dataset.group_uuid;

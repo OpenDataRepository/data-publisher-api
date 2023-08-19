@@ -390,6 +390,35 @@ describe("create (and get draft)", () => {
 
     });
 
+    test("Can manually set group_uuid", async () => {
+
+      let template: any = {
+        name:"t1"
+      };
+      template = await Helper.templateCreatePersistTest(template);
+
+      let dataset: any = {
+        name: "waffle",
+        group_uuid: "syrup",
+        template_id: template._id
+      };
+      dataset = await Helper.datasetCreateAndTest(dataset);
+
+      template.related_templates = [{name:"t2"}];
+      template = await Helper.templateUpdatePersistTest(template);
+
+      let related_dataset: any = {name: "related", template_id: template.related_templates[0]._id};
+      related_dataset = await Helper.datasetCreateAndTest(related_dataset);
+
+      // Test that manual group_uuid overrides the previous group_uuid
+      related_dataset.group_uuid = dataset.group_uuid;
+      dataset.template_id = template._id;
+      dataset.related_datasets = [related_dataset]
+      dataset = await Helper.datasetUpdateAndTest(dataset);
+      expect(dataset.related_datasets[0].group_uuid).toEqual(dataset.group_uuid);
+
+    });
+
   });
 
   describe("Failure cases", () => {

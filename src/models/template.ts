@@ -61,7 +61,13 @@ const Schema = Object.freeze({
           // Object has following form: 
           // {
           //   "field_uuid": {
-          //     "plugin_name": plugin_version (number),
+          //     "plugin_name": {
+          //       "version": plugin_version (number),
+          //       "options": {
+          //         "name": "options" (array)
+          //         ...
+          //       }
+          //     }
           //     ...
           //   },
           //   ...
