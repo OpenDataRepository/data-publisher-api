@@ -373,6 +373,9 @@ export = class Helper {
     if(original.plugins) {
       expect(Util.objectsEqual(original.plugins, created.plugins)).toBeTruthy();
     }
+    if(original.view_settings) {
+      expect(Util.objectsEqual(original.view_settings, created.view_settings)).toBeTruthy();
+    }
   }
 
   templateCreateAndTest = async (input_template) => {
@@ -383,7 +386,7 @@ export = class Helper {
 
     this.testTemplateDraftsEqual(input_template, created_template);
     return created_template;
-  };
+  }; 
 
   templateLastUpdate = async(uuid) => {
     return await this.agent
@@ -556,6 +559,9 @@ export = class Helper {
     }
     if(original.plugins) {
       expect(Util.objectsEqual(original.plugins, created.plugins)).toBeTruthy();
+    }
+    if(original.view_settings) {
+      expect(Util.objectsEqual(original.view_settings, created.view_settings)).toBeTruthy();
     }
   }
 

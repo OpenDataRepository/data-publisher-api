@@ -419,6 +419,21 @@ describe("create (and get draft)", () => {
 
     });
 
+    test("View settings are saved", async () => {
+
+      let template: any = {
+        name:"t",
+      };
+      template = await Helper.templateCreatePersistTest(template);
+
+      let dataset: any = {
+        name:"t",
+        template_id: template._id
+      };
+      dataset = await Helper.datasetCreateAndTest(dataset);
+
+    });
+
   });
 
   describe("Failure cases", () => {

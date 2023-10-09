@@ -55,6 +55,9 @@ const Schema = Object.freeze({
       bsonType: "string",
       description: "the uuid of this dataset as imported from the legacy system. Note: In the old system template/dataset are combined"
     },
+    view_settings: {
+      bsonType: "object",
+    },
     plugins: {
       bsonType: "object",
       required: [ "field_plugins", "object_plugins" ],
@@ -164,7 +167,8 @@ class Model extends AbstractDocument {
           draft1.template_id.toString() == draft2.template_id.toString() &&
           Util.datesEqual(draft1.public_date, draft2.public_date) &&
           Util.arrayEqual(draft1.related_datasets, draft2.related_datasets) &&
-          Util.objectsEqual(draft1.plugins, draft2.plugins);;
+          Util.objectsEqual(draft1.plugins, draft2.plugins) && 
+          Util.objectsEqual(draft1.view_settings, draft2.view_settings);
   }
 
   // Returns true if the draft has any changes from it's previous persisted version
@@ -423,6 +427,10 @@ class Model extends AbstractDocument {
     }
     if(old_system_uuid) {
       new_dataset.old_system_uuid = old_system_uuid;
+    }
+
+    if(input_dataset.view_settings) {
+      new_dataset.view_settings = input_dataset.view_settings;
     }
 
     if(input_dataset.plugins) {

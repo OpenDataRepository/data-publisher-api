@@ -383,6 +383,18 @@ describe("create (and get draft after a create)", () => {
     
     });
 
+    test("View settings are saved", async () => {
+
+      let template: any = {
+        name:"t",
+        view_settings: {
+          random: "value"
+        }
+      };
+      template = await Helper.templateCreateAndTest(template);
+
+    });
+
   })
 
   describe("Failure cases", () => {

@@ -7,6 +7,8 @@ const TemplateFieldModel = require('./template_field');
 const PermissionModel = require('./permission');
 const LegacyUuidToNewUuidMapperModel = require('./legacy_uuid_to_new_uuid_mapper');
 
+// TODO: Move plugins into view_settings
+
 const Schema = Object.freeze({
   bsonType: "object",
   required: [ "_id", "uuid", "updated_at", "fields", "related_templates", "subscribed_templates" ],
@@ -50,6 +52,9 @@ const Schema = Object.freeze({
       bsonType: "array",
       description: "fields this template links to",
       uniqueItems: true
+    },
+    view_settings: {
+      bsonType: "object",
     },
     plugins: {
       bsonType: "object",
@@ -222,7 +227,8 @@ class Model extends AbstractDocument{
           Util.arrayEqual(
             this.#convertObjectIdArrayToStringArray(template_1.subscribed_templates), 
             this.#convertObjectIdArrayToStringArray(template_2.subscribed_templates)) &&
-          Util.objectsEqual(template_1.plugins, template_2.plugins);
+          Util.objectsEqual(template_1.plugins, template_2.plugins) && 
+          Util.objectsEqual(template_1.view_settings, template_2.view_settings);
   }
 
   // Returns true if the draft has any changes from it's previous persisted version
@@ -297,6 +303,10 @@ class Model extends AbstractDocument{
         object_plugins: input_template.plugins.object_plugins ? input_template.plugins.object_plugins : {}
       }
     }
+    if(input_template.view_settings) {
+      output_template.view_settings = input_template.view_settings;
+    }
+
     let old_system_uuid = await (new LegacyUuidToNewUuidMapperModel.model(this.state)).get_old_uuid_from_new(uuid);
     if(old_system_uuid) {
       output_template.old_system_uuid = old_system_uuid;
@@ -1354,7 +1364,6 @@ class Model extends AbstractDocument{
     return await this.executeWithTransaction(callback);
   }
 
-  // Wraps the actual request to update with a transaction
   async update(template: Record<string, any>): Promise<void> {
     let callback = async () => {
       this.state.updated_at = new Date();
