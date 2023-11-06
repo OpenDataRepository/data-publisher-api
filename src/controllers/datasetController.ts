@@ -34,6 +34,20 @@ exports.get_latest_persisted = async function(req, res, next) {
   }
 }
 
+exports.get_persisted_version = async function(req, res, next) {
+  try {
+    let state = Util.initializeState(req);
+    let model_instance = new DatasetModel.model(state);
+    let dataset = await model_instance.persistedVersion(SharedFunctions.convertToMongoId(req.params.id));
+    if(!dataset) {
+      throw new Util.NotFoundError();
+    }
+    res.json(dataset);
+  } catch(err) {
+    next(err);
+  }
+}
+
 exports.get_persisted_before_timestamp = async function(req, res, next) {
   try {
     let state = Util.initializeState(req);

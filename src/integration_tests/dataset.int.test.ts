@@ -1764,70 +1764,125 @@ describe("get persisted", () => {
     let response = await Helper.datasetLatestPersisted(dataset.uuid);
     expect(response.statusCode).toBe(401);
   });
+
+  test("get persisted for a certain date", async () => {
+    let template: any = {
+      name:"t1",
+      public_date: (new Date()).toISOString()
+    };
+    template = await Helper.templateCreatePersistTest(template);
+  
+    let dataset: any = {
+      template_id: template._id
+    };
+    dataset = await Helper.datasetCreateAndTest(dataset);
+    let uuid = dataset.uuid;
+  
+    let beforeFirstPersist = new Date();
+  
+    // Test that if only a draft exists, it is not fetched
+    let response = await Helper.datasetLatestPersistedBeforeDate(uuid, beforeFirstPersist.toISOString());
+    expect(response.statusCode).toBe(404);
+  
+    await Helper.datasetPersistAndFetch(uuid);
+  
+    let afterFirstPersist = new Date();
+  
+    // dataset.uuid = uuid;
+    let public_date_1 = (new Date()).toISOString();
+    dataset.public_date = public_date_1;
+    dataset.uuid = uuid;
+  
+    response = await Helper.datasetUpdate(uuid, dataset);
+    expect(response.statusCode).toBe(303);
+    await Helper.datasetPersistAndFetch(uuid);
+  
+    let afterSecondPersist = new Date();
+  
+    let public_date_2 = (new Date()).toISOString();
+    dataset.public_date = public_date_2;
+  
+    response = await Helper.datasetUpdate(uuid, dataset);
+    expect(response.statusCode).toBe(303);
+    await Helper.datasetPersistAndFetch(uuid);
+  
+    // Now there should be three persisted versions. Search for each based on the date
+  
+    response = await Helper.datasetLatestPersisted(uuid);
+    expect(response.statusCode).toBe(200);
+    expect(response.body.public_date).toEqual(public_date_2);
+  
+    response = await Helper.datasetLatestPersistedBeforeDate(uuid, (new Date()).toISOString());
+    expect(response.statusCode).toBe(200);
+    expect(response.body.public_date).toEqual(public_date_2);
+  
+    response = await Helper.datasetLatestPersistedBeforeDate(uuid, afterSecondPersist.toISOString());
+    expect(response.statusCode).toBe(200);
+    expect(response.body.public_date).toEqual(public_date_1);
+  
+    response = await Helper.datasetLatestPersistedBeforeDate(uuid, afterFirstPersist.toISOString());
+    expect(response.statusCode).toBe(200);
+    expect(response.body.public_date).toBe(undefined);
+  
+    response = await Helper.datasetLatestPersistedBeforeDate(uuid, beforeFirstPersist.toISOString());
+    expect(response.statusCode).toBe(404);
+  });
+
+  test("get persisted version", async () => {
+    let template: any = {
+      name:"t1",
+      public_date: (new Date()).toISOString()
+    };
+    template = await Helper.templateCreatePersistTest(template);
+  
+    let dataset: any = {
+      template_id: template._id
+    };
+    dataset = await Helper.datasetCreateAndTest(dataset);
+    let uuid = dataset.uuid;
+    
+    // Test that if only a draft exists, it is not fetched
+    let response = await Helper.datasetPersistedVersion(dataset._id);
+    expect(response.statusCode).toBe(404);
+  
+    dataset = await Helper.datasetPersistAndFetch(uuid);
+
+    const persisted_id_1 = dataset._id;
+
+    let public_date_1 = (new Date()).toISOString();
+    dataset.public_date = public_date_1;
+  
+    response = await Helper.datasetUpdate(uuid, dataset);
+    expect(response.statusCode).toBe(303);
+    dataset = await Helper.datasetPersistAndFetch(uuid);
+  
+    const persisted_id_2 = dataset._id;
+  
+    let public_date_2 = (new Date()).toISOString();
+    dataset.public_date = public_date_2;
+  
+    response = await Helper.datasetUpdate(uuid, dataset);
+    expect(response.statusCode).toBe(303);
+    dataset = await Helper.datasetDraftGetAndTest(uuid);
+
+    const draft_id = dataset._id;
+  
+    // Now there should be two persisted versions and a draft. Should be able to fetch the two persisted versions but not the draft
+  
+    response = await Helper.datasetPersistedVersion(persisted_id_1);
+    expect(response.statusCode).toBe(200);
+    expect(response.body.public_date).toBe(undefined);
+  
+    response = await Helper.datasetPersistedVersion(persisted_id_2);
+    expect(response.statusCode).toBe(200);
+    expect(response.body.public_date).toEqual(public_date_1);
+  
+    response = await Helper.datasetPersistedVersion(draft_id);
+    expect(response.statusCode).toBe(404);
+  });
+
 });
 
-test("get persisted for a certain date", async () => {
-  let template: any = {
-    name:"t1",
-    public_date: (new Date()).toISOString()
-  };
-  template = await Helper.templateCreatePersistTest(template);
-
-  let dataset: any = {
-    template_id: template._id
-  };
-  dataset = await Helper.datasetCreateAndTest(dataset);
-  let uuid = dataset.uuid;
-
-  let beforeFirstPersist = new Date();
-
-  // Test that if only a draft exists, it is not fetched
-  let response = await Helper.datasetLatestPersistedBeforeDate(uuid, beforeFirstPersist.toISOString());
-  expect(response.statusCode).toBe(404);
-
-  await Helper.datasetPersistAndFetch(uuid);
-
-  let afterFirstPersist = new Date();
-
-  // dataset.uuid = uuid;
-  let public_date_1 = (new Date()).toISOString();
-  dataset.public_date = public_date_1;
-  dataset.uuid = uuid;
-
-  response = await Helper.datasetUpdate(uuid, dataset);
-  expect(response.statusCode).toBe(303);
-  await Helper.datasetPersistAndFetch(uuid);
-
-  let afterSecondPersist = new Date();
-
-  let public_date_2 = (new Date()).toISOString();
-  dataset.public_date = public_date_2;
-
-  response = await Helper.datasetUpdate(uuid, dataset);
-  expect(response.statusCode).toBe(303);
-  await Helper.datasetPersistAndFetch(uuid);
-
-  // Now there should be three persisted versions. Search for each based on the date
-
-  response = await Helper.datasetLatestPersisted(uuid);
-  expect(response.statusCode).toBe(200);
-  expect(response.body.public_date).toEqual(public_date_2);
-
-  response = await Helper.datasetLatestPersistedBeforeDate(uuid, (new Date()).toISOString());
-  expect(response.statusCode).toBe(200);
-  expect(response.body.public_date).toEqual(public_date_2);
-
-  response = await Helper.datasetLatestPersistedBeforeDate(uuid, afterSecondPersist.toISOString());
-  expect(response.statusCode).toBe(200);
-  expect(response.body.public_date).toEqual(public_date_1);
-
-  response = await Helper.datasetLatestPersistedBeforeDate(uuid, afterFirstPersist.toISOString());
-  expect(response.statusCode).toBe(200);
-  expect(response.body.public_date).toBe(undefined);
-
-  response = await Helper.datasetLatestPersistedBeforeDate(uuid, beforeFirstPersist.toISOString());
-  expect(response.statusCode).toBe(404);
-});
 
 describe("lastUpdate", () => {
 

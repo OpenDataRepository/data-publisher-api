@@ -8,6 +8,7 @@ router.get('/new_dataset_for_template/:uuid', ensureLoggedIn, validateUuid, cont
 router.get('/:uuid/draft', ensureLoggedIn, validateUuid, controller.draft_get);
 router.get('/:uuid/draft_existing', validateUuid, controller.draft_existing);
 router.get('/:uuid/latest_persisted', validateUuid, controller.get_latest_persisted);
+router.get('/persisted_version/:id', controller.get_persisted_version);
 router.get('/:uuid/last_update', ensureLoggedIn, validateUuid, controller.get_last_update);
 router.post('/', ensureLoggedIn, controller.create);
 router.put('/:uuid', ensureLoggedIn, validateUuid, controller.update);

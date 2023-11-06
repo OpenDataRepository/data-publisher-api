@@ -788,17 +788,13 @@ class Model extends AbstractDocument {
     await this.#persistRecurser(dataset, template);
   }
 
-  // Fetches the last dataset with the given uuid persisted before the given date. 
-  // Also recursively looks up fields and related_templates.
-  async #latestPersistedBeforeDateWithJoins(uuid: string, date: Date): Promise<Record<string, any> | null> {
+  // Recursively fetches the persisted dataset with the given match conditions
+  async #persistedWithJoins(pipelineMatchConditions: Record<string, any>): Promise<Record<string, any> | null> {
     // Construct a mongodb aggregation pipeline that will recurse into related templates up to 5 levels deep.
     // Thus, the tree will have a depth of 6 nodes
     let pipeline = [
       {
-        '$match': { 
-          'uuid': uuid,
-          'persist_date': {'$lte': date}
-        }
+        '$match': pipelineMatchConditions
       },
       {
         '$sort' : { 'persist_date' : -1 }
@@ -869,6 +865,16 @@ class Model extends AbstractDocument {
     } else {
       return null;
     }
+  }
+
+  // Fetches the last dataset with the given uuid persisted before the given date. 
+  // Also recursively looks up fields and related_templates.
+  async #latestPersistedBeforeDateWithJoins(uuid: string, date: Date): Promise<Record<string, any> | null> {
+    const match_conditions = { 
+      'uuid': uuid,
+      'persist_date': {'$lte': date}
+    };
+    return this.#persistedWithJoins(match_conditions);
   }
 
   async #filterPersistedForPermissionsRecursor(dataset: Record<string, any>): Promise<void> {
@@ -1320,6 +1326,20 @@ class Model extends AbstractDocument {
 
   latestPersisted = this.#latestPersistedWithJoinsAndPermissions;
   persistedBeforeDate = this.#latestPersistedBeforeDateWithJoinsAndPermissions;
+
+  async persistedVersion(_id: ObjectId): Promise<Record<string, any> | null> {
+    let pipelineMatchConditions = { 
+      _id,
+      'persist_date': {'$lte': new Date()}
+    };
+
+    let dataset =  await this.#persistedWithJoins(pipelineMatchConditions);
+    if(!dataset) {
+      return null;
+    }
+    await this.#filterPersistedForPermissions(dataset);
+    return dataset;
+  } 
 
   async draftDelete(uuid: string): Promise<void> {
     // if draft doesn't exist, return not found

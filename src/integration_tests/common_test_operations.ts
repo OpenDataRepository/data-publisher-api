@@ -614,6 +614,11 @@ export = class Helper {
       .get(`/dataset/${uuid}/${timestamp}`);
   }
 
+  datasetPersistedVersion = async (_id) => {
+    return await this.agent
+      .get(`/dataset/persisted_version/${_id}`);
+  }
+
   datasetPersistAndFetch = async (uuid) => {
     await this.datasetPersistAndTest(uuid);
   
