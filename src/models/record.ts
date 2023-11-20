@@ -827,13 +827,13 @@ class Model extends AbstractDocument {
       dataset = await dataset_model.latestPersistedWithoutPermissions(record.dataset_uuid);
     } catch(error) {
       if(error instanceof Util.InputError) {
-        throw new Util.InputError(`a valid dataset_uuid was not provided for record ${record.uuid}. Note dataset must be published`);
+        throw new Util.InputError(`a valid dataset_uuid was not provided for record ${record.uuid}. Note dataset must be persisted`);
       } else {
         throw error;
       }
     }
     if(!dataset) {
-      throw new Util.InputError(`a valid dataset_uuid was not provided for record ${record.uuid}. Note dataset must be published`);
+      throw new Util.InputError(`a valid dataset_uuid was not provided for record ${record.uuid}. Note dataset must be persisted`);
     }
 
     // Verify that the dataset is up to date, meaning it references the latest versions of its related_datasets
