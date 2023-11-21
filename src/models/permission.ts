@@ -12,6 +12,7 @@ enum PermissionTypes {
   view = 'view'
 };
 
+// Mongodb schema for permission
 const Schema = Object.freeze({
   bsonType: "object",
   required: [ "_id", "document_uuid", "permission_level", "user_id" ],

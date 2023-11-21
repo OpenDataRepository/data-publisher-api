@@ -4,6 +4,7 @@ const PermissionModel = require('./permission');
 const DatasetModel = require('./dataset');
 const SharedFunctions = require('./shared_functions');
 
+// Mongodb schema for datasetPublish
 const Schema = Object.freeze({
   bsonType: "object",
   required: [ "_id", "dataset_uuid", "name", "time" ],

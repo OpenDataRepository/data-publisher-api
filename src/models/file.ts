@@ -9,6 +9,8 @@ const SharedFunctions = require('./shared_functions');
 
 // TODO: at some point implement files to interpret image files and to create thumbnails as well
 
+// Mongodb schema for file
+// Need to keep track of the state of the file and which record it's kept on
 const Schema = Object.freeze({
   bsonType: "object",
   required: [ "_id", "uuid", "record_uuid", "template_field_uuid", "uploaded", "persisted" ],

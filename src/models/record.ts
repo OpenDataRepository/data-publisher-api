@@ -13,6 +13,7 @@ const LegacyUuidToNewUuidMapperModel = require('./legacy_uuid_to_new_uuid_mapper
 const FileModel = require('./file');
 const FieldTypes = TemplateFieldModel.FieldTypes;
 
+// Mongodb schema for record
 const Schema = Object.freeze({
   bsonType: "object",
   required: [ "_id", "uuid", "updated_at", "related_records" ],
@@ -349,6 +350,7 @@ class Model extends AbstractDocument {
     return output_file;
   }
 
+  // Have to combine the template fields with the record fields, using the values from the record fields and everything else from the template fields
   async #createRecordFieldsFromTemplateFieldsAndMap(template_fields: Record<string, any>[], 
   record_field_map: Record<string, any>, record_uuid: string): Promise<Record<string, any>[]> {
     let result_fields: any[] = [];
@@ -1065,6 +1067,7 @@ class Model extends AbstractDocument {
 
   }
 
+  // Recursively fetch the latest persisted record before the given date
   async #latestPersistedBeforeDateWithJoins(uuid: string, date: Date): Promise<Record<string, any> | null> {
     // Construct a mongodb aggregation pipeline that will recurse into related records up to 5 levels deep.
     // Thus, the tree will have a depth of 6 nodes

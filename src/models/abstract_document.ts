@@ -105,6 +105,7 @@ export class AbstractDocument {
     return await cursor.next();
   }
 
+  // Get's latest version of document, whether it's a draft or persisted version
   async shallowLatestDocument(uuid: string): Promise<Record<string, any> | null>{
     let result = await this.shallowDraft(uuid);
     if(result) {
@@ -152,6 +153,8 @@ export class AbstractDocument {
     return Util.isPublic(latest_persisted.public_date);
   }
 
+  // Creates a new draft from the latest persisted version
+  // Each subclass has own implementation.
   async createDraftFromPersisted(persisted_doc: Record<string, any>): Promise<Record<string, any>> {
     throw new Error('createDraftFromPersisted not implemented');
   }
@@ -170,14 +173,20 @@ export class AbstractDocument {
     throw new Error('relatedDocsType not implemented');
   }
 
+  // Recursive draft fetch.
+  // Each subclass has own implementation.
   async draftFetch(uuid: string, create_from_persisted_if_no_draft?: boolean): Promise<Record<string, any> | null> {
     throw new Error('draftFetch not implemented');
   }
 
+  // Recursive fetch.
+  // Each subclass has own implementation.
   async latestPersistedWithJoinsAndPermissions(uuid: string): Promise<Record<string, any> | null> {
     throw new Error('latestPersistedWithJoinsAndPermissions not implemented');
   }
 
+  // Recursive fetch.
+  // All subclasses fetch first the draft if avaialabe, then the latest persisted version if the draft is unavailable.
   async fetchLatestDraftOrPersisted(uuid, create_from_persisted_if_no_draft?){
     let draft;
     if(create_from_persisted_if_no_draft) {
@@ -215,11 +224,11 @@ export class AbstractDocument {
     return explicit_permission;
   }
  
+  // When changes happen to godparents or children, a document can get out of sync / out of date. This function repairs the document.
   // 1. Creating drafts for descendant drafts or new descendant versions
-  // 2. Creating a draft if the record's dataset or dataset's template has a new version
-  // 3. Updating the draft if the record's dataset or dataset's template has a new version
+  // 2. Creating a draft if the godfather has a new version
+  // 3. Updating the draft if the godfather has a new version
   // 4. Create template draft if field is updated
-
   async repairDraft(uuid: string, id?: ObjectId): Promise<boolean>{
     let draft_already_existing = false;
     let draft_: any = await this.shallowDraft(uuid);

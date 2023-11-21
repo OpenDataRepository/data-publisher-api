@@ -3,6 +3,7 @@ const { v4: uuidv4} = require('uuid');
 
 var LegacyUuidToNewUuidMapper;
 
+// Mongodb schema for legacy_uuid_to_new_uuid_mapper
 const Schema = Object.freeze({
   bsonType: "object",
   required: [ "_id", "old_uuid", "new_uuid" ],

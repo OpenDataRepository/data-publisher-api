@@ -9,6 +9,7 @@ const LegacyUuidToNewUuidMapperModel = require('./legacy_uuid_to_new_uuid_mapper
 
 // TODO: Move plugins into view_settings
 
+// Mongodb schema for template
 const Schema = Object.freeze({
   bsonType: "object",
   required: [ "_id", "uuid", "updated_at", "fields", "related_templates", "subscribed_templates" ],
@@ -663,14 +664,7 @@ class Model extends AbstractDocument{
   }
 
   // Persistes the template with the provided uuid
-  //   If a draft exists of the template, the user has edit permissions, and the draft has some changes, persist it
-  //   If a draft doesn't exist, doesn't have changes, or the user doesn't have edit permissions, return the latest persisted instead
-  //   If a draft doesn't exist or the user doesn't have edit permissions, then ensure they have view permissions for the persisted template
-  // Input: 
-  //   uuid: the uuid of a template to be persisted
-  //   session: the mongo session that must be used to make transactions atomic
-  // Returns:
-  //   internal_id: the internal id of the persisted template
+  // Returns the internal id of the persisted template
   async #persistRecursor(uuid: string): Promise<ObjectId> {
 
     var return_id;

@@ -11,6 +11,7 @@ enum FieldTypes {
   Image = "Image"
 };
 
+// Mongodb schema for template_field
 const Schema = Object.freeze({
   bsonType: "object",
   required: [ "_id", "uuid", "updated_at" ],
@@ -445,8 +446,7 @@ class Model extends AbstractDocument {
     return false;
   }
 
-  // Updates the field with the given uuid if provided in the field object. 
-  // If no uuid is included in the field object., create a new field.
+  // If input_field has a uuid, updates the field with that uuid. Otherwise, creates a new field
   // Also validate input. 
   // Return:
   // 1. A boolean: true if there were changes from the last persisted.
@@ -526,6 +526,7 @@ class Model extends AbstractDocument {
     return [true, uuid];
   }
 
+  // Fetches a draft if there is one already existing, or creates it if not.
   async #draftFetchOrCreate(uuid: string): Promise<Record<string, any> | null> {
     
     // See if a draft of this template field exists. 
@@ -562,22 +563,7 @@ class Model extends AbstractDocument {
 
   }
 
-  // Persistes the field with the provided uuid
-  //   If a draft exists of the field, then:
-  //     if a last_update is provided, verify that it matches the last update in the db
-  //     if that draft has changes from the latest persisted:
-  //       persist it, and return the new internal_id
-  //     else: 
-  //       return the internal_id of the latest persisted
-  //   else:
-  //     return the internal_id of the latest_persisted
-  // Input: 
-  //   uuid: the uuid of a field to be persisted
-  //   session: the mongo session that must be used to make transactions atomic
-  //   last_update: the timestamp of the last known update by the user. Cannot persist if the actual last update and that expected by the user differ.
-  //   user: username of the user performing this operation
-  // Returns:
-  //   internal_id: the internal id of the persisted field
+  // Persistes the field with the provided uuid. Returns the _id of the newly persisted version.
   async persistField(uuid: string, last_update: Date): Promise<ObjectId> {
     var return_id;
 
@@ -633,6 +619,10 @@ class Model extends AbstractDocument {
 
   draft = this.#draftFetchOrCreate;
   latestPersistedWithoutPermissions = this.#latestPersisted;
+
+  // TODO: can I remove all of these wrappers somehow?
+  // TODO: Standardize the format between all of the standard document functions. 
+  // Should probably make use of abstract document
 
   // Wraps the request to create with a transaction
   async create(field: Record<string, any>): Promise<string> {

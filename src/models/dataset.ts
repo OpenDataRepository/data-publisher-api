@@ -9,6 +9,7 @@ import { PermissionTypes, model as PermissionsModel } from "./permission";
 const SharedFunctions = require('./shared_functions');
 const LegacyUuidToNewUuidMapperModel = require('./legacy_uuid_to_new_uuid_mapper');
 
+// Mongodb schema for dataset
 const Schema = Object.freeze({
   bsonType: "object",
   required: [ "_id", "uuid", "template_id", "updated_at", "related_datasets" ],
@@ -229,6 +230,8 @@ class Model extends AbstractDocument {
     return new_dataset;
   }
 
+  // This basically executes validateAndCreateOrUpdateRecurser on each of the input_related_datasets
+  // But the logic is complicated enough. It's worth having a separate function for it.
   async #extractRelatedDatasetUuidsFromCreateOrUpdate(input_related_datasets: Record<string, any>[], 
   template: Record<string, any>, group_uuid: string): Promise<[string[], boolean]> {
     let return_dataset_uuids: string[] = [];

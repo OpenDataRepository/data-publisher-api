@@ -2,14 +2,38 @@
 
 ## Quick Start
 
-### Running the Server
-- open new terminal
+### Before running the server or tests
+
+- download this repository from github
 - execute 'npm install' to fetch all 3rd-party dependencies
+- set up mongodb:
+  - install mongodb on your machine
+  - execute 'mongod --replSet odr' to set up the mongodb with a replica set 
+  - in a new tab, while the last command is still running, execute 'mongosh; rs.initiate()' to initiate the replica set
+- set up .env file: 
+  - create a .env file in this repo
+  - in that file, add the following:
+    - DB="mongodb://localhost:port_number_your_mongo_instance_is_running_on/data_publisher?replicaSet=odr"
+    - elasticsearchUri="your_elasticsearch_port" (whichever port you run elastic search on)
+    - elasticsearchIndexPrefix="..."
+      - In my case one elastic search engine was being used for multiple projects and so this was added to avoid interacting with other data. Leave blank if you have an independent elasticsearch instance (or remove all instances of this variable from the code)
+    - ACCESS_TOKEN_SECRET="..."
+      - This is the secretOrPublicKey used by the https://www.npmjs.com/package/jsonwebtoken library. Used to login users
+    - EMAIL_SECRET="..."
+      - This is the secretOrPublicKey used by the https://www.npmjs.com/package/jsonwebtoken library. Used to register users
+    - EMAIL_USERNAME=""
+      - Can be left blank for now as email confirmation for registration has not been fully implemented
+    - EMAIL_PASSWORD=""
+      - Can be left blank for now as email confirmation for registration has not been fully implemented
+    - uploads_folder=folder_name_of_your_choice_to_store_file_uploads
+      - Eventually this folder should be removed and files should upload to some cloud storage service.
+
+
+### Running the Server
 - execute 'npm build' to convert typescript to javascript
 - execute 'npm start' to run the server
 
 ### Running integration tests
-- open new terminal
 - execute 'npm build' to convert typescript to javascript
 - execute 'npm test' to run tests
 
@@ -650,10 +674,35 @@ Plugins and view_settings were added to the api to accomodate the need of the fr
 
 Extensive importation code has been written to import some of the legacy data from ODR 1.0. You will notice it layered throughout the code.
 
+### Terminology / Quirks
+
+#### uuid vs _id
+
+The uuid is the unique identifier for a resource, and the id is the unique identifier for a specific version of that resource. For instance, there is only one template 'store' in the readme's main example, but the user might continue to edit 'store' and save different versions of it. So every version of store would have the same uuid but a different _id.
+
+#### Shallow vs recursive
+A lot of functions will be prefixed with shallow or recursive. Shallow means the document is handled without recursing into it's linked documents. Recursive means document and all of it's linked documents are handled, recursing down until there are no links left.
+
+#### Parent and godfather
+
+The child of a document is it's related_document. Aka the child of a template is it's related_template. Thus the parent of a template is the template which links it as a related_template.
+Godfather refers to a dataset's template or a record's dataset.
+
+#### camelCase vs under_score
+
+I mostly try to use camelCase for functions and under_scores for variables, but I don't always remember.
+
 ### Documentation
 
-Sections of the code have few comments. The integration tests are fairly expansive and can often be used to understand the gist of which behavior is being supported.
-requests.rest can be referenced to test the api directly.
+Sections of the code have few comments. Some helpful resources to understand the code are:
+- The integration tests are fairly expansive and can often be used to understand the gist of which behavior is being supported.
+- The schema in each of the files in the models folder can be used to see the format of the data in mongodb.
+
+### Testing
+Resources to test are:
+- The integration tests in the integration_tests folder. This is what is executed with npm test.
+- the util unit tests (must be run separately)
+- requests.rest can be referenced to test the api directly.
 
 ### Contact Information
 
