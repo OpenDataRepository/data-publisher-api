@@ -66,7 +66,7 @@ exports.publishedTimeForDatasetUUIDAndName = publishedTimeForDatasetUUIDAndName;
 exports.publish = async function(dataset_uuid, name, user_id) {
 
   // make sure a persisted version of this dataset exists
-  if(!(await SharedFunctions.latestPersisted(DatasetModel.collection(), dataset_uuid))) {
+  if(!(await new DatasetModel.model(null).shallowLatestPersisted(dataset_uuid))) {
     throw new Util.NotFoundError(`No persisted dataset with uuid ${dataset_uuid} exists to be published.`);
   }
 

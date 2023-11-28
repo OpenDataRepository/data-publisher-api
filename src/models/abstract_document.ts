@@ -2,6 +2,7 @@ import { ObjectId } from "mongodb";
 import { StringLiteralLike } from "typescript";
 import { PermissionTypes, model as PermissionsModel } from "./permission";
 import * as Util from '../lib/util';
+import { BasicAbstractDocument } from "./basic_abstract_document";
 const MongoDB = require('../lib/mongoDB');
 
 // TODO: re-write the whole code base to use this class instead of shared_functions and delete shared_functions
@@ -12,15 +13,9 @@ const MongoDB = require('../lib/mongoDB');
  *
  * @class AbstractDocument
  */
-export class AbstractDocument {
+export class AbstractDocument extends BasicAbstractDocument {
   collection: any;
   state: any;
-
-  constructor() {
-    if (this.constructor == AbstractDocument) {
-      throw new Error("Abstract classes can't be instantiated.");
-    }
-  }
 
   async executeWithTransaction(callback){
     if(this.state.session) {
@@ -46,14 +41,6 @@ export class AbstractDocument {
       delete this.state.session;
       throw err;
     }
-  }
-
-  async exists(uuid: StringLiteralLike): Promise<boolean>{
-    let cursor = await this.collection.find(
-      {"uuid": uuid},
-      {session: this.state?.session}
-    );
-    return (await cursor.hasNext());
   }
 
   async shallowDraft(uuid: string): Promise<Record<string, any> | null> {
@@ -140,9 +127,14 @@ export class AbstractDocument {
     return document.uuid;
   }
 
-  async latest_persisted_id_for_uuid(uuid: string): Promise<ObjectId | null>{
+  async latestPersisted_idForUuid(uuid: string): Promise<ObjectId | null>{
     let document = await this.shallowLatestPersisted(uuid);
     return document ? document._id : null;
+  }
+
+  async latestPersistedTimeForUuid(uuid: string): Promise<Date | null>{
+    let document = await this.shallowLatestPersisted(uuid);
+    return document ? document.persist_date : null;
   }
 
   async isPublic(uuid: string): Promise<boolean>{

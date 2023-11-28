@@ -127,7 +127,7 @@ exports.draft_delete = async function(req, res, next) {
     let template_model_instance = new TemplateModel.model(state);
     const callback = async () => {
       await template_model_instance.draftDelete(uuid);
-      if( !(await SharedFunctions.latestPersisted(TemplateModel.collection(), uuid, state.session)) ) {
+      if( !(await template_model_instance.shallowLatestPersisted(uuid)) ) {
         await (new PermissionModel.model(state)).documentDeletePermissions(uuid);
       }
     }

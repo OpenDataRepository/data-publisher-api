@@ -130,10 +130,13 @@ function collectionExport() {
 
 class Model extends AbstractDocument {
 
+  template_model: any;
+
   constructor(public state){
     super();
     this.state = state;
     this.collection = Dataset;
+    this.template_model = new TemplateModel.model(state);
   }
 
   // Creates a draft from the persisted version.
@@ -149,7 +152,7 @@ class Model extends AbstractDocument {
     // Replace each of the related_dataset _ids with uuids. 
     let related_datasets: string[] = [];
     for(let _id of persisted.related_datasets) {
-      let uuid = await SharedFunctions.uuidFor_id(Dataset, _id, this.state.session);
+      let uuid = await this.uuidFor_id(_id);
       if(uuid) {
         related_datasets.push(uuid);
       } else {
@@ -175,7 +178,7 @@ class Model extends AbstractDocument {
   // Returns true if the draft has any changes from it's previous persisted version
   async #draftDifferentFromLastPersisted(draft: Record<string, any>): Promise<boolean> {
     // If there is no persisted version, obviously there are changes
-    let latest_persisted = await SharedFunctions.latestPersisted(Dataset, draft.uuid, this.state.session);
+    let latest_persisted = await this.shallowLatestPersisted(draft.uuid);
     if(!latest_persisted) {
       return true;
     }
@@ -187,8 +190,8 @@ class Model extends AbstractDocument {
     }
 
     // If any of the dependencies have been persisted more recently than this record, then there are changes
-    for(let related_dataset of draft.related_datasets) {
-      let related_dataset_last_persisted = (await SharedFunctions.latestPersisted(Dataset, related_dataset, this.state.session)).persist_date;
+    for(let related_dataset_uuid of draft.related_datasets) {
+      let related_dataset_last_persisted = (await this.shallowLatestPersisted(related_dataset_uuid))?.persist_date;
       if (Util.isTimeAAfterB(related_dataset_last_persisted, latest_persisted.persist_date)) {
         return true;
       }
@@ -275,7 +278,7 @@ class Model extends AbstractDocument {
       if(!related_dataset.template_id) {
         // There is a chance the user will link a dataset they don't have view access to.
         // In this case, there will be no template_id. Thus, try to fetch the template _id. 
-        let existing_dataset = await SharedFunctions.latestDocument(Dataset, related_dataset.uuid, this.state.session);
+        let existing_dataset = await this.shallowLatestDocument(related_dataset.uuid);
         if(!existing_dataset) {
           throw new Util.InputError(`Each related_dataset in the dataset must supply a template_id`);
         }
@@ -371,7 +374,7 @@ class Model extends AbstractDocument {
       }
       
       // Dataset uuid must exist
-      if (!(await SharedFunctions.exists(Dataset, input_dataset.uuid, this.state.session))) {
+      if (!(await this.exists(input_dataset.uuid))) {
         throw new Util.NotFoundError(`No dataset exists with uuid ${input_dataset.uuid}`);
       }
 
@@ -381,7 +384,7 @@ class Model extends AbstractDocument {
       }
 
       uuid = input_dataset.uuid;
-      prev_group_uuid = (await SharedFunctions.latestDocument(Dataset, uuid, this.state.session)).group_uuid;
+      prev_group_uuid = (await this.shallowLatestDocument(uuid))?.group_uuid;
       old_system_uuid = await uuid_mapper_model_instance.get_old_uuid_from_new(uuid);
     }
     // Otherwise, this is a create, so generate a new uuid
@@ -456,7 +459,7 @@ class Model extends AbstractDocument {
       if (!changes) {
         // Delete the current draft
         try {
-          await SharedFunctions.draftDelete(Dataset, uuid, this.state.session);
+          await this.shallowDraftDelete(uuid);
         } catch (err) {
           if (!(err instanceof Util.NotFoundError)) {
             throw err;
@@ -510,7 +513,7 @@ class Model extends AbstractDocument {
     if(dataset.group_uuid) {
       group_uuid = dataset.group_uuid;
     } else if (dataset.uuid) {
-      let previous_dataset = await SharedFunctions.latestDocument(Dataset, dataset.uuid, this.state.session);
+      let previous_dataset = await this.shallowLatestDocument(dataset.uuid);
       if (previous_dataset) {
         group_uuid = previous_dataset.group_uuid;
       }
@@ -529,12 +532,12 @@ class Model extends AbstractDocument {
   // If it does not exist, it creates a draft from the latest persisted.
   // Does not lookup related_datasets
   async #fetchDraftOrCreateFromPersisted(uuid: string): Promise<Record<string, any> | null> {
-    let dataset_draft = await SharedFunctions.draft(Dataset, uuid, this.state.session);
+    let dataset_draft = await this.shallowDraft(uuid);
     if(dataset_draft) {
       return dataset_draft;
     }
 
-    let persisted_dataset = await SharedFunctions.latestPersisted(Dataset, uuid, this.state.session);
+    let persisted_dataset = await this.shallowLatestPersisted(uuid);
     if(!persisted_dataset) {
       return null;
     }
@@ -548,18 +551,21 @@ class Model extends AbstractDocument {
 
   // Gives the bare minimum information to a user who has no view permissions to this draft
   async #getNoPermissionsLatestDocument(uuid: string) {
-    let raw_doc = await SharedFunctions.latestDocument(Dataset, uuid, this.state.session);
+    let raw_doc = await this.shallowLatestDocument(uuid);
     return {
       uuid,
-      template_uuid: raw_doc.template_uuid,
-      template_id: raw_doc.template_id,
+      template_uuid: raw_doc?.template_uuid,
+      template_id: raw_doc?.template_id,
       no_permissions: true
     }
   }
 
   // Gives the bare minimum information to a user who has no view permissions to this draft
-  async #getNoPermissionsPersistedVersion(_id: string) {
-    let raw_dataset = await SharedFunctions.fetchBy_id(Dataset, _id);
+  async #getNoPermissionsPersistedVersion(_id: string | ObjectId) {
+    let raw_dataset = await this.fetchBy_id(Util.convertToMongoId(_id));
+    if(!raw_dataset) {
+      return null;
+    }
     return {
       uuid: raw_dataset.uuid,
       template_uuid: raw_dataset.template_uuid,
@@ -570,17 +576,17 @@ class Model extends AbstractDocument {
 
   // Fetches the dataset draft with the given uuid, recursively looking up related_datasets.
   // optional: If a draft of a given template doesn't exist, a new one will be generated using the last persisted record.
-  async #draftFetch(uuid: string, create_from_persisted_if_no_draft: boolean): Promise<Record<string, any> | null> {
+  async draftFetch(uuid: string, create_from_persisted_if_no_draft: boolean): Promise<Record<string, any> | null> {
 
     // See if a draft of this dataset exists. 
     let dataset_draft;
     if(create_from_persisted_if_no_draft) {
       dataset_draft = await this.#fetchDraftOrCreateFromPersisted(uuid);
     } else {
-      dataset_draft = await SharedFunctions.draft(Dataset, uuid, this.state.session);
+      dataset_draft = await this.shallowDraft(uuid);
     }
 
-    if(!(await SharedFunctions.exists(Dataset, uuid, this.state.session))) {
+    if(!(await this.exists(uuid))) {
       return null;
     }
 
@@ -600,13 +606,12 @@ class Model extends AbstractDocument {
       let related_dataset_uuid = dataset_draft.related_datasets[i];
       let related_dataset;
       try {
-        related_dataset = await SharedFunctions.fetchLatestDraftOrPersisted(this.#draftFetch.bind(this),
-         this.#latestPersistedWithJoinsAndPermissions.bind(this), related_dataset_uuid, create_from_persisted_if_no_draft);
+        related_dataset = await this.fetchLatestDraftOrPersisted(related_dataset_uuid, create_from_persisted_if_no_draft);
       } catch (err) {
         if (err instanceof Util.PermissionDeniedError) {
           // If we don't have permission for the draft, get the latest persisted instead
           try {
-            related_dataset = await this.#latestPersistedWithJoinsAndPermissions(related_dataset_uuid)
+            related_dataset = await this.latestPersistedWithJoinsAndPermissions(related_dataset_uuid)
           } catch (err) {
             if (err instanceof Util.PermissionDeniedError) {
               // If we don't have permission for the persisted version, or a persisted version doesn't exist, just attach a uuid and a flag marking no_permissions
@@ -646,7 +651,7 @@ class Model extends AbstractDocument {
       throw new Util.NotFoundError();
     }
 
-    let persisted = await SharedFunctions.latestPersisted(Dataset, uuid, this.state.session);
+    let persisted = await this.shallowLatestPersisted(uuid);
     let admin_permission = await permissions_model_instance.hasExplicitPermission(uuid, PermissionTypes.admin);
     let view_permission = await this.hasViewPermissionToPersisted(uuid);
 
@@ -765,9 +770,9 @@ class Model extends AbstractDocument {
 
   async #persist(dataset_uuid: string, last_update: Date): Promise<void> {
 
-    let dataset = await this.#draftFetch(dataset_uuid, false);
+    let dataset = await this.draftFetch(dataset_uuid, false);
     if (!dataset) {
-      dataset = await SharedFunctions.latestPersisted(Dataset, dataset_uuid, this.state.session);
+      dataset = await this.shallowLatestPersisted(dataset_uuid);
       if (!dataset) {
         throw new Util.NotFoundError(`Dataset with uuid ${dataset_uuid} does not exist`);
       } 
@@ -908,7 +913,7 @@ class Model extends AbstractDocument {
 
   // Fetches the last persisted dataset with the given uuid. 
   // Also recursively looks up related_datasets.
-  async #latestPersistedWithJoinsAndPermissions(uuid: string): Promise<Record<string, any> | null> {
+  async latestPersistedWithJoinsAndPermissions(uuid: string): Promise<Record<string, any> | null> {
     return await this.#latestPersistedBeforeDateWithJoinsAndPermissions(uuid, new Date());
   }
 
@@ -970,14 +975,14 @@ class Model extends AbstractDocument {
   }
 
   async #duplicate(uuid: string): Promise<Record<string, any> | null> {
-    let original_dataset = await this.#latestPersistedWithJoinsAndPermissions(uuid);
+    let original_dataset = await this.latestPersistedWithJoinsAndPermissions(uuid);
     if(!original_dataset) {
       throw new Util.NotFoundError();
     }
     let original_group_uuid = original_dataset.group_uuid;
     let uuid_dictionary = {};
     let new_uuid = await this.#duplicateRecursor(original_dataset, original_group_uuid, uuidv4(), uuid_dictionary);
-    return await this.#draftFetch(new_uuid, false);
+    return await this.draftFetch(new_uuid, false);
   }
 
   async #createMissingDatasetForImport(template: Record<string, any>): Promise<string> {
@@ -1142,7 +1147,7 @@ class Model extends AbstractDocument {
       if (!changes) {
         // Delete the current draft
         try {
-          await SharedFunctions.draftDelete(Dataset, dataset_uuid, this.state.session);
+          await this.shallowDraftDelete(dataset_uuid);
         } catch (err) {
           if (!(err instanceof Util.NotFoundError)) {
             throw err;
@@ -1187,10 +1192,11 @@ class Model extends AbstractDocument {
   async #importDatasetForTemplate(template: Record<string, any>): Promise<string> {
     let uuid_mapper_model_instance = new LegacyUuidToNewUuidMapperModel.model(this.state);
     let permissions_model_instance = new PermissionsModel(this.state);
+    let template_model_instance = new TemplateModel.model(this.state);
 
     let old_template_uuid = template.template_uuid;
     let new_template_uuid = await uuid_mapper_model_instance.get_new_uuid_from_old(old_template_uuid,);
-    let new_template = await SharedFunctions.latestPersisted(TemplateModel.collection(), new_template_uuid, this.state.session);
+    let new_template = await template_model_instance.shallowLatestPersisted(new_template_uuid);
     
 
     let dataset_uuid = await uuid_mapper_model_instance.get_secondary_uuid_from_old(old_template_uuid);
@@ -1225,7 +1231,7 @@ class Model extends AbstractDocument {
             // If the user doesn't have edit permissions, assume they want to link the persisted version of the dataset, or keep something another editor added
             related_dataset_uuid = await uuid_mapper_model_instance.get_secondary_uuid_from_old(related_template.template_uuid);
             // make sure the above dataset has been published
-            if(!(await SharedFunctions.latestPersisted(Dataset, related_dataset_uuid, this.state.session))) {
+            if(!(await this.shallowLatestPersisted(related_dataset_uuid ))) {
               throw new Util.PermissionDeniedError();
             }
           } else {
@@ -1268,7 +1274,7 @@ class Model extends AbstractDocument {
       return true;
     }
 
-    if(await SharedFunctions.isPublic(Dataset, document_uuid, this.state.session)) {
+    if(await this.isPublic(document_uuid)) {
       return true;
     }
 
@@ -1300,7 +1306,7 @@ class Model extends AbstractDocument {
     } else {
       await callback();
     }
-    return await this.#draftFetch(uuid, create_from_persisted_if_no_draft);
+    return await this.draftFetch(uuid, create_from_persisted_if_no_draft);
   }
 
   // Wraps the actual request to update with a transaction
@@ -1327,7 +1333,7 @@ class Model extends AbstractDocument {
     return await SharedFunctions.executeWithTransaction(this.state, callback);
   }
 
-  latestPersisted = this.#latestPersistedWithJoinsAndPermissions;
+  latestPersisted = this.latestPersistedWithJoinsAndPermissions;
   persistedBeforeDate = this.#latestPersistedBeforeDateWithJoinsAndPermissions;
 
   async persistedVersion(_id: ObjectId): Promise<Record<string, any> | null> {
@@ -1346,7 +1352,7 @@ class Model extends AbstractDocument {
 
   async draftDelete(uuid: string): Promise<void> {
     // if draft doesn't exist, return not found
-    if(!(await SharedFunctions.draft(Dataset, uuid, this.state.session))) {
+    if(!(await this.shallowDraft(uuid))) {
       throw new Util.NotFoundError(`No draft exists with uuid ${uuid}`);
     }
     // if don't have admin permissions, return no permissions
@@ -1354,11 +1360,11 @@ class Model extends AbstractDocument {
       throw new Util.PermissionDeniedError(`You do not have admin permissions for dataset ${uuid}.`);
     }
 
-    await SharedFunctions.draftDelete(Dataset, uuid, this.state.session);
+    await this.shallowDraftDelete(uuid);
   }
 
   async draftExisting(uuid: string): Promise<boolean> {
-    return (await SharedFunctions.draft(Dataset, uuid, this.state.session)) ? true : false;
+    return (await this.shallowDraft(uuid)) ? true : false;
   }
 
   async latestPersistedWithoutPermissions(uuid: string): Promise<Record<string, any> | null> {
@@ -1366,11 +1372,11 @@ class Model extends AbstractDocument {
   }
 
   async template_uuid(uuid: string): Promise<string> {
-    let dataset = await SharedFunctions.latestDocument(Dataset, uuid, this.state.session);
+    let dataset = await this.shallowLatestDocument(uuid);
     if(!dataset) {
       throw new Util.NotFoundError();
     }
-    return await SharedFunctions.uuidFor_id(TemplateModel.collection(), dataset.template_id, this.state.session);
+    return await this.template_model.uuidFor_id(dataset.template_id);
   }
 
   async recursiveLatestPersistedOutOfDate(dataset) {

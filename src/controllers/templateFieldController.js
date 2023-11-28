@@ -92,7 +92,7 @@ exports.draft_delete = async function(req, res, next) {
     let model_instance = new TemplateFieldModel.model(state);
     const callback = async () => {
       await model_instance.draftDelete(uuid);
-      if( !(await SharedFunctions.latestPersisted(TemplateFieldModel.collection(), uuid, state.session)) ) {
+      if( !(await model_instance.shallowLatestPersisted(uuid)) ) {
         await (new PermissionModel.model(state)).documentDeletePermissions(uuid);
       }
     }

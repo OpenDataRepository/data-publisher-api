@@ -462,7 +462,7 @@ class Model extends AbstractDocument{
 
     // Either subscribed_id had to have been on the list before before, or it has to be the latest persisted version of subscribed_uuid
     if(!previous_subscribed_template_ids.has(input_subscribed_template._id)) {
-      let latest_persisted_id = await this.latest_persisted_id_for_uuid(subscribed_uuid);
+      let latest_persisted_id = await this.latestPersisted_idForUuid(subscribed_uuid);
       if(!subscribed_id.equals(latest_persisted_id)) {
         throw new Util.InputError(`subscribed_template ${subscribed_id} is required to be the same _id as previously or the latest persisted version`);
       }
@@ -1459,11 +1459,6 @@ class Model extends AbstractDocument{
 
     await this.shallowDraftDelete(uuid);
   };
-
-  async latest_persisted_time_for_uuid(uuid: string): Promise<Record<string, any> | null> {
-    let template = await this.shallowLatestPersisted(uuid);
-    return template ? template.persist_date : null;
-  }
 
   // Wraps the actual request to duplicate with a transaction
   async duplicate(uuid: string): Promise<string> {

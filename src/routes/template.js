@@ -16,6 +16,5 @@ router.put('/:uuid', ensureLoggedIn, validateUuid, templateController.update);
 router.post('/:uuid/persist', ensureLoggedIn, validateUuid, templateController.persist);
 router.delete('/:uuid/draft', ensureLoggedIn, validateUuid, templateController.draft_delete);
 router.post('/:uuid/duplicate', ensureLoggedIn, validateUuid, templateController.duplicate);
-// TODO: implement get template based on _id
 
 module.exports = router;

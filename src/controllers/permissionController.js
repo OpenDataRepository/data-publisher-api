@@ -8,13 +8,13 @@ const UserModel = require('../models/user');
 
 // The current implementation is tight coupling
 async function findCollectionForUuid(uuid) {
-  if(await ModelsSharedFunctions.exists(DatasetModel.collection(), uuid)) {
+  if(await (new DatasetModel.model({})).exists(uuid)) {
     return ModelsSharedFunctions.DocumentTypes.dataset;
   }
-  if(await ModelsSharedFunctions.exists(TemplateModel.collection(), uuid)) {
+  if(await (new TemplateModel.model({})).exists(uuid)) {
     return ModelsSharedFunctions.DocumentTypes.template;
   }
-  if(await ModelsSharedFunctions.exists(TemplateFieldModel.collection(), uuid)) {
+  if(await (new TemplateFieldModel.model({})).exists(uuid)) {
     return ModelsSharedFunctions.DocumentTypes.template_field;
   }
   return null;

@@ -16,11 +16,12 @@ const uploads = {};
 exports.verifyFileUpload = async function(req, res, next) {
   let uuid = req.params.uuid;
   let state = Util.initializeState(req);
+  const file_model = new FileModel.model(state);
   try {
-    if(!(await SharedFunctions.exists(FileModel.collection(), uuid))) {
+    if(!(await file_model.exists(uuid))) {
       throw new Util.NotFoundError(`Cannot upload file to uuid ${uuid}. Does not exist`);
     }
-    let file_metadata = await SharedFunctions.latestDocument(FileModel.collection(), uuid);
+    let file_metadata = await file_model.get(uuid);
     if(!(await (new RecordModel.model(state)).hasPermissionToDraft(file_metadata.record_uuid, PermissionModel.PermissionTypes.edit))) {
       throw new Util.PermissionDeniedError(`You do not have the edit permissions required to add a file to record ${file_metadata.record_uuid}`);
     }
@@ -38,7 +39,7 @@ exports.verifyFileUpload = async function(req, res, next) {
 
 // Maybe I can just ignore this for now
 async function updateFileName(uuid, file_name) {
-  let file_metadata = await SharedFunctions.latestDocument(FileModel.collection(), uuid);
+  let file_metadata = (new FileModel.model()).get(uuid);
   let record_uuid = file_metadata.record_uuid;
   let field_uuid = file_metadata.field_uuid;
 
@@ -97,7 +98,7 @@ exports.uploadFileDirect = async function(req, res, next) {
     fileStream.on('close', async function () {
       if (upload.bytesReceived == fileSize) {
         delete uploads[uuid];
-        await FileModel.markUploaded(uuid);
+        await (new FileModel.model()).markUploaded(uuid);
         res.send({ 'status': 'uploaded' });
       } else {
         res.send({ "uploaded": upload.bytesReceived });
@@ -123,7 +124,7 @@ exports.directUploadStatus = async function(req, res, next) {
     if(isNaN(fileSize)) {
       throw new InputError('fileSize provided in the header must be a valid integer');
     }
-    if(!(await SharedFunctions.exists(FileModel.collection(), uuid))) {
+    if(!(await (new FileModel.model()).exists(uuid))) {
       res.status(404).send(`File ${uuid} does not exist`);
       return;
     }
@@ -167,6 +168,8 @@ exports.uploadFileFromUrl = async function(req, res, next) {
       throw new Util.InputError(`Download url not provided`);
     }
 
+    const file_model = new FileModel.model();
+
     let httpGetPromisified = async () => {
       return new Promise((resolve, reject) => {
         http.get(downloadUrl, function(response) {
@@ -181,7 +184,7 @@ exports.uploadFileFromUrl = async function(req, res, next) {
       
             writeStream.on("finish", () => {
               writeStream.close();
-              FileModel.markUploaded(uuid)
+              file_model.markUploaded(uuid)
               .then(() => {
                 resolve(true);
               });
@@ -241,7 +244,7 @@ exports.uploadFileFromUrl = async function(req, res, next) {
         throw err;
       }
     }
-    await FileModel.markUploaded(uuid);
+    await file_model.markUploaded(uuid);
     res.sendStatus(200);    
 
   } catch(err) {
@@ -253,10 +256,11 @@ exports.getFile = async function(req, res, next) {
   try {
     let uuid = req.params.uuid;
     let state = Util.initializeState(req);
-    if(!(await SharedFunctions.exists(FileModel.collection(), uuid))) {
+    const file_model = await (new FileModel.model(state))
+    if(!(await file_model.exists(uuid))) {
       throw new Util.NotFoundError(`File with uuid ${uuid} does not exist`);
     }
-    let file_metadata = await SharedFunctions.latestDocument(FileModel.collection(), uuid);
+    let file_metadata = await file_model.get(uuid);
     let record_uuid = file_metadata.record_uuid;
     let record_model = new RecordModel.model(state);
 
