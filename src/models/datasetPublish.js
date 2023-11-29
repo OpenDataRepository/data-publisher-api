@@ -2,7 +2,6 @@ const MongoDB = require('../lib/mongoDB');
 const Util = require('../lib/util');
 const PermissionModel = require('./permission');
 const DatasetModel = require('./dataset');
-const SharedFunctions = require('./shared_functions');
 
 // Mongodb schema for datasetPublish
 const Schema = Object.freeze({
@@ -66,7 +65,7 @@ exports.publishedTimeForDatasetUUIDAndName = publishedTimeForDatasetUUIDAndName;
 exports.publish = async function(dataset_uuid, name, user_id) {
 
   // make sure a persisted version of this dataset exists
-  if(!(await new DatasetModel.model(null).shallowLatestPersisted(dataset_uuid))) {
+  if(!(await new DatasetModel.model({}).shallowLatestPersisted(dataset_uuid))) {
     throw new Util.NotFoundError(`No persisted dataset with uuid ${dataset_uuid} exists to be published.`);
   }
 

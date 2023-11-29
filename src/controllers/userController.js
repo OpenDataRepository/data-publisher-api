@@ -3,7 +3,6 @@ const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 const Util = require('../lib/util');
 const email_validator = require("email-validator");
-const SharedFunctions = require('../models/shared_functions');
 const User = require('../models/user');
 const PermissionsModel = require('../models/permission');
 const PassportImplementation = require('../lib/passport_implementation');
@@ -77,7 +76,7 @@ exports.register = async function(req, res, next) {
       // }
       
     };
-    await SharedFunctions.executeWithTransaction(state, callback);
+    await Util.executeWithTransaction(state, callback);
     // if(process.env.is_test) {
       res.status(200).send({token: email_token});
     // } else {
@@ -251,7 +250,7 @@ async function changeEmail(req, user_id, res) {
       });
     }
   };
-  await SharedFunctions.executeWithTransaction(state, callback);
+  await Util.executeWithTransaction(state, callback);
   if(process.env.is_test) {
     res.status(200).send({token: email_token});
   } else {
@@ -304,9 +303,9 @@ async function getUserPermissions(user_id) {
 
   // - Search each of the collections for which uuids they hold. Should result in a list of uuids per collection
   let separated_document_uuids = {};
-  separated_document_uuids[SharedFunctions.DocumentTypes.template_field] = await SharedFunctions.uuidsInThisCollection(TemplateFieldModel.collection(), document_uuids);
-  separated_document_uuids[SharedFunctions.DocumentTypes.template] = await SharedFunctions.uuidsInThisCollection(TemplateModel.collection(), document_uuids);
-  separated_document_uuids[SharedFunctions.DocumentTypes.dataset] = await SharedFunctions.uuidsInThisCollection(DatasetModel.collection(), document_uuids);
+  separated_document_uuids[TemplateFieldModel.model.DOCUMENT_TYPE] = await new TemplateFieldModel.model({}).uuidsInThisCollection(document_uuids);
+  separated_document_uuids[TemplateModel.model.DOCUMENT_TYPE] = await new TemplateModel.model({}).uuidsInThisCollection(document_uuids);
+  separated_document_uuids[DatasetModel.model.DOCUMENT_TYPE] = await new DatasetModel.model({}).uuidsInThisCollection(document_uuids);
 
   // - Create a dictionary of uuid -> object
   let uuid_object_dict = {};
@@ -324,7 +323,7 @@ async function getUserPermissions(user_id) {
 
   // - Go through the list of objects and construct the final object
   let result = {};
-  for(let doc_type in SharedFunctions.DocumentTypes) {
+  for(let doc_type of [TemplateFieldModel.model.DOCUMENT_TYPE, TemplateModel.model.DOCUMENT_TYPE, DatasetModel.model.DOCUMENT_TYPE]) {
     result[doc_type] = {};
     for(let permission_type in PermissionsModel.PermissionTypes) {
       result[doc_type][permission_type] = [];
@@ -360,12 +359,12 @@ exports.getDatasets = async function(req, res, next) {
       user = req.user;
     }
     const all_permissions = await getUserPermissions(user._id);
-    const dataset_permissions_split = all_permissions[SharedFunctions.DocumentTypes.dataset];
+    const dataset_permissions_split = all_permissions[DatasetModel.model.DOCUMENT_TYPE];
     let dataset_uuid_list = [];
     for(let key in dataset_permissions_split) {
       dataset_uuid_list = dataset_uuid_list.concat(dataset_permissions_split[key]);
     }
-    let datasets = await SharedFunctions.latestShallowDocumentsForUuids(DatasetModel.collection(), dataset_uuid_list);
+    let datasets = await new DatasetModel.model({}).latestShallowDocumentsForUuids(dataset_uuid_list);
     res.send(datasets);
   } catch(err) {
     next(err);
@@ -382,12 +381,12 @@ exports.getTemplateFields = async function(req, res, next) {
       user = req.user;
     }
     const all_permissions = await getUserPermissions(user._id);
-    const field_permissions_split = all_permissions[SharedFunctions.DocumentTypes.template_field];
+    const field_permissions_split = all_permissions[TemplateFieldModel.model.DOCUMENT_TYPE];
     let field_uuid_list = [];
     for(let key in field_permissions_split) {
       field_uuid_list = field_uuid_list.concat(field_permissions_split[key]);
     }
-    let fields = await SharedFunctions.latestShallowDocumentsForUuids(TemplateFieldModel.collection(), field_uuid_list);
+    let fields = await new TemplateFieldModel.model({}).latestShallowDocumentsForUuids(field_uuid_list);
     res.send(fields);
   } catch(err) {
     next(err);

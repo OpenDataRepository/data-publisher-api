@@ -98,7 +98,7 @@ class Model {
   }
   
   static async confirmEmail(user_id: ObjectId, email: string): Promise<void> {
-    user_id = SharedFunctions.convertToMongoId(user_id);
+    user_id = Util.convertToMongoId(user_id);
   
     let current_user = await User.findOne({_id: user_id});
   
@@ -138,12 +138,12 @@ class Model {
   }
   
   static async getBy_id(_id: ObjectId): Promise<Record<string, any>> {
-    _id = SharedFunctions.convertToMongoId(_id);
+    _id = Util.convertToMongoId(_id);
     return await User.findOne({_id});
   }
   
   static async suspend(_id: ObjectId): Promise<void> {
-    _id = SharedFunctions.convertToMongoId(_id);
+    _id = Util.convertToMongoId(_id);
     let response = await User.updateOne(
       {_id},
       {
@@ -156,7 +156,7 @@ class Model {
   }
   
   async update(_id: ObjectId, input_update_properties: Record<string, any>): Promise<void> {
-    _id = SharedFunctions.convertToMongoId(_id);
+    _id = Util.convertToMongoId(_id);
     let filtered_update_properties: Record<string, any> = {};
     if(input_update_properties.first_name) {
       filtered_update_properties.first_name = input_update_properties.first_name;

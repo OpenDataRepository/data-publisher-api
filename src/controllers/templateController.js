@@ -1,7 +1,6 @@
 const TemplateModel = require('../models/template');
 const Util = require('../lib/util');
 const PermissionModel = require('../models/permission');
-const SharedFunctions = require('../models/shared_functions');
 
 exports.draft_get = async function(req, res, next) {
   try {
@@ -35,7 +34,7 @@ exports.get_version = async function(req, res, next) {
   try {
     let state = Util.initializeState(req);
     let model_instance = new TemplateModel.model(state);
-    let template = await model_instance.getVersion(SharedFunctions.convertToMongoId(req.params.id));
+    let template = await model_instance.getVersion(Util.convertToMongoId(req.params.id));
     if(!template) {
       throw new Util.NotFoundError();
     }
@@ -49,7 +48,7 @@ exports.get_persisted_version = async function(req, res, next) {
   try {
     let state = Util.initializeState(req);
     let model_instance = new TemplateModel.model(state);
-    let template = await model_instance.persistedVersion(SharedFunctions.convertToMongoId(req.params.id));
+    let template = await model_instance.persistedVersion(Util.convertToMongoId(req.params.id));
     if(!template) {
       throw new Util.NotFoundError();
     }
@@ -81,7 +80,7 @@ exports.create = async function(req, res, next) {
     const callback = async () => {
       inserted_uuid = await model_instance.create(req.body);
     }
-    await SharedFunctions.executeWithTransaction(state, callback);
+    await Util.executeWithTransaction(state, callback);
     res.redirect(303, `/template/${inserted_uuid}/draft`);
   } catch(err) {
     next(err);
@@ -98,7 +97,7 @@ exports.update = async function(req, res, next) {
     const callback = async () => {
       await model_instance.update(req.body);
     }
-    await SharedFunctions.executeWithTransaction(state, callback);
+    await Util.executeWithTransaction(state, callback);
     res.status(200).send({});
   } catch(err) {
     next(err);
@@ -131,7 +130,7 @@ exports.draft_delete = async function(req, res, next) {
         await (new PermissionModel.model(state)).documentDeletePermissions(uuid);
       }
     }
-    await SharedFunctions.executeWithTransaction(state, callback);
+    await Util.executeWithTransaction(state, callback);
     res.status(200).send({});
   } catch(err) {
     return next(err);

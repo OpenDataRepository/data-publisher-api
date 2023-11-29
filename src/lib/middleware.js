@@ -4,8 +4,6 @@ const bcrypt = require("bcryptjs");
 const PassportJwt = require('passport-jwt')
 const jwt = require("jsonwebtoken");
 const User = require('../models/user');
-const Permissions = require('../models/permission');
-const SharedFunctions = require('../models/shared_functions');
 // const { validationResult } = require('express-validator');
 
 const Util = require('./util');
@@ -99,7 +97,7 @@ exports.superUserActAs = async (req, res, next) => {
       const callback = async () => {
         let user_id = await user_model_instance.create(new_user_email, hashed_password, true);
       };
-      await SharedFunctions.executeWithTransaction(state, callback);
+      await Util.executeWithTransaction(state, callback);
       user = await User.model.getByEmail(new_user_email);
     }
     if(user.suspended) {

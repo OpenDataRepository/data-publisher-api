@@ -1,6 +1,5 @@
 const PermissionModel = require('../models/permission');
 const Util = require('../lib/util');
-const ModelsSharedFunctions = require('../models/shared_functions');
 const TemplateModel = require('../models/template');
 const TemplateFieldModel = require('../models/template_field');
 const DatasetModel = require('../models/dataset');
@@ -9,13 +8,13 @@ const UserModel = require('../models/user');
 // The current implementation is tight coupling
 async function findCollectionForUuid(uuid) {
   if(await (new DatasetModel.model({})).exists(uuid)) {
-    return ModelsSharedFunctions.DocumentTypes.dataset;
+    return DatasetModel.model.DOCUMENT_TYPE;
   }
   if(await (new TemplateModel.model({})).exists(uuid)) {
-    return ModelsSharedFunctions.DocumentTypes.template;
+    return TemplateModel.model.DOCUMENT_TYPE;
   }
   if(await (new TemplateFieldModel.model({})).exists(uuid)) {
-    return ModelsSharedFunctions.DocumentTypes.template_field;
+    return TemplateFieldModel.model.DOCUMENT_TYPE;
   }
   return null;
 }
@@ -49,7 +48,7 @@ exports.update_document_permissions = async function(req, res, next) {
     let template_model_instance = new TemplateModel.model(state);
     let dataset_model_instance = new DatasetModel.model(state);
 
-    if(document_type == ModelsSharedFunctions.DocumentTypes.dataset) {
+    if(document_type == DatasetModel.model.DOCUMENT_TYPE) {
       // Editing dataset permissions. Ensure every one of the users in this list has view permissions to the corresponding template uuid
       let template_uuid = await dataset_model_instance.template_uuid(document_uuid);
       for(let i = 0; i < user_ids.length; i++) {
@@ -62,7 +61,7 @@ exports.update_document_permissions = async function(req, res, next) {
     let callback = async () => {
       await permission_model_instance.replaceDocumentPermissions(document_uuid, permission_level, user_ids);
     };
-    await ModelsSharedFunctions.executeWithTransaction(state, callback);
+    await Util.executeWithTransaction(state, callback);
 
     res.sendStatus(200);
   } catch(err) {

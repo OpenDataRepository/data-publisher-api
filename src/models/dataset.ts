@@ -6,7 +6,6 @@ import * as Util from '../lib/util';
 import { AbstractDocument } from './abstract_document';
 const TemplateModel = require('./template');
 import { PermissionTypes, model as PermissionsModel } from "./permission";
-const SharedFunctions = require('./shared_functions');
 const LegacyUuidToNewUuidMapperModel = require('./legacy_uuid_to_new_uuid_mapper');
 
 // Mongodb schema for dataset
@@ -129,6 +128,8 @@ function collectionExport() {
 }
 
 class Model extends AbstractDocument {
+
+  static DOCUMENT_TYPE = 'dataset';
 
   template_model: any;
 
@@ -419,7 +420,7 @@ class Model extends AbstractDocument {
     let new_dataset: any = {
       uuid,
       name,
-      template_id: SharedFunctions.convertToMongoId(input_dataset.template_id),
+      template_id: Util.convertToMongoId(input_dataset.template_id),
       template_uuid: template.uuid,
       group_uuid,
       updated_at: this.state.updated_at,
@@ -503,7 +504,7 @@ class Model extends AbstractDocument {
       throw new Util.InputError(`dataset provided is not an object: ${dataset}`);
     }
 
-    let template = await (new TemplateModel.model(this.state)).fetchRecursivelyById(SharedFunctions.convertToMongoId(dataset.template_id));
+    let template = await (new TemplateModel.model(this.state)).fetchRecursivelyById(Util.convertToMongoId(dataset.template_id));
     if(!template) {
       throw new Util.InputError(`a valid template_id was not provided for the head dataset`);
     }
@@ -786,7 +787,7 @@ class Model extends AbstractDocument {
       Fetch the draft again to get the latest update before attempting to persist again.`);
     }
 
-    let template = await (new TemplateModel.model(this.state)).persistedByIdWithoutPermissions(SharedFunctions.convertToMongoId(dataset.template_id));
+    let template = await (new TemplateModel.model(this.state)).persistedByIdWithoutPermissions(Util.convertToMongoId(dataset.template_id));
 
     if(!template) {
       throw new Util.InputError(`Dataset with uuid ${dataset_uuid} cannot be persisted because the template version it references ${dataset.template_id}
@@ -1049,7 +1050,7 @@ class Model extends AbstractDocument {
       }
     } else {
       dataset_uuid = await uuid_mapper_model_instance.create_new_uuid_for_old(old_uuid);
-      await user_permissions_model_instance.initialize_permissions_for(this.state.user_id, dataset_uuid, SharedFunctions.DocumentTypes.dataset);
+      await user_permissions_model_instance.initialize_permissions_for(this.state.user_id, dataset_uuid, Model.DOCUMENT_TYPE);
     }
 
     // continue here with normal update procedures
@@ -1291,7 +1292,7 @@ class Model extends AbstractDocument {
     if(this.state.session) {
       return await callback();
     } else {
-      return await SharedFunctions.executeWithTransaction(this.state, callback);
+      return await this.executeWithTransaction(callback);
     }
   }
 
@@ -1302,7 +1303,7 @@ class Model extends AbstractDocument {
       await this.repairDraft(uuid);
     }
     if(!this.state.session) {
-      await SharedFunctions.executeWithTransaction(this.state, callback);
+      await this.executeWithTransaction(callback);
     } else {
       await callback();
     }
@@ -1314,7 +1315,7 @@ class Model extends AbstractDocument {
     let callback = async () => {
       await this.#validateAndCreateOrUpdate(dataset);
     }
-    await SharedFunctions.executeWithTransaction(this.state, callback);
+    await this.executeWithTransaction(callback);
   }
 
   // Wraps the actual request to persist with a transaction
@@ -1322,7 +1323,7 @@ class Model extends AbstractDocument {
     let callback = async () => {
       await this.#persist(uuid, last_update);
     }
-    await SharedFunctions.executeWithTransaction(this.state, callback);
+    await this.executeWithTransaction(callback);
   }
 
   // Wraps the actual request to getUpdate with a transaction
@@ -1330,7 +1331,7 @@ class Model extends AbstractDocument {
     let callback = async () => {
       return await this.#lastUpdateFor(uuid);
     };
-    return await SharedFunctions.executeWithTransaction(this.state, callback);
+    return await this.executeWithTransaction(callback);
   }
 
   latestPersisted = this.latestPersistedWithJoinsAndPermissions;
@@ -1402,7 +1403,7 @@ class Model extends AbstractDocument {
     let callback = async () => {
       return await this.#duplicate(uuid);
     };
-    return await SharedFunctions.executeWithTransaction(this.state, callback);
+    return await this.executeWithTransaction(callback);
   }
 
   async newDatasetForTemplate(template_uuid: string): Promise<Record<string, any>> {
@@ -1422,9 +1423,8 @@ class Model extends AbstractDocument {
   };
 
   async allViewableUuids(): Promise<string[]> {
-    let public_uuids = await SharedFunctions.allPublicPersistedUuids(Dataset);
-    let permissions_model_instance = new PermissionsModel(this.state);
-    let viewable_uuids = await permissions_model_instance.allUuidsAbovePermissionLevel(PermissionTypes.view, Dataset);
+    let public_uuids = await this.allPublicPersistedUuids();
+    let viewable_uuids = await this.allDocumentUuidsAbovePermissionLevel(PermissionTypes.view);
     return Util.arrayUnion(public_uuids, viewable_uuids);
   }
 };

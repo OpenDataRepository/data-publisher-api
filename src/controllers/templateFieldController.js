@@ -1,7 +1,6 @@
 const TemplateFieldModel = require('../models/template_field');
 const Util = require('../lib/util');
 const PermissionModel = require('../models/permission');
-const SharedFunctions = require('../models/shared_functions');
 
 exports.draft_get = async function(req, res, next) {
   try {
@@ -96,7 +95,7 @@ exports.draft_delete = async function(req, res, next) {
         await (new PermissionModel.model(state)).documentDeletePermissions(uuid);
       }
     }
-    await SharedFunctions.executeWithTransaction(model_instance.state, callback);
+    await Util.executeWithTransaction(model_instance.state, callback);
 
   } catch(err) {
     return next(err);
@@ -130,7 +129,7 @@ exports.draft_existing = async function(req, res, next) {
 
 exports.all_public_fields = async function(req, res, next) {
   try {
-    let datasets = await SharedFunctions.latestPublicDocuments(TemplateFieldModel.collection());
+    let datasets = await new TemplateFieldModel.model({}).latestPublicDocuments();
     res.send(datasets);
   } catch(err) {
     next(err);

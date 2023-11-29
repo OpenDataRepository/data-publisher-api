@@ -1,5 +1,6 @@
 import { ObjectId } from "mongodb";
 import assert from 'assert';
+const MongoDB = require('./mongoDB');
 
 export function isObject(object): boolean {
   return typeof object === 'object' && object !== null && !Array.isArray(object);
@@ -134,6 +135,32 @@ export function convertToMongoId(_id: string | ObjectId): ObjectId {
     return new ObjectId(_id);
   } else {
     return _id
+  }
+}
+
+export const executeWithTransaction = async (state, callback) => {
+  if(state.session) {
+    return callback();
+  }
+  const session = MongoDB.newSession();
+  state.session = session;
+  let result;
+  try {
+    await session.withTransaction(async () => {
+      try {
+        result = await callback();
+      } catch(err) {
+        await session.abortTransaction();
+        throw err;
+      }
+    });
+    session.endSession();
+    delete state.session;
+    return result;
+  } catch(err) {
+    session.endSession();
+    delete state.session;
+    throw err;
   }
 }
 

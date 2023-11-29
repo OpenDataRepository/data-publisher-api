@@ -2,7 +2,6 @@ const { InputError } = require('../lib/util');
 const TemplateModel = require('../models/template');
 const DatasetModel = require('../models/dataset');
 const RecordModel = require('../models/record');
-const SharedFunctions = require('../models/shared_functions');
 const Util = require('../lib/util');
 
 
@@ -44,7 +43,7 @@ exports.template_with_dataset = async function(req, res, next) {
       await template_model_instance.persist(template_uuid, last_update);
       dataset_uuid = await dataset_model_instance.importDatasetForTemplate(import_template);
     };
-    await SharedFunctions.executeWithTransaction(state, callback);
+    await Util.executeWithTransaction(state, callback);
 
     res.send({template_uuid, dataset_uuid});
   } catch(err) {

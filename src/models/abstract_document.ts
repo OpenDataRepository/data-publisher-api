@@ -18,29 +18,7 @@ export class AbstractDocument extends BasicAbstractDocument {
   state: any;
 
   async executeWithTransaction(callback){
-    if(this.state.session) {
-      return callback();
-    }
-    const session = MongoDB.newSession();
-    this.state.session = session;
-    let result;
-    try {
-      await session.withTransaction(async () => {
-        try {
-          result = await callback();
-        } catch(err) {
-          await session.abortTransaction();
-          throw err;
-        }
-      });
-      session.endSession();
-      delete this.state.session;
-      return result;
-    } catch(err) {
-      session.endSession();
-      delete this.state.session;
-      throw err;
-    }
+    return Util.executeWithTransaction(this.state, callback);
   }
 
   async shallowDraft(uuid: string): Promise<Record<string, any> | null> {
@@ -296,4 +274,60 @@ export class AbstractDocument extends BasicAbstractDocument {
     return draft_already_existing || related_doc_changes || new_persisted_version || !!updated_godfather;
   }
 
+  async latestShallowDocumentsForUuids(uuids: string[]){
+    let unfiltered_docs = await this.collection.find({"uuid": {"$in": uuids}})
+      .sort({'updated_at': -1})
+      .toArray();
+    let docs: Record<string, any>[] = [];
+    // after getting results, use a set to only keep the latest version of each uuid
+    let seen_uuids = new Set();
+    for(let doc of unfiltered_docs) {
+      if(!seen_uuids.has(doc.uuid)) {
+        seen_uuids.add(doc.uuid);
+        docs.push(doc);
+      }
+    }
+    return docs;
+  }
+
+  async latestPublicDocuments(){
+    let all_public_uuids = await this.allPublicPersistedUuids();
+    let unfiltered_docs = await this.collection.find({"uuid": {"$in": all_public_uuids}})
+      .sort({'persist_date': -1})
+      .toArray();
+    let docs: Record<string, any>[] = [];
+    // after getting results, use a set to only keep the latest version of each uuid
+    // also only keep it if the latest version is public
+    let seen_uuids = new Set();
+    for(let doc of unfiltered_docs) {
+      if(!seen_uuids.has(doc.uuid)) {
+        if(doc.public_date && Util.isTimeAAfterB(new Date(), doc.public_date)) {
+          docs.push(doc);
+        }
+        seen_uuids.add(doc.uuid);
+      }
+    }
+    return docs;
+  }
+  
+  async allPublicPersistedUuids(): Promise<string[]>{
+    return await this.collection.distinct(
+      "uuid",
+      {public_date: {$exists: true, $lte: new Date()}, persist_date: {$exists: true}}
+    );
+  }
+
+  async uuidsInThisCollection(uuids: string[]): Promise<string[]>{
+    return await this.collection.distinct(
+      "uuid",
+      {"uuid": {$in: uuids}}
+    );
+  }
+
+  async allDocumentUuidsAbovePermissionLevel(permission_level: PermissionTypes): Promise<string[]> {
+    let uuids_all_collections = await new PermissionsModel(this.state).allDocumentsAllUuidsAbovePermissionLevel(permission_level);
+    return await this.uuidsInThisCollection(uuids_all_collections);
+  }
+
 }
+

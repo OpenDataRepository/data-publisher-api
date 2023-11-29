@@ -223,13 +223,12 @@ class Model {
     return admin_user_ids.length > 0;
   }
 
-  async allUuidsAbovePermissionLevel(permission_level: PermissionTypes, collection): Promise<string[]> {
+  async allDocumentsAllUuidsAbovePermissionLevel(permission_level: PermissionTypes): Promise<string[]> {
     let user_id = this.state.user_id;
-    let uuids_all_collections = await Permission.distinct(
+    return await Permission.distinct(
       "document_uuid",
       {user_id, permission_level: {$in: Model.#equalOrHigherPermissionLevels(permission_level)}}
     );
-    return await SharedFunctions.uuidsInThisCollection(collection, uuids_all_collections);
   }
 
 };

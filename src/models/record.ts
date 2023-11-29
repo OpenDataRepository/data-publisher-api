@@ -845,7 +845,7 @@ class Model extends AbstractDocument {
       throw new Util.InputError(`dataset ${record.dataset_uuid} is out of date and needs to be updated and persisted before updating this record`);
     }
 
-    let template = await (new TemplateModel.model(this.state)).persistedByIdWithoutPermissions(SharedFunctions.convertToMongoId(dataset.template_id));
+    let template = await (new TemplateModel.model(this.state)).persistedByIdWithoutPermissions(Util.convertToMongoId(dataset.template_id));
 
     this.state.updated_at = new Date();
 
@@ -1805,7 +1805,7 @@ class Model extends AbstractDocument {
       let inserted_uuid = results[1];
       return inserted_uuid;
     };
-    return await SharedFunctions.executeWithTransaction(this.state, callback);
+    return await this.executeWithTransaction(callback);
   }
 
   async draftGet(uuid: string, create_from_persisted_if_no_draft: boolean): Promise<Record<string, any> | null> {
@@ -1821,7 +1821,7 @@ class Model extends AbstractDocument {
     let callback = async () => {
       await this.repairDraft(uuid);
     };
-    await SharedFunctions.executeWithTransaction(this.state, callback);
+    await this.executeWithTransaction(callback);
     let draft = await this.draftFetch(uuid, create_from_persisted_if_no_draft);
     await this.#appendPluginsToRecord(draft as Record<string, any>);
     return draft;
@@ -1832,7 +1832,7 @@ class Model extends AbstractDocument {
     let callback = async () => {
       await this.#validateAndCreateOrUpdate(record);
     };
-    await SharedFunctions.executeWithTransaction(this.state, callback);
+    await this.executeWithTransaction(callback);
   }
 
   // Wraps the actual request to persist with a transaction
@@ -1840,7 +1840,7 @@ class Model extends AbstractDocument {
     let callback = async () => {
       await this.#persist(uuid, last_update);
     };
-    await SharedFunctions.executeWithTransaction(this.state, callback);
+    await this.executeWithTransaction(callback);
   }
 
   // Fetches the last persisted record with the given uuid. 
@@ -1899,7 +1899,7 @@ class Model extends AbstractDocument {
     let callback = async () => {
       return await this.#importDatasetsAndRecords(records);
     };
-    return await SharedFunctions.executeWithTransaction(this.state, callback);
+    return await this.executeWithTransaction(callback);
   }
 
   // Wraps the actual request to importRecords with a transaction
@@ -1907,7 +1907,7 @@ class Model extends AbstractDocument {
     let callback = async () => {
       return await this.#importRecords(records);
     };
-    return await SharedFunctions.executeWithTransaction(this.state, callback);
+    return await this.executeWithTransaction(callback);
   }
 
   // At some point for optimization, could modify this query to accept a timestamp and filter further based on that

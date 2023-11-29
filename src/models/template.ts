@@ -142,6 +142,9 @@ function collectionExport() {
 }
 
 class Model extends AbstractDocument{
+
+  static DOCUMENT_TYPE = 'template';
+
   template_field_model: any;
   permission_model: any;
 

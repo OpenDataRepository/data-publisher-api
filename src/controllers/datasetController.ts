@@ -38,7 +38,7 @@ exports.get_persisted_version = async function(req, res, next) {
   try {
     let state = Util.initializeState(req);
     let model_instance = new DatasetModel.model(state);
-    let dataset = await model_instance.persistedVersion(SharedFunctions.convertToMongoId(req.params.id));
+    let dataset = await model_instance.persistedVersion(Util.convertToMongoId(req.params.id));
     if(!dataset) {
       throw new Util.NotFoundError();
     }
@@ -70,7 +70,7 @@ exports.create = async function(req, res, next) {
     const callback = async () => {
       inserted_uuid = await model_instance.create(req.body);
     }
-    await SharedFunctions.executeWithTransaction(state, callback);
+    await Util.executeWithTransaction(state, callback);
     res.redirect(303, `/dataset/${inserted_uuid}/draft`);
   } catch(err) {
     next(err);
@@ -88,7 +88,7 @@ exports.update = async function(req, res, next) {
     const callback = async () => {
       await model_instance.update(req.body);
     }
-    await SharedFunctions.executeWithTransaction(state, callback);
+    await Util.executeWithTransaction(state, callback);
     if(await model_instance.draftExisting(uuid)) {
       res.redirect(303, `/dataset/${uuid}/draft`)
     } else {
@@ -125,7 +125,7 @@ exports.draft_delete = async function(req, res, next) {
         await (new PermissionModel(state)).documentDeletePermissions(uuid);
       }
     }
-    await SharedFunctions.executeWithTransaction(state, callback);
+    await Util.executeWithTransaction(state, callback);
 
   } catch(err) {
     return next(err);
@@ -297,7 +297,7 @@ exports.search_published_records = async function(req, res, next) {
 
 exports.all_public_uuids = async function(req, res, next) {
   try {
-    let public_uuids = await SharedFunctions.allPublicPersistedUuids(DatasetModel.collection());
+    let public_uuids = await new DatasetModel.model({}).allPublicPersistedUuids();
     res.send(public_uuids);
   } catch(err) {
     next(err);
@@ -317,7 +317,7 @@ exports.all_viewable_uuids = async function(req, res, next) {
 
 exports.all_public_datasets = async function(req, res, next) {
   try {
-    let datasets = await SharedFunctions.latestPublicDocuments(DatasetModel.collection());
+    let datasets = await new DatasetModel.model({}).latestPublicDocuments();
     res.send(datasets);
   } catch(err) {
     next(err);
