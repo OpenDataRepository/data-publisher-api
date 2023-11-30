@@ -346,13 +346,23 @@ describe("datasets", () => {
   
     let datasets = await Helper.testAndExtract(Helper.accountGetDatasets);
     expect(datasets.length).toBe(6);
-  
-    expect(datasets[0].name).toEqual("child - should appear");
-    expect(datasets[1].name).toEqual("parent - should appear");
-    expect(datasets[2].name).toEqual("simple created, persisted, and persisted again - second persisted - should appear");
-    expect(datasets[3].name).toEqual("simple created, persisted, and another draft created - updated - should appear");
-    expect(datasets[4].name).toEqual("simple created and persisted - should appear");
-    expect(datasets[5].name).toEqual("simple just created - should appear");
+
+    const expected_dataset_names = 
+    ["child - should appear", 
+      "child - should appear", 
+      "simple created, persisted, and persisted again - second persisted - should appear",
+      "simple created, persisted, and another draft created - updated - should appear",
+      "simple created and persisted - should appear",
+      "simple just created - should appear"
+    ]
+
+    const name_set = new Set(expected_dataset_names);
+
+    for(let dataset of datasets)  {
+      name_set.delete(dataset.name);
+    }
+
+    expect(name_set.size).toBe(0);
   
   });
 

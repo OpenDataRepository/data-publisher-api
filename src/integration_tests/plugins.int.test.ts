@@ -581,10 +581,14 @@ describe("record", () => {
       expect(Object.keys(record.plugins).length).toBe(2);
       expect(record.plugins["parent plugin 1"]).toEqual(0.1);
       expect(record.plugins["parent plugin 2"]).toEqual(0.2);
-      expect(Object.keys(record.fields[0].plugins).length).toBe(1);
-      expect(record.fields[0].plugins["field 1 plugin 2"]).toEqual(0.1);
-      expect(Object.keys(record.fields[1].plugins).length).toBe(1);
-      expect(record.fields[1].plugins["field 2 plugin 1"]).toEqual(0.2);
+
+      let field_1 = record.fields[0].name == "field 1" ? record.fields[0] : record.fields[1];
+      let field_2 = record.fields[0].name == "field 2" ? record.fields[0] : record.fields[1];
+
+      expect(Object.keys(field_1.plugins).length).toBe(1);
+      expect(field_1.plugins["field 1 plugin 2"]).toEqual(0.1);
+      expect(Object.keys(field_2.plugins).length).toBe(1);
+      expect(field_2.plugins["field 2 plugin 1"]).toEqual(0.2);
 
       let related_record = record.related_records[0];
       expect(Object.keys(related_record.plugins).length).toBe(2);

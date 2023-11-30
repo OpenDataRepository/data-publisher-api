@@ -2645,7 +2645,7 @@ describe("with files", () => {
       ]
     }
     record = await Helper.recordCreateAndTest(record);
-    let file_uuid = record.fields[0].file.uuid;
+    let file_uuid = record.fields[0].uuid == template.fields[0].uuid ? record.fields[0].file.uuid : record.fields[1].file.uuid;
 
     return [template, dataset, record, file_uuid];
   };
@@ -2680,11 +2680,20 @@ describe("with files", () => {
       record = await Helper.recordPersistAndTest(record);
       
       record = await Helper.testAndExtract(Helper.recordNewDraftFromLatestPersisted, record.uuid);
-
-      record.fields[1].value = "other value";
+      
+      if(record.fields[0].file) {
+        record.fields[1].value = "other value";
+      } else {
+        record.fields[0].value = "other value";
+      }
 
       record = await Helper.recordUpdatePersistTest(record);
-      expect(record.fields[0].file.uuid).toEqual(file_uuid);
+
+      if(record.fields[0].file) {
+        expect(record.fields[0].file.uuid).toEqual(file_uuid);
+      } else {
+        expect(record.fields[1].file.uuid).toEqual(file_uuid);
+      }
 
     });
 
@@ -2696,9 +2705,13 @@ describe("with files", () => {
 
       // Create a second record version with a new file
       record = await Helper.testAndExtract(Helper.recordNewDraftFromLatestPersisted, record.uuid);
-      record.fields[0].file.uuid = "new";
+      if(record.fields[0].file) {
+        record.fields[0].file.uuid = "new";
+      } else {
+        record.fields[1].file.uuid = "new";
+      }
       record = await Helper.recordUpdateAndTest(record);
-      let file_uuid_2 = record.fields[0].file.uuid;
+      let file_uuid_2 = record.fields[0].file ? record.fields[0].file.uuid : record.fields[1].file.uuid;
 
       // Expect to get a new file_uuid for the new version
       expect(file_uuid_2).not.toEqual(file_uuid);
@@ -2731,7 +2744,11 @@ describe("with files", () => {
       await Helper.testAndExtract(Helper.getFile, file_uuid);
       
       record = await Helper.recordDraftGetAndTest(record.uuid);
-      delete record.fields[0].file;
+      if(record.fields[0].file) {
+        delete record.fields[0].file;
+      } else {
+        delete record.fields[1].file;
+      }
 
       record = await Helper.recordUpdateAndTest(record);
 
@@ -2748,7 +2765,11 @@ describe("with files", () => {
       record = await Helper.recordPersistAndTest(record);
       
       record = await Helper.testAndExtract(Helper.recordNewDraftFromLatestPersisted, record.uuid);
-      record.fields[0].file.name = "waffle";
+      if(record.fields[0].file) {
+        record.fields[0].file.name = "waffle";
+      } else {
+        record.fields[1].file.name = "waffle";
+      }
 
       record = await Helper.recordUpdatePersistTest(record);
     });
@@ -3085,6 +3106,9 @@ describe("with files", () => {
     };
     template = await Helper.templateCreatePersistTest(template);
 
+    let file_field = template.fields[0].type == FieldTypes.File ? template.fields[0] : template.fields[1];
+    let image_field = template.fields[0].type == FieldTypes.Image ? template.fields[0] : template.fields[1];
+
     let dataset: any = {
       template_id: template._id
     };
@@ -3094,11 +3118,11 @@ describe("with files", () => {
       dataset_uuid: dataset.uuid,
       fields: [
         {
-          uuid: template.fields[0].uuid,
+          uuid: file_field.uuid,
           file: {uuid: "new", name: "afile"}
         },
         {
-          uuid: template.fields[1].uuid,
+          uuid: image_field.uuid,
           images: [
             {uuid: "new", name: "image1"},
             {uuid: "new", name: "image2"}
@@ -3109,19 +3133,23 @@ describe("with files", () => {
 
     // Delete the record before uploading an actual file. All files should also be deleted.
     let created_record = await Helper.recordCreateAndTest(record);
+    let record_file_field = created_record.fields[0].file ? created_record.fields[0] : created_record.fields[1];
+    let record_images_field = created_record.fields[0].images ? created_record.fields[0] : created_record.fields[1];
     await Helper.testAndExtract(Helper.recordDelete, created_record.uuid);
-    let response = await Helper.getFile(created_record.fields[0].file.uuid);
+    let response = await Helper.getFile(record_file_field.file.uuid);
     expect(response.statusCode).toBe(404);
-    response = await Helper.getFile(created_record.fields[1].images[0].uuid);
+    response = await Helper.getFile(record_images_field.images[0].uuid);
     expect(response.statusCode).toBe(404);
-    response = await Helper.getFile(created_record.fields[1].images[1].uuid);
+    response = await Helper.getFile(record_images_field.images[1].uuid);
     expect(response.statusCode).toBe(404);
 
     // Delete the record after uploading an actual file. All files should also be deleted.
     created_record = await Helper.recordCreateAndTest(record);
-    let file_uuid = created_record.fields[0].file.uuid;
-    let image_uuid_1 = created_record.fields[1].images[0].uuid;
-    let image_uuid_2 = created_record.fields[1].images[1].uuid;
+    record_file_field = created_record.fields[0].file ? created_record.fields[0] : created_record.fields[1];
+    record_images_field = created_record.fields[0].images ? created_record.fields[0] : created_record.fields[1];
+    let file_uuid = record_file_field.file.uuid;
+    let image_uuid_1 = record_images_field.images[0].uuid;
+    let image_uuid_2 = record_images_field.images[1].uuid;
 
     let file_name = "toUpload.txt";
     let file_contents = "Hello World!";

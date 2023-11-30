@@ -448,8 +448,6 @@ export = class Helper {
   templateCreatePersistTest = async (template) => {
     let created_template = await this.templateCreateAndTest(template);
     let persisted_template = await this.templatePersistAndFetch(created_template.uuid)
-    this.templateSortFieldsAndRelatedTemplates(template);
-    this.templateSortFieldsAndRelatedTemplates(persisted_template);
     this.testTemplateDraftsEqual(template, persisted_template);
     return persisted_template;
   };
@@ -767,14 +765,13 @@ export = class Helper {
       expect(after.type).toEqual(before.type);
     }
     if(before.file) {
+      expect(after).toHaveProperty("file");
       // must be after.type because the type is stored in the template, not the record
-      if(after.type == FieldTypes.File && before.file.uuid == 'new'){
-        ;
-      } else {
-        expect(after.file.uuid).toEqual(before.file.uuid);
-      }
       if(after.type == FieldTypes.File) {
         expect(after.file.name).toEqual(before.file.name);
+        if(before.file.uuid != 'new') {
+          expect(after.file.uuid).toEqual(before.file.uuid);
+        }
       }
     }
     if(before.values) {
