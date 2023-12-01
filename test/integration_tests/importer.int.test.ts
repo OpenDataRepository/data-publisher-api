@@ -1,6 +1,8 @@
-const fs = require('fs');
-var { app, init: appInit, close: appClose } = require('../app');
-var { PermissionTypes } = require('../models/permission');
+var fs = require('fs');
+
+var src_path = '../../src';
+var { app, init: appInit, close: appClose } = require(src_path + '/app');
+var { PermissionTypes } = require( src_path + '/models/permission');
 var HelperClass = require('./common_test_operations');
 var Helper = new HelperClass(app);
 

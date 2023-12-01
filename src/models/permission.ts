@@ -1,10 +1,8 @@
-const assert = require('assert');
 const MongoDB = require('../lib/mongoDB');
 import { ObjectId } from 'mongodb';
 import { isAssertClause } from 'typescript';
 import * as Util from '../lib/util';
 import {model as UserModel} from './user';
-const SharedFunctions = require('./shared_functions');
 
 enum PermissionTypes {
   admin = 'admin',

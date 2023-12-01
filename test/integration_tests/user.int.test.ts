@@ -1,5 +1,7 @@
-const request = require("supertest");
-var { app, init: appInit, close: appClose } = require('../app');
+var request = require("supertest");
+
+var src_path = '../../src';
+var { app, init: appInit, close: appClose } = require(src_path + '/app');
 var HelperClass = require('./common_test_operations')
 var Helper = new HelperClass(app);
 const jwt = require('jsonwebtoken');
@@ -286,7 +288,7 @@ describe("datasets", () => {
 
     const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-    let template1 = { 
+    let template1: any = { 
       name: "t1"
     };
     template1 = await Helper.templateCreatePersistTest(template1);
@@ -319,7 +321,7 @@ describe("datasets", () => {
     dataset1_with_uuid.name = "simple created, persisted, and persisted again - second persisted - should appear"
     await Helper.datasetUpdatePersistTest(dataset1_with_uuid);
     await sleep(1);
-    let template2 = { 
+    let template2: any = { 
       name: "t1",
       related_templates: [
         { 
@@ -368,7 +370,7 @@ describe("datasets", () => {
 
   test("only most recent dataset included for each uuid, no matter how scrambled update times are", async () => {
 
-    let template = { 
+    let template: any = { 
       name: "t1"
     };
     template = await Helper.templateCreatePersistTest(template);

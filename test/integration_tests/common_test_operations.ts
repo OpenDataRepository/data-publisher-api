@@ -5,12 +5,13 @@ var finalhandler = require('finalhandler')
 var http = require('http')
 var serveStatic = require('serve-static')
 import { AddressInfo } from 'net'
-const MongoDB = require('../lib/mongoDB');
-const ElasticDB = require('../lib/elasticDB');
-var { PermissionTypes } = require('../models/permission');
-const FieldTypes = require('../models/template_field').FieldTypes;
+const src_path = '../../src'
+const MongoDB = require(src_path + '/lib/mongoDB');
+const ElasticDB = require(src_path +  '/lib/elasticDB');
+var { PermissionTypes } = require(src_path +  '/models/permission');
+const FieldTypes = require(src_path +  '/models/template_field').FieldTypes;
 var appRoot = require('app-root-path');
-const Util = require('../lib/util');
+const Util = require(src_path + '/lib/util');
 
 const dynamicTestFilesPath = appRoot + '/test_data/dynamic_files'
 // Necessary because empty folders like dynamic_tests don't get included with git

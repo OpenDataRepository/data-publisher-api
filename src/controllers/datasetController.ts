@@ -2,7 +2,6 @@ const DatasetModel = require('../models/dataset');
 const DatasetPublishModel = require('../models/datasetPublish');
 const RecordModel = require('../models/record');
 import { model as PermissionModel } from '../models/permission';
-const SharedFunctions = require('../models/shared_functions');
 import * as Util from '../lib/util';
 const ElasticsearchModel = require ('../models/elasticsearch');
 

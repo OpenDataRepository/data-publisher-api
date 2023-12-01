@@ -102,7 +102,7 @@
   },
   "include": [
     "src"
-  ],
+, "test/util.unit.test.js", "test/integration_tests"  ],
   "exclude": [
 
   ]

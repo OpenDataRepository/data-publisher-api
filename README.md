@@ -30,12 +30,10 @@
 
 
 ### Running the Server
-- execute 'npm build' to convert typescript to javascript
-- execute 'npm start' to run the server
+- 'npm start'
 
-### Running integration tests
-- execute 'npm build' to convert typescript to javascript
-- execute 'npm test' to run tests
+### Running tests
+- 'npm test'
 
 ## Key ODR Concepts / Summary
 

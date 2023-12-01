@@ -54,10 +54,10 @@ module.exports = {
   // forceCoverageMatch: [],
 
   // A path to a module which exports an async function that is triggered once before all test suites
-  globalSetup: "./test/globalSetup.js",
+  globalSetup: "<rootDir>/globalSetup.js",
 
   // A path to a module which exports an async function that is triggered once after all test suites
-  globalTeardown: "./test/globalTeardown.js",
+  globalTeardown: "<rootDir>/globalTeardown.js",
 
   // A set of global variables that need to be available in all test environments
   // globals: {},
@@ -94,6 +94,7 @@ module.exports = {
 
   // A preset that is used as a base for Jest's configuration
   // preset: "@shelf/jest-mongodb",
+  preset: 'ts-jest',
 
   // Run tests from one or more projects
   // projects: undefined,
@@ -117,7 +118,7 @@ module.exports = {
   // restoreMocks: false,
 
   // The root directory that Jest should scan for tests and modules within
-  rootDir: "out"
+  rootDir: "/home/caleb/data-publisher-api/test",
 
   // A list of paths to directories that Jest should use to search for files in
   // roots: [

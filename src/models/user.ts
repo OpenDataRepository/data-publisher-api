@@ -1,6 +1,5 @@
 import { ObjectId } from 'mongodb';
 const MongoDB = require('../lib/mongoDB');
-const SharedFunctions = require('./shared_functions');
 const Util = require('../lib/util');
 
 const Schema = Object.freeze({

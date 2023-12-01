@@ -1,4 +1,5 @@
-const Util = require('./util');
+var src_path = '../src'
+const Util = require(src_path + '/lib/util');
 
 
 test('isObject', () => {

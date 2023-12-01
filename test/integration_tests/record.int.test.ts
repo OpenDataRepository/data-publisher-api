@@ -1,8 +1,9 @@
-var { app, init: appInit, close: appClose } = require('../app');
+var src_path = '../../src';
+var { app, init: appInit, close: appClose } = require(src_path + '/app');
 var HelperClass = require('./common_test_operations')
 var Helper = new HelperClass(app);
-var { PermissionTypes } = require('../models/permission');
-import { FieldTypes } from "../models/template_field"; '../models/template_field';
+var { PermissionTypes } = require(src_path + '/models/permission');
+var { FieldTypes } = require(src_path + "/models/template_field");
 
 var agent1;
 var agent2;

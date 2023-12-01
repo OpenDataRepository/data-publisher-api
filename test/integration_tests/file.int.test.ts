@@ -1,9 +1,11 @@
-const fs = require('fs');
+var fs = require('fs');
 const fsPromises = fs.promises;
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
-var { app, init: appInit, close: appClose } = require('../app');
-const FieldTypes = require('../models/template_field').FieldTypes;
+
+var src_path = '../../src';
+var { app, init: appInit, close: appClose } = require(src_path + '/app');
+var FieldTypes = require(src_path + '/models/template_field').FieldTypes;
 
 var HelperClass = require('./common_test_operations')
 var Helper = new HelperClass(app);
@@ -36,7 +38,7 @@ afterAll(async () => {
 });
 
 const basicRecordSetup = async () => {
-  let template = {
+  let template: any = {
     name: "t",
     fields: [{
       name: "tf",
@@ -45,7 +47,7 @@ const basicRecordSetup = async () => {
   };
   template = await Helper.templateCreatePersistTest(template);
 
-  let dataset = {
+  let dataset: any = {
     template_id: template._id
   };
   dataset = await Helper.datasetCreatePersistTest(dataset);

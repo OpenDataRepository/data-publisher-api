@@ -8,7 +8,6 @@ const TemplateFieldModel = require('./template_field');
 const TemplateModel = require('./template');
 const DatasetModel = require('./dataset');
 import { PermissionTypes, model as PermissionsModel } from "./permission";
-const SharedFunctions = require('./shared_functions');
 const LegacyUuidToNewUuidMapperModel = require('./legacy_uuid_to_new_uuid_mapper');
 const FileModel = require('./file');
 const FieldTypes = TemplateFieldModel.FieldTypes;

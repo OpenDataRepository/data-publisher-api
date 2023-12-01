@@ -1,7 +1,8 @@
-const request = require("supertest");
-var { app, init: appInit, close: appClose } = require('../app');
-var { PermissionTypes } = require('../models/permission');
-const FieldTypes = require('../models/template_field').FieldTypes;
+var request = require("supertest");
+var src_path = '../../src';
+var { app, init: appInit, close: appClose } = require( src_path + '/app');
+var { PermissionTypes } = require(src_path + '/models/permission');
+var FieldTypes = require(src_path + '/models/template_field').FieldTypes;
 var HelperClass = require('./common_test_operations')
 var Helper = new HelperClass(app);
 

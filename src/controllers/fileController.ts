@@ -5,7 +5,6 @@ const path = require('path');
 const http = require('http');
 const axios = require('axios');
 const Util = require('../lib/util');
-const SharedFunctions = require('../models/shared_functions');
 const FileModel = require('../models/file');
 const RecordModel = require('../models/record');
 const PermissionModel = require(`../models/permission`);

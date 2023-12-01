@@ -1,5 +1,6 @@
-var { PermissionTypes } = require('../models/permission');
-var { app, init: appInit, close: appClose } = require('../app');
+var src_path = '../../src';
+var { PermissionTypes } = require(src_path + '/models/permission');
+var { app, init: appInit, close: appClose } = require(src_path + '/app');
 var HelperClass = require('./common_test_operations');
 var Helper = new HelperClass(app);
 
@@ -22,7 +23,7 @@ afterAll(async () => {
 
 describe("initialize_permissions (and get)",  () => {
   test("success", async () => {
-    let template = {name: "t"};
+    let template: any = {name: "t"};
     template = await Helper.templateCreateAndTest(template);
     let uuid = template.uuid;
 
@@ -117,7 +118,7 @@ describe("update (and get)",  () => {
   });
 
   test("cannot delete users from template view category", async () => {
-    let template = {
+    let template: any = {
       name: "t1"
     }
     template = await Helper.templateCreatePersistTest(template);
@@ -139,7 +140,7 @@ describe("update (and get)",  () => {
   });
 
   test("any user deleted from template admin or edit is added to template view", async () => {
-    let template = {
+    let template: any = {
       name: "t1"
     }
     template = await Helper.templateCreatePersistTest(template);
@@ -166,12 +167,12 @@ describe("update (and get)",  () => {
   });
 
   test("cannot add users to dataset permissions unless they have template view permission", async () => {
-    let template = {
+    let template: any = {
       name: "t1"
     }
     template = await Helper.templateCreatePersistTest(template);
 
-    let dataset = {
+    let dataset: any = {
       template_id: template._id
     }
     dataset = await Helper.datasetCreatePersistTest(dataset);
