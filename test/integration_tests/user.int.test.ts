@@ -8,8 +8,12 @@ const jwt = require('jsonwebtoken');
 
 var agent;
 
+var replset;
+
 beforeAll(async () => {
-  await appInit();
+  let db_uri;
+  [db_uri, replset] = await Helper.setupDB();
+  await appInit(db_uri);
 });
 
 beforeEach(async() => {
@@ -19,6 +23,7 @@ beforeEach(async() => {
 
 afterAll(async () => {
   await Helper.clearDatabase();
+  await replset.stop();
   await appClose();
 });
 

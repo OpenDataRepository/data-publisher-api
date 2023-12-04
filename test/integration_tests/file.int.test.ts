@@ -15,8 +15,12 @@ var serverUrl;
 var agent1;
 var agent2;
 
+var replset;
+
 beforeAll(async () => {
-  await appInit();
+  let db_uri;
+  [db_uri, replset] = await Helper.setupDB();
+  await appInit(db_uri);
   agent2 = await Helper.createAgentRegisterLogin(Helper.EMAIL_2, Helper.DEF_PASSWORD);
   agent1 = await Helper.createAgentRegisterLogin(Helper.DEF_EMAIL, Helper.DEF_PASSWORD);
   [server, serverUrl] = Helper.basicServerSetup();
@@ -34,6 +38,7 @@ afterAll(async () => {
   Helper.clearFilesAtPath(Helper.dynamicTestFilesPath);
   Helper.clearFilesAtPath(Helper.uploadsDirectoryPath);
   await Helper.clearDatabase();
+  await replset.stop();
   await appClose();
 });
 

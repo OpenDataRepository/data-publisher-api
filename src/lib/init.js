@@ -10,9 +10,8 @@ const userModel = require('../models/user');
 const ElasticDB = require('./elasticDB');
 const elasticSearchModel = require('../models/elasticsearch');
 
-module.exports = async function() {
-    const mongoDbUri = process.env.DB;
-    await MongoDB.connect(mongoDbUri);
+module.exports = async function(mongoDb_uri) {
+    await MongoDB.connect(mongoDb_uri);
     await templateModel.init();
     await datasetModel.init();
     await recordModel.init();

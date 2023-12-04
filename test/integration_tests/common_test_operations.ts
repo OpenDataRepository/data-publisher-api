@@ -1,6 +1,7 @@
 const request = require("supertest");
 const fs = require('fs');
 const path = require('path');
+var { MongoMemoryReplSet } = require('mongodb-memory-server');
 var finalhandler = require('finalhandler')
 var http = require('http')
 var serveStatic = require('serve-static')
@@ -25,6 +26,15 @@ export = class Helper {
   };
 
   private agent;
+
+  // Create an in-memory db with a repl set, which is needed for tests with transactions
+  // wiredTiger is the default storage engine for MongoDB. It is needed for multi-document transaction
+  // https://github.com/nodkz/mongodb-memory-server/blob/master/docs/guides/quick-start-guide.md#replicaset
+  setupDB = async () => {
+    let replset = await MongoMemoryReplSet.create({ replSet: { count: 1, storageEngine: 'wiredTiger'} });
+    let uri = replset.getUri();
+    return [uri, replset];
+  }
 
   // Required to set agent in app before making api calls
   setAgent = (agent) => {
