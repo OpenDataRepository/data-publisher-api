@@ -11,7 +11,6 @@ var indexRouter = require('./routes/index');
 // const PassportImplementation = require('./lib/passport_implementation');
 const { getUserFromToken, superUserActAs } = require('./lib/middleware');
 
-// TODO: configure src to automatically compile to out when a file in src changes
 var app = express();
 
 // Allow app to be accessed from anywhere

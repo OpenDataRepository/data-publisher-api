@@ -5,8 +5,6 @@ import * as Util from '../lib/util';
 import { BasicAbstractDocument } from "./basic_abstract_document";
 const MongoDB = require('../lib/mongoDB');
 
-// TODO: re-write the whole code base to use this class instead of shared_functions and delete shared_functions
-
 /**
  * Abstract Class Document.
  * Template field, template, dataset and record will all inherit from this class
