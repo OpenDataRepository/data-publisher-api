@@ -2,28 +2,28 @@ const express = require('express');
 const router = express.Router();
 
 const { validateUuid, validateTimestamp, ensureLoggedIn } = require('../lib/middleware');
-const controller = require('../controllers/datasetController');
+const {datasetController} = require('../controllers/datasetController');
 
-router.get('/new_dataset_for_template/:uuid', ensureLoggedIn, validateUuid, controller.new_dataset_for_template);
-router.get('/:uuid/draft', ensureLoggedIn, validateUuid, controller.draft_get);
-router.get('/:uuid/draft_existing', validateUuid, controller.draft_existing);
-router.get('/:uuid/latest_persisted', validateUuid, controller.get_latest_persisted);
-router.get('/persisted_version/:id', controller.get_persisted_version);
-router.get('/:uuid/last_update', ensureLoggedIn, validateUuid, controller.get_last_update);
-router.post('/', ensureLoggedIn, controller.create);
-router.put('/:uuid', ensureLoggedIn, validateUuid, controller.update);
-router.post('/:uuid/persist', ensureLoggedIn, validateUuid, controller.persist);
-router.get('/:uuid/records', controller.records)
-router.delete('/:uuid/draft', ensureLoggedIn, validateUuid, controller.draft_delete);
-router.post('/:uuid/duplicate', ensureLoggedIn, validateUuid, controller.duplicate);
-router.post('/:uuid/publish', ensureLoggedIn, validateUuid, controller.publish);
-router.get('/:uuid/published/:name', validateUuid, controller.published);
-router.get('/:uuid/published/:name/records', validateUuid, controller.published_records);
-router.get('/:uuid/published/:name/search_records', validateUuid, controller.search_published_records);
-router.get('/:uuid/:timestamp', validateUuid, validateTimestamp, controller.get_persisted_before_timestamp);
-router.get('/all_public_uuids', controller.all_public_uuids);
-router.get('/all_viewable_uuids', controller.all_viewable_uuids);
-router.get('/all_public_datasets', controller.all_public_datasets);
+router.get('/new_dataset_for_template/:uuid', ensureLoggedIn, validateUuid, datasetController.newDatasetForTemplate);
+router.get('/:uuid/draft', ensureLoggedIn, validateUuid, datasetController.draft);
+router.get('/:uuid/draft_existing', validateUuid, datasetController.draftExisting);
+router.get('/:uuid/latest_persisted', validateUuid, datasetController.latestPersisted);
+router.get('/persisted_version/:id', datasetController.persistedVersion);
+router.get('/:uuid/last_update', ensureLoggedIn, validateUuid, datasetController.lastUpdate);
+router.post('/', ensureLoggedIn, datasetController.create);
+router.put('/:uuid', ensureLoggedIn, validateUuid, datasetController.update);
+router.post('/:uuid/persist', ensureLoggedIn, validateUuid, datasetController.persist);
+router.get('/:uuid/records', datasetController.records)
+router.delete('/:uuid/draft', ensureLoggedIn, validateUuid, datasetController.deleteDraft);
+router.post('/:uuid/duplicate', ensureLoggedIn, validateUuid, datasetController.duplicate);
+router.post('/:uuid/publish', ensureLoggedIn, validateUuid, datasetController.publish);
+router.get('/:uuid/published/:name', validateUuid, datasetController.published);
+router.get('/:uuid/published/:name/records', validateUuid, datasetController.publishedRecords);
+router.get('/:uuid/published/:name/search_records', validateUuid, datasetController.searchPublishedRecords);
+router.get('/:uuid/:timestamp', validateUuid, validateTimestamp, datasetController.persistedBeforeTimestamp);
+router.get('/all_public_uuids', datasetController.allPublicUuids);
+router.get('/all_viewable_uuids', datasetController.allViewableUuids);
+router.get('/all_public_datasets', datasetController.allPublicDatasets);
 // TODO: add an endpoint to set a dataset and all of it's sub-datasets to a given public date
 
 export = router;

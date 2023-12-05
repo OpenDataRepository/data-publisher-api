@@ -3,24 +3,24 @@ const router = express.Router();
 // const { param } = require('express-validator');
 
 const { validateUuid, validateTimestamp, ensureLoggedIn } = require('../lib/middleware');
-const templateFieldController = require('../controllers/templateFieldController');
+const {templateFieldController} = require('../controllers/templateFieldController');
 
-router.get('/:uuid/draft', ensureLoggedIn, validateUuid, templateFieldController.draft_get);
-router.get('/:uuid/draft_existing', validateUuid, templateFieldController.draft_existing);
-router.get('/:uuid/latest_persisted', validateUuid, templateFieldController.get_latest_persisted);
-router.get('/:uuid/last_update', ensureLoggedIn, validateUuid, templateFieldController.get_last_update);
+router.get('/:uuid/draft', ensureLoggedIn, validateUuid, templateFieldController.draft);
+router.get('/:uuid/draft_existing', validateUuid, templateFieldController.draftExisting);
+router.get('/:uuid/latest_persisted', validateUuid, templateFieldController.latestPersisted);
+router.get('/:uuid/last_update', ensureLoggedIn, validateUuid, templateFieldController.lastUpdate);
 router.get(
   '/:uuid/:timestamp', 
   validateUuid, 
   validateTimestamp,
   // param('timestamp').isDate(),
   // handleErrors,
-  templateFieldController.get_persisted_before_timestamp
+  templateFieldController.persistedBeforeTimestamp
 );
 router.post('/', ensureLoggedIn, templateFieldController.create);
 router.put('/:uuid', ensureLoggedIn, validateUuid, templateFieldController.update);
 router.post('/:uuid/persist', ensureLoggedIn, validateUuid, templateFieldController.persist);
-router.delete('/:uuid/draft', ensureLoggedIn, validateUuid, templateFieldController.draft_delete);
-router.get('/all_public_fields', templateFieldController.all_public_fields);
+router.delete('/:uuid/draft', ensureLoggedIn, validateUuid, templateFieldController.deleteDraft);
+router.get('/all_public_fields', templateFieldController.allPublicFields);
 
 module.exports = router;

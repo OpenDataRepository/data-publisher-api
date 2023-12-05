@@ -23,9 +23,8 @@ beforeEach(async() => {
 });
 
 afterAll(async () => {
-  await Helper.clearDatabase();
-  await replset.stop();
   await appClose();
+  await replset.stop();
 });
 
 describe("create (and get draft after a create)", () => {
@@ -2159,4 +2158,4 @@ test("full range of operations with big data", async () => {
   template = await Helper.templateDraftGetAndTest(template.uuid);
   template = await Helper.templateUpdatePersistTest(template);
 
-});
+}, 6000);

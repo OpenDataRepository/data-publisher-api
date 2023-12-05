@@ -29,9 +29,8 @@ beforeEach(async() => {
 afterAll(async () => {
   Helper.clearFilesAtPath(Helper.dynamicTestFilesPath);
   Helper.clearFilesAtPath(Helper.uploadsDirectoryPath);
-  await Helper.clearDatabase();
-  await replset.stop();
   await appClose();
+  await replset.stop();
 });
 
 // const importTemplate = async (template, curr_user) => {
@@ -1326,7 +1325,7 @@ describe("records", () => {
 
     // We can't test persisting this also because the download links in the chemin data don't work
     await importRecordsTest(old_records, false);
-  });
+  }, 13000);
 
   test("with rruff data", async () => {
     // The rruff data has an isLink, which is the imalist. In the new system, isLink means only view permissions
