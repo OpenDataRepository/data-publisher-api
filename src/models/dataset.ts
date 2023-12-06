@@ -6,6 +6,7 @@ import * as Util from '../lib/util';
 import { AbstractDocument } from './abstract_document';
 const TemplateModel = require('./template');
 import { PermissionTypes, model as PermissionsModel } from "./permission";
+import { DocumentInterface } from './document_interface';
 const LegacyUuidToNewUuidMapperModel = require('./legacy_uuid_to_new_uuid_mapper');
 
 // Mongodb schema for dataset
@@ -127,7 +128,7 @@ function collectionExport() {
   return Dataset;
 }
 
-class Model extends AbstractDocument {
+class Model extends AbstractDocument implements DocumentInterface {
 
   static DOCUMENT_TYPE = 'dataset';
 
@@ -1297,7 +1298,7 @@ class Model extends AbstractDocument {
   }
 
   // Wraps the actual request to get with a transaction
-  async draftGet(uuid: string, create_from_persisted_if_no_draft: boolean): Promise<Record<string, any> | null> {
+  async draftGet(uuid: string, create_from_persisted_if_no_draft?: boolean): Promise<Record<string, any> | null> {
     this.state.updated_at = new Date();
     let callback = async () => {
       await this.repairDraft(uuid);
@@ -1307,7 +1308,7 @@ class Model extends AbstractDocument {
     } else {
       await callback();
     }
-    return await this.draftFetch(uuid, create_from_persisted_if_no_draft);
+    return await this.draftFetch(uuid, !!create_from_persisted_if_no_draft);
   }
 
   // Wraps the actual request to update with a transaction
@@ -1327,7 +1328,7 @@ class Model extends AbstractDocument {
   }
 
   // Wraps the actual request to getUpdate with a transaction
-  async lastUpdate(uuid: string): Promise<void> {
+  async lastUpdate(uuid: string): Promise<Date> {
     let callback = async () => {
       return await this.#lastUpdateFor(uuid);
     };
@@ -1335,7 +1336,7 @@ class Model extends AbstractDocument {
   }
 
   latestPersisted = this.latestPersistedWithJoinsAndPermissions;
-  persistedBeforeDate = this.#latestPersistedBeforeDateWithJoinsAndPermissions;
+  latestPersistedBeforeTimestamp = this.#latestPersistedBeforeDateWithJoinsAndPermissions;
 
   async persistedVersion(_id: ObjectId): Promise<Record<string, any> | null> {
     let pipelineMatchConditions = { 

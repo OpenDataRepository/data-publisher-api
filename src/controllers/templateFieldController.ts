@@ -109,7 +109,7 @@ class TemplateFieldController implements DocumentControllerInterface {
     try {
       let state = Util.initializeState(req);
       let model_instance = new TemplateFieldModel.model(state);
-      let template_field = await model_instance.latestPersistedBeforeDate(req.params.uuid, new Date(req.params.timestamp));
+      let template_field = await model_instance.latestPersistedBeforeTimestamp(req.params.uuid, new Date(req.params.timestamp));
       if(!template_field) {
         throw new Util.NotFoundError();
       }

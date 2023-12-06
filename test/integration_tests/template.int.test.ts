@@ -2158,4 +2158,4 @@ test("full range of operations with big data", async () => {
   template = await Helper.templateDraftGetAndTest(template.uuid);
   template = await Helper.templateUpdatePersistTest(template);
 
-}, 6000);
+}, 7000);

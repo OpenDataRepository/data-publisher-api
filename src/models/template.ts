@@ -3,6 +3,7 @@ const { v4: uuidv4, validate: uuidValidate } = require('uuid');
 import * as Util from '../lib/util';
 import { ObjectId } from 'mongodb';
 import { AbstractDocument } from './abstract_document';
+import { DocumentInterface } from './document_interface';
 const TemplateFieldModel = require('./template_field');
 const PermissionModel = require('./permission');
 const LegacyUuidToNewUuidMapperModel = require('./legacy_uuid_to_new_uuid_mapper');
@@ -141,7 +142,7 @@ function collectionExport() {
   return Template;
 }
 
-class Model extends AbstractDocument{
+class Model extends AbstractDocument implements DocumentInterface{
 
   static DOCUMENT_TYPE = 'template';
 
@@ -1408,7 +1409,7 @@ class Model extends AbstractDocument{
   }
 
   latestPersisted = this.latestPersistedWithJoinsAndPermissions;
-  persistedBeforeDate = this.#latestPersistedBeforeDateWithJoinsAndPermissions;
+  latestPersistedBeforeTimestamp = this.#latestPersistedBeforeDateWithJoinsAndPermissions;
 
   async persistedVersion(_id: ObjectId): Promise<Record<string, any> | null> {
     let pipelineMatchConditions = { 

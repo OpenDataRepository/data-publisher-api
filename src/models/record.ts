@@ -8,6 +8,7 @@ const TemplateFieldModel = require('./template_field');
 const TemplateModel = require('./template');
 const DatasetModel = require('./dataset');
 import { PermissionTypes, model as PermissionsModel } from "./permission";
+import { DocumentInterface } from './document_interface';
 const LegacyUuidToNewUuidMapperModel = require('./legacy_uuid_to_new_uuid_mapper');
 const FileModel = require('./file');
 const FieldTypes = TemplateFieldModel.FieldTypes;
@@ -150,7 +151,7 @@ async function init() {
   Record = await collection();
 }
 
-class Model extends AbstractDocument {
+class Model extends AbstractDocument implements DocumentInterface {
 
   template_model: any;
   dataset_model: any;
@@ -1807,7 +1808,7 @@ class Model extends AbstractDocument {
     return await this.executeWithTransaction(callback);
   }
 
-  async draftGet(uuid: string, create_from_persisted_if_no_draft: boolean): Promise<Record<string, any> | null> {
+  async draftGet(uuid: string, create_from_persisted_if_no_draft?: boolean): Promise<Record<string, any> | null> {
     // TODO: do the same in dataset draft get
     const latest_doc = await this.shallowLatestDocument(uuid);
     if(!latest_doc) {
@@ -1821,7 +1822,7 @@ class Model extends AbstractDocument {
       await this.repairDraft(uuid);
     };
     await this.executeWithTransaction(callback);
-    let draft = await this.draftFetch(uuid, create_from_persisted_if_no_draft);
+    let draft = await this.draftFetch(uuid, !!create_from_persisted_if_no_draft);
     await this.#appendPluginsToRecord(draft as Record<string, any>);
     return draft;
   }
@@ -1852,7 +1853,7 @@ class Model extends AbstractDocument {
 
   // Fetches the last record with the given uuid persisted before the provided timestamp. 
   // Also recursively looks up related_templates.
-  persistedBeforeDate = async function(uuid: string, date: Date): Promise<Record<string, any> | null> {
+  latestPersistedBeforeTimestamp = async function(uuid: string, date: Date): Promise<Record<string, any> | null> {
     let record = await this.#latestPersistedBeforeDateWithJoinsAndPermissions(uuid, date);
     await this.#appendPluginsToRecord(record);
     return record

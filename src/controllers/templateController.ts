@@ -114,7 +114,7 @@ class TemplateController implements DocumentControllerInterface {
     try {
       let state = Util.initializeState(req);
       let model_instance = new TemplateModel.model(state);
-      let template = await model_instance.persistedBeforeDate(req.params.uuid, new Date(req.params.timestamp));
+      let template = await model_instance.latestPersistedBeforeTimestamp(req.params.uuid, new Date(req.params.timestamp));
       if(!template) {
         throw new Util.NotFoundError();
       }

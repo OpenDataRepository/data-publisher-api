@@ -113,7 +113,7 @@ class RecordController implements DocumentControllerInterface {
     try {
       let state = Util.initializeState(req);
       let model_instance = new RecordModel.model(state);
-      let record = await model_instance.persistedBeforeDate(req.params.uuid, new Date(req.params.timestamp));
+      let record = await model_instance.latestPersistedBeforeTimestamp(req.params.uuid, new Date(req.params.timestamp));
       if(!record) {
         throw new Util.NotFoundError();
       }

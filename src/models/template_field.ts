@@ -3,6 +3,7 @@ const { v4: uuidv4, validate: uuidValidate } = require('uuid');
 import { ObjectId } from 'mongodb';
 import * as Util from '../lib/util';
 import { AbstractDocument } from './abstract_document';
+import { DocumentInterface } from './document_interface';
 const { PermissionTypes, model: PermissionModel } = require('./permission');
 const LegacyUuidToNewUuidMapperModel = require('./legacy_uuid_to_new_uuid_mapper');
 
@@ -107,7 +108,7 @@ function collectionExport(){
   return TemplateField
 };
 
-class Model extends AbstractDocument {
+class Model extends AbstractDocument implements DocumentInterface {
 
   static DOCUMENT_TYPE = 'template_field';
 
@@ -667,7 +668,7 @@ class Model extends AbstractDocument {
     return await this.#latestPersistedBeforeDateWithPermissions(uuid, new Date());
   }
 
-  latestPersistedBeforeDate = this.#latestPersistedBeforeDateWithPermissions;
+  latestPersistedBeforeTimestamp = this.#latestPersistedBeforeDateWithPermissions;
 
   async draftDelete(uuid: string): Promise<void> {
 

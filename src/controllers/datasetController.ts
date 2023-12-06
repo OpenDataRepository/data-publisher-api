@@ -122,7 +122,7 @@ class DatasetController implements DocumentControllerInterface {
     try {
       let state = Util.initializeState(req);
       let model_instance = new DatasetModel.model(state);
-      let dataset = await model_instance.persistedBeforeDate(req.params.uuid, new Date(req.params.timestamp));
+      let dataset = await model_instance.latestPersistedBeforeTimestamp(req.params.uuid, new Date(req.params.timestamp));
       if(!dataset) {
         throw new Util.NotFoundError();
       }
@@ -234,7 +234,7 @@ class DatasetController implements DocumentControllerInterface {
         throw new Util.NotFoundError();
       }
       // Use timestamp to get latest persisted dataset
-      let dataset = await dataset_model_instance.persistedBeforeDate(req.params.uuid, time);
+      let dataset = await dataset_model_instance.latestPersistedBeforeTimestamp(req.params.uuid, time);
       res.json(dataset);
     } catch(err) {
       next(err);
@@ -322,7 +322,7 @@ const published_records = async function(dataset_uuid, name, req) {
   let record_uuids_in_dataset = await record_model_instance.uniqueUuidsInDataset(dataset_uuid)
   let final_record_list: any[] = [];
   for(let record_uuid of record_uuids_in_dataset) {
-    let record = await record_model_instance.persistedBeforeDate(record_uuid, time);
+    let record = await record_model_instance.latestPersistedBeforeTimestamp(record_uuid, time);
     if(record) {
       final_record_list.push(record);
     }

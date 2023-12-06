@@ -1,9 +1,7 @@
 import { ObjectId } from "mongodb";
-import { StringLiteralLike } from "typescript";
 import { PermissionTypes, model as PermissionsModel } from "./permission";
 import * as Util from '../lib/util';
 import { BasicAbstractDocument } from "./basic_abstract_document";
-const MongoDB = require('../lib/mongoDB');
 
 /**
  * Abstract Class Document.

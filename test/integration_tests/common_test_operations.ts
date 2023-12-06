@@ -14,7 +14,7 @@ const FieldTypes = require(src_path +  '/models/template_field').FieldTypes;
 var appRoot = require('app-root-path');
 const Util = require(src_path + '/lib/util');
 
-const dynamicTestFilesPath = appRoot + '/test_data/dynamic_files'
+const dynamicTestFilesPath = appRoot + '/test/test_data/dynamic_files'
 // Necessary because empty folders like dynamic_tests don't get included with git
 try {
   fs.mkdirSync(dynamicTestFilesPath);
@@ -974,9 +974,9 @@ export = class Helper {
 
   // files 
 
-  testDataPath = appRoot + '/test_data'
+  testDataPath = appRoot + '/test/test_data'
   dynamicTestFilesPath = dynamicTestFilesPath
-  uploadsDirectoryPath = appRoot + "/uploads_testing"
+  uploadsDirectoryPath = appRoot + "/test/uploads_testing"
 
   clearFilesAtPath = (directory) => {
     fs.readdir(directory, (err, files) => {

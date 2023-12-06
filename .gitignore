@@ -4,7 +4,6 @@ data
 coverage
 .vscode
 *.DS_Store
-out/
 tsconfig.tsbuildinfo
 ecosystem.config.js
 uploads
