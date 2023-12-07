@@ -116,8 +116,7 @@ class Model extends AbstractDocument implements DocumentInterface {
   permission_model: any;
 
   constructor(public state){
-    super();
-    this.state = state;
+    super(state);
     this.collection = TemplateField;
     this.permission_model = new PermissionModel(state);
   }
@@ -624,10 +623,6 @@ class Model extends AbstractDocument implements DocumentInterface {
   draft = this.#draftFetchOrCreate;
   latestPersistedWithoutPermissions = this.#latestPersisted;
 
-  // TODO: can I remove all of these wrappers somehow?
-  // TODO: Standardize the format between all of the standard document functions. 
-  // Should probably make use of abstract document
-
   // Wraps the request to create with a transaction
   async create(field: Record<string, any>): Promise<string> {
     let callback = async () => {
@@ -671,21 +666,7 @@ class Model extends AbstractDocument implements DocumentInterface {
   latestPersistedBeforeTimestamp = this.#latestPersistedBeforeDateWithPermissions;
 
   async draftDelete(uuid: string): Promise<void> {
-
-    let field = await this.shallowDraft(uuid);
-    if(!field) {
-      throw new Util.NotFoundError();
-    }
-
-    // user must have edit access to see this endpoint
-    if (!await this.permission_model.hasExplicitPermission(uuid, PermissionTypes.edit)) {
-      throw new Util.PermissionDeniedError();
-    }
-
-    let response = await TemplateField.deleteMany({ uuid, persist_date: {'$exists': false} }, this.state.session);
-    if (response.deletedCount > 1) {
-      console.error(`template field draftDelete: Template Field with uuid '${uuid}' had more than one draft to delete.`);
-    }
+    await this.deleteDraftWithPermissions(uuid);
   }
 
   async lastUpdate(uuid: string): Promise<Date> {
@@ -717,10 +698,6 @@ class Model extends AbstractDocument implements DocumentInterface {
     }
 
     return field_draft.updated_at;
-  }
-
-  async draftExisting(uuid: string): Promise<boolean> {
-    return (await this.shallowDraft(uuid)) ? true : false;
   }
 
   async duplicate(field: Record<string, any>): Promise<string> {

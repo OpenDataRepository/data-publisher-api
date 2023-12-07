@@ -78,7 +78,7 @@ class Model extends BasicAbstractDocument {
   permission_model: any;
 
   constructor(public state){
-    super();
+    super(state);
     this.state = state ? state : {};
     this.collection = File;
   }

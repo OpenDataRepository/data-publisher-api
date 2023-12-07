@@ -150,8 +150,7 @@ class Model extends AbstractDocument implements DocumentInterface{
   permission_model: any;
 
   constructor(public state){
-    super();
-    this.state = state;
+    super(state);
     this.collection = Template;
     this.template_field_model = new TemplateFieldModel.model(state);
     this.permission_model = new PermissionModel.model(state);
@@ -1404,10 +1403,6 @@ class Model extends AbstractDocument implements DocumentInterface{
     }
   }
 
-  async draftExisting(uuid: string): Promise<boolean> {
-    return (await this.shallowDraft(uuid)) ? true : false;
-  }
-
   latestPersisted = this.latestPersistedWithJoinsAndPermissions;
   latestPersistedBeforeTimestamp = this.#latestPersistedBeforeDateWithJoinsAndPermissions;
 
@@ -1452,16 +1447,7 @@ class Model extends AbstractDocument implements DocumentInterface{
   }
 
   async draftDelete(uuid: string): Promise<void> {
-
-    if(!(await this.shallowDraft(uuid))) {
-      throw new Util.NotFoundError(`No draft exists with uuid ${uuid}`);
-    }
-
-    if(!(await this.permission_model.hasExplicitPermission(uuid, PermissionModel.PermissionTypes.edit))) {
-      throw new Util.PermissionDeniedError(`You do not have edit permissions for template ${uuid}.`);
-    }
-
-    await this.shallowDraftDelete(uuid);
+    await this.deleteDraftWithPermissions(uuid);
   };
 
   // Wraps the actual request to duplicate with a transaction

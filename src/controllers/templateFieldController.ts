@@ -51,14 +51,7 @@ class TemplateFieldController implements DocumentControllerInterface {
       let uuid = req.params.uuid;
       let state = Util.initializeState(req);
       let model_instance = new TemplateFieldModel.model(state);
-      const callback = async () => {
-        await model_instance.draftDelete(uuid);
-        if( !(await model_instance.shallowLatestPersisted(uuid)) ) {
-          await (new PermissionModel.model(state)).documentDeletePermissions(uuid);
-        }
-      }
-      await Util.executeWithTransaction(model_instance.state, callback);
-  
+      await model_instance.draftDelete(uuid);
     } catch(err) {
       return next(err);
     }

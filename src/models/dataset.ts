@@ -135,8 +135,7 @@ class Model extends AbstractDocument implements DocumentInterface {
   template_model: any;
 
   constructor(public state){
-    super();
-    this.state = state;
+    super(state);
     this.collection = Dataset;
     this.template_model = new TemplateModel.model(state);
   }
@@ -641,6 +640,19 @@ class Model extends AbstractDocument implements DocumentInterface {
     dataset_draft.related_datasets = related_datasets;
     return dataset_draft;
 
+  }
+
+  async onlyDraftDelete(uuid: string): Promise<void> {
+    // if draft doesn't exist, return not found
+    if(!(await this.shallowDraft(uuid))) {
+      throw new Util.NotFoundError(`No draft exists with uuid ${uuid}`);
+    }
+    // if don't have admin permissions, return no permissions
+    if(!(await (new PermissionsModel(this.state)).hasExplicitPermission(uuid, PermissionTypes.admin))) {
+      throw new Util.PermissionDeniedError(`You do not have admin permissions for dataset ${uuid}.`);
+    }
+
+    await this.shallowDraftDelete(uuid);
   }
 
   // This function will provide the timestamp of the last update made to this dataset and all of it's related_datasets
@@ -1312,7 +1324,7 @@ class Model extends AbstractDocument implements DocumentInterface {
   }
 
   // Wraps the actual request to update with a transaction
-  async update (dataset: Record<string, any>): Promise<void> {
+  async update(dataset: Record<string, any>): Promise<void> {
     let callback = async () => {
       await this.#validateAndCreateOrUpdate(dataset);
     }
@@ -1353,20 +1365,7 @@ class Model extends AbstractDocument implements DocumentInterface {
   } 
 
   async draftDelete(uuid: string): Promise<void> {
-    // if draft doesn't exist, return not found
-    if(!(await this.shallowDraft(uuid))) {
-      throw new Util.NotFoundError(`No draft exists with uuid ${uuid}`);
-    }
-    // if don't have admin permissions, return no permissions
-    if(!(await (new PermissionsModel(this.state)).hasExplicitPermission(uuid, PermissionTypes.admin))) {
-      throw new Util.PermissionDeniedError(`You do not have admin permissions for dataset ${uuid}.`);
-    }
-
-    await this.shallowDraftDelete(uuid);
-  }
-
-  async draftExisting(uuid: string): Promise<boolean> {
-    return (await this.shallowDraft(uuid)) ? true : false;
+    await this.deleteDraftWithPermissions(uuid);
   }
 
   async latestPersistedWithoutPermissions(uuid: string): Promise<Record<string, any> | null> {

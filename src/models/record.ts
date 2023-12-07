@@ -158,8 +158,7 @@ class Model extends AbstractDocument implements DocumentInterface {
   file_model: any;
 
   constructor(public state){
-    super();
-    this.state = state;
+    super(state);
     this.collection = Record;
     this.dataset_model = new DatasetModel.model(state);
     this.template_model = new TemplateModel.model(state);
@@ -1873,10 +1872,6 @@ class Model extends AbstractDocument implements DocumentInterface {
     await this.shallowDraftDelete(uuid);
 
     await this.#deleteDraftFiles(draft);
-  }
-
-  async draftExisting(uuid: string): Promise<boolean> {
-    return (await this.shallowDraft(uuid)) ? true : false;
   }
 
   // Just ignore this for now

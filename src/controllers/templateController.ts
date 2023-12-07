@@ -10,11 +10,7 @@ class TemplateController implements DocumentControllerInterface {
     try {
       let state = Util.initializeState(req);
       let model_instance = new TemplateModel.model(state);
-      let inserted_uuid;
-      const callback = async () => {
-        inserted_uuid = await model_instance.create(req.body);
-      }
-      await Util.executeWithTransaction(state, callback);
+      let inserted_uuid = await model_instance.create(req.body);
       res.redirect(303, `/template/${inserted_uuid}/draft`);
     } catch(err) {
       next(err);
@@ -28,10 +24,7 @@ class TemplateController implements DocumentControllerInterface {
       }
       let state = Util.initializeState(req);
       let model_instance = new TemplateModel.model(state);
-      const callback = async () => {
-        await model_instance.update(req.body);
-      }
-      await Util.executeWithTransaction(state, callback);
+      await model_instance.update(req.body);
       res.status(200).send({});
     } catch(err) {
       next(err);
@@ -57,13 +50,7 @@ class TemplateController implements DocumentControllerInterface {
       let uuid = req.params.uuid;
       let state = Util.initializeState(req);
       let template_model_instance = new TemplateModel.model(state);
-      const callback = async () => {
-        await template_model_instance.draftDelete(uuid);
-        if( !(await template_model_instance.shallowLatestPersisted(uuid)) ) {
-          await (new PermissionModel.model(state)).documentDeletePermissions(uuid);
-        }
-      }
-      await Util.executeWithTransaction(state, callback);
+      await template_model_instance.draftDelete(uuid);
       res.status(200).send({});
     } catch(err) {
       return next(err);

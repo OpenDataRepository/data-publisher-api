@@ -10,11 +10,12 @@ import { BasicAbstractDocument } from "./basic_abstract_document";
  * @class AbstractDocument
  */
 export class AbstractDocument extends BasicAbstractDocument {
-  collection: any;
-  state: any;
 
-  async executeWithTransaction(callback){
-    return Util.executeWithTransaction(this.state, callback);
+  constructor(state) {
+    super(state);
+    if (this.constructor == AbstractDocument) {
+      throw new Error("Abstract classes can't be instantiated.");
+    }
   }
 
   async shallowDraft(uuid: string): Promise<Record<string, any> | null> {
@@ -323,6 +324,33 @@ export class AbstractDocument extends BasicAbstractDocument {
   async allDocumentUuidsAbovePermissionLevel(permission_level: PermissionTypes): Promise<string[]> {
     let uuids_all_collections = await new PermissionsModel(this.state).allDocumentsAllUuidsAbovePermissionLevel(permission_level);
     return await this.uuidsInThisCollection(uuids_all_collections);
+  }
+
+  async onlyDraftDelete(uuid: string): Promise<void> {
+    // if draft doesn't exist, return not found
+    if(!(await this.shallowDraft(uuid))) {
+      throw new Util.NotFoundError(`No draft exists with uuid ${uuid}`);
+    }
+    // if don't have admin permissions, return no permissions
+    if(!(await (new PermissionsModel(this.state)).hasExplicitPermission(uuid, PermissionTypes.edit))) {
+      throw new Util.PermissionDeniedError(`You do not have edit permissions ${uuid}.`);
+    }
+
+    await this.shallowDraftDelete(uuid);
+  }
+
+  async deleteDraftWithPermissions(uuid: string): Promise<void> {
+    const callback = async () => {
+      await this.onlyDraftDelete(uuid);
+      if( !(await this.shallowLatestPersisted(uuid)) ) {
+        await (new PermissionsModel(this.state)).documentDeletePermissions(uuid);
+      }
+    }
+    await Util.executeWithTransaction(this.state, callback);
+  }
+
+  async draftExisting(uuid: string): Promise<boolean> {
+    return (await this.shallowDraft(uuid)) ? true : false;
   }
 
 }

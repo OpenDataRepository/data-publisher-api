@@ -1,7 +1,6 @@
 const DatasetModel = require('../models/dataset');
 const DatasetPublishModel = require('../models/datasetPublish');
 const RecordModel = require('../models/record');
-import { model as PermissionModel } from '../models/permission';
 import * as Util from '../lib/util';
 import { DocumentControllerInterface } from './docmentControllerInterface';
 const ElasticsearchModel = require ('../models/elasticsearch');
@@ -12,11 +11,7 @@ class DatasetController implements DocumentControllerInterface {
     try {
       let state = Util.initializeState(req);
       let model_instance = new DatasetModel.model(state);
-      let inserted_uuid;
-      const callback = async () => {
-        inserted_uuid = await model_instance.create(req.body);
-      }
-      await Util.executeWithTransaction(state, callback);
+      let inserted_uuid = await model_instance.create(req.body);
       res.redirect(303, `/dataset/${inserted_uuid}/draft`);
     } catch(err) {
       next(err);
@@ -31,10 +26,7 @@ class DatasetController implements DocumentControllerInterface {
       }
       let state = Util.initializeState(req);
       let model_instance = new DatasetModel.model(state);
-      const callback = async () => {
-        await model_instance.update(req.body);
-      }
-      await Util.executeWithTransaction(state, callback);
+      await model_instance.update(req.body);
       if(await model_instance.draftExisting(uuid)) {
         res.redirect(303, `/dataset/${uuid}/draft`)
       } else {
@@ -64,13 +56,7 @@ class DatasetController implements DocumentControllerInterface {
       let uuid = req.params.uuid;
       let state = Util.initializeState(req);
       let model_instance = new DatasetModel.model(state);
-      const callback = async () => {
-        await model_instance.draftDelete(uuid);
-        if( !(await model_instance.shallowLatestPersisted(uuid)) ) {
-          await (new PermissionModel(state)).documentDeletePermissions(uuid);
-        }
-      }
-      await Util.executeWithTransaction(state, callback);
+      await model_instance.draftDelete(uuid);
   
     } catch(err) {
       return next(err);

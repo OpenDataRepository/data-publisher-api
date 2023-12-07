@@ -3,6 +3,7 @@ import { ObjectId } from 'mongodb';
 import { isAssertClause } from 'typescript';
 import * as Util from '../lib/util';
 import {model as UserModel} from './user';
+import { BasicAbstractDocument } from './basic_abstract_document';
 
 enum PermissionTypes {
   admin = 'admin',
@@ -56,12 +57,12 @@ async function init() {
   Permission = await collection();
 }
 
-class Model {
+class Model extends BasicAbstractDocument {
 
   collection = Permission;
 
   constructor(public state){
-    this.state = state;
+    super(state);
   }
 
   static #equalOrHigherPermissionLevels(permission_level: PermissionTypes): PermissionTypes[] {
@@ -141,40 +142,44 @@ class Model {
   }
 
   async replaceDocumentPermissions(document_uuid: string, permission_level: PermissionTypes, user_ids: ObjectId[]): Promise<void> {
-    // The current user must be in the admin permissions group for this uuid to change it's permissions
-    if (!(await this.hasExplicitPermission(document_uuid, PermissionTypes.admin))) {
-      throw new Util.PermissionDeniedError(`You do not have the permission level (admin) required to modify these permissions`);
-    }
+    let callback = async () => {
+      // The current user must be in the admin permissions group for this uuid to change it's permissions
+      if (!(await this.hasExplicitPermission(document_uuid, PermissionTypes.admin))) {
+        throw new Util.PermissionDeniedError(`You do not have the permission level (admin) required to modify these permissions`);
+      }
 
-    // If this is the admin category, cannot remove the current user
-    if(permission_level == PermissionTypes.admin) {
-      let current_user_found = false;
-      for(let user_id of user_ids) {
-        if(user_id.equals(this.state.user_id)) {
-          current_user_found = true;
+      // If this is the admin category, cannot remove the current user
+      if(permission_level == PermissionTypes.admin) {
+        let current_user_found = false;
+        for(let user_id of user_ids) {
+          if(user_id.equals(this.state.user_id)) {
+            current_user_found = true;
+          }
+        }
+        if(!current_user_found) {
+          throw new Util.InputError(`Cannot remove current user from admin permissions`);
         }
       }
-      if(!current_user_found) {
-        throw new Util.InputError(`Cannot remove current user from admin permissions`);
+
+      // All removed permissions go to view
+      let existing_document_permissions = await this.usersWithDocumentPermission(document_uuid, permission_level);
+      let _ids_to_relegate = Util.objectIdsSetDifference(existing_document_permissions, user_ids);
+      if(permission_level == PermissionTypes.view && _ids_to_relegate.length > 0) {
+        throw new Util.InputError(`Once a user is granted view permission, it cannot be removed.`);
+      }
+      for(let _id of _ids_to_relegate) {
+        await this.#upsertPermission(document_uuid, PermissionTypes.view, _id);
+      }
+
+      // All new permissions are added
+      let greater_or_equal_permissions = await this.#usersWithPermissionGreaterOrEqual(document_uuid, permission_level);
+      let _ids_to_add = Util.objectIdsSetDifference(user_ids, greater_or_equal_permissions);
+      for(let _id of _ids_to_add) {
+        await this.#upsertPermission(document_uuid, permission_level, _id);
       }
     }
+    await this.executeWithTransaction(callback);
 
-    // All removed permissions go to view
-    let existing_document_permissions = await this.usersWithDocumentPermission(document_uuid, permission_level);
-    let _ids_to_relegate = Util.objectIdsSetDifference(existing_document_permissions, user_ids);
-    if(permission_level == PermissionTypes.view && _ids_to_relegate.length > 0) {
-      throw new Util.InputError(`Once a user is granted view permission, it cannot be removed.`);
-    }
-    for(let _id of _ids_to_relegate) {
-      await this.#upsertPermission(document_uuid, PermissionTypes.view, _id);
-    }
-
-    // All new permissions are added
-    let greater_or_equal_permissions = await this.#usersWithPermissionGreaterOrEqual(document_uuid, permission_level);
-    let _ids_to_add = Util.objectIdsSetDifference(user_ids, greater_or_equal_permissions);
-    for(let _id of _ids_to_add) {
-      await this.#upsertPermission(document_uuid, permission_level, _id);
-    }
   }
 
   async initializePermissionsFor(document_uuid: string): Promise<void> {

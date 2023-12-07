@@ -58,10 +58,7 @@ exports.update_document_permissions = async function(req, res, next) {
       }
     }
 
-    let callback = async () => {
-      await permission_model_instance.replaceDocumentPermissions(document_uuid, permission_level, user_ids);
-    };
-    await Util.executeWithTransaction(state, callback);
+    await permission_model_instance.replaceDocumentPermissions(document_uuid, permission_level, user_ids);
 
     res.sendStatus(200);
   } catch(err) {
