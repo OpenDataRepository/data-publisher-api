@@ -147,13 +147,11 @@ class Model extends AbstractDocument implements DocumentInterface{
   static DOCUMENT_TYPE = 'template';
 
   template_field_model: any;
-  permission_model: any;
 
   constructor(public state){
     super(state);
     this.collection = Template;
     this.template_field_model = new TemplateFieldModel.model(state);
-    this.permission_model = new PermissionModel.model(state);
   }
 
   // Creates a draft from the persisted version. Does not recurse
@@ -252,7 +250,7 @@ class Model extends AbstractDocument implements DocumentInterface{
     // Finally, if any of the dependencies have been persisted more recently than this template, then there are changes
     let last_persist_date = latest_persisted.persist_date;
     for(let field of draft.fields) {
-      let field_last_persisted = (await (new TemplateFieldModel.model(this.state)).latestPersistedWithoutPermissions(field)).persist_date;
+      let field_last_persisted = (await this.template_field_model.latestPersistedWithoutPermissions(field)).persist_date;
       if (Util.isTimeAAfterB(field_last_persisted, last_persist_date)) {
         return true;
       }
@@ -935,7 +933,7 @@ class Model extends AbstractDocument implements DocumentInterface{
       let field;
       try {
         // First try to get the draft of the field
-        field = await template_field_model_instance.draft(field_uuid);
+        field = await template_field_model_instance.draftGet(field_uuid);
       } catch (err) {
         if (err instanceof Util.PermissionDeniedError) {
           // If we don't have permission for the draft, get the latest persisted instead
@@ -1059,7 +1057,7 @@ class Model extends AbstractDocument implements DocumentInterface{
         {session}
       );
       if (response.modifiedCount != 1) {
-        throw `Template.draftFetchOrCreate: should be 1 modified document. Instead: ${response.modifiedCount}`;
+        throw `Template.draftFetch: should be 1 modified document. Instead: ${response.modifiedCount}`;
       }
     }
 
@@ -1213,18 +1211,6 @@ class Model extends AbstractDocument implements DocumentInterface{
     return false;
   }
 
-  async hasViewPermissionToPersisted(document_uuid: string, user_id = this.state.user_id): Promise<boolean> {
-    if(await this.permission_model.hasExplicitPermission(document_uuid, PermissionModel.PermissionTypes.view, user_id)) {
-      return true;
-    }
-
-    if(await this.isPublic(document_uuid)) {
-      return true;
-    }
-
-    return false;
-  }
-
   // TODO: as of now, import doesn't include group_uuids at all
   async #importTemplate(template: Record<string, any>): Promise<[boolean, string]> {
     let uuid_mapper_model_instance = new LegacyUuidToNewUuidMapperModel.model(this.state);
@@ -1370,6 +1356,7 @@ class Model extends AbstractDocument implements DocumentInterface{
     await this.executeWithTransaction(callback);
   }
 
+  // Fetches the draft. Does not support creating a draft from the latest persisted version
   async draftGet(uuid: string): Promise<Record<string, any> | null> {
     this.state.updated_at = new Date();
     await this.repairDraft(uuid);

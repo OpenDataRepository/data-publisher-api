@@ -113,12 +113,10 @@ class Model extends AbstractDocument implements DocumentInterface {
   static DOCUMENT_TYPE = 'template_field';
 
   collection = TemplateField;
-  permission_model: any;
 
   constructor(public state){
     super(state);
     this.collection = TemplateField;
-    this.permission_model = new PermissionModel(state);
   }
 
   // Creates a draft from the persisted version.
@@ -132,27 +130,8 @@ class Model extends AbstractDocument implements DocumentInterface {
     return draft;
   }
 
-  // Fetches the latest persisted field with the given uuid. 
-  async #latestPersistedBeforeDate(uuid: string, date: Date): Promise<Record<string, any> | null> {
-    let session = this.state.session;
-    let cursor = await TemplateField.find(
-      {"uuid": uuid, 'persist_date': {'$lte': date}},
-      {session}
-    ).sort({'persist_date': -1})
-    .limit(1);
-    if (!(await cursor.hasNext())) {
-      return null;
-    }
-    return await cursor.next();
-  }
-
-  // Fetches the latest persisted field with the given uuid. 
-  async #latestPersisted(uuid: string): Promise<Record<string, any> | null> {
-    return await this.#latestPersistedBeforeDate(uuid, new Date());
-  }
-
-  async #latestPersistedBeforeDateWithPermissions(uuid: string, date: Date): Promise<Record<string, any> | null> {
-    let field = await this.#latestPersistedBeforeDate(uuid, date);
+  async #latestPersistedBeforeTimestampWithPermissions(uuid: string, date: Date): Promise<Record<string, any> | null> {
+    let field = await this.shallowLatestPersistedBeforeTimestamp(uuid, date);
     if(!field) {
       return null;
     }
@@ -166,23 +145,12 @@ class Model extends AbstractDocument implements DocumentInterface {
   }
 
   async #fetchPersistedAndConvertToDraft(uuid: string): Promise<Record<string, any> | null> {
-    let persisted_field = await this.#latestPersisted(uuid);
+    let persisted_field = await this.shallowLatestPersisted(uuid);
     if(!persisted_field) {
       return null;
     }
 
     return (await this.#createDraftFromPersisted(persisted_field));
-  }
-
-  async #draftDelete(uuid: string): Promise<void> {
-
-    let response = await TemplateField.deleteMany({ uuid, persist_date: {'$exists': false} });
-    if (!response.deletedCount) {
-      throw new Util.NotFoundError();
-    }
-    if (response.deletedCount > 1) {
-      console.error(`templateDraftDelete: Template with uuid '${uuid}' had more than one draft to delete.`);
-    }
   }
 
   #optionsEqual(options1: Record<string, any>[], options2: Record<string, any>[]): boolean {
@@ -283,21 +251,6 @@ class Model extends AbstractDocument implements DocumentInterface {
         this.#buildOptionMap(option.options, map);
       }
     }
-  }
-
-  #findOptionValue(options, uuid) {
-    for(let option of options) {
-      if(option.uuid == uuid) {
-        return option.name;
-      }
-      if(option.options) {
-        let value = this.#findOptionValue(option.options, uuid);
-        if(value) {
-          return value;
-        }
-      }
-    }
-    return undefined;
   }
 
   optionUuidsToValues(options: Record<string, any>[], uuids: string[]): Record<string, any>[] {
@@ -437,18 +390,6 @@ class Model extends AbstractDocument implements DocumentInterface {
     return output_field;
   }
 
-  async hasViewPermissionToPersisted(document_uuid: string, user_id = this.state.user_id): Promise<boolean> {
-    if(await this.permission_model.hasExplicitPermission(document_uuid, PermissionTypes.view, user_id)) {
-      return true;
-    }
-
-    if(await this.isPublic(document_uuid)) {
-      return true;
-    }
-
-    return false;
-  }
-
   // If input_field has a uuid, updates the field with that uuid. Otherwise, creates a new field
   // Also validate input. 
   // Return:
@@ -498,13 +439,7 @@ class Model extends AbstractDocument implements DocumentInterface {
       let changes = !this.#fieldEquals(new_field, old_field);
       if (!changes) {
         // Delete the current draft
-        try {
-          await this.#draftDelete(uuid);
-        } catch(err) {
-          if (!(err instanceof Util.NotFoundError)) {
-            throw err;
-          }
-        }
+        await this.shallowDraftDelete(uuid);
         return [false, uuid];
       }
     }
@@ -529,30 +464,36 @@ class Model extends AbstractDocument implements DocumentInterface {
     return [true, uuid];
   }
 
-  // Fetches a draft if there is one already existing, or creates it if not.
-  async #draftFetchOrCreate(uuid: string): Promise<Record<string, any> | null> {
+  // Fetches the draft with the given uuid
+  // optional: If a draft doesn't exist, a new one will be generated using the last persisted template field.
+  async #draftFetch(uuid: string, create_from_persisted_if_no_draft: boolean = false): Promise<Record<string, any> | null> {
     
     // See if a draft of this template field exists. 
     let template_field_draft = await this.shallowDraft(uuid);
 
+    const has_edit_permission = await this.hasPermission(uuid, PermissionTypes.edit);
+
     // If a draft of this template field already exists, return it.
     if (template_field_draft) {
       // Make sure this user has a permission to be working with drafts
-      if (!(await this.permission_model.hasExplicitPermission(uuid, PermissionTypes.edit))) {
+      if (!has_edit_permission) {
         throw new Util.PermissionDeniedError();
       }
-      delete template_field_draft._id;
       return template_field_draft;
     }
 
+    if(!create_from_persisted_if_no_draft) {
+      return null;
+    }
+
     // If a draft of this template field does not exist, create a new template_field_draft from the last persisted
-    template_field_draft = await this.#latestPersisted(uuid);
+    template_field_draft = await this.shallowLatestPersisted(uuid);
     // If not even a persisted version of this template field was found, return null
     if(!template_field_draft) {
       return null;
     } else {
       // Make sure this user has a permission to be working with drafts
-      if (!(await this.permission_model.hasExplicitPermission(uuid, PermissionTypes.edit))) {
+      if (!has_edit_permission) {
         throw new Util.PermissionDeniedError();
       }
     }
@@ -571,7 +512,7 @@ class Model extends AbstractDocument implements DocumentInterface {
     var return_id;
 
     let field_draft = await this.shallowDraft(uuid);
-    let last_persisted = await this.#latestPersisted(uuid);
+    let last_persisted = await this.shallowLatestPersisted(uuid);
 
     // Check if a draft with this uuid exists
     if(!field_draft) {
@@ -612,16 +553,9 @@ class Model extends AbstractDocument implements DocumentInterface {
     return return_id;
   }
 
-  async lastupdateFor(uuid: string): Promise<Date> {
-    let draft = await this.#draftFetchOrCreate(uuid);
-    if(!draft) {
-      throw new Util.NotFoundError();
-    }
-    return draft.updated_at;
-  }
+  latestPersistedWithoutPermissions = this.shallowLatestPersisted;
 
-  draft = this.#draftFetchOrCreate;
-  latestPersistedWithoutPermissions = this.#latestPersisted;
+  // TODO: continue commonizing here
 
   // Wraps the request to create with a transaction
   async create(field: Record<string, any>): Promise<string> {
@@ -634,10 +568,10 @@ class Model extends AbstractDocument implements DocumentInterface {
     return inserted_uuid;
   }
 
-  // Wraps the request to get with a transaction. Since fetching a draft creates one if it doesn't already exist
-  async draftGet(uuid: string): Promise<Record<string, any>> {
+  // Wraps the request to get with a transaction. By default, create_from_persisted_if_no_draft is true
+  async draftGet(uuid: string, create_from_persisted_if_no_draft: boolean = true): Promise<Record<string, any>> {
     let callback = async () => {
-      return await this.#draftFetchOrCreate(uuid);
+      return await this.#draftFetch(uuid, create_from_persisted_if_no_draft);
     };
     return await this.executeWithTransaction(callback);
   }
@@ -660,10 +594,10 @@ class Model extends AbstractDocument implements DocumentInterface {
   }
 
   async latestPersisted(uuid: string): Promise<Record<string, any> | null> {
-    return await this.#latestPersistedBeforeDateWithPermissions(uuid, new Date());
+    return await this.#latestPersistedBeforeTimestampWithPermissions(uuid, new Date());
   }
 
-  latestPersistedBeforeTimestamp = this.#latestPersistedBeforeDateWithPermissions;
+  latestPersistedBeforeTimestamp = this.#latestPersistedBeforeTimestampWithPermissions;
 
   async draftDelete(uuid: string): Promise<void> {
     await this.deleteDraftWithPermissions(uuid);
@@ -672,7 +606,7 @@ class Model extends AbstractDocument implements DocumentInterface {
   async lastUpdate(uuid: string): Promise<Date> {
 
     let field_draft = await this.shallowDraft(uuid);
-    let field_persisted = await this.#latestPersisted(uuid);
+    let field_persisted = await this.shallowLatestPersisted(uuid);
     let edit_permission = await this.permission_model.hasExplicitPermission(uuid, PermissionTypes.edit);
     let view_permission = await this.hasViewPermissionToPersisted(uuid);
 
@@ -760,13 +694,7 @@ class Model extends AbstractDocument implements DocumentInterface {
       let changes = !this.#fieldEquals(new_field, old_field);
       if (!changes) {
         // Delete the current draft
-        try {
-          await this.#draftDelete(uuid);
-        } catch(err) {
-          if (!(err instanceof Util.NotFoundError)) {
-            throw err;
-          }
-        }
+        await this.shallowDraftDelete(uuid);
         return [false, uuid];
       }
     }

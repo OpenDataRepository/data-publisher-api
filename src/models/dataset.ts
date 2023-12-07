@@ -576,7 +576,7 @@ class Model extends AbstractDocument implements DocumentInterface {
   }
 
   // Fetches the dataset draft with the given uuid, recursively looking up related_datasets.
-  // optional: If a draft of a given template doesn't exist, a new one will be generated using the last persisted record.
+  // optional: If a draft of a given dataset doesn't exist, a new one will be generated using the last persisted datset.
   async draftFetch(uuid: string, create_from_persisted_if_no_draft: boolean): Promise<Record<string, any> | null> {
 
     // See if a draft of this dataset exists. 
@@ -648,7 +648,7 @@ class Model extends AbstractDocument implements DocumentInterface {
       throw new Util.NotFoundError(`No draft exists with uuid ${uuid}`);
     }
     // if don't have admin permissions, return no permissions
-    if(!(await (new PermissionsModel(this.state)).hasExplicitPermission(uuid, PermissionTypes.admin))) {
+    if(!(await this.hasPermission(uuid, PermissionTypes.admin))) {
       throw new Util.PermissionDeniedError(`You do not have admin permissions for dataset ${uuid}.`);
     }
 
@@ -658,15 +658,13 @@ class Model extends AbstractDocument implements DocumentInterface {
   // This function will provide the timestamp of the last update made to this dataset and all of it's related_datasets
   async #lastUpdateFor(uuid: string): Promise<Date> {
 
-    let permissions_model_instance = new PermissionsModel(this.state);
-
     let draft = await this.#fetchDraftOrCreateFromPersisted(uuid);
     if(!draft) {
       throw new Util.NotFoundError();
     }
 
     let persisted = await this.shallowLatestPersisted(uuid);
-    let admin_permission = await permissions_model_instance.hasExplicitPermission(uuid, PermissionTypes.admin);
+    let admin_permission = await this.hasPermission(uuid, PermissionTypes.admin);
     let view_permission = await this.hasViewPermissionToPersisted(uuid);
 
     if(!admin_permission) {
@@ -1283,18 +1281,6 @@ class Model extends AbstractDocument implements DocumentInterface {
     return explicit_permission;
   }
 
-  async hasViewPermissionToPersisted(document_uuid: string, user_id = this.state.user_id): Promise<boolean> {
-    if(await (new PermissionsModel(this.state)).hasExplicitPermission(document_uuid, PermissionTypes.view, user_id)) {
-      return true;
-    }
-
-    if(await this.isPublic(document_uuid)) {
-      return true;
-    }
-
-    return false;
-  }
-
   // Wraps the actual request to create with a transaction
   async create(dataset: Record<string, any>): Promise<string> {
     let callback = async () => {
@@ -1310,7 +1296,7 @@ class Model extends AbstractDocument implements DocumentInterface {
   }
 
   // Wraps the actual request to get with a transaction
-  async draftGet(uuid: string, create_from_persisted_if_no_draft?: boolean): Promise<Record<string, any> | null> {
+  async draftGet(uuid: string, create_from_persisted_if_no_draft: boolean = false): Promise<Record<string, any> | null> {
     this.state.updated_at = new Date();
     let callback = async () => {
       await this.repairDraft(uuid);

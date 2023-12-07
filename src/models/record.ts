@@ -1807,7 +1807,7 @@ class Model extends AbstractDocument implements DocumentInterface {
     return await this.executeWithTransaction(callback);
   }
 
-  async draftGet(uuid: string, create_from_persisted_if_no_draft?: boolean): Promise<Record<string, any> | null> {
+  async draftGet(uuid: string, create_from_persisted_if_no_draft: boolean = false): Promise<Record<string, any> | null> {
     // TODO: do the same in dataset draft get
     const latest_doc = await this.shallowLatestDocument(uuid);
     if(!latest_doc) {
@@ -1821,7 +1821,7 @@ class Model extends AbstractDocument implements DocumentInterface {
       await this.repairDraft(uuid);
     };
     await this.executeWithTransaction(callback);
-    let draft = await this.draftFetch(uuid, !!create_from_persisted_if_no_draft);
+    let draft = await this.draftFetch(uuid, create_from_persisted_if_no_draft);
     await this.#appendPluginsToRecord(draft as Record<string, any>);
     return draft;
   }

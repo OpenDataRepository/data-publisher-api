@@ -14,12 +14,16 @@ export interface DocumentInterface {
   // Inputs: 
   //  - uuid: the UUID of the document to fetch
   //  - create_from_persisted_if_no_draft: set to true if you want a draft to automatically be generated 
-  //    from the latest persisted document in the case that no draft currently exists
+  //    from the latest persisted document in the case that no draft currently exists.
+  //    create_from_persisted_if_no_draft by default is set to false while providing the option of being set to true, 
+  //    but see comments per implementation as each implementation may handle this differently
   // Output: the document if it exists; otherwise null
   draftGet: (uuid: string, create_from_persisted_if_no_draft?: boolean) => Promise<Record<string, any> | null>;
 
   // Input: the UUID of the document draft to delete
   draftDelete: (uuid: string) => Promise<void>;
+
+  // TODO: I believe lastUpdate should be removed entirely
 
   // Input: the UUID of the document whose latest update time is to be fetched
   // Output: the latest update time of the document if it exists; otherwise null

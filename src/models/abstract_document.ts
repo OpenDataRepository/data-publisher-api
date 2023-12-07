@@ -11,11 +11,14 @@ import { BasicAbstractDocument } from "./basic_abstract_document";
  */
 export class AbstractDocument extends BasicAbstractDocument {
 
+  permission_model: PermissionsModel;
+
   constructor(state) {
     super(state);
     if (this.constructor == AbstractDocument) {
       throw new Error("Abstract classes can't be instantiated.");
     }
+    this.permission_model = new PermissionsModel(state);
   }
 
   async shallowDraft(uuid: string): Promise<Record<string, any> | null> {
@@ -55,9 +58,9 @@ export class AbstractDocument extends BasicAbstractDocument {
     return draft;
   }
 
-  async shallowLatestPersisted(uuid: string): Promise<Record<string, any> | null>{
+  async shallowLatestPersistedBeforeTimestamp(uuid: string, timestamp: Date): Promise<Record<string, any> | null>{
     let cursor = await this.collection.find(
-      {"uuid": uuid, 'persist_date': {'$exists': true}}, 
+      {"uuid": uuid, 'persist_date': {'$lte': timestamp}}, 
       {session: this.state?.session}
     ).sort({'persist_date': -1})
     .limit(1);
@@ -65,6 +68,10 @@ export class AbstractDocument extends BasicAbstractDocument {
       return null;
     }
     return await cursor.next();
+  }
+
+  async shallowLatestPersisted(uuid: string): Promise<Record<string, any> | null>{
+    return await this.shallowLatestPersistedBeforeTimestamp(uuid, new Date());
   }
 
   // Get's latest version of document, whether it's a draft or persisted version
@@ -184,7 +191,7 @@ export class AbstractDocument extends BasicAbstractDocument {
   }
 
   async hasPermission(uuid: string, permission_level: PermissionTypes): Promise<boolean> {
-    let explicit_permission = await (new PermissionsModel(this.state)).hasExplicitPermission(uuid, permission_level);
+    let explicit_permission = await this.permission_model.hasExplicitPermission(uuid, permission_level);
     if(permission_level == PermissionTypes.view) {
       return explicit_permission || await this.isPublic(uuid);
     }
@@ -351,6 +358,18 @@ export class AbstractDocument extends BasicAbstractDocument {
 
   async draftExisting(uuid: string): Promise<boolean> {
     return (await this.shallowDraft(uuid)) ? true : false;
+  }
+
+  async hasViewPermissionToPersisted(document_uuid: string, user_id = this.state.user_id): Promise<boolean> {
+    if(await this.permission_model.hasExplicitPermission(document_uuid, PermissionTypes.view, user_id)) {
+      return true;
+    }
+
+    if(await this.isPublic(document_uuid)) {
+      return true;
+    }
+
+    return false;
   }
 
 }
