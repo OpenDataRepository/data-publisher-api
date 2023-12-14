@@ -817,7 +817,7 @@ class Model extends AbstractDocument implements DocumentInterface {
   // Return:
   // 1. A boolean indicating true if there were changes from the last persisted.
   // 2. The uuid of the record created / updated
-  async #validateAndCreateOrUpdate(record: Record<string, any>): Promise<[boolean, string]>  {
+  async validateAndCreateOrUpdate(record: Record<string, any>): Promise<[boolean, string]>  {
 
     // Record must be an object
     if (!Util.isObject(record)) {
@@ -1033,7 +1033,7 @@ class Model extends AbstractDocument implements DocumentInterface {
 
   // TODO: Right now persist doesn't do any verification before persisting. It just persists the draft that is there. Consider adding verification.
   // Persistes the record with the provided uuid
-  async #persist(record_uuid: string, last_update: Date): Promise<void> {
+  async persistImplementation(record_uuid: string, last_update: Date): Promise<ObjectId> {
 
     let record = await this.shallowDraft(record_uuid);
     if (!record) {
@@ -1061,22 +1061,18 @@ class Model extends AbstractDocument implements DocumentInterface {
         throw error;
       }
     }
-    let template = await (new TemplateModel.model(this.state)).persistedByIdWithoutPermissions(dataset.template_id);
+    let template = await this.template_model.persistedByIdWithoutPermissions(dataset.template_id);
 
-    await this.#persistRecurser(record_uuid, dataset, template);
+    return await this.#persistRecurser(record_uuid, dataset, template);
 
   }
 
-  // Recursively fetch the latest persisted record before the given date
-  async #latestPersistedBeforeDateWithJoins(uuid: string, date: Date): Promise<Record<string, any> | null> {
+  async persistedWithJoins(pipelineMatchConditions: Record<string, any>): Promise<Record<string, any> | null> {
     // Construct a mongodb aggregation pipeline that will recurse into related records up to 5 levels deep.
     // Thus, the tree will have a depth of 6 nodes
     let pipeline = [
       {
-        '$match': { 
-          'uuid': uuid,
-          'persist_date': {'$lte': date}
-        }
+        '$match': pipelineMatchConditions
       },
       {
         '$sort' : { 'persist_date' : -1 }
@@ -1316,26 +1312,11 @@ class Model extends AbstractDocument implements DocumentInterface {
   }
 
   // Ignore record specific permissions until I remember how they work
-  async #filterPersistedForPermissions(record: Record<string, any>): Promise<void> {
+  async filterPersistedForPermissions(record: Record<string, any>): Promise<void> {
     if(!(await this.hasViewPermissionToPersisted(record))) {
       throw new Util.PermissionDeniedError(`Do not have view access to record ${record.uuid}`);
     }
     await this.#filterPersistedForPermissionsRecursor(record);
-  }
-
-  async #latestPersistedBeforeDateWithJoinsAndPermissions(uuid: string, date: Date): Promise<Record<string, any> | null> {
-    let record = await this.#latestPersistedBeforeDateWithJoins(uuid, date);
-    if(!record) {
-      return null;
-    }
-    await this.#filterPersistedForPermissions(record);
-    return record;
-  } 
-
-  // Fetches the last persisted record with the given uuid. 
-  // Also recursively looks up related_datasets.
-  async latestPersistedWithJoinsAndPermissions(uuid: string): Promise<Record<string, any> | null> {
-    return await this.#latestPersistedBeforeDateWithJoinsAndPermissions(uuid, new Date());
   }
 
   async #appendPluginsToRecord(record: Record<string, any>) {
@@ -1797,63 +1778,43 @@ class Model extends AbstractDocument implements DocumentInterface {
     return await (new PermissionsModel(this.state)).hasExplicitPermission((record as Record<string, any>).dataset_uuid, permission_level);
   }
 
-  // Wraps the actual request to create with a transaction
-  async create(record: Record<string, any>): Promise<string> {
-    let callback = async () => {
-      let results = await this.#validateAndCreateOrUpdate(record);
-      let inserted_uuid = results[1];
-      return inserted_uuid;
-    };
-    return await this.executeWithTransaction(callback);
-  }
-
   async draftGet(uuid: string, create_from_persisted_if_no_draft: boolean = false): Promise<Record<string, any> | null> {
     // TODO: do the same in dataset draft get
     const latest_doc = await this.shallowLatestDocument(uuid);
     if(!latest_doc) {
       throw new Util.NotFoundError();
     }
-    if(await (new DatasetModel.model(this.state)).latestPersistedOutOfDate(latest_doc.dataset_uuid)) {
+    if(await this.dataset_model.latestPersistedOutOfDate(latest_doc.dataset_uuid)) {
       throw new Util.InputError(`dataset ${latest_doc.dataset_uuid} is out of sync. Please update and persist it before working with this record`);
     }
     this.state.updated_at = new Date();
     let callback = async () => {
       await this.repairDraft(uuid);
+      let draft = await this.draftFetch(uuid, create_from_persisted_if_no_draft);
+      await this.#appendPluginsToRecord(draft as Record<string, any>);
+      return draft;
     };
-    await this.executeWithTransaction(callback);
-    let draft = await this.draftFetch(uuid, create_from_persisted_if_no_draft);
-    await this.#appendPluginsToRecord(draft as Record<string, any>);
-    return draft;
-  }
-
-  // Wraps the actual request to update with a transaction
-  update = async function(record: Record<string, any>): Promise<void> {
-    let callback = async () => {
-      await this.#validateAndCreateOrUpdate(record);
-    };
-    await this.executeWithTransaction(callback);
-  }
-
-  // Wraps the actual request to persist with a transaction
-  persist = async function(uuid: string, last_update: Date): Promise<void> {
-    let callback = async () => {
-      await this.#persist(uuid, last_update);
-    };
-    await this.executeWithTransaction(callback);
+    return await this.executeWithTransaction(callback);
   }
 
   // Fetches the last persisted record with the given uuid. 
   // Also recursively looks up related_templates.
-  latestPersisted = async function(uuid: string): Promise<Record<string, any> | null> {
+  async latestPersisted(uuid: string): Promise<Record<string, any> | null> {
     let record = await this.latestPersistedWithJoinsAndPermissions(uuid);
+    if(!record) {
+      return null;
+    }
     await this.#appendPluginsToRecord(record);
-    return record
+    return record;
   }
 
   // Fetches the last record with the given uuid persisted before the provided timestamp. 
   // Also recursively looks up related_templates.
-  latestPersistedBeforeTimestamp = async function(uuid: string, date: Date): Promise<Record<string, any> | null> {
-    let record = await this.#latestPersistedBeforeDateWithJoinsAndPermissions(uuid, date);
+  async latestPersistedBeforeTimestamp(uuid: string, date: Date): Promise<Record<string, any> | null> {
+    let record = await this.latestPersistedBeforeTimestampWithJoinsAndPermissions(uuid, date);
+    if(!record) {
+      return null;
+    }
     await this.#appendPluginsToRecord(record);
     return record
   }

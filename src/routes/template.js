@@ -9,7 +9,9 @@ router.get('/:uuid/draft_existing', validateUuid, templateController.draftExisti
 router.get('/:uuid/latest_persisted', validateUuid, templateController.latestPersisted);
 router.get('/version/:id', templateController.version);
 router.get('/persisted_version/:id', templateController.persistedVersion);
-router.get('/:uuid/last_update', ensureLoggedIn, validateUuid, templateController.lastUpdate);
+if(process.env.is_test) {
+  router.get('/:uuid/last_update', ensureLoggedIn, validateUuid, templateController.lastUpdate);
+}
 router.get('/:uuid/:timestamp', validateUuid, validateTimestamp, templateController.persistedBeforeTimestamp);
 router.post('/', ensureLoggedIn, templateController.create);
 router.put('/:uuid', ensureLoggedIn, validateUuid, templateController.update);

@@ -9,7 +9,9 @@ router.get('/:uuid/draft', ensureLoggedIn, validateUuid, datasetController.draft
 router.get('/:uuid/draft_existing', validateUuid, datasetController.draftExisting);
 router.get('/:uuid/latest_persisted', validateUuid, datasetController.latestPersisted);
 router.get('/persisted_version/:id', datasetController.persistedVersion);
-router.get('/:uuid/last_update', ensureLoggedIn, validateUuid, datasetController.lastUpdate);
+if(process.env.is_test) {
+  router.get('/:uuid/last_update', ensureLoggedIn, validateUuid, datasetController.lastUpdate);
+}
 router.post('/', ensureLoggedIn, datasetController.create);
 router.put('/:uuid', ensureLoggedIn, validateUuid, datasetController.update);
 router.post('/:uuid/persist', ensureLoggedIn, validateUuid, datasetController.persist);

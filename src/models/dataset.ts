@@ -497,7 +497,7 @@ class Model extends AbstractDocument implements DocumentInterface {
   // Return:
   // 1. A boolean indicating true if there were changes from the last persisted.
   // 2. The uuid of the dataset created / updated
-  async #validateAndCreateOrUpdate(dataset: Record<string, any>): Promise<[boolean, string]> {
+  async validateAndCreateOrUpdate(dataset: Record<string, any>): Promise<[boolean, string]> {
 
     // Dataset must be an object
     if (!Util.isObject(dataset)) {
@@ -656,7 +656,7 @@ class Model extends AbstractDocument implements DocumentInterface {
   }
 
   // This function will provide the timestamp of the last update made to this dataset and all of it's related_datasets
-  async #lastUpdateFor(uuid: string): Promise<Date> {
+  async #recursiveLastUpdate(uuid: string): Promise<Date> {
 
     let draft = await this.#fetchDraftOrCreateFromPersisted(uuid);
     if(!draft) {
@@ -680,7 +680,7 @@ class Model extends AbstractDocument implements DocumentInterface {
     let last_update = draft.updated_at;
     for(uuid of draft.related_datasets) {
       try {
-        let update = await this.#lastUpdateFor(uuid);
+        let update = await this.#recursiveLastUpdate(uuid);
         if (update > last_update){
           last_update = update;
         }
@@ -780,36 +780,36 @@ class Model extends AbstractDocument implements DocumentInterface {
     return dataset._id;
   }
 
-  async #persist(dataset_uuid: string, last_update: Date): Promise<void> {
+  async persistImplementation(dataset_uuid: string, last_update: Date): Promise<ObjectId> {
 
-    let dataset = await this.draftFetch(dataset_uuid, false);
-    if (!dataset) {
-      dataset = await this.shallowLatestPersisted(dataset_uuid);
-      if (!dataset) {
+    let dataset_draft = await this.draftFetch(dataset_uuid, false);
+    if (!dataset_draft) {
+      let has_persisted = !!(await this.shallowLatestPersisted(dataset_uuid));
+      if (!has_persisted) {
         throw new Util.NotFoundError(`Dataset with uuid ${dataset_uuid} does not exist`);
       } 
       throw new Util.InputError('No changes to persist');
     }
 
     // If the last update provided doesn't match to the last update found in the db, fail.
-    let db_last_update = new Date(await this.#lastUpdateFor(dataset_uuid));
+    let db_last_update = new Date(await this.#recursiveLastUpdate(dataset_uuid));
     if(last_update.getTime() != db_last_update.getTime()) {
       throw new Util.InputError(`The last update submitted ${last_update.toISOString()} does not match that found in the db ${db_last_update.toISOString()}. 
       Fetch the draft again to get the latest update before attempting to persist again.`);
     }
 
-    let template = await (new TemplateModel.model(this.state)).persistedByIdWithoutPermissions(Util.convertToMongoId(dataset.template_id));
+    let template = await this.template_model.persistedByIdWithoutPermissions(Util.convertToMongoId(dataset_draft.template_id));
 
     if(!template) {
-      throw new Util.InputError(`Dataset with uuid ${dataset_uuid} cannot be persisted because the template version it references ${dataset.template_id}
+      throw new Util.InputError(`Dataset with uuid ${dataset_uuid} cannot be persisted because the template version it references ${dataset_draft.template_id}
       does not exist and has most likely been deleted. Please update the dataset before re-attempting to persist it.`)
     }
 
-    await this.#persistRecurser(dataset, template);
+    return await this.#persistRecurser(dataset_draft, template);
   }
 
   // Recursively fetches the persisted dataset with the given match conditions
-  async #persistedWithJoins(pipelineMatchConditions: Record<string, any>): Promise<Record<string, any> | null> {
+  async persistedWithJoins(pipelineMatchConditions: Record<string, any>): Promise<Record<string, any> | null> {
     // Construct a mongodb aggregation pipeline that will recurse into related templates up to 5 levels deep.
     // Thus, the tree will have a depth of 6 nodes
     let pipeline = [
@@ -887,16 +887,6 @@ class Model extends AbstractDocument implements DocumentInterface {
     }
   }
 
-  // Fetches the last dataset with the given uuid persisted before the given date. 
-  // Also recursively looks up fields and related_templates.
-  async #latestPersistedBeforeDateWithJoins(uuid: string, date: Date): Promise<Record<string, any> | null> {
-    const match_conditions = { 
-      'uuid': uuid,
-      'persist_date': {'$lte': date}
-    };
-    return this.#persistedWithJoins(match_conditions);
-  }
-
   async #filterPersistedForPermissionsRecursor(dataset: Record<string, any>): Promise<void> {
     for(let i = 0; i < dataset.related_datasets.length; i++) {
       if(!(await this.hasViewPermissionToPersisted(dataset.related_datasets[i].uuid))) {
@@ -907,26 +897,11 @@ class Model extends AbstractDocument implements DocumentInterface {
     }
   }
 
-  async #filterPersistedForPermissions(dataset: Record<string, any>): Promise<void> {
+  async filterPersistedForPermissions(dataset: Record<string, any>): Promise<void> {
     if(!(await this.hasViewPermissionToPersisted(dataset.uuid))) {
       throw new Util.PermissionDeniedError(`Do not have view access to dataset ${dataset.uuid}`);
     }
     await this.#filterPersistedForPermissionsRecursor(dataset);
-  }
-
-  async #latestPersistedBeforeDateWithJoinsAndPermissions(uuid: string, date: Date): Promise<Record<string, any> | null> {
-    let dataset = await this.#latestPersistedBeforeDateWithJoins(uuid, date);
-    if(!dataset) {
-      return null;
-    }
-    await this.#filterPersistedForPermissions(dataset);
-    return dataset;
-  } 
-
-  // Fetches the last persisted dataset with the given uuid. 
-  // Also recursively looks up related_datasets.
-  async latestPersistedWithJoinsAndPermissions(uuid: string): Promise<Record<string, any> | null> {
-    return await this.#latestPersistedBeforeDateWithJoinsAndPermissions(uuid, new Date());
   }
 
   async #duplicateRecursor(original_dataset: Record<string, any>, original_group_uuid: string, 
@@ -1281,60 +1256,26 @@ class Model extends AbstractDocument implements DocumentInterface {
     return explicit_permission;
   }
 
-  // Wraps the actual request to create with a transaction
-  async create(dataset: Record<string, any>): Promise<string> {
-    let callback = async () => {
-      let results = await this.#validateAndCreateOrUpdate(dataset);
-      let inserted_uuid = results[1];
-      return inserted_uuid;
-    };
-    if(this.state.session) {
-      return await callback();
-    } else {
-      return await this.executeWithTransaction(callback);
-    }
-  }
-
   // Wraps the actual request to get with a transaction
   async draftGet(uuid: string, create_from_persisted_if_no_draft: boolean = false): Promise<Record<string, any> | null> {
     this.state.updated_at = new Date();
     let callback = async () => {
       await this.repairDraft(uuid);
+      return await this.draftFetch(uuid, !!create_from_persisted_if_no_draft);
     }
-    if(!this.state.session) {
-      await this.executeWithTransaction(callback);
-    } else {
-      await callback();
-    }
-    return await this.draftFetch(uuid, !!create_from_persisted_if_no_draft);
-  }
-
-  // Wraps the actual request to update with a transaction
-  async update(dataset: Record<string, any>): Promise<void> {
-    let callback = async () => {
-      await this.#validateAndCreateOrUpdate(dataset);
-    }
-    await this.executeWithTransaction(callback);
-  }
-
-  // Wraps the actual request to persist with a transaction
-  async persist(uuid: string, last_update: Date): Promise<void> {
-    let callback = async () => {
-      await this.#persist(uuid, last_update);
-    }
-    await this.executeWithTransaction(callback);
+    return await this.executeWithTransaction(callback);
   }
 
   // Wraps the actual request to getUpdate with a transaction
   async lastUpdate(uuid: string): Promise<Date> {
     let callback = async () => {
-      return await this.#lastUpdateFor(uuid);
+      return await this.#recursiveLastUpdate(uuid);
     };
     return await this.executeWithTransaction(callback);
   }
 
   latestPersisted = this.latestPersistedWithJoinsAndPermissions;
-  latestPersistedBeforeTimestamp = this.#latestPersistedBeforeDateWithJoinsAndPermissions;
+  latestPersistedBeforeTimestamp = this.latestPersistedBeforeTimestampWithJoinsAndPermissions;
 
   async persistedVersion(_id: ObjectId): Promise<Record<string, any> | null> {
     let pipelineMatchConditions = { 
@@ -1342,20 +1283,16 @@ class Model extends AbstractDocument implements DocumentInterface {
       'persist_date': {'$lte': new Date()}
     };
 
-    let dataset =  await this.#persistedWithJoins(pipelineMatchConditions);
+    let dataset =  await this.persistedWithJoins(pipelineMatchConditions);
     if(!dataset) {
       return null;
     }
-    await this.#filterPersistedForPermissions(dataset);
+    await this.filterPersistedForPermissions(dataset);
     return dataset;
   } 
 
-  async draftDelete(uuid: string): Promise<void> {
-    await this.deleteDraftWithPermissions(uuid);
-  }
-
   async latestPersistedWithoutPermissions(uuid: string): Promise<Record<string, any> | null> {
-    return await this.#latestPersistedBeforeDateWithJoins(uuid, new Date());
+    return await this.latestPersistedBeforeTimestampWithJoins(uuid, new Date());
   }
 
   async template_uuid(uuid: string): Promise<string> {

@@ -8,7 +8,9 @@ const {templateFieldController} = require('../controllers/templateFieldControlle
 router.get('/:uuid/draft', ensureLoggedIn, validateUuid, templateFieldController.draft);
 router.get('/:uuid/draft_existing', validateUuid, templateFieldController.draftExisting);
 router.get('/:uuid/latest_persisted', validateUuid, templateFieldController.latestPersisted);
-router.get('/:uuid/last_update', ensureLoggedIn, validateUuid, templateFieldController.lastUpdate);
+if(process.env.is_test) {
+  router.get('/:uuid/last_update', ensureLoggedIn, validateUuid, templateFieldController.lastUpdate);
+}
 router.get(
   '/:uuid/:timestamp', 
   validateUuid, 

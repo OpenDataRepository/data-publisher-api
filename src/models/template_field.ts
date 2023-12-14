@@ -130,7 +130,7 @@ class Model extends AbstractDocument implements DocumentInterface {
     return draft;
   }
 
-  async #latestPersistedBeforeTimestampWithPermissions(uuid: string, date: Date): Promise<Record<string, any> | null> {
+  async latestPersistedBeforeTimestampWithPermissions(uuid: string, date: Date): Promise<Record<string, any> | null> {
     let field = await this.shallowLatestPersistedBeforeTimestamp(uuid, date);
     if(!field) {
       return null;
@@ -508,15 +508,14 @@ class Model extends AbstractDocument implements DocumentInterface {
   }
 
   // Persistes the field with the provided uuid. Returns the _id of the newly persisted version.
-  async persistField(uuid: string, last_update: Date): Promise<ObjectId> {
-    var return_id;
+  async persistImplementation(uuid: string, last_update?: Date): Promise<ObjectId> {
 
-    let field_draft = await this.shallowDraft(uuid);
-    let last_persisted = await this.shallowLatestPersisted(uuid);
+    let shallow_draft = await this.shallowDraft(uuid);
+    let shallow_persisted = await this.shallowLatestPersisted(uuid);
 
     // Check if a draft with this uuid exists
-    if(!field_draft) {
-      if(last_persisted) {
+    if(!shallow_draft) {
+      if(shallow_persisted) {
         throw new Util.InputError('No changes to persist');
       } else {
         throw new Util.NotFoundError(`Field with uuid ${uuid} does not exist`);
@@ -524,14 +523,14 @@ class Model extends AbstractDocument implements DocumentInterface {
     }
 
     // if the user doesn't have edit permissions, throw a permission denied error
-    let has_permission = await this.permission_model.hasExplicitPermission(uuid, PermissionTypes.edit);
+    let has_permission = await this.hasPermission(uuid, PermissionTypes.edit);
     if(!has_permission) {
       throw new Util.PermissionDeniedError();
     }
 
     if (last_update) {
       // If the last update provided doesn't match to the last update found in the db, fail.
-      let db_last_update = new Date(field_draft.updated_at);
+      let db_last_update = new Date(shallow_draft.updated_at);
       if(last_update.getTime() != db_last_update.getTime()) {
         throw new Util.InputError(`The last update submitted ${last_update.toISOString()} does not match that found in the db ${db_last_update.toISOString()}. 
         Fetch the draft again to get the latest update before attempting to persist again.`);
@@ -542,31 +541,17 @@ class Model extends AbstractDocument implements DocumentInterface {
     let persist_time = new Date();
     let session = this.state.session;
     let response = await TemplateField.updateOne(
-      {"_id": field_draft._id},
+      {"_id": shallow_draft._id},
       {'$set': {'updated_at': persist_time, 'persist_date': persist_time}},
       {session}
     )
     if (response.modifiedCount != 1) {
       throw new Error(`TemplateField.persistField: should be 1 updated document. Instead: ${response.modifiedCount}`);
     }
-    return_id = field_draft._id;
-    return return_id;
+    return shallow_draft._id;
   }
 
   latestPersistedWithoutPermissions = this.shallowLatestPersisted;
-
-  // TODO: continue commonizing here
-
-  // Wraps the request to create with a transaction
-  async create(field: Record<string, any>): Promise<string> {
-    let callback = async () => {
-      this.state.updated_at = new Date();
-      return await this.validateAndCreateOrUpdate(field);
-    };
-    let result = await this.executeWithTransaction(callback);
-    let inserted_uuid = result[1];
-    return inserted_uuid;
-  }
 
   // Wraps the request to get with a transaction. By default, create_from_persisted_if_no_draft is true
   async draftGet(uuid: string, create_from_persisted_if_no_draft: boolean = true): Promise<Record<string, any>> {
@@ -576,62 +561,40 @@ class Model extends AbstractDocument implements DocumentInterface {
     return await this.executeWithTransaction(callback);
   }
 
-  // Wraps the request to update with a transaction
-  async update(field: Record<string, any>): Promise<void> {
-    let callback = async () => {
-      this.state.updated_at = new Date();
-      return await this.validateAndCreateOrUpdate(field);
-    };
-    await this.executeWithTransaction(callback);
-  }
-
-  // Wraps the request to persist with a transaction
-  async persist(uuid: string, last_update: Date): Promise<void> {
-    let callback = async () => {
-      return await this.persistField(uuid, last_update);
-    };
-    await this.executeWithTransaction(callback);
-  }
-
   async latestPersisted(uuid: string): Promise<Record<string, any> | null> {
-    return await this.#latestPersistedBeforeTimestampWithPermissions(uuid, new Date());
+    return await this.latestPersistedBeforeTimestampWithPermissions(uuid, new Date());
   }
 
-  latestPersistedBeforeTimestamp = this.#latestPersistedBeforeTimestampWithPermissions;
-
-  async draftDelete(uuid: string): Promise<void> {
-    await this.deleteDraftWithPermissions(uuid);
-  }
+  latestPersistedBeforeTimestamp = this.latestPersistedBeforeTimestampWithPermissions;
 
   async lastUpdate(uuid: string): Promise<Date> {
-
-    let field_draft = await this.shallowDraft(uuid);
-    let field_persisted = await this.shallowLatestPersisted(uuid);
-    let edit_permission = await this.permission_model.hasExplicitPermission(uuid, PermissionTypes.edit);
+    let shallow_draft = await this.shallowDraft(uuid);
+    let shallow_persisted = await this.shallowLatestPersisted(uuid);
+    let edit_permission = await this.hasPermission(uuid, PermissionTypes.edit);
     let view_permission = await this.hasViewPermissionToPersisted(uuid);
 
     // Get the lat update for the draft if the user has permission to the draft. Otherwise, the last persisted.
-    if(!field_draft) {
-      if(!field_persisted) {
-        throw new Util.NotFoundError(`No template field exists with uuid ${uuid}`);
+    if(!shallow_draft) {
+      if(!shallow_persisted) {
+        throw new Util.NotFoundError(`${uuid} does not exist`);
       }
       if(!view_permission) {
-        throw new Util.PermissionDeniedError(`field ${uuid}: no draft exists and do not have view permissions for persisted`);
+        throw new Util.PermissionDeniedError(`${uuid}: no draft exists and do not have view permissions for persisted`);
       }
-      return field_persisted.updated_at;
+      return shallow_persisted.updated_at;
     }
 
     if(!edit_permission) {
-      if(!field_persisted) {
-        throw new Util.PermissionDeniedError(`field ${uuid}: do not permissions for draft, and no persisted version exists`);
+      if(!shallow_persisted) {
+        throw new Util.PermissionDeniedError(`${uuid}: do not permissions for draft, and no persisted version exists`);
       }
       if(!view_permission) {
-        throw new Util.PermissionDeniedError(`field ${uuid}: do not have view or edit permissions`);
+        throw new Util.PermissionDeniedError(`${uuid}: do not have view or edit permissions`);
       }
-      return field_persisted.updated_at;
+      return shallow_persisted.updated_at;
     }
 
-    return field_draft.updated_at;
+    return shallow_draft.updated_at;
   }
 
   async duplicate(field: Record<string, any>): Promise<string> {
@@ -711,7 +674,7 @@ class Model extends AbstractDocument implements DocumentInterface {
     return [true, uuid];
   }
 
-};
+}
 
 export {
   init,

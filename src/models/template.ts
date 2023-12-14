@@ -106,7 +106,7 @@ const Schema = Object.freeze({
     },
     subscribed_templates: {
       bsonType: "array",
-      description: "templates this template subscribes to",
+      description: "templates this template subscribes to, meaning if the subscribed template is updated, accepting the update is optional (required for related_template)",
       uniqueItems: true,
       items: {
         bsonType: "objectId"
@@ -370,7 +370,7 @@ class Model extends AbstractDocument implements DocumentInterface{
       let field_uuid;
       let new_changes;
       try {
-        [new_changes, field_uuid] = await (new TemplateFieldModel.model(this.state)).validateAndCreateOrUpdate(field);
+        [new_changes, field_uuid] = await this.template_field_model.validateAndCreateOrUpdate(field);
         changes ||= new_changes;
       } catch(err) {
         if (err instanceof Util.NotFoundError) {
@@ -404,7 +404,7 @@ class Model extends AbstractDocument implements DocumentInterface{
       let related_template_uuid;
       let new_changes;
       try {
-        [new_changes, related_template_uuid] = await this.#validateAndCreateOrUpdate(related_template);
+        [new_changes, related_template_uuid] = await this.validateAndCreateOrUpdate(related_template);
         changes ||= new_changes;
       } catch(err) {
         if (err instanceof Util.NotFoundError) {
@@ -534,11 +534,15 @@ class Model extends AbstractDocument implements DocumentInterface{
   // Return:
   // 1. A boolean indicating true if there were changes from the last persisted.
   // 2. The uuid of the template created / updated
-  async #validateAndCreateOrUpdate(input_template: Record<string, any>): Promise<[boolean, string]> {
+  async validateAndCreateOrUpdate(input_template: Record<string, any>): Promise<[boolean, string]> {
 
     // Template must be an object
     if (!Util.isObject(input_template)) {
       throw new Util.InputError(`template provided is not an object: ${input_template}`);
+    }
+
+    if(!('ancestor_uuids' in this.state)) {
+      this.state.ancestor_uuids = new Set();
     }
 
     let uuid = await this.#getUuidFromCreateOrUpdate(input_template);
@@ -616,7 +620,7 @@ class Model extends AbstractDocument implements DocumentInterface{
         continue;
       }
       try {
-        let field_id = await this.template_field_model.persistField(field_uuid);
+        let field_id = await this.template_field_model.persist(field_uuid);
         return_field_ids.push(field_id);
       } catch(err) {
         if (err instanceof Util.NotFoundError) {
@@ -664,58 +668,61 @@ class Model extends AbstractDocument implements DocumentInterface{
     return result_related_templates_ids;
   }
 
+  // TODO: as of now template checks permissions at every level of recursion. Dataset does not. Pick one and make them consistent
+  // Probably applies to record as well
+
   // Persistes the template with the provided uuid
   // Returns the internal id of the persisted template
   async #persistRecursor(uuid: string): Promise<ObjectId> {
 
     var return_id;
 
-    let persisted_template = await this.shallowLatestPersisted(uuid);
+    let shallow_persisted = await this.shallowLatestPersisted(uuid);
 
-    let template_draft = await this.shallowDraft(uuid);
+    let shallow_draft = await this.shallowDraft(uuid);
 
 
     // If a draft of this template doesn't exist, we'll use the persisted template instead
-    if(!template_draft) {
+    if(!shallow_draft) {
       // There is no draft of this uuid. Return the latest persisted template instead.
-      if (!persisted_template) {
+      if (!shallow_persisted) {
         throw new Util.NotFoundError(`Template with uuid ${uuid} does not exist`);
       }
       if(!(await this.hasViewPermissionToPersisted(uuid))) {
         throw new Util.PermissionDeniedError(`cannot link template with uuid ${uuid}. Requires at least view permissions.`);
       }
-      return persisted_template._id;
+      return shallow_persisted._id;
     }
 
     // If a user doesn't have edit access to this template, we'll use the persisted template instead
-    if(!(await this.permission_model.hasExplicitPermission(uuid, PermissionModel.PermissionTypes.edit))) {
+    if(!(await this.hasPermission(uuid, PermissionModel.PermissionTypes.edit))) {
       // There is no draft of this uuid. Return the latest persisted template instead.
-      if (!persisted_template) {
+      if (!shallow_persisted) {
         throw new Util.InputError(`Do not have access to template draft with uuid ${uuid}, and no persisted version exists`);
       }
       if(!(await this.hasViewPermissionToPersisted(uuid))) {
         throw new Util.PermissionDeniedError(`cannot link template with uuid ${uuid}. Requires at least view permissions.`);
       }
-      return persisted_template._id;
+      return shallow_persisted._id;
     }
 
-    let fields = await this.#persistFields(template_draft.fields);
+    let fields = await this.#persistFields(shallow_draft.fields);
 
-    let related_templates = await this.#persistRelatedTemplates(template_draft.related_templates);
+    let related_templates = await this.#persistRelatedTemplates(shallow_draft.related_templates);
 
     // If there are changes, persist the current draft
     let persist_time = new Date();
     let session = this.state.session;
     let response = await Template.updateOne(
-      {"_id": template_draft._id},
+      {"_id": shallow_draft._id},
       {'$set': {'updated_at': persist_time, 'persist_date': persist_time, 
-        fields, related_templates, subscribed_templates: template_draft.subscribed_templates}},
+        fields, related_templates, subscribed_templates: shallow_draft.subscribed_templates}},
       {session}
     )
     if (response.modifiedCount != 1) {
       throw `Template.persist: should be 1 modified document. Instead: ${response.modifiedCount}`;
     }
-    return_id = template_draft._id;
+    return_id = shallow_draft._id;
 
     return return_id;
 
@@ -724,14 +731,13 @@ class Model extends AbstractDocument implements DocumentInterface{
   // Persistes the template with the provided uuid
   // Input: 
   //   uuid: the uuid of a template to be persisted
-  //   session: the mongo session that must be used to make transactions atomic
   //   last_update: the timestamp of the last known update by the user. Cannot persist if the actual last update and that expected by the user differ.
-  async #persist(uuid: string, last_update: Date): Promise<void> {
+  async #persist(uuid: string, last_update: Date): Promise<ObjectId> {
 
     // Check if a draft with this uuid exists
-    let template_draft = await this.shallowDraft(uuid);
+    let shallow_draft = await this.shallowDraft(uuid);
     let last_persisted = await this.shallowLatestPersisted(uuid);
-    if(!template_draft) {
+    if(!shallow_draft) {
       if(last_persisted) {
         throw new Util.InputError('No changes to persist');
       } else {
@@ -744,15 +750,17 @@ class Model extends AbstractDocument implements DocumentInterface{
     }
 
     // If the last update provided doesn't match to the last update found in the db, fail.
-    let db_last_update = new Date(await this.#lastUpdateFor(uuid));
+    let db_last_update = new Date(await this.#recursiveLastUpdate(uuid));
     if(last_update.getTime() != db_last_update.getTime()) {
       throw new Util.InputError(`The last update submitted ${last_update.toISOString()} does not match that found in the db ${db_last_update.toISOString()}. 
       Fetch the draft again to get the latest update before attempting to persist again.`);
     }
 
     // Recursively persist template, it's fields and related templates
-    await this.#persistRecursor(uuid);
+    return await this.#persistRecursor(uuid);
   }
+
+  persistImplementation = this.#persist;
 
   #recursiveBuildPersistedQuery(current_pipeline: Record<string, any>[], count: number): void {
     if(count >= 5) {
@@ -823,7 +831,7 @@ class Model extends AbstractDocument implements DocumentInterface{
   }
 
   // Fetches the template with the specified match conditions, including fetching fields and related_records
-  async #persistedWithJoins(pipelineMatchConditions: Record<string, any>): Promise<Record<string, any> | null> {
+  async persistedWithJoins(pipelineMatchConditions: Record<string, any>): Promise<Record<string, any> | null> {
     // Construct a mongodb aggregation pipeline that will recurse into related templates up to 5 levels deep.
     // Thus, the tree will have a depth of 6 nodes
     let pipeline = [
@@ -864,18 +872,7 @@ class Model extends AbstractDocument implements DocumentInterface{
       _id
     };
 
-    return await this.#persistedWithJoins(pipelineMatchConditions);
-  }
-
-  // Fetches the last template with the given uuid persisted before the given date. 
-  // Also recursively looks up fields and related_templates.
-  async #latestPersistedBeforeDateWithJoins(uuid: string, date: Date): Promise<Record<string, any> | null> {
-    let pipelineMatchConditions = { 
-      uuid,
-      'persist_date': {'$lte': date}
-    };
-
-    return await this.#persistedWithJoins(pipelineMatchConditions);
+    return await this.persistedWithJoins(pipelineMatchConditions);
   }
 
   async #filterPersistedTemplateForPermissionsRecursor(template: Record<string, any>): Promise<void> {
@@ -894,7 +891,7 @@ class Model extends AbstractDocument implements DocumentInterface{
     }
   }
 
-  async #filterPersistedTemplateForPermissions(template: Record<string, any>): Promise<void> {
+  async filterPersistedForPermissions(template: Record<string, any>): Promise<void> {
     if(!(await this.hasViewPermissionToPersisted(template.uuid))) {
       throw new Util.PermissionDeniedError(`Do not have view access to template ${template.uuid}`);
     }
@@ -906,39 +903,23 @@ class Model extends AbstractDocument implements DocumentInterface{
     if(!template) {
       return null;
     }
-    await this.#filterPersistedTemplateForPermissions(template);
+    await this.filterPersistedForPermissions(template);
     return template;
   } 
-
-  async #latestPersistedBeforeDateWithJoinsAndPermissions(uuid: string, date: Date): Promise<Record<string, any> | null> {
-    let template = await this.#latestPersistedBeforeDateWithJoins(uuid, date);
-    if(!template) {
-      return null;
-    }
-    await this.#filterPersistedTemplateForPermissions(template);
-    return template;
-  } 
-
-  // Fetches the last persisted template with the given uuid. 
-  // Also recursively looks up fields and related_templates.
-  async latestPersistedWithJoinsAndPermissions(uuid: string): Promise<Record<string, any> | null> {
-    return await this.#latestPersistedBeforeDateWithJoinsAndPermissions(uuid, new Date());
-  }
 
   async #draftFetchFields(input_field_uuids: string[]): Promise<[Record<string, any>[], string[]]> {
     let fields: Record<string, any>[] = [];
     let field_uuids: string[] = [];
-    let template_field_model_instance = new TemplateFieldModel.model(this.state);
     for(let field_uuid of input_field_uuids) {
       let field;
       try {
         // First try to get the draft of the field
-        field = await template_field_model_instance.draftGet(field_uuid);
+        field = await this.template_field_model.draftGet(field_uuid);
       } catch (err) {
         if (err instanceof Util.PermissionDeniedError) {
           // If we don't have permission for the draft, get the latest persisted instead
           try {
-            field = await template_field_model_instance.latestPersisted(field_uuid)
+            field = await this.template_field_model.latestPersisted(field_uuid)
             if(!field) {
               field = {uuid: field_uuid, no_permissions: true}
             }
@@ -1020,8 +1001,8 @@ class Model extends AbstractDocument implements DocumentInterface{
     }
 
     // Make sure this user has a permission to be working with drafts
-    if (!(await this.permission_model.hasExplicitPermission(uuid, PermissionModel.PermissionTypes.edit))) {
-      throw new Util.PermissionDeniedError(`You don't have edit permissions required to view template ${uuid}`);
+    if (!(await this.hasPermission(uuid, PermissionModel.PermissionTypes.edit))) {
+      throw new Util.PermissionDeniedError(`You don't have edit permissions required to access drafts for template ${uuid}`);
     }
 
     let fields, field_uuids;
@@ -1069,31 +1050,32 @@ class Model extends AbstractDocument implements DocumentInterface{
 
   }
 
-  // This function will provide the timestamp of the last update made to this template and all of it's sub-properties
-  async #lastUpdateFor(uuid: string): Promise<Date> {
+  // This function is actually pretty complicated. Make sure when you change it that all of the tests still pass
+  async #recursiveLastUpdate(uuid: string): Promise<Date> {
 
-    let template_draft = await this.#fetchDraftOrCreateFromPersisted(uuid);
-    let template_persisted = await this.latestPersisted(uuid);
-    let edit_permission = await this.permission_model.hasExplicitPermission(uuid, PermissionModel.PermissionTypes.edit);
+    // Fetch the latest draft or make a draft from the latest persisted
+    let shallow_draft = await this.#fetchDraftOrCreateFromPersisted(uuid);
+    let shallow_persisted = await this.shallowLatestPersisted(uuid);
+    let edit_permission = await this.hasPermission(uuid, PermissionModel.PermissionTypes.edit);
     let view_permission = await this.hasViewPermissionToPersisted(uuid);
 
-    if(!template_draft) {
+    if(!shallow_draft) {
       throw new Util.NotFoundError(`No template  exists with uuid ${uuid}`);
     }
 
     if(!edit_permission) {
-      if(!template_persisted) {
+      if(!shallow_persisted) {
         throw new Util.PermissionDeniedError(`template ${uuid}: do not permissions for draft, and no persisted version exists`);
       }
       if(!view_permission) {
         throw new Util.PermissionDeniedError(`template ${uuid}: do not have view or edit permissions`);
       }
-      return template_persisted.updated_at;
+      return shallow_persisted.updated_at;
     }
 
-    let last_update = template_draft.updated_at;
+    let last_update = shallow_draft.updated_at;
     let template_field_model_instance = new TemplateFieldModel.model(this.state);
-    for(let uuid of template_draft.fields) {
+    for(let uuid of shallow_draft.fields) {
       try {
         let update = await template_field_model_instance.lastUpdate(uuid);
         if (update > last_update){
@@ -1105,9 +1087,9 @@ class Model extends AbstractDocument implements DocumentInterface{
         }
       }
     }
-    for(let uuid of template_draft.related_templates) {
+    for(let uuid of shallow_draft.related_templates) {
       try {
-        let update = await this.#lastUpdateFor(uuid);
+        let update = await this.#recursiveLastUpdate(uuid);
         if (update > last_update){
           last_update = update;
         }
@@ -1123,8 +1105,6 @@ class Model extends AbstractDocument implements DocumentInterface{
   }
 
   async #duplicateRecursor(template: Record<string, any>): Promise<string> {
-    let template_field_model_instance = new TemplateFieldModel.model(this.state);
-
     // 1. Error checking
     if(!template) {
       throw new Util.NotFoundError();
@@ -1148,7 +1128,7 @@ class Model extends AbstractDocument implements DocumentInterface{
     let subscribed_templates: any[] = [];
     for(let field of template.fields) {
       try {
-        field = await template_field_model_instance.duplicate(field);
+        field = await this.template_field_model.duplicate(field);
         fields.push(field);
       } catch(err) {
         if(!(err instanceof Util.NotFoundError || err instanceof Util.PermissionDeniedError)) {
@@ -1186,8 +1166,10 @@ class Model extends AbstractDocument implements DocumentInterface{
     return template.uuid
   }
 
+  // TODO: dataset uses group_uuids for duplication, but template does not. They should be consistent.
+  // Probably at some point adopt the dataset solution for template as well. 
   async #duplicate(uuid: string): Promise<string> {
-    let template = await this.#latestPersistedBeforeDateWithJoins(uuid, new Date());
+    let template = await this.latestPersistedBeforeTimestampWithJoins(uuid, new Date());
     if(!template) {
       throw new Util.NotFoundError(`Persisted template ${uuid} does not exist`);
     }
@@ -1335,63 +1317,26 @@ class Model extends AbstractDocument implements DocumentInterface{
 
   // Public facing functions
 
-  // Wraps the actual request to create with a transaction
-  async create(template: Record<string, any>): Promise<string> {
-    let callback = async () => {
-      this.state.updated_at = new Date();
-      this.state.ancestor_uuids = new Set();
-      let results = await this.#validateAndCreateOrUpdate(template);
-      let inserted_uuid = results[1];
-      return inserted_uuid;
-    };
-    return await this.executeWithTransaction(callback);
-  }
-
-  async update(template: Record<string, any>): Promise<void> {
-    let callback = async () => {
-      this.state.updated_at = new Date();
-      this.state.ancestor_uuids = new Set();
-      await this.#validateAndCreateOrUpdate(template);
-    };
-    await this.executeWithTransaction(callback);
-  }
-
   // Fetches the draft. Does not support creating a draft from the latest persisted version
   async draftGet(uuid: string): Promise<Record<string, any> | null> {
     this.state.updated_at = new Date();
-    await this.repairDraft(uuid);
     let callback = async () => {
+      await this.repairDraft(uuid);
       return await this.draftFetch(uuid);
     };
     return await this.executeWithTransaction(callback);
   }
 
-  // Wraps the actual request to persist with a transaction
-  async persist(uuid: string, last_update: Date): Promise<void> {
-    let callback = async () => {
-      await this.#persist(uuid, last_update);
-    };
-    if(this.state.session) {
-      await callback();
-    } else {
-      await this.executeWithTransaction(callback);
-    }
-  }
-
   // Wraps the actual request to getUpdate with a transaction
   async lastUpdate(uuid: string): Promise<Date> {
     let callback = async () => {
-      return await this.#lastUpdateFor(uuid);
+      return await this.#recursiveLastUpdate(uuid);
     };
-    if(this.state.session) {
-      return await callback();
-    } else {
-      return await this.executeWithTransaction(callback);
-    }
+    return await callback();
   }
 
   latestPersisted = this.latestPersistedWithJoinsAndPermissions;
-  latestPersistedBeforeTimestamp = this.#latestPersistedBeforeDateWithJoinsAndPermissions;
+  latestPersistedBeforeTimestamp = this.latestPersistedBeforeTimestampWithJoinsAndPermissions;
 
   async persistedVersion(_id: ObjectId): Promise<Record<string, any> | null> {
     let pipelineMatchConditions = { 
@@ -1399,11 +1344,11 @@ class Model extends AbstractDocument implements DocumentInterface{
       'persist_date': {'$lte': new Date()}
     };
 
-    let template =  await this.#persistedWithJoins(pipelineMatchConditions);
+    let template =  await this.persistedWithJoins(pipelineMatchConditions);
     if(!template) {
       return null;
     }
-    await this.#filterPersistedTemplateForPermissions(template);
+    await this.filterPersistedForPermissions(template);
     return template;
   } 
 
@@ -1417,7 +1362,7 @@ class Model extends AbstractDocument implements DocumentInterface{
   } 
 
   async latestPersistedWithoutPermissions(uuid: string): Promise<Record<string, any> | null> {
-    return await this.#latestPersistedBeforeDateWithJoins(uuid, new Date());
+    return await this.latestPersistedBeforeTimestampWithJoins(uuid, new Date());
   }
 
   persistedByIdWithoutPermissions = this.#persistedByIdWithJoins;
@@ -1432,10 +1377,6 @@ class Model extends AbstractDocument implements DocumentInterface{
     }
     return this.draftGet(doc.uuid);
   }
-
-  async draftDelete(uuid: string): Promise<void> {
-    await this.deleteDraftWithPermissions(uuid);
-  };
 
   // Wraps the actual request to duplicate with a transaction
   async duplicate(uuid: string): Promise<string> {

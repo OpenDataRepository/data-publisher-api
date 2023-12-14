@@ -8,7 +8,9 @@ router.get('/:uuid/draft', ensureLoggedIn, validateUuid, recordController.draft)
 router.get('/:uuid/draft_existing', validateUuid, recordController.draftExisting);
 router.get('/:uuid/new_draft_from_latest_persisted', ensureLoggedIn, validateUuid, recordController.newDraftFromLatestPersisted);
 router.get('/:uuid/latest_persisted', validateUuid, recordController.latestPersisted);
-router.get('/:uuid/last_update', ensureLoggedIn, validateUuid, recordController.lastUpdate);
+if(process.env.is_test) {
+  router.get('/:uuid/last_update', ensureLoggedIn, validateUuid, recordController.lastUpdate);
+}
 router.get('/:uuid/:timestamp', validateUuid, validateTimestamp, recordController.persistedBeforeTimestamp);
 router.post('/', ensureLoggedIn, recordController.create);
 router.put('/:uuid', ensureLoggedIn, validateUuid, recordController.update);

@@ -1,4 +1,4 @@
-import { Db } from "mongodb";
+import { Db, ObjectId } from "mongodb";
 
 export interface DocumentInterface {
 
@@ -23,8 +23,6 @@ export interface DocumentInterface {
   // Input: the UUID of the document draft to delete
   draftDelete: (uuid: string) => Promise<void>;
 
-  // TODO: I believe lastUpdate should be removed entirely
-
   // Input: the UUID of the document whose latest update time is to be fetched
   // Output: the latest update time of the document if it exists; otherwise null
   lastUpdate: (uuid: string) => Promise<Date | null>;
@@ -32,7 +30,8 @@ export interface DocumentInterface {
   // Inputs: 
   // - uuid: the UUID of the document whose draft is to be persisted
   // - last_update: the last update time of the document. This is to ensure that the document trying to be persisted is the one the user thinks it is
-  persist: (uuid: string, last_update: Date) => Promise<void>;
+  //   last_update is optional, as internally sometimes we just want to persist. 
+  persist: (uuid: string, last_update?: Date) => Promise<ObjectId>;
 
   // Input: the UUID of the document whose latest persisted version is to be fetched
   // Output: the latest persisted version of the document if it exists; otherwise null

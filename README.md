@@ -41,7 +41,7 @@
 
 ODR is fundamentally a database web application allowing a user with no technical knowledge to design a database and create records from it. It's an attempt to remove the need to hire a data scientist to set up an independent database for every project. A second, yet still primary goal of ODR is allow data formatting standards to emerge by allowing users to set up data formats (called templates in the code), make those formats/templates public, and then allow other users to create their own database of records using that data format.
 
-### Workflow / Key concepts
+### Workflow / Design
 
 The development process is as follows:
 
@@ -661,6 +661,36 @@ Content-Type: text/plain
 
 (file content goes here)
 ```
+
+#### Design Overview
+
+Now that you've seen a basic workflow, it would be good to discuss the design on a high level. 
+
+The basic structure of ODR is the following:
+
+Template field:
+- Purpose: Specifies the structure of specific data property. Used by template.
+- Linked resources: None
+
+Template: 
+- Purpose: Specifies a data structure, which all records in a dataset will adhere to if that dataset links this template
+- Linked resources:
+  - template_fields: All of the fields in this dataset structure
+  - related_templates: Other dataset structures to to be linked in
+
+Dataset:
+- Purpose: Represents a whole dataset
+- Linked resources:
+  - template_id: the specific persisted version of a template to serve as the structure for all records in this dataset
+  - related_datasets: if the chosen template has related_templates, then the dataset must supply a dataset for each template
+
+Record:
+- Purpose: Represents a single record in a dataset
+- Linked resources:
+  - dataset_uuid: The dataset to which this record belongs
+  - related_records: 
+
+The resources above must be created in the order given, as each subsequent recourse links the previous one.
 
 ## More
 

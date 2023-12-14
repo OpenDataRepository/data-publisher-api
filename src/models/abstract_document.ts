@@ -21,6 +21,12 @@ export class AbstractDocument extends BasicAbstractDocument {
     this.permission_model = new PermissionsModel(state);
   }
 
+  throwNotImplementedError(): never {
+    throw new Error(arguments.callee.caller + ' not implemented in ' + this.constructor.name);
+  }
+
+  // TODO: make many of these functions protected functions
+
   async shallowDraft(uuid: string): Promise<Record<string, any> | null> {
     let cursor = await this.collection.find(
       {uuid, 'persist_date': {'$exists': false}}, 
@@ -83,21 +89,9 @@ export class AbstractDocument extends BasicAbstractDocument {
     result = await this.shallowLatestPersisted(uuid);
     return result;
   }
-
-  static convertToMongoId(_id: string | ObjectId): ObjectId {
-    if(typeof(_id) === 'string') {
-      if(!ObjectId.isValid(_id)) {
-        throw new Util.InputError(`Invalid _id provided: ${_id}`);
-      }
-      return new ObjectId(_id);
-    } else {
-      return _id
-    }
-  }
-
   // Finds the uuid of the document with the given _id
   async uuidFor_id(_id: ObjectId): Promise<string | null>{
-    _id = AbstractDocument.convertToMongoId(_id);
+    _id = Util.convertToMongoId(_id);
     let cursor = await this.collection.find(
       {_id}, 
       {session: this.state?.session}
@@ -130,7 +124,7 @@ export class AbstractDocument extends BasicAbstractDocument {
   // Creates a new draft from the latest persisted version
   // Each subclass has own implementation.
   async createDraftFromPersisted(persisted_doc: Record<string, any>): Promise<Record<string, any>> {
-    throw new Error('createDraftFromPersisted not implemented');
+    this.throwNotImplementedError();
   }
 
   async shallowDraftDelete(uuid: string): Promise<void>{
@@ -144,19 +138,52 @@ export class AbstractDocument extends BasicAbstractDocument {
   }
 
   relatedDocsType(): string {
-    throw new Error('relatedDocsType not implemented');
+    this.throwNotImplementedError();
   }
 
   // Recursive draft fetch.
   // Each subclass has own implementation.
   async draftFetch(uuid: string, create_from_persisted_if_no_draft?: boolean): Promise<Record<string, any> | null> {
-    throw new Error('draftFetch not implemented');
+    this.throwNotImplementedError();
   }
 
-  // Recursive fetch.
-  // Each subclass has own implementation.
+
+  // TODO: this function can not be commonized entirely, but I think it can be commonized significantly. Give it a try
+  async persistedWithJoins(pipelineMatchConditions: Record<string, any>): Promise<Record<string, any> | null> {
+    this.throwNotImplementedError();
+  }
+
+  async latestPersistedBeforeTimestampWithJoins(uuid: string, date: Date): Promise<Record<string, any> | null> {
+    let pipelineMatchConditions = { 
+      uuid,
+      'persist_date': {'$lte': date}
+    };
+
+    return await this.persistedWithJoins(pipelineMatchConditions);
+  }
+
+  async filterPersistedForPermissions(document: Record<string, any>): Promise<void> {
+    this.throwNotImplementedError();
+  }
+
+  async latestPersistedBeforeTimestampWithJoinsAndPermissions(uuid: string, date: Date): Promise<Record<string, any> | null> {
+    let document = await this.latestPersistedBeforeTimestampWithJoins(uuid, date);
+    if(!document) {
+      return null;
+    }
+    await this.filterPersistedForPermissions(document);
+    return document;
+  } 
+
+  // TODO: template_field shouldn't have this function. Options:
+  // 1. Just let it have access and trust the programmer to not use it
+  // 2. Have template_field overwrite it with a function that throws an error
+  // 3. Move this to a subclass of AbstractDocument that template_field doesn't inherit from. Like LinkingAbstractDocument or something
+
+  // Fetches the last persisted document with the given uuid. 
+  // Also recursively looks up linked resources.
   async latestPersistedWithJoinsAndPermissions(uuid: string): Promise<Record<string, any> | null> {
-    throw new Error('latestPersistedWithJoinsAndPermissions not implemented');
+    return await this.latestPersistedBeforeTimestampWithJoinsAndPermissions(uuid, new Date());
   }
 
   // Recursive fetch.
@@ -183,11 +210,11 @@ export class AbstractDocument extends BasicAbstractDocument {
   }
 
   async shallowUpdateDraftWithUpdatedGodfather(draft: Record<string, any>, updated_godfather: Record<string, any>): Promise<Record<string, any>> {
-    throw new Error('updateDraftWithUpdatedGodfather not implemented')
+    this.throwNotImplementedError();
   }
 
   async shallowCreateDraftFromPersistedAndUpdatedGodfather(persisted_doc: Record<string, any>, updated_godfather: Record<string, any>): Promise<Record<string, any>> {
-    throw new Error('shallowCreateDraftFromPersistedAndUpdatedGodfather not implemented')
+    this.throwNotImplementedError();
   }
 
   async hasPermission(uuid: string, permission_level: PermissionTypes): Promise<boolean> {
@@ -270,7 +297,7 @@ export class AbstractDocument extends BasicAbstractDocument {
       // Create draft for this level
       // Only need to insert because references are just uuids, and those don't change
       // Only thing that might change is godfather _id, which is handled separately
-      let response = await this.collection.insertOne(draft_);
+      let response = await this.collection.insertOne(draft_, {session: this.state?.session});
       if (!response.acknowledged || !response.insertedId) {
         throw new Error(`repairDraft: acknowledged: ${response.acknowledged}. insertedId: ${response.insertedId}`);
       }
@@ -372,5 +399,49 @@ export class AbstractDocument extends BasicAbstractDocument {
     return false;
   }
 
-}
+  async validateAndCreateOrUpdate(input_document: Record<string, any>): Promise<[boolean, string]> {
+    this.throwNotImplementedError();
+  }
 
+  async persistImplementation(uuid: string, last_update?: Date): Promise<ObjectId> {
+    this.throwNotImplementedError();
+  }
+
+  async latestPersistedBeforeTimestampWithPermissions(uuid: string, date: Date): Promise<Record<string, any> | null> {
+    this.throwNotImplementedError();
+  }
+
+  // Core API functions shared by subclasses and called by the respective controllers
+  // They mostly just wrap the actual function with a transaction, sometimes doing a bit of prep work as well
+
+  async create(document: Record<string, any>): Promise<string> {
+    let callback = async () => {
+      this.state.updated_at = new Date();
+      return await this.validateAndCreateOrUpdate(document);
+    };
+    let result = await this.executeWithTransaction(callback);
+    let inserted_uuid = result[1];
+    return inserted_uuid;
+  }
+
+  async update(document: Record<string, any>): Promise<void> {
+    let callback = async () => {
+      this.state.updated_at = new Date();
+      return await this.validateAndCreateOrUpdate(document);
+    };
+    await this.executeWithTransaction(callback);
+  }
+
+  // The external facing api requires last_update to be provided to ensure the user has the latest change, but internally it's easier to ignore it
+  async persist(uuid: string, last_update?: Date): Promise<ObjectId> {
+    let callback = async () => {
+      return await this.persistImplementation(uuid, last_update);
+    };
+    return await this.executeWithTransaction(callback);
+  }
+
+  async draftDelete(uuid: string): Promise<void> {
+    await this.deleteDraftWithPermissions(uuid);
+  }
+
+}
