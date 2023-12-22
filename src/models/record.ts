@@ -153,6 +153,7 @@ async function init() {
 
 class Model extends AbstractDocument implements DocumentInterface {
 
+  template_field_model: any;
   template_model: any;
   dataset_model: any;
   file_model: any;
@@ -160,8 +161,9 @@ class Model extends AbstractDocument implements DocumentInterface {
   constructor(public state){
     super(state);
     this.collection = Record;
-    this.dataset_model = new DatasetModel.model(state);
+    this.template_field_model = new TemplateFieldModel.model(state);
     this.template_model = new TemplateModel.model(state);
+    this.dataset_model = new DatasetModel.model(state);
     this.file_model = new FileModel.model(state);
   }
 
@@ -858,7 +860,7 @@ class Model extends AbstractDocument implements DocumentInterface {
 
   // Fetches the record draft with the given uuid, recursively looking up related_records.
   // optional: If a draft of a given template doesn't exist, a new one will be generated using the last persisted record.
-  async draftFetch(uuid: string, create_from_persisted_if_no_draft: boolean): Promise<Record<string, any> | null> {
+  async recursiveDraftFetch(uuid: string, create_from_persisted_if_no_draft: boolean): Promise<Record<string, any> | null> {
 
     // See if a draft of this template exists. 
     let record_draft;
@@ -1151,7 +1153,7 @@ class Model extends AbstractDocument implements DocumentInterface {
 
   async godfatherUpdated(uuid: string): Promise<Record<string, any> | null> {
     let latest_record = (await this.shallowLatestDocument(uuid)) as Record<string, any>;
-    let latest_persisted_dataset = await (new DatasetModel.model(this.state)).shallowLatestPersisted(latest_record.dataset_uuid);
+    let latest_persisted_dataset = await this.dataset_model.shallowLatestPersisted(latest_record.dataset_uuid);
     if(Util.isTimeAAfterB(latest_persisted_dataset.persist_date, latest_record.updated_at)) {
       return latest_persisted_dataset;
     } 
@@ -1173,10 +1175,10 @@ class Model extends AbstractDocument implements DocumentInterface {
       draft.public_date = persisted.public_date;
     }
 
-    const template = await (new TemplateModel.model(this.state)).fetchBy_id(godfather.template_id);
+    const template = await this.template_model.fetchBy_id(godfather.template_id);
     let template_fields: any[] = [];
     for(let field_id of template.fields) {
-      let field =  await (new TemplateFieldModel.model(this.state)).fetchBy_id(field_id);
+      let field =  await this.template_field_model.fetchBy_id(field_id);
       template_fields.push(field);
     }
     let record_field_map = {};
@@ -1206,10 +1208,10 @@ class Model extends AbstractDocument implements DocumentInterface {
 
     draft.updated_at = this.state.updated_at;
 
-    const template = await (new TemplateModel.model(this.state)).fetchBy_id(godfather.template_id);
+    const template = await this.template_model.fetchBy_id(godfather.template_id);
     let template_fields: any[] = [];
     for(let field_id of template.fields) {
-      let field =  await (new TemplateFieldModel.model(this.state)).fetchBy_id(field_id);
+      let field =  await this.template_field_model.fetchBy_id(field_id);
       template_fields.push(field);
     }
     let record_field_map = {};
@@ -1260,7 +1262,7 @@ class Model extends AbstractDocument implements DocumentInterface {
       if(!persisted) {
         throw new Util.PermissionDeniedError(`record ${uuid}: do not have edit permissions for draft, and no persisted version exists`);
       }
-      let view_permission = await this.hasViewPermissionToPersisted(draft.uuid);
+      let view_permission = await this.hasPermission(draft.uuid, PermissionTypes.view);
       if(!view_permission) {
         throw new Util.PermissionDeniedError(`record ${uuid}: do not have view or admin permissions`);
       }
@@ -1294,7 +1296,7 @@ class Model extends AbstractDocument implements DocumentInterface {
 
   async #filterPersistedForPermissionsRecursor(record: Record<string, any>): Promise<void> {
     for(let i = 0; i < record.related_records.length; i++) {
-      if(!(await this.hasViewPermissionToPersisted(record.related_records[i]))) {
+      if(!(await this.hasPermission(record.related_records[i].uuid, PermissionTypes.view))) {
         record.related_records[i] = {uuid: record.related_records[i].uuid, dataset_uuid: record.related_records[i].dataset_uuid, no_permissions: true};
       } else {
         await this.#filterPersistedForPermissionsRecursor(record.related_records[i]);
@@ -1304,7 +1306,7 @@ class Model extends AbstractDocument implements DocumentInterface {
     let unfiltered_fields: Record<string, any> = record.fields;
     let filtered_fields: Record<string, any> = [];
     for(let i = 0; i < unfiltered_fields.length; i++) {
-      if(await (new TemplateFieldModel.model(this.state).hasViewPermissionToPersisted((unfiltered_fields[i].uuid)))) {
+      if(await this.template_field_model.hasPermission(unfiltered_fields[i].uuid, PermissionTypes.view)) {
         filtered_fields.push(unfiltered_fields[i]);
       } 
     }
@@ -1313,7 +1315,7 @@ class Model extends AbstractDocument implements DocumentInterface {
 
   // Ignore record specific permissions until I remember how they work
   async filterPersistedForPermissions(record: Record<string, any>): Promise<void> {
-    if(!(await this.hasViewPermissionToPersisted(record))) {
+    if(!(await this.hasPermission(record.uuid, PermissionTypes.view))) {
       throw new Util.PermissionDeniedError(`Do not have view access to record ${record.uuid}`);
     }
     await this.#filterPersistedForPermissionsRecursor(record);
@@ -1749,25 +1751,25 @@ class Model extends AbstractDocument implements DocumentInterface {
     throw new Error('record hasPermission called with invalid permission type')
   }
 
-  async hasViewPermissionToPersisted(record: String | Record<string, any>,): Promise<boolean> {
-    if(typeof(record) == 'string') {
-      record = await this.shallowLatestPersisted(record) as Record<string, any>;
+  private async hasViewPermissionToPersisted(record_uuid: string): Promise<boolean> {
+    let record = await this.shallowLatestDocument(record_uuid);
+    if(!record) {
+      throw new Error(`record.hasViewPermissionToPersisted called for record that doesn't exist`)
     }
-    record = record as Record<string, any>;
     let dataset = await  this.dataset_model.shallowLatestPersisted(record.dataset_uuid);
     // If both the dataset and the record are public, then everyone has view access
     if (Util.isPublic(dataset.public_date)){
       let latest_persisted_record = await this.shallowLatestPersisted(record.uuid);
-      if(!latest_persisted_record?.public_date || Util.isTimeAAfterB(new Date, latest_persisted_record.public_date)) {
+      if(!latest_persisted_record?.public_date || Util.isPublic(latest_persisted_record.public_date)) {
         return true;
       }
     }
 
     // Otherwise, check if we have view permissions
-    return await (new PermissionsModel(this.state)).hasExplicitPermission(dataset.uuid, PermissionTypes.view);
+    return await this.permission_model.hasExplicitPermission(dataset.uuid, PermissionTypes.view);
   }
 
-  async hasPermissionToDraft(record: String | Record<string, any>, permission_level) {
+  private async hasPermissionToDraft(record: String | Record<string, any>, permission_level) {
     assert(permission_level == PermissionTypes.admin || permission_level == PermissionTypes.edit, 
       "record.hasPermissionToDraft called with permission other than admin or edit");
     assert(Util.isObject(record) || typeof(record) == 'string', `record.hasPermissionToDraft: record invalid`);
@@ -1790,7 +1792,7 @@ class Model extends AbstractDocument implements DocumentInterface {
     this.state.updated_at = new Date();
     let callback = async () => {
       await this.repairDraft(uuid);
-      let draft = await this.draftFetch(uuid, create_from_persisted_if_no_draft);
+      let draft = await this.recursiveDraftFetch(uuid, create_from_persisted_if_no_draft);
       await this.#appendPluginsToRecord(draft as Record<string, any>);
       return draft;
     };

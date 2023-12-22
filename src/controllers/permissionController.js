@@ -52,7 +52,7 @@ exports.update_document_permissions = async function(req, res, next) {
       // Editing dataset permissions. Ensure every one of the users in this list has view permissions to the corresponding template uuid
       let template_uuid = await dataset_model_instance.template_uuid(document_uuid);
       for(let i = 0; i < user_ids.length; i++) {
-        if(!(await template_model_instance.hasViewPermissionToPersisted(template_uuid, user_ids[i]))) {
+        if(!(await template_model_instance.hasPermission(template_uuid, PermissionModel.PermissionTypes.view, user_ids[i]))) {
           throw new Util.InputError(`Cannot add user ${user_emails[i]} to dataset permission. User required to have view permissions to template first`);
         }
       }

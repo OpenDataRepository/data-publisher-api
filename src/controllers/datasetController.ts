@@ -3,6 +3,7 @@ const DatasetPublishModel = require('../models/datasetPublish');
 const RecordModel = require('../models/record');
 import * as Util from '../lib/util';
 import { DocumentControllerInterface } from './docmentControllerInterface';
+import { PermissionTypes } from '../models/permission';
 const ElasticsearchModel = require ('../models/elasticsearch');
 
 class DatasetController implements DocumentControllerInterface {
@@ -174,7 +175,7 @@ class DatasetController implements DocumentControllerInterface {
   
       let state = Util.initializeState(req);
   
-      if(!(await (new DatasetModel.model(state)).hasViewPermissionToPersisted(dataset_uuid))) {
+      if(!(await (new DatasetModel.model(state)).hasPermission(dataset_uuid, PermissionTypes.view))) {
         throw new Util.PermissionDeniedError();
       }
   
@@ -287,7 +288,7 @@ class DatasetController implements DocumentControllerInterface {
 const published_records = async function(dataset_uuid, name, req) {
   let state = Util.initializeState(req);
 
-  if(!(await (new DatasetModel.model(state)).hasViewPermissionToPersisted(dataset_uuid))) {
+  if(!(await (new DatasetModel.model(state)).hasPermission(dataset_uuid, PermissionTypes.view))) {
     throw new Util.PermissionDeniedError();
   }
 

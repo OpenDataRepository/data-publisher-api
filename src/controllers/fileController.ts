@@ -265,7 +265,7 @@ exports.getFile = async function(req, res, next) {
 
     let permission_error = new Util.PermissionDeniedError(`You do not have the view permissions required to view a file attached to record ${file_metadata.record_uuid}`);
     if(file_metadata.persisted) {
-      if(!(await record_model.hasViewPermissionToPersisted(record_uuid))) {
+      if(!(await record_model.hasPermission(record_uuid, PermissionModel.PermissionTypes.view))) {
         throw permission_error;
       }
     } else {

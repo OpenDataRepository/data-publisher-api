@@ -21,8 +21,15 @@ export class AbstractDocument extends BasicAbstractDocument {
     this.permission_model = new PermissionsModel(state);
   }
 
-  throwNotImplementedError(): never {
+  private throwNotImplementedError(): never {
     throw new Error(arguments.callee.caller + ' not implemented in ' + this.constructor.name);
+  }
+
+  private async draftDeleteBy_id(_id: ObjectId): Promise<void>{
+    await this.collection.deleteMany(
+      { _id, persist_date: {'$exists': false} },
+      { session: this.state?.session }
+    );
   }
 
   // TODO: make many of these functions protected functions
@@ -43,13 +50,6 @@ export class AbstractDocument extends BasicAbstractDocument {
       await this.draftDeleteBy_id(second_draft._id);
     }
     return draft;
-  }
-
-  async draftDeleteBy_id(_id: ObjectId): Promise<void>{
-    await this.collection.deleteMany(
-      { _id, persist_date: {'$exists': false} },
-      { session: this.state?.session }
-    );
   }
 
   async fetchBy_id(_id: ObjectId): Promise<Record<string, any> | null>{
@@ -123,7 +123,7 @@ export class AbstractDocument extends BasicAbstractDocument {
 
   // Creates a new draft from the latest persisted version
   // Each subclass has own implementation.
-  async createDraftFromPersisted(persisted_doc: Record<string, any>): Promise<Record<string, any>> {
+  protected async createDraftFromPersisted(persisted_doc: Record<string, any>): Promise<Record<string, any>> {
     this.throwNotImplementedError();
   }
 
@@ -137,23 +137,20 @@ export class AbstractDocument extends BasicAbstractDocument {
     }
   }
 
-  relatedDocsType(): string {
+  protected relatedDocsType(): string {
     this.throwNotImplementedError();
   }
 
-  // Recursive draft fetch.
-  // Each subclass has own implementation.
-  async draftFetch(uuid: string, create_from_persisted_if_no_draft?: boolean): Promise<Record<string, any> | null> {
+  protected async recursiveDraftFetch(uuid: string, create_from_persisted_if_no_draft?: boolean): Promise<Record<string, any> | null> {
     this.throwNotImplementedError();
   }
 
 
-  // TODO: this function can not be commonized entirely, but I think it can be commonized significantly. Give it a try
-  async persistedWithJoins(pipelineMatchConditions: Record<string, any>): Promise<Record<string, any> | null> {
+  protected async persistedWithJoins(pipelineMatchConditions: Record<string, any>): Promise<Record<string, any> | null> {
     this.throwNotImplementedError();
   }
 
-  async latestPersistedBeforeTimestampWithJoins(uuid: string, date: Date): Promise<Record<string, any> | null> {
+  protected async latestPersistedBeforeTimestampWithJoins(uuid: string, date: Date): Promise<Record<string, any> | null> {
     let pipelineMatchConditions = { 
       uuid,
       'persist_date': {'$lte': date}
@@ -162,11 +159,11 @@ export class AbstractDocument extends BasicAbstractDocument {
     return await this.persistedWithJoins(pipelineMatchConditions);
   }
 
-  async filterPersistedForPermissions(document: Record<string, any>): Promise<void> {
+  protected async filterPersistedForPermissions(document: Record<string, any>): Promise<void> {
     this.throwNotImplementedError();
   }
 
-  async latestPersistedBeforeTimestampWithJoinsAndPermissions(uuid: string, date: Date): Promise<Record<string, any> | null> {
+  protected async latestPersistedBeforeTimestampWithJoinsAndPermissions(uuid: string, date: Date): Promise<Record<string, any> | null> {
     let document = await this.latestPersistedBeforeTimestampWithJoins(uuid, date);
     if(!document) {
       return null;
@@ -182,18 +179,18 @@ export class AbstractDocument extends BasicAbstractDocument {
 
   // Fetches the last persisted document with the given uuid. 
   // Also recursively looks up linked resources.
-  async latestPersistedWithJoinsAndPermissions(uuid: string): Promise<Record<string, any> | null> {
+  protected async latestPersistedWithJoinsAndPermissions(uuid: string): Promise<Record<string, any> | null> {
     return await this.latestPersistedBeforeTimestampWithJoinsAndPermissions(uuid, new Date());
   }
 
   // Recursive fetch.
-  // All subclasses fetch first the draft if avaialabe, then the latest persisted version if the draft is unavailable.
-  async fetchLatestDraftOrPersisted(uuid, create_from_persisted_if_no_draft?){
+  // All subclasses fetch first the draft if available, then the latest persisted version if the draft is unavailable.
+  protected async fetchLatestDraftOrPersisted(uuid, create_from_persisted_if_no_draft?){
     let draft;
     if(create_from_persisted_if_no_draft) {
-      draft = await this.draftFetch(uuid, create_from_persisted_if_no_draft);
+      draft = await this.recursiveDraftFetch(uuid, create_from_persisted_if_no_draft);
     } else {
-      draft = await this.draftFetch(uuid);
+      draft = await this.recursiveDraftFetch(uuid);
     }
     if(draft) {
       return draft;
@@ -201,24 +198,24 @@ export class AbstractDocument extends BasicAbstractDocument {
     return this.latestPersistedWithJoinsAndPermissions(uuid);
   }
 
-  async godfatherUpdated(uuid: string): Promise<Record<string, any> | null> {
+  protected async godfatherUpdated(uuid: string): Promise<Record<string, any> | null> {
     return Promise.resolve(null);
   }
 
-  async anyFieldUpdated(field_uuids: string[], persisted_template_update: Date): Promise<boolean> {
+  protected async anyFieldUpdated(field_uuids: string[], persisted_template_update: Date): Promise<boolean> {
     return false;
   }
 
-  async shallowUpdateDraftWithUpdatedGodfather(draft: Record<string, any>, updated_godfather: Record<string, any>): Promise<Record<string, any>> {
+  protected async shallowUpdateDraftWithUpdatedGodfather(draft: Record<string, any>, updated_godfather: Record<string, any>): Promise<Record<string, any>> {
     this.throwNotImplementedError();
   }
 
-  async shallowCreateDraftFromPersistedAndUpdatedGodfather(persisted_doc: Record<string, any>, updated_godfather: Record<string, any>): Promise<Record<string, any>> {
+  protected async shallowCreateDraftFromPersistedAndUpdatedGodfather(persisted_doc: Record<string, any>, updated_godfather: Record<string, any>): Promise<Record<string, any>> {
     this.throwNotImplementedError();
   }
 
-  async hasPermission(uuid: string, permission_level: PermissionTypes): Promise<boolean> {
-    let explicit_permission = await this.permission_model.hasExplicitPermission(uuid, permission_level);
+  async hasPermission(uuid: string, permission_level: PermissionTypes, user_id = this.state.user_id): Promise<boolean> {
+    let explicit_permission = await this.permission_model.hasExplicitPermission(uuid, permission_level, user_id);
     if(permission_level == PermissionTypes.view) {
       return explicit_permission || await this.isPublic(uuid);
     }
@@ -230,7 +227,7 @@ export class AbstractDocument extends BasicAbstractDocument {
   // 2. Creating a draft if the godfather has a new version
   // 3. Updating the draft if the godfather has a new version
   // 4. Create template draft if field is updated
-  async repairDraft(uuid: string, id?: ObjectId): Promise<boolean>{
+  protected async repairDraft(uuid: string, id?: ObjectId): Promise<boolean>{
     let draft_already_existing = false;
     let draft_: any = await this.shallowDraft(uuid);
     let persisted_doc = await this.shallowLatestPersisted(uuid);
@@ -305,6 +302,81 @@ export class AbstractDocument extends BasicAbstractDocument {
     return draft_already_existing || related_doc_changes || new_persisted_version || !!updated_godfather;
   }
 
+  protected async allDocumentUuidsAbovePermissionLevel(permission_level: PermissionTypes): Promise<string[]> {
+    let uuids_all_collections = await new PermissionsModel(this.state).allDocumentsAllUuidsAbovePermissionLevel(permission_level);
+    return await this.uuidsInThisCollection(uuids_all_collections);
+  }
+
+  protected async onlyDraftDelete(uuid: string): Promise<void> {
+    // if draft doesn't exist, return not found
+    if(!(await this.shallowDraft(uuid))) {
+      throw new Util.NotFoundError(`No draft exists with uuid ${uuid}`);
+    }
+    // if don't have admin permissions, return no permissions
+    if(!(await (new PermissionsModel(this.state)).hasExplicitPermission(uuid, PermissionTypes.edit))) {
+      throw new Util.PermissionDeniedError(`You do not have edit permissions ${uuid}.`);
+    }
+
+    await this.shallowDraftDelete(uuid);
+  }
+
+  private async deleteDraftWithPermissions(uuid: string): Promise<void> {
+    const callback = async () => {
+      await this.onlyDraftDelete(uuid);
+      if( !(await this.shallowLatestPersisted(uuid)) ) {
+        await (new PermissionsModel(this.state)).documentDeletePermissions(uuid);
+      }
+    }
+    await Util.executeWithTransaction(this.state, callback);
+  }
+
+  protected async validateAndCreateOrUpdate(input_document: Record<string, any>): Promise<[boolean, string]> {
+    this.throwNotImplementedError();
+  }
+
+  protected async persistImplementation(uuid: string, last_update?: Date): Promise<ObjectId> {
+    this.throwNotImplementedError();
+  }
+
+  // Core API functions shared by subclasses and called by the respective controllers
+  // They mostly just wrap the actual function with a transaction, sometimes doing a bit of prep work as well
+
+  async create(document: Record<string, any>): Promise<string> {
+    let callback = async () => {
+      this.state.updated_at = new Date();
+      return await this.validateAndCreateOrUpdate(document);
+    };
+    let result = await this.executeWithTransaction(callback);
+    let inserted_uuid = result[1];
+    return inserted_uuid;
+  }
+
+  async update(document: Record<string, any>): Promise<void> {
+    let callback = async () => {
+      this.state.updated_at = new Date();
+      return await this.validateAndCreateOrUpdate(document);
+    };
+    await this.executeWithTransaction(callback);
+  }
+
+  // The external facing api requires last_update to be provided to ensure the user has the latest change, but internally it's easier to ignore it
+  async persist(uuid: string, last_update?: Date): Promise<ObjectId> {
+    let callback = async () => {
+      return await this.persistImplementation(uuid, last_update);
+    };
+    return await this.executeWithTransaction(callback);
+  }
+
+  async draftDelete(uuid: string): Promise<void> {
+    await this.deleteDraftWithPermissions(uuid);
+  }
+
+  async draftExisting(uuid: string): Promise<boolean> {
+    return (await this.shallowDraft(uuid)) ? true : false;
+  }
+
+  // Other external facing functions called by the respective controllers
+
   async latestShallowDocumentsForUuids(uuids: string[]){
     let unfiltered_docs = await this.collection.find({"uuid": {"$in": uuids}})
       .sort({'updated_at': -1})
@@ -353,95 +425,6 @@ export class AbstractDocument extends BasicAbstractDocument {
       "uuid",
       {"uuid": {$in: uuids}}
     );
-  }
-
-  async allDocumentUuidsAbovePermissionLevel(permission_level: PermissionTypes): Promise<string[]> {
-    let uuids_all_collections = await new PermissionsModel(this.state).allDocumentsAllUuidsAbovePermissionLevel(permission_level);
-    return await this.uuidsInThisCollection(uuids_all_collections);
-  }
-
-  async onlyDraftDelete(uuid: string): Promise<void> {
-    // if draft doesn't exist, return not found
-    if(!(await this.shallowDraft(uuid))) {
-      throw new Util.NotFoundError(`No draft exists with uuid ${uuid}`);
-    }
-    // if don't have admin permissions, return no permissions
-    if(!(await (new PermissionsModel(this.state)).hasExplicitPermission(uuid, PermissionTypes.edit))) {
-      throw new Util.PermissionDeniedError(`You do not have edit permissions ${uuid}.`);
-    }
-
-    await this.shallowDraftDelete(uuid);
-  }
-
-  async deleteDraftWithPermissions(uuid: string): Promise<void> {
-    const callback = async () => {
-      await this.onlyDraftDelete(uuid);
-      if( !(await this.shallowLatestPersisted(uuid)) ) {
-        await (new PermissionsModel(this.state)).documentDeletePermissions(uuid);
-      }
-    }
-    await Util.executeWithTransaction(this.state, callback);
-  }
-
-  async draftExisting(uuid: string): Promise<boolean> {
-    return (await this.shallowDraft(uuid)) ? true : false;
-  }
-
-  async hasViewPermissionToPersisted(document_uuid: string, user_id = this.state.user_id): Promise<boolean> {
-    if(await this.permission_model.hasExplicitPermission(document_uuid, PermissionTypes.view, user_id)) {
-      return true;
-    }
-
-    if(await this.isPublic(document_uuid)) {
-      return true;
-    }
-
-    return false;
-  }
-
-  async validateAndCreateOrUpdate(input_document: Record<string, any>): Promise<[boolean, string]> {
-    this.throwNotImplementedError();
-  }
-
-  async persistImplementation(uuid: string, last_update?: Date): Promise<ObjectId> {
-    this.throwNotImplementedError();
-  }
-
-  async latestPersistedBeforeTimestampWithPermissions(uuid: string, date: Date): Promise<Record<string, any> | null> {
-    this.throwNotImplementedError();
-  }
-
-  // Core API functions shared by subclasses and called by the respective controllers
-  // They mostly just wrap the actual function with a transaction, sometimes doing a bit of prep work as well
-
-  async create(document: Record<string, any>): Promise<string> {
-    let callback = async () => {
-      this.state.updated_at = new Date();
-      return await this.validateAndCreateOrUpdate(document);
-    };
-    let result = await this.executeWithTransaction(callback);
-    let inserted_uuid = result[1];
-    return inserted_uuid;
-  }
-
-  async update(document: Record<string, any>): Promise<void> {
-    let callback = async () => {
-      this.state.updated_at = new Date();
-      return await this.validateAndCreateOrUpdate(document);
-    };
-    await this.executeWithTransaction(callback);
-  }
-
-  // The external facing api requires last_update to be provided to ensure the user has the latest change, but internally it's easier to ignore it
-  async persist(uuid: string, last_update?: Date): Promise<ObjectId> {
-    let callback = async () => {
-      return await this.persistImplementation(uuid, last_update);
-    };
-    return await this.executeWithTransaction(callback);
-  }
-
-  async draftDelete(uuid: string): Promise<void> {
-    await this.deleteDraftWithPermissions(uuid);
   }
 
 }

@@ -137,7 +137,7 @@ class Model extends AbstractDocument implements DocumentInterface {
     }
 
     // Ensure user has permission to view
-    if (!(await this.hasViewPermissionToPersisted(uuid))) {
+    if (!(await this.hasPermission(uuid, PermissionTypes.view))) {
       throw new Util.PermissionDeniedError(`Do not have permission to view template field with uuid ${uuid}`);
     }
 
@@ -571,7 +571,7 @@ class Model extends AbstractDocument implements DocumentInterface {
     let shallow_draft = await this.shallowDraft(uuid);
     let shallow_persisted = await this.shallowLatestPersisted(uuid);
     let edit_permission = await this.hasPermission(uuid, PermissionTypes.edit);
-    let view_permission = await this.hasViewPermissionToPersisted(uuid);
+    let view_permission = await this.hasPermission(uuid, PermissionTypes.view);
 
     // Get the lat update for the draft if the user has permission to the draft. Otherwise, the last persisted.
     if(!shallow_draft) {
@@ -602,7 +602,7 @@ class Model extends AbstractDocument implements DocumentInterface {
     if(!field) {
       throw new Util.NotFoundError();
     }
-    if(!(await this.hasViewPermissionToPersisted(field.uuid))) {
+    if(!(await this.hasPermission(field.uuid, PermissionTypes.view))) {
       throw new Util.PermissionDeniedError();
     }
 

@@ -339,7 +339,7 @@ class Model extends AbstractDocument implements DocumentInterface {
     }
     // Verify we have view permissions to the template if template is persisted, or edit permissions if template is draft
     if(template.persist_date) {
-      if(!(await template_model_instance.hasViewPermissionToPersisted(template.uuid))) {
+      if(!(await template_model_instance.hasPermission(template.uuid, PermissionTypes.view))) {
         throw new Util.PermissionDeniedError(`Cannot link to template_id ${template._id}, as you do not have view permissions to it`);
       }
     } else {
@@ -577,7 +577,7 @@ class Model extends AbstractDocument implements DocumentInterface {
 
   // Fetches the dataset draft with the given uuid, recursively looking up related_datasets.
   // optional: If a draft of a given dataset doesn't exist, a new one will be generated using the last persisted datset.
-  async draftFetch(uuid: string, create_from_persisted_if_no_draft: boolean): Promise<Record<string, any> | null> {
+  async recursiveDraftFetch(uuid: string, create_from_persisted_if_no_draft: boolean): Promise<Record<string, any> | null> {
 
     // See if a draft of this dataset exists. 
     let dataset_draft;
@@ -665,7 +665,7 @@ class Model extends AbstractDocument implements DocumentInterface {
 
     let persisted = await this.shallowLatestPersisted(uuid);
     let admin_permission = await this.hasPermission(uuid, PermissionTypes.admin);
-    let view_permission = await this.hasViewPermissionToPersisted(uuid);
+    let view_permission = await this.hasPermission(uuid, PermissionTypes.view);
 
     if(!admin_permission) {
       if(!persisted) {
@@ -782,7 +782,7 @@ class Model extends AbstractDocument implements DocumentInterface {
 
   async persistImplementation(dataset_uuid: string, last_update: Date): Promise<ObjectId> {
 
-    let dataset_draft = await this.draftFetch(dataset_uuid, false);
+    let dataset_draft = await this.recursiveDraftFetch(dataset_uuid, false);
     if (!dataset_draft) {
       let has_persisted = !!(await this.shallowLatestPersisted(dataset_uuid));
       if (!has_persisted) {
@@ -889,7 +889,7 @@ class Model extends AbstractDocument implements DocumentInterface {
 
   async #filterPersistedForPermissionsRecursor(dataset: Record<string, any>): Promise<void> {
     for(let i = 0; i < dataset.related_datasets.length; i++) {
-      if(!(await this.hasViewPermissionToPersisted(dataset.related_datasets[i].uuid))) {
+      if(!(await this.hasPermission(dataset.related_datasets[i].uuid, PermissionTypes.view))) {
         dataset.related_datasets[i] = await this.#getNoPermissionsPersistedVersion(dataset.related_datasets[i]._id);
       } else {
         await this.#filterPersistedForPermissionsRecursor(dataset.related_datasets[i]);
@@ -898,7 +898,7 @@ class Model extends AbstractDocument implements DocumentInterface {
   }
 
   async filterPersistedForPermissions(dataset: Record<string, any>): Promise<void> {
-    if(!(await this.hasViewPermissionToPersisted(dataset.uuid))) {
+    if(!(await this.hasPermission(dataset.uuid, PermissionTypes.view))) {
       throw new Util.PermissionDeniedError(`Do not have view access to dataset ${dataset.uuid}`);
     }
     await this.#filterPersistedForPermissionsRecursor(dataset);
@@ -909,7 +909,7 @@ class Model extends AbstractDocument implements DocumentInterface {
     let permissions_model_instance = new PermissionsModel(this.state);
 
     // verify that this user is in the 'view' permission group
-    if (!(await this.hasViewPermissionToPersisted(original_dataset.uuid))) {
+    if (!(await this.hasPermission(original_dataset.uuid, PermissionTypes.view))) {
       throw new Util.PermissionDeniedError(`Do not have view permissions required to duplicate dataset: ${original_dataset.uuid}`);
     }
 
@@ -969,7 +969,7 @@ class Model extends AbstractDocument implements DocumentInterface {
     let original_group_uuid = original_dataset.group_uuid;
     let uuid_dictionary = {};
     let new_uuid = await this.#duplicateRecursor(original_dataset, original_group_uuid, uuidv4(), uuid_dictionary);
-    return await this.draftFetch(new_uuid, false);
+    return await this.recursiveDraftFetch(new_uuid, false);
   }
 
   async #createMissingDatasetForImport(template: Record<string, any>): Promise<string> {
@@ -1261,7 +1261,7 @@ class Model extends AbstractDocument implements DocumentInterface {
     this.state.updated_at = new Date();
     let callback = async () => {
       await this.repairDraft(uuid);
-      return await this.draftFetch(uuid, !!create_from_persisted_if_no_draft);
+      return await this.recursiveDraftFetch(uuid, !!create_from_persisted_if_no_draft);
     }
     return await this.executeWithTransaction(callback);
   }

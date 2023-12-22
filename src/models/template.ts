@@ -5,7 +5,7 @@ import { ObjectId } from 'mongodb';
 import { AbstractDocument } from './abstract_document';
 import { DocumentInterface } from './document_interface';
 const TemplateFieldModel = require('./template_field');
-const PermissionModel = require('./permission');
+const {PermissionTypes} = require('./permission');
 const LegacyUuidToNewUuidMapperModel = require('./legacy_uuid_to_new_uuid_mapper');
 
 // TODO: Move plugins into view_settings
@@ -341,7 +341,7 @@ class Model extends AbstractDocument implements DocumentInterface{
       }
       
       // verify that this user is in the 'edit' permission group
-      if (!(await this.permission_model.hasExplicitPermission(input_template.uuid, PermissionModel.PermissionTypes.edit))) {
+      if (!(await this.permission_model.hasExplicitPermission(input_template.uuid, PermissionTypes.edit))) {
         throw new Util.PermissionDeniedError(`Do not have edit permissions for template uuid: ${input_template.uuid}`);
       }
 
@@ -688,19 +688,19 @@ class Model extends AbstractDocument implements DocumentInterface{
       if (!shallow_persisted) {
         throw new Util.NotFoundError(`Template with uuid ${uuid} does not exist`);
       }
-      if(!(await this.hasViewPermissionToPersisted(uuid))) {
+      if(!(await this.hasPermission(uuid, PermissionTypes.view))) {
         throw new Util.PermissionDeniedError(`cannot link template with uuid ${uuid}. Requires at least view permissions.`);
       }
       return shallow_persisted._id;
     }
 
     // If a user doesn't have edit access to this template, we'll use the persisted template instead
-    if(!(await this.hasPermission(uuid, PermissionModel.PermissionTypes.edit))) {
+    if(!(await this.hasPermission(uuid, PermissionTypes.edit))) {
       // There is no draft of this uuid. Return the latest persisted template instead.
       if (!shallow_persisted) {
         throw new Util.InputError(`Do not have access to template draft with uuid ${uuid}, and no persisted version exists`);
       }
-      if(!(await this.hasViewPermissionToPersisted(uuid))) {
+      if(!(await this.hasPermission(uuid, PermissionTypes.view))) {
         throw new Util.PermissionDeniedError(`cannot link template with uuid ${uuid}. Requires at least view permissions.`);
       }
       return shallow_persisted._id;
@@ -745,7 +745,7 @@ class Model extends AbstractDocument implements DocumentInterface{
       }
     }
 
-    if(!(await this.permission_model.hasExplicitPermission(uuid, PermissionModel.PermissionTypes.edit))) {
+    if(!(await this.permission_model.hasExplicitPermission(uuid, PermissionTypes.edit))) {
       throw new Util.PermissionDeniedError(`You do not have the edit permissions required to persist ${uuid}`);
     }
 
@@ -768,28 +768,31 @@ class Model extends AbstractDocument implements DocumentInterface{
     }
     count += 1;
 
+    const id_lookup = { 
+      '$match': { 
+        '$expr': { 
+          '$and': [
+            { '$in': [ "$_id",  "$$ids" ] },
+          ]
+        }
+      }
+    }
+    const template_fields_lookup = {
+      '$lookup': {
+        'from': "template_fields",
+        'foreignField': "_id",
+        'localField': "fields",
+        'as': "fields"
+      },
+    }
+
     let pipeline_related_templates_addon = {
       '$lookup': {
         'from': "templates",
         'let': { 'ids': "$related_templates"},
         'pipeline': [
-          { 
-            '$match': { 
-              '$expr': { 
-                '$and': [
-                  { '$in': [ "$_id",  "$$ids" ] },
-                ]
-              }
-            }
-          },
-          {
-            '$lookup': {
-              'from': "template_fields",
-              'foreignField': "_id",
-              'localField': "fields",
-              'as': "fields"
-            },
-          }
+          id_lookup,
+          template_fields_lookup
         ],
         'as': "related_templates"
       }
@@ -800,23 +803,8 @@ class Model extends AbstractDocument implements DocumentInterface{
         'from': "templates",
         'let': { 'ids': "$subscribed_templates"},
         'pipeline': [
-          { 
-            '$match': { 
-              '$expr': { 
-                '$and': [
-                  { '$in': [ "$_id",  "$$ids" ] },
-                ]
-              }
-            }
-          },
-          {
-            '$lookup': {
-              'from': "template_fields",
-              'foreignField': "_id",
-              'localField': "fields",
-              'as': "fields"
-            },
-          }
+          id_lookup,
+          template_fields_lookup
         ],
         'as': "subscribed_templates"
       }
@@ -877,13 +865,13 @@ class Model extends AbstractDocument implements DocumentInterface{
 
   async #filterPersistedTemplateForPermissionsRecursor(template: Record<string, any>): Promise<void> {
     for(let i = 0; i < template.fields.length; i++) {
-      if(!(await (new TemplateFieldModel.model(this.state)).hasViewPermissionToPersisted(template.fields[i].uuid))) {
+      if(!(await this.template_field_model.hasPermission(template.fields[i].uuid, PermissionTypes.view))) {
         template.fields[i] = {uuid: template.fields[i].uuid, no_permissions: true};
       }
     }
     for(let i = 0; i < template.related_templates.length; i++) {
       let related_template = template.related_templates[i];
-      if(!(await this.hasViewPermissionToPersisted(related_template.uuid))) {
+      if(!(await this.hasPermission(related_template.uuid, PermissionTypes.view))) {
         template.related_templates[i] = {uuid: related_template.uuid, _id: related_template._id, no_permissions: true };
       } else {
         await this.#filterPersistedTemplateForPermissionsRecursor(template.related_templates[i]);
@@ -892,7 +880,7 @@ class Model extends AbstractDocument implements DocumentInterface{
   }
 
   async filterPersistedForPermissions(template: Record<string, any>): Promise<void> {
-    if(!(await this.hasViewPermissionToPersisted(template.uuid))) {
+    if(!(await this.hasPermission(template.uuid, PermissionTypes.view))) {
       throw new Util.PermissionDeniedError(`Do not have view access to template ${template.uuid}`);
     }
     await this.#filterPersistedTemplateForPermissionsRecursor(template);
@@ -992,7 +980,7 @@ class Model extends AbstractDocument implements DocumentInterface{
   }
 
   // Fetches the template draft with the given uuid, recursively looking up fields and related_templates.
-  async draftFetch(uuid: string): Promise<Record<string, any> | null> {
+  async recursiveDraftFetch(uuid: string): Promise<Record<string, any> | null> {
 
     // See if a draft of this template exists. 
     let template_draft = await this.shallowDraft(uuid);
@@ -1001,7 +989,7 @@ class Model extends AbstractDocument implements DocumentInterface{
     }
 
     // Make sure this user has a permission to be working with drafts
-    if (!(await this.hasPermission(uuid, PermissionModel.PermissionTypes.edit))) {
+    if (!(await this.hasPermission(uuid, PermissionTypes.edit))) {
       throw new Util.PermissionDeniedError(`You don't have edit permissions required to access drafts for template ${uuid}`);
     }
 
@@ -1038,7 +1026,7 @@ class Model extends AbstractDocument implements DocumentInterface{
         {session}
       );
       if (response.modifiedCount != 1) {
-        throw `Template.draftFetch: should be 1 modified document. Instead: ${response.modifiedCount}`;
+        throw `Template.recursiveDraftFetch: should be 1 modified document. Instead: ${response.modifiedCount}`;
       }
     }
 
@@ -1056,8 +1044,8 @@ class Model extends AbstractDocument implements DocumentInterface{
     // Fetch the latest draft or make a draft from the latest persisted
     let shallow_draft = await this.#fetchDraftOrCreateFromPersisted(uuid);
     let shallow_persisted = await this.shallowLatestPersisted(uuid);
-    let edit_permission = await this.hasPermission(uuid, PermissionModel.PermissionTypes.edit);
-    let view_permission = await this.hasViewPermissionToPersisted(uuid);
+    let edit_permission = await this.hasPermission(uuid, PermissionTypes.edit);
+    let view_permission = await this.hasPermission(uuid, PermissionTypes.view);
 
     if(!shallow_draft) {
       throw new Util.NotFoundError(`No template  exists with uuid ${uuid}`);
@@ -1109,7 +1097,7 @@ class Model extends AbstractDocument implements DocumentInterface{
     if(!template) {
       throw new Util.NotFoundError();
     }
-    if(!(await this.hasViewPermissionToPersisted(template.uuid))) {
+    if(!(await this.hasPermission(template.uuid, PermissionTypes.view))) {
       throw new Util.PermissionDeniedError();
     }
 
@@ -1173,7 +1161,7 @@ class Model extends AbstractDocument implements DocumentInterface{
     if(!template) {
       throw new Util.NotFoundError(`Persisted template ${uuid} does not exist`);
     }
-    if(!(await this.hasViewPermissionToPersisted(template.uuid))) {
+    if(!(await this.hasPermission(template.uuid, PermissionTypes.view))) {
       throw new Util.PermissionDeniedError(`You do not have view permissions required to duplicate template ${uuid}.`);
     }
     return await this.#duplicateRecursor(template)
@@ -1208,7 +1196,7 @@ class Model extends AbstractDocument implements DocumentInterface{
     let uuid = await uuid_mapper_model_instance.get_new_uuid_from_old(old_uuid);
     // If the uuid is found, then this has already been imported. Import again if we have edit permissions
     if(uuid) {
-      if(!(await this.permission_model.hasExplicitPermission(uuid, PermissionModel.PermissionTypes.edit))) {
+      if(!(await this.permission_model.hasExplicitPermission(uuid, PermissionTypes.edit))) {
         throw new Util.PermissionDeniedError(`You do not have edit permissions required to import template ${old_uuid}. It has already been imported.`);
       }
     } else {
@@ -1322,7 +1310,7 @@ class Model extends AbstractDocument implements DocumentInterface{
     this.state.updated_at = new Date();
     let callback = async () => {
       await this.repairDraft(uuid);
-      return await this.draftFetch(uuid);
+      return await this.recursiveDraftFetch(uuid);
     };
     return await this.executeWithTransaction(callback);
   }
