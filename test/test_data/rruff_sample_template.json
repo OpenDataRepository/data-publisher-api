@@ -1,0 +1,1696 @@
+{
+    "internal_id": 3,
+    "name": "RRUFF Sample",
+    "description": "zxcv",
+    "template_uuid": "fc424c6194b3608eb72ba12ce1ba",
+    "updated_at": "2021-06-04 19:27:16",
+    "metadata_for_uuid": "",
+    "_database_metadata": {
+        "_create_date": "2021-02-10 20:06:12",
+        "_create_auth": "Alex Pires",
+        "_public_date": "2021-06-04 19:27:16",
+        "_master_published_version": "0",
+        "_master_revision": "0",
+        "_tracking_master_version": "0"
+    },
+    "fields": [
+        {
+            "internal_id": 38,
+            "name": "Sample Photos",
+            "description": "Field description.",
+            "fieldtype": "Image",
+            "template_field_uuid": "0e6390be40fed675cb4bfda8c168",
+            "updated_at": "2021-08-11 01:56:31",
+            "_field_metadata": {
+                "_create_date": "2021-02-10 20:21:09",
+                "_create_auth": "Alex Pires",
+                "_public_date": "2021-06-04 19:27:22",
+                "_master_published_version": "0",
+                "_master_revision": "0",
+                "_tracking_master_version": "0"
+            }
+        },
+        {
+            "internal_id": 39,
+            "name": "label",
+            "description": "Field description.",
+            "fieldtype": "Image",
+            "template_field_uuid": "03fdd027033e23bb75a8f4b1e5ae",
+            "updated_at": "2021-06-04 19:27:22",
+            "_field_metadata": {
+                "_create_date": "2021-02-10 20:21:09",
+                "_create_auth": "Alex Pires",
+                "_public_date": "2021-06-04 19:27:22",
+                "_master_published_version": "0",
+                "_master_revision": "0",
+                "_tracking_master_version": "0"
+            }
+        },
+        {
+            "internal_id": 29,
+            "name": "Sample ID",
+            "description": "Field description.",
+            "fieldtype": "Integer",
+            "template_field_uuid": "1975d97f7abcca7269084a3aa49d",
+            "updated_at": "2021-08-11 01:57:04",
+            "is_unique": 1,
+            "_field_metadata": {
+                "_create_date": "2021-02-10 20:21:09",
+                "_create_auth": "Alex Pires",
+                "_public_date": "2021-06-04 19:27:22",
+                "_master_published_version": "0",
+                "_master_revision": "0",
+                "_tracking_master_version": "0"
+            }
+        },
+        {
+            "internal_id": 30,
+            "name": "RRUFF ID",
+            "description": "Field description.",
+            "fieldtype": "Short Text",
+            "template_field_uuid": "50952eac27660d00b62d56170f24",
+            "updated_at": "2021-08-11 01:56:57",
+            "is_unique": 1,
+            "_field_metadata": {
+                "_create_date": "2021-02-10 20:21:09",
+                "_create_auth": "Alex Pires",
+                "_public_date": "2021-06-04 19:27:22",
+                "_master_published_version": "0",
+                "_master_revision": "0",
+                "_tracking_master_version": "0"
+            }
+        },
+        {
+            "internal_id": 31,
+            "name": "Sample Status",
+            "description": "Field description.",
+            "fieldtype": "Single Select",
+            "template_field_uuid": "72454d3be15bafb591d919611ac3",
+            "updated_at": "2021-08-11 01:57:39",
+            "_field_metadata": {
+                "_create_date": "2021-02-10 20:21:09",
+                "_create_auth": "Alex Pires",
+                "_public_date": "2021-06-04 19:27:22",
+                "_master_published_version": "0",
+                "_master_revision": "0",
+                "_tracking_master_version": "0"
+            },
+            "radio_options": [
+                {
+                    "name": "The identification of this mineral is confirmed by single-crystal X-ray diffraction and chemical analysis.",
+                    "template_radio_option_uuid": "0bbf7ba378a29064036c9ed6692f",
+                    "updated_at": "2021-02-10 20:21:14"
+                },
+                {
+                    "name": "unconfirmed",
+                    "template_radio_option_uuid": "8b9822a795cf1d2d75dd23cb7193",
+                    "updated_at": "2021-02-10 20:21:14"
+                },
+                {
+                    "name": "The identification of this mineral has been confirmed only by chemical analysis",
+                    "template_radio_option_uuid": "6e1241f7bbe3bb073e0733f2660d",
+                    "updated_at": "2021-02-10 20:21:15"
+                },
+                {
+                    "name": "The identification of this mineral has been confirmed by single-crystal X-ray diffraction.",
+                    "template_radio_option_uuid": "c6e4e4bc549e8f87c804cf4daf9b",
+                    "updated_at": "2021-02-10 20:21:16"
+                },
+                {
+                    "name": "The identification of this mineral has been confirmed by X-ray diffraction and chemical analysis",
+                    "template_radio_option_uuid": "85c417d2b6d2a94ffa88fbf8a330",
+                    "updated_at": "2021-02-10 20:21:16"
+                },
+                {
+                    "name": "The identification of this mineral has been determined only by Raman spectroscopy",
+                    "template_radio_option_uuid": "d82774d5815a7cf80898d6ea48b2",
+                    "updated_at": "2021-02-10 20:21:17"
+                },
+                {
+                    "name": "The identification of this mineral has been confirmed only by single crystal X-ray diffraction.",
+                    "template_radio_option_uuid": "bbbdde9bd985f2efd03c8a1faee7",
+                    "updated_at": "2021-02-10 20:21:23"
+                }
+            ]
+        },
+        {
+            "internal_id": 32,
+            "name": "Origin",
+            "description": "Field description.",
+            "fieldtype": "Paragraph Text",
+            "template_field_uuid": "2c1d18cab9daa77f25bb45c99a3c",
+            "updated_at": "2021-08-11 01:57:08",
+            "_field_metadata": {
+                "_create_date": "2021-02-10 20:21:09",
+                "_create_auth": "Alex Pires",
+                "_public_date": "2021-06-04 19:27:22",
+                "_master_published_version": "0",
+                "_master_revision": "0",
+                "_tracking_master_version": "0"
+            }
+        },
+        {
+            "internal_id": 33,
+            "name": "Origin Number",
+            "description": "Field description.",
+            "fieldtype": "Short Text",
+            "template_field_uuid": "3d6ccdfb60f443bc424084e45557",
+            "updated_at": "2021-08-11 01:57:15",
+            "_field_metadata": {
+                "_create_date": "2021-02-10 20:21:09",
+                "_create_auth": "Alex Pires",
+                "_public_date": "2021-06-04 19:27:22",
+                "_master_published_version": "0",
+                "_master_revision": "0",
+                "_tracking_master_version": "0"
+            }
+        },
+        {
+            "internal_id": 34,
+            "name": "Owner",
+            "description": "Field description.",
+            "fieldtype": "Long Text",
+            "template_field_uuid": "301ea4ae266b1fe8c075218e85f1",
+            "updated_at": "2021-08-11 01:57:46",
+            "_field_metadata": {
+                "_create_date": "2021-02-10 20:21:09",
+                "_create_auth": "Alex Pires",
+                "_public_date": "2021-06-04 19:27:22",
+                "_master_published_version": "0",
+                "_master_revision": "0",
+                "_tracking_master_version": "0"
+            }
+        },
+        {
+            "internal_id": 35,
+            "name": "rruff_owned",
+            "description": "Field description.",
+            "fieldtype": "Boolean",
+            "template_field_uuid": "6b78f99ac1c8fb2c44bf95d67c1d",
+            "updated_at": "2021-06-04 19:27:22",
+            "_field_metadata": {
+                "_create_date": "2021-02-10 20:21:09",
+                "_create_auth": "Alex Pires",
+                "_public_date": "2021-06-04 19:27:22",
+                "_master_published_version": "0",
+                "_master_revision": "0",
+                "_tracking_master_version": "0"
+            }
+        },
+        {
+            "internal_id": 36,
+            "name": "Sample Description",
+            "description": "Field description.",
+            "fieldtype": "Paragraph Text",
+            "template_field_uuid": "b5cda8049d06c9327dbccb790888",
+            "updated_at": "2021-08-11 01:57:30",
+            "_field_metadata": {
+                "_create_date": "2021-02-10 20:21:09",
+                "_create_auth": "Alex Pires",
+                "_public_date": "2021-06-04 19:27:22",
+                "_master_published_version": "0",
+                "_master_revision": "0",
+                "_tracking_master_version": "0"
+            }
+        },
+        {
+            "internal_id": 37,
+            "name": "Locality",
+            "description": "Field description.",
+            "fieldtype": "Paragraph Text",
+            "template_field_uuid": "b369b9eeb354c308191bdf03a1fd",
+            "updated_at": "2021-08-11 01:57:52",
+            "_field_metadata": {
+                "_create_date": "2021-02-10 20:21:09",
+                "_create_auth": "Alex Pires",
+                "_public_date": "2021-06-04 19:27:22",
+                "_master_published_version": "0",
+                "_master_revision": "0",
+                "_tracking_master_version": "0"
+            }
+        }
+    ],
+    "related_databases": [
+        {
+            "internal_id": 20,
+            "name": "Chemistry Analysis",
+            "description": null,
+            "template_uuid": "8b97350c5d4b246fa525bc0c3c19",
+            "subscribed": true,
+            "updated_at": "2021-08-11 01:35:12",
+            "metadata_for_uuid": "",
+            "_database_metadata": {
+                "_create_date": "2021-08-11 01:35:12",
+                "_create_auth": "nate@opendatarepository.org",
+                "_public_date": "2021-08-11 01:35:32",
+                "_master_published_version": "0",
+                "_master_revision": "0",
+                "_tracking_master_version": "0"
+            },
+            "fields": [
+                {
+                    "internal_id": 84,
+                    "name": "Microprobe Image",
+                    "description": "Microprobe Image",
+                    "fieldtype": "Image",
+                    "template_field_uuid": "d05e76650863f87549f65180bd64",
+                    "updated_at": "2021-08-11 01:35:12",
+                    "_field_metadata": {
+                        "_create_date": "2021-08-11 01:35:12",
+                        "_create_auth": "nate@opendatarepository.org",
+                        "_public_date": "2021-08-11 01:49:27",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 85,
+                    "name": "RRUFF ID",
+                    "description": "Field description.",
+                    "fieldtype": "Short Text",
+                    "template_field_uuid": "c3144d3dd7136a6a85528df42696",
+                    "updated_at": "2021-08-11 01:35:12",
+                    "_field_metadata": {
+                        "_create_date": "2021-08-11 01:35:12",
+                        "_create_auth": "nate@opendatarepository.org",
+                        "_public_date": "2021-08-11 01:49:27",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 86,
+                    "name": "Sample Description",
+                    "description": "Field description.",
+                    "fieldtype": "Long Text",
+                    "template_field_uuid": "da32244b946b835cc4ac587fdac1",
+                    "updated_at": "2021-08-11 01:35:12",
+                    "_field_metadata": {
+                        "_create_date": "2021-08-11 01:35:12",
+                        "_create_auth": "nate@opendatarepository.org",
+                        "_public_date": "2021-08-11 01:49:27",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 87,
+                    "name": "Measured Chemistry",
+                    "description": "Field description.",
+                    "fieldtype": "Long Text",
+                    "template_field_uuid": "31d374262b7f83b0a5146ca056de",
+                    "updated_at": "2021-08-11 01:35:12",
+                    "render_plugin": "Chemistry Field",
+                    "_field_metadata": {
+                        "_create_date": "2021-08-11 01:35:12",
+                        "_create_auth": "nate@opendatarepository.org",
+                        "_public_date": "2021-08-11 01:49:27",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 88,
+                    "name": "Microprobe Data File",
+                    "description": "Field description.",
+                    "fieldtype": "File",
+                    "template_field_uuid": "f581f97ff35c8b94f3bd457eb4ad",
+                    "updated_at": "2021-08-11 01:35:12",
+                    "_field_metadata": {
+                        "_create_date": "2021-08-11 01:35:12",
+                        "_create_auth": "nate@opendatarepository.org",
+                        "_public_date": "2021-08-11 01:49:27",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                }
+            ],
+            "related_databases": []
+        },
+        {
+            "internal_id": 15,
+            "name": "RAMAN Spectra",
+            "description": null,
+            "template_uuid": "a211402bf01edae667a13a28de46",
+            "subscribed": true,
+            "updated_at": "2021-08-10 19:54:49",
+            "metadata_for_uuid": "",
+            "_database_metadata": {
+                "_create_date": "2021-08-10 19:54:49",
+                "_create_auth": "nate@opendatarepository.org",
+                "_public_date": "2021-08-10 19:56:59",
+                "_master_published_version": "0",
+                "_master_revision": "0",
+                "_tracking_master_version": "0"
+            },
+            "fields": [
+                {
+                    "internal_id": 71,
+                    "name": "RRUFF ID",
+                    "description": "Field description.",
+                    "fieldtype": "Short Text",
+                    "template_field_uuid": "6ae4d5b1f83a5aeff865a3127316",
+                    "updated_at": "2021-08-10 19:54:49",
+                    "_field_metadata": {
+                        "_create_date": "2021-08-10 19:54:49",
+                        "_create_auth": "nate@opendatarepository.org",
+                        "_public_date": "2021-08-10 19:54:05",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 72,
+                    "name": "Pin ID",
+                    "description": "Field description.",
+                    "fieldtype": "Short Text",
+                    "template_field_uuid": "627ea59947eea1802a29fb1fd3af",
+                    "updated_at": "2021-08-10 19:54:49",
+                    "_field_metadata": {
+                        "_create_date": "2021-08-10 19:54:49",
+                        "_create_auth": "nate@opendatarepository.org",
+                        "_public_date": "2021-08-10 19:54:08",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 73,
+                    "name": "Sample Description",
+                    "description": "Sample Desciption",
+                    "fieldtype": "Paragraph Text",
+                    "template_field_uuid": "d2a08981e3cb2f9b01e0e3649ea2",
+                    "updated_at": "2021-08-10 19:54:49",
+                    "_field_metadata": {
+                        "_create_date": "2021-08-10 19:54:49",
+                        "_create_auth": "nate@opendatarepository.org",
+                        "_public_date": "2021-08-10 19:54:34",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 74,
+                    "name": "Orientation",
+                    "description": "Field description.",
+                    "fieldtype": "Short Text",
+                    "template_field_uuid": "d0604076150752cf28c3ecd3b363",
+                    "updated_at": "2021-08-10 19:54:49",
+                    "_field_metadata": {
+                        "_create_date": "2021-08-10 19:54:49",
+                        "_create_auth": "nate@opendatarepository.org",
+                        "_public_date": "2021-08-10 19:54:36",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                }
+            ],
+            "related_databases": [
+                {
+                    "internal_id": 17,
+                    "name": "Raman Spectra",
+                    "description": "",
+                    "template_uuid": "40dfdce2411423fbe33461c48c34",
+                    "updated_at": "2021-08-10 19:54:49",
+                    "render_plugin": "Graph Plugin",
+                    "metadata_for_uuid": "",
+                    "_database_metadata": {
+                        "_create_date": "2021-08-10 19:54:49",
+                        "_create_auth": "nate@opendatarepository.org",
+                        "_public_date": "2021-08-10 19:52:32",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    },
+                    "fields": [
+                        {
+                            "internal_id": 75,
+                            "name": "Polarization",
+                            "description": "Field description.",
+                            "fieldtype": "Short Text",
+                            "template_field_uuid": "fb3df8c26d088d75f32528ee930e",
+                            "updated_at": "2021-08-10 19:54:49",
+                            "is_unique": 1,
+                            "_field_metadata": {
+                                "_create_date": "2021-08-10 19:54:49",
+                                "_create_auth": "nate@opendatarepository.org",
+                                "_public_date": "2021-08-10 19:52:26",
+                                "_master_published_version": "0",
+                                "_master_revision": "0",
+                                "_tracking_master_version": "0"
+                            }
+                        },
+                        {
+                            "internal_id": 76,
+                            "name": "Raman Data (processed)",
+                            "description": "Field description.",
+                            "fieldtype": "File",
+                            "template_field_uuid": "9218970eda91097d1501dff3b5cc",
+                            "updated_at": "2021-08-10 19:54:49",
+                            "_field_metadata": {
+                                "_create_date": "2021-08-10 19:54:49",
+                                "_create_auth": "nate@opendatarepository.org",
+                                "_public_date": "2021-08-10 19:52:23",
+                                "_master_published_version": "0",
+                                "_master_revision": "0",
+                                "_tracking_master_version": "0"
+                            }
+                        },
+                        {
+                            "internal_id": 77,
+                            "name": "Raman Data (raw)",
+                            "description": "Field description.",
+                            "fieldtype": "File",
+                            "template_field_uuid": "007cd0a5e571507213574f28289d",
+                            "updated_at": "2021-08-10 19:54:49",
+                            "_field_metadata": {
+                                "_create_date": "2021-08-10 19:54:49",
+                                "_create_auth": "nate@opendatarepository.org",
+                                "_public_date": "2021-08-10 19:52:30",
+                                "_master_published_version": "0",
+                                "_master_revision": "0",
+                                "_tracking_master_version": "0"
+                            }
+                        },
+                        {
+                            "internal_id": 78,
+                            "name": "Raman Mode Analysis",
+                            "description": "Field description.",
+                            "fieldtype": "File",
+                            "template_field_uuid": "cee555bd91b4993898c8217338a6",
+                            "updated_at": "2021-08-10 19:54:49",
+                            "_field_metadata": {
+                                "_create_date": "2021-08-10 19:54:49",
+                                "_create_auth": "nate@opendatarepository.org",
+                                "_public_date": "2021-08-10 19:53:31",
+                                "_master_published_version": "0",
+                                "_master_revision": "0",
+                                "_tracking_master_version": "0"
+                            }
+                        }
+                    ],
+                    "related_databases": []
+                }
+            ]
+        },
+        {
+            "internal_id": 24,
+            "name": "Broad Scan",
+            "description": "",
+            "template_uuid": "59913fb3df6dfe45e56df5c84997",
+            "subscribed": true,
+            "updated_at": "2021-08-11 13:19:27",
+            "render_plugin": "Graph Plugin",
+            "metadata_for_uuid": "",
+            "_database_metadata": {
+                "_create_date": "2021-08-11 03:20:29",
+                "_create_auth": "nate@opendatarepository.org",
+                "_public_date": "2021-08-11 03:27:40",
+                "_master_published_version": "0",
+                "_master_revision": "0",
+                "_tracking_master_version": "0"
+            },
+            "fields": [
+                {
+                    "internal_id": 95,
+                    "name": "RRUFF ID",
+                    "description": "Field description.",
+                    "fieldtype": "Short Text",
+                    "template_field_uuid": "9b6e611c8e7155a1848cfffd6f64",
+                    "updated_at": "2021-08-11 03:20:29",
+                    "_field_metadata": {
+                        "_create_date": "2021-08-11 03:20:29",
+                        "_create_auth": "nate@opendatarepository.org",
+                        "_public_date": "2021-08-11 03:19:08",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 94,
+                    "name": "Wavelength",
+                    "description": "If multiple data sets are plotted, the pivot field will be displayed to allow the user to switch between data sets.",
+                    "fieldtype": "Short Text",
+                    "template_field_uuid": "183cab3bf667e61c4214c89d0638",
+                    "updated_at": "2021-08-11 03:20:29",
+                    "_field_metadata": {
+                        "_create_date": "2021-08-11 03:20:29",
+                        "_create_auth": "nate@opendatarepository.org",
+                        "_public_date": "2021-08-11 03:19:05",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 96,
+                    "name": "Sample Description",
+                    "description": "Field description.",
+                    "fieldtype": "Long Text",
+                    "template_field_uuid": "c5a553224ddfd317a7dc24d742c5",
+                    "updated_at": "2021-08-11 03:20:29",
+                    "_field_metadata": {
+                        "_create_date": "2021-08-11 03:20:29",
+                        "_create_auth": "nate@opendatarepository.org",
+                        "_public_date": "2021-08-11 03:19:11",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 93,
+                    "name": "Raman Data (raw)",
+                    "description": "A file containing XY values for plotting.",
+                    "fieldtype": "File",
+                    "template_field_uuid": "e37658fb77bd1dda191326c130af",
+                    "updated_at": "2021-08-11 03:20:29",
+                    "_field_metadata": {
+                        "_create_date": "2021-08-11 03:20:29",
+                        "_create_auth": "nate@opendatarepository.org",
+                        "_public_date": "2021-08-11 03:19:02",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                }
+            ],
+            "related_databases": []
+        },
+        {
+            "internal_id": 30,
+            "name": "Infrared Spectrum ((Attenuated Total Reflectance)",
+            "description": "",
+            "template_uuid": "025f4d60cb5a614eeb21edb5ed10",
+            "subscribed": true,
+            "updated_at": "2021-08-11 13:54:47",
+            "render_plugin": "Graph Plugin",
+            "metadata_for_uuid": "",
+            "_database_metadata": {
+                "_create_date": "2021-08-11 13:54:47",
+                "_create_auth": "nate@opendatarepository.org",
+                "_public_date": "2021-08-11 13:55:36",
+                "_master_published_version": "0",
+                "_master_revision": "0",
+                "_tracking_master_version": "0"
+            },
+            "fields": [
+                {
+                    "internal_id": 138,
+                    "name": "RRUFF ID",
+                    "description": "If multiple data sets are plotted, the pivot field will be displayed to allow the user to switch between data sets.",
+                    "fieldtype": "Short Text",
+                    "template_field_uuid": "90836703ee555004914c733d5a08",
+                    "updated_at": "2021-08-11 13:54:47",
+                    "_field_metadata": {
+                        "_create_date": "2021-08-11 13:54:47",
+                        "_create_auth": "nate@opendatarepository.org",
+                        "_public_date": "2021-08-11 13:51:55",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 139,
+                    "name": "Instrument Settings",
+                    "description": "Field description.",
+                    "fieldtype": "Short Text",
+                    "template_field_uuid": "fed4d0b48d097a013da23a76fc37",
+                    "updated_at": "2021-08-11 13:54:47",
+                    "_field_metadata": {
+                        "_create_date": "2021-08-11 13:54:47",
+                        "_create_auth": "nate@opendatarepository.org",
+                        "_public_date": "2021-08-11 13:52:31",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 140,
+                    "name": "Resolution",
+                    "description": "Field description.",
+                    "fieldtype": "Short Text",
+                    "template_field_uuid": "c35453ea5a20c91cc22f030775a6",
+                    "updated_at": "2021-08-11 13:54:47",
+                    "_field_metadata": {
+                        "_create_date": "2021-08-11 13:54:47",
+                        "_create_auth": "nate@opendatarepository.org",
+                        "_public_date": "2021-08-11 13:53:13",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 137,
+                    "name": "Infrared Data (processed)",
+                    "description": "A file containing XY values for plotting.",
+                    "fieldtype": "File",
+                    "template_field_uuid": "c48045722efc42b308ba7ee0efb8",
+                    "updated_at": "2021-08-11 13:54:47",
+                    "_field_metadata": {
+                        "_create_date": "2021-08-11 13:54:47",
+                        "_create_auth": "nate@opendatarepository.org",
+                        "_public_date": "2021-08-11 13:51:44",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                }
+            ],
+            "related_databases": []
+        },
+        {
+            "internal_id": 27,
+            "name": "Powder Diffraction",
+            "description": "",
+            "template_uuid": "e2e3fc741d28d09161cdb5eda2b0",
+            "subscribed": true,
+            "updated_at": "2021-08-11 13:31:31",
+            "render_plugin": "Graph Plugin",
+            "metadata_for_uuid": "",
+            "_database_metadata": {
+                "_create_date": "2021-08-11 13:31:31",
+                "_create_auth": "nate@opendatarepository.org",
+                "_public_date": "2021-08-11 13:40:37",
+                "_master_published_version": "0",
+                "_master_revision": "0",
+                "_tracking_master_version": "0"
+            },
+            "fields": [
+                {
+                    "internal_id": 122,
+                    "name": "RRUFF ID",
+                    "description": "If multiple data sets are plotted, the pivot field will be displayed to allow the user to switch between data sets.",
+                    "fieldtype": "Short Text",
+                    "template_field_uuid": "4246d19a6663a432e760f7d7e867",
+                    "updated_at": "2021-08-11 13:40:30",
+                    "_field_metadata": {
+                        "_create_date": "2021-08-11 13:40:30",
+                        "_create_auth": "nate@opendatarepository.org",
+                        "_public_date": "2021-08-11 13:36:32",
+                        "_master_published_version": "0",
+                        "_master_revision": "3",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 123,
+                    "name": "Sample Description",
+                    "description": "Field description.",
+                    "fieldtype": "Paragraph Text",
+                    "template_field_uuid": "b17a5b6fbd5541eda50aec2f0cbb",
+                    "updated_at": "2021-08-11 13:40:30",
+                    "_field_metadata": {
+                        "_create_date": "2021-08-11 13:40:30",
+                        "_create_auth": "nate@opendatarepository.org",
+                        "_public_date": "2021-08-11 13:36:46",
+                        "_master_published_version": "0",
+                        "_master_revision": "4",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 121,
+                    "name": "Graph File",
+                    "description": "A file containing XY values for plotting.",
+                    "fieldtype": "File",
+                    "template_field_uuid": "bff339788e19baf82e7ff097ee15",
+                    "updated_at": "2021-08-11 13:40:30",
+                    "_field_metadata": {
+                        "_create_date": "2021-08-11 13:40:30",
+                        "_create_auth": "nate@opendatarepository.org",
+                        "_public_date": "2021-08-11 13:40:40",
+                        "_master_published_version": "0",
+                        "_master_revision": "1",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 125,
+                    "name": "a",
+                    "description": "Field description.",
+                    "fieldtype": "Short Text",
+                    "template_field_uuid": "881358e6f3940a90e53d572704c5",
+                    "updated_at": "2021-08-11 13:40:30",
+                    "_field_metadata": {
+                        "_create_date": "2021-08-11 13:40:30",
+                        "_create_auth": "nate@opendatarepository.org",
+                        "_public_date": "2021-08-11 13:38:21",
+                        "_master_published_version": "0",
+                        "_master_revision": "3",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 126,
+                    "name": "b",
+                    "description": "Field description.",
+                    "fieldtype": "Short Text",
+                    "template_field_uuid": "8d9fec34e81f9f7185e8af068bfd",
+                    "updated_at": "2021-08-11 13:40:30",
+                    "_field_metadata": {
+                        "_create_date": "2021-08-11 13:40:30",
+                        "_create_auth": "nate@opendatarepository.org",
+                        "_public_date": "2021-08-11 13:38:29",
+                        "_master_published_version": "0",
+                        "_master_revision": "3",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 127,
+                    "name": "c",
+                    "description": "Field description.",
+                    "fieldtype": "Short Text",
+                    "template_field_uuid": "3747db503ad9fff5ce6aa0d0237e",
+                    "updated_at": "2021-08-11 13:40:30",
+                    "_field_metadata": {
+                        "_create_date": "2021-08-11 13:40:30",
+                        "_create_auth": "nate@opendatarepository.org",
+                        "_public_date": "2021-08-11 13:38:34",
+                        "_master_published_version": "0",
+                        "_master_revision": "3",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 128,
+                    "name": "alpha",
+                    "description": "Field description.",
+                    "fieldtype": "Short Text",
+                    "template_field_uuid": "53997cb8d049b39ddaf516aaa3d8",
+                    "updated_at": "2021-08-11 13:40:30",
+                    "_field_metadata": {
+                        "_create_date": "2021-08-11 13:40:30",
+                        "_create_auth": "nate@opendatarepository.org",
+                        "_public_date": "2021-08-11 13:39:28",
+                        "_master_published_version": "0",
+                        "_master_revision": "3",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 129,
+                    "name": "beta",
+                    "description": "Field description.",
+                    "fieldtype": "Short Text",
+                    "template_field_uuid": "99231ecbf05b029de94d2a0a7741",
+                    "updated_at": "2021-08-11 13:40:30",
+                    "_field_metadata": {
+                        "_create_date": "2021-08-11 13:40:30",
+                        "_create_auth": "nate@opendatarepository.org",
+                        "_public_date": "2021-08-11 13:39:30",
+                        "_master_published_version": "0",
+                        "_master_revision": "3",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 130,
+                    "name": "gamma",
+                    "description": "Field description.",
+                    "fieldtype": "Short Text",
+                    "template_field_uuid": "20cb634ee8c3c3b13087a2079ce4",
+                    "updated_at": "2021-08-11 13:40:30",
+                    "_field_metadata": {
+                        "_create_date": "2021-08-11 13:40:30",
+                        "_create_auth": "nate@opendatarepository.org",
+                        "_public_date": "2021-08-11 13:39:36",
+                        "_master_published_version": "0",
+                        "_master_revision": "3",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 131,
+                    "name": "Volume",
+                    "description": "Field description.",
+                    "fieldtype": "Short Text",
+                    "template_field_uuid": "28757a63058e7d34dbef55b3e8a7",
+                    "updated_at": "2021-08-11 13:40:30",
+                    "_field_metadata": {
+                        "_create_date": "2021-08-11 13:40:30",
+                        "_create_auth": "nate@opendatarepository.org",
+                        "_public_date": "2021-08-11 13:39:24",
+                        "_master_published_version": "0",
+                        "_master_revision": "4",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 132,
+                    "name": "Crystal System",
+                    "description": "Field description.",
+                    "fieldtype": "Short Text",
+                    "template_field_uuid": "9a571609f34cc5ead4c5c69564b2",
+                    "updated_at": "2021-08-11 13:40:30",
+                    "_field_metadata": {
+                        "_create_date": "2021-08-11 13:40:30",
+                        "_create_auth": "nate@opendatarepository.org",
+                        "_public_date": "2021-08-11 13:39:22",
+                        "_master_published_version": "0",
+                        "_master_revision": "3",
+                        "_tracking_master_version": "0"
+                    }
+                }
+            ],
+            "related_databases": []
+        },
+        {
+            "internal_id": 2,
+            "name": "IMA List",
+            "description": "qwer",
+            "template_uuid": "f6a700e9d45f0884c1514ec6c538",
+            "updated_at": "2021-06-04 19:27:29",
+            "metadata_for_uuid": "",
+            "_database_metadata": {
+                "_create_date": "2021-02-10 20:06:00",
+                "_create_auth": "Alex Pires",
+                "_public_date": "2021-06-04 19:27:29",
+                "_master_published_version": "0",
+                "_master_revision": "0",
+                "_tracking_master_version": "0"
+            },
+            "fields": [
+                {
+                    "internal_id": 16,
+                    "name": "mineral_id",
+                    "description": "Field description.",
+                    "fieldtype": "Integer",
+                    "template_field_uuid": "dd93490bce742f1a664fd171994e",
+                    "updated_at": "2021-06-04 19:27:34",
+                    "is_unique": 1,
+                    "_field_metadata": {
+                        "_create_date": "2021-02-10 20:16:08",
+                        "_create_auth": "Alex Pires",
+                        "_public_date": "2021-06-04 19:27:34",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 17,
+                    "name": "mineral_name",
+                    "description": "Field description.",
+                    "fieldtype": "Medium Text",
+                    "template_field_uuid": "7ab3493fb990cea9db4b1cea5b62",
+                    "updated_at": "2021-06-04 19:27:34",
+                    "_field_metadata": {
+                        "_create_date": "2021-02-10 20:16:08",
+                        "_create_auth": "Alex Pires",
+                        "_public_date": "2021-06-04 19:27:34",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 18,
+                    "name": "mineral_display_name",
+                    "description": "Field description.",
+                    "fieldtype": "Medium Text",
+                    "template_field_uuid": "d6bdea023e5419c864404e77f4b5",
+                    "updated_at": "2021-06-04 19:27:34",
+                    "_field_metadata": {
+                        "_create_date": "2021-02-10 20:16:08",
+                        "_create_auth": "Alex Pires",
+                        "_public_date": "2021-06-04 19:27:34",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 19,
+                    "name": "mineral_aliases",
+                    "description": "Field description.",
+                    "fieldtype": "Long Text",
+                    "template_field_uuid": "dd2d6527b95bc82103d5aecceb67",
+                    "updated_at": "2021-06-04 19:27:34",
+                    "_field_metadata": {
+                        "_create_date": "2021-02-10 20:16:08",
+                        "_create_auth": "Alex Pires",
+                        "_public_date": "2021-06-04 19:27:34",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 20,
+                    "name": "mineral_ideal_chemistry",
+                    "description": "Field description.",
+                    "fieldtype": "Long Text",
+                    "template_field_uuid": "30bb5fccbeb54fbfe1956c6d3fc9",
+                    "updated_at": "2021-06-04 19:27:34",
+                    "render_plugin": "Chemistry Field",
+                    "_field_metadata": {
+                        "_create_date": "2021-02-10 20:16:08",
+                        "_create_auth": "Alex Pires",
+                        "_public_date": "2021-06-04 19:27:34",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 21,
+                    "name": "ima_ideal_chemistry",
+                    "description": "Field description.",
+                    "fieldtype": "Long Text",
+                    "template_field_uuid": "743234f77d85557f0cbe5663b20c",
+                    "updated_at": "2021-06-04 19:27:34",
+                    "render_plugin": "Chemistry Field",
+                    "_field_metadata": {
+                        "_create_date": "2021-02-10 20:16:08",
+                        "_create_auth": "Alex Pires",
+                        "_public_date": "2021-06-04 19:27:34",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 22,
+                    "name": "end_member_chemistry",
+                    "description": "Field description.",
+                    "fieldtype": "Long Text",
+                    "template_field_uuid": "b6f8a8be485e8f561030dcb964e3",
+                    "updated_at": "2021-06-04 19:27:34",
+                    "render_plugin": "Chemistry Field",
+                    "_field_metadata": {
+                        "_create_date": "2021-02-10 20:16:08",
+                        "_create_auth": "Alex Pires",
+                        "_public_date": "2021-06-04 19:27:34",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 23,
+                    "name": "ima_number",
+                    "description": "Field description.",
+                    "fieldtype": "Short Text",
+                    "template_field_uuid": "a9d9bf7203baa15ee84ca8597866",
+                    "updated_at": "2021-06-04 19:27:34",
+                    "_field_metadata": {
+                        "_create_date": "2021-02-10 20:16:08",
+                        "_create_auth": "Alex Pires",
+                        "_public_date": "2021-06-04 19:27:34",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 24,
+                    "name": "locality_country",
+                    "description": "Field description.",
+                    "fieldtype": "Medium Text",
+                    "template_field_uuid": "1eba9afdc5502e8d0581e6fb12aa",
+                    "updated_at": "2021-06-04 19:27:34",
+                    "_field_metadata": {
+                        "_create_date": "2021-02-10 20:16:08",
+                        "_create_auth": "Alex Pires",
+                        "_public_date": "2021-06-04 19:27:34",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 25,
+                    "name": "year_first_published",
+                    "description": "Field description.",
+                    "fieldtype": "Short Text",
+                    "template_field_uuid": "c4ac3d1fbe85e67cd14875b13e31",
+                    "updated_at": "2021-06-04 19:27:34",
+                    "_field_metadata": {
+                        "_create_date": "2021-02-10 20:16:08",
+                        "_create_auth": "Alex Pires",
+                        "_public_date": "2021-06-04 19:27:34",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 26,
+                    "name": "notes",
+                    "description": "Field description.",
+                    "fieldtype": "Paragraph Text",
+                    "template_field_uuid": "882233fe875a5df4e9a331ed9b51",
+                    "updated_at": "2021-06-04 19:27:34",
+                    "_field_metadata": {
+                        "_create_date": "2021-02-10 20:16:08",
+                        "_create_auth": "Alex Pires",
+                        "_public_date": "2021-06-04 19:27:34",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 27,
+                    "name": "status_notes",
+                    "description": "Field description.",
+                    "fieldtype": "Paragraph Text",
+                    "template_field_uuid": "f141ece6c3b2301ce1bdf1001148",
+                    "updated_at": "2021-06-04 19:27:34",
+                    "_field_metadata": {
+                        "_create_date": "2021-02-10 20:16:08",
+                        "_create_auth": "Alex Pires",
+                        "_public_date": "2021-06-04 19:27:34",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    }
+                },
+                {
+                    "internal_id": 28,
+                    "name": "tags",
+                    "description": "Field description.",
+                    "fieldtype": "Tags",
+                    "template_field_uuid": "88a75e45874a39bb634109c66b42",
+                    "updated_at": "2021-06-04 19:27:34",
+                    "_field_metadata": {
+                        "_create_date": "2021-02-10 20:16:08",
+                        "_create_auth": "Alex Pires",
+                        "_public_date": "2021-06-04 19:27:34",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    },
+                    "value": [
+                        {
+                            "name": "IMA Status",
+                            "template_tag_uuid": "00a9718080cafe150d9e93b2e2fb",
+                            "updated_at": "2021-02-10 20:16:08",
+                            "children": [
+                                {
+                                    "name": "Approved",
+                                    "template_tag_uuid": "7f2e26cae98edb0c1e80df2be621",
+                                    "updated_at": "2021-02-10 20:16:08"
+                                },
+                                {
+                                    "name": "Grandfathered",
+                                    "template_tag_uuid": "71e4d76bd76d916a0ac3e623d7be",
+                                    "updated_at": "2021-02-10 20:16:08"
+                                }
+                            ]
+                        },
+                        {
+                            "name": "Mineral Groups",
+                            "template_tag_uuid": "d3ce3b81c90fe98f854b54086747",
+                            "updated_at": "2021-02-10 20:16:08",
+                            "children": [
+                                {
+                                    "name": "Not in a structural group",
+                                    "template_tag_uuid": "745e697a3745514b35d9a873e15e",
+                                    "updated_at": "2021-02-10 20:16:08"
+                                },
+                                {
+                                    "name": "Organic",
+                                    "template_tag_uuid": "6a5697c150026c6929e9d77e615d",
+                                    "updated_at": "2021-02-10 20:16:08"
+                                },
+                                {
+                                    "name": "Fleischers Glossary 2008",
+                                    "template_tag_uuid": "6cf5736953fe0e87252d107794f9",
+                                    "updated_at": "2021-02-10 20:16:08",
+                                    "children": [
+                                        {
+                                            "name": "adelite-descloizite",
+                                            "template_tag_uuid": "4474924c02d98396e090659d6951",
+                                            "updated_at": "2021-02-10 20:16:08",
+                                            "children": [
+                                                {
+                                                    "name": "adelite subgroup",
+                                                    "template_tag_uuid": "0549368609adabec56b3077536e2",
+                                                    "updated_at": "2021-02-10 20:16:08"
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "name": "pyroxene",
+                                            "template_tag_uuid": "91948dcfcc934ffed5abcb91ae93",
+                                            "updated_at": "2021-02-10 20:16:08"
+                                        },
+                                        {
+                                            "name": "kaolinite-serpentine",
+                                            "template_tag_uuid": "1b72866736d4578ef47144c504be",
+                                            "updated_at": "2021-02-10 20:16:08",
+                                            "children": [
+                                                {
+                                                    "name": "serpentine subgroup",
+                                                    "template_tag_uuid": "6fab23947ccb15e06ef98be37d4c",
+                                                    "updated_at": "2021-02-10 20:16:08"
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "name": "feldspar",
+                                            "template_tag_uuid": "0470a73fa1b3c3c2a1c8c16544ef",
+                                            "updated_at": "2021-02-10 20:16:08"
+                                        },
+                                        {
+                                            "name": "bournonite",
+                                            "template_tag_uuid": "65cc2cd46e64274c27b3959bf011",
+                                            "updated_at": "2021-02-10 20:16:08"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "name": "Structural groups",
+                                    "template_tag_uuid": "72e6434db8a56e69b4577693939d",
+                                    "updated_at": "2021-02-10 20:16:08",
+                                    "children": [
+                                        {
+                                            "name": "Adelite",
+                                            "template_tag_uuid": "78e9f520e4c6e2b656bc7cca3683",
+                                            "updated_at": "2021-02-10 20:16:08"
+                                        },
+                                        {
+                                            "name": "Pyroxene",
+                                            "template_tag_uuid": "5a68196661b6c30963515db108b0",
+                                            "updated_at": "2021-02-10 20:16:08"
+                                        },
+                                        {
+                                            "name": "Clay",
+                                            "template_tag_uuid": "21096dbaaf5eea978a7fdaf29562",
+                                            "updated_at": "2021-02-10 20:16:08"
+                                        },
+                                        {
+                                            "name": "Serpentine",
+                                            "template_tag_uuid": "65a0a09c41e32370e6da9b3ddb1b",
+                                            "updated_at": "2021-02-10 20:16:08"
+                                        },
+                                        {
+                                            "name": "Feldspar",
+                                            "template_tag_uuid": "52129d5c3f36881673c246660dca",
+                                            "updated_at": "2021-02-10 20:16:08"
+                                        },
+                                        {
+                                            "name": "Bournonite",
+                                            "template_tag_uuid": "25352fcb76b4df33bac415ca2f2d",
+                                            "updated_at": "2021-02-10 20:16:08"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "name": "Rock-forming",
+                                    "template_tag_uuid": "d3447a7203c7cb4a7696e57a1e5a",
+                                    "updated_at": "2021-02-10 20:16:08"
+                                },
+                                {
+                                    "name": "Textbook minerals",
+                                    "template_tag_uuid": "acbc4c1f091a448dc26771aa7930",
+                                    "updated_at": "2021-02-10 20:16:08"
+                                },
+                                {
+                                    "name": "Gemstones",
+                                    "template_tag_uuid": "981bb6c1edfa9f3c1972647333c5",
+                                    "updated_at": "2021-02-10 20:16:08",
+                                    "children": [
+                                        {
+                                            "name": "Unlikely available",
+                                            "template_tag_uuid": "83ed0005669a58e076ecbf4b306d",
+                                            "updated_at": "2021-02-10 20:16:08"
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "name": "Origins",
+                            "template_tag_uuid": "f85e44d6a2d9ab741e40587b34da",
+                            "updated_at": "2021-02-10 20:16:08",
+                            "children": [
+                                {
+                                    "name": "biomineral",
+                                    "template_tag_uuid": "ab8f9efdc4b09ce3d94d177355c6",
+                                    "updated_at": "2021-02-10 20:16:08"
+                                },
+                                {
+                                    "name": "Earth",
+                                    "template_tag_uuid": "5ae08f117f90488a6d1c87d9e0c3",
+                                    "updated_at": "2021-02-10 20:16:08"
+                                },
+                                {
+                                    "name": "Mars",
+                                    "template_tag_uuid": "39303422830bf11a9f8567eac743",
+                                    "updated_at": "2021-02-10 20:16:08"
+                                },
+                                {
+                                    "name": "Moon",
+                                    "template_tag_uuid": "f5d0a70ff6c7ec42d6180d13dd64",
+                                    "updated_at": "2021-02-10 20:16:08"
+                                },
+                                {
+                                    "name": "Meteorite",
+                                    "template_tag_uuid": "1f68c55e00961afa39dd8adbfeaf",
+                                    "updated_at": "2021-02-10 20:16:08"
+                                }
+                            ]
+                        },
+                        {
+                            "name": "desirability",
+                            "template_tag_uuid": "8f318da1f411125ec1de92694419",
+                            "updated_at": "2021-02-10 20:16:08",
+                            "children": [
+                                {
+                                    "name": "2 = if excellent sample",
+                                    "template_tag_uuid": "2b853638276fb9aecfce4126f281",
+                                    "updated_at": "2021-02-10 20:16:08"
+                                },
+                                {
+                                    "name": "1 = low priority",
+                                    "template_tag_uuid": "54e408f0f0f1dae8319e6dc1673d",
+                                    "updated_at": "2021-02-10 20:16:08"
+                                },
+                                {
+                                    "name": "0 = not needed",
+                                    "template_tag_uuid": "f935409ff098b3a029212a151fc1",
+                                    "updated_at": "2021-02-10 20:16:08"
+                                }
+                            ]
+                        },
+                        {
+                            "name": "Paragenetic Mode (still in development)",
+                            "template_tag_uuid": "265bbf23455ac8fb991bce8b685a",
+                            "updated_at": "2021-02-10 20:16:08",
+                            "children": [
+                                {
+                                    "name": "Biologically-Mediated",
+                                    "template_tag_uuid": "e126c8b4b33540973eb7703c713d",
+                                    "updated_at": "2021-02-10 20:16:08",
+                                    "children": [
+                                        {
+                                            "name": "Coal/oil shale",
+                                            "template_tag_uuid": "9496f404fbfa75c3304c4a00f836",
+                                            "updated_at": "2021-02-10 20:16:08"
+                                        },
+                                        {
+                                            "name": "Anthropogenic",
+                                            "template_tag_uuid": "c4fb8ac8df508687119d0bab5936",
+                                            "updated_at": "2021-02-10 20:16:08"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "name": "Biotic",
+                                    "template_tag_uuid": "753415c4369351be62d36fb17c6b",
+                                    "updated_at": "2021-02-10 20:16:08"
+                                },
+                                {
+                                    "name": "Primary Metamorphic",
+                                    "template_tag_uuid": "9ad5e773fc04541ce27f27a9858f",
+                                    "updated_at": "2021-02-10 20:16:08",
+                                    "children": [
+                                        {
+                                            "name": "Metamorphosed Mn-Zn ore body",
+                                            "template_tag_uuid": "70ed2b0513c90544817c651ac8ae",
+                                            "updated_at": "2021-02-10 20:16:08"
+                                        },
+                                        {
+                                            "name": "Regional metamorphism",
+                                            "template_tag_uuid": "13a9de37980ea53d1152439522eb",
+                                            "updated_at": "2021-02-10 20:16:08"
+                                        },
+                                        {
+                                            "name": "High-pressure, low-temperature",
+                                            "template_tag_uuid": "686847267dbff7dbc0e6eba3097a",
+                                            "updated_at": "2021-02-10 20:16:08"
+                                        },
+                                        {
+                                            "name": "Metasomatic",
+                                            "template_tag_uuid": "e6050bbf833cf87d96a2e4ec5c6c",
+                                            "updated_at": "2021-02-10 20:16:08"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "name": "Secondary",
+                                    "template_tag_uuid": "b8765b3d690926cc3e07328fe833",
+                                    "updated_at": "2021-02-10 20:16:08"
+                                },
+                                {
+                                    "name": "Primary Intrusive Igneous",
+                                    "template_tag_uuid": "18300c09331b3fe30e54c6b075e9",
+                                    "updated_at": "2021-02-10 20:16:08",
+                                    "children": [
+                                        {
+                                            "name": "Carbonatite",
+                                            "template_tag_uuid": "3db06ffffe4ef34c934432be7ccd",
+                                            "updated_at": "2021-02-10 20:16:08"
+                                        },
+                                        {
+                                            "name": "Alkali igneous complex",
+                                            "template_tag_uuid": "347edf849326b2b662ae2192f998",
+                                            "updated_at": "2021-02-10 20:16:08"
+                                        },
+                                        {
+                                            "name": "Mafic",
+                                            "template_tag_uuid": "339a044290b1e1ce93f5ea6ff338",
+                                            "updated_at": "2021-02-10 20:16:08"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "name": "Sedimentary",
+                                    "template_tag_uuid": "517223da237178e890c1037806ab",
+                                    "updated_at": "2021-02-10 20:16:08",
+                                    "children": [
+                                        {
+                                            "name": "Authigenic",
+                                            "template_tag_uuid": "009d56ddac12c84839dc041a96f5",
+                                            "updated_at": "2021-02-10 20:16:08"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "name": "Primary",
+                                    "template_tag_uuid": "708c51dc1878da9db4f413f25664",
+                                    "updated_at": "2021-02-10 20:16:08"
+                                },
+                                {
+                                    "name": "Abiotic",
+                                    "template_tag_uuid": "a9b045d677679d4b2ebfa529a8a7",
+                                    "updated_at": "2021-02-10 20:16:08"
+                                },
+                                {
+                                    "name": "Extraterrestrial",
+                                    "template_tag_uuid": "af0fd4a0b6a2946c6c8a45d81796",
+                                    "updated_at": "2021-02-10 20:16:08",
+                                    "children": [
+                                        {
+                                            "name": "Chondrite",
+                                            "template_tag_uuid": "b5e62ba601bed6b7bbce4d6b2f41",
+                                            "updated_at": "2021-02-10 20:16:08"
+                                        },
+                                        {
+                                            "name": "Achondrite",
+                                            "template_tag_uuid": "efd9d9a07c7b91da141e7c725301",
+                                            "updated_at": "2021-02-10 20:16:08"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "name": "Hydrothermal/Aqueous Precipitates",
+                                    "template_tag_uuid": "404c2de767807badece6c4f362a2",
+                                    "updated_at": "2021-02-10 20:16:08",
+                                    "children": [
+                                        {
+                                            "name": "Sulfide/arsenide/selenide veins",
+                                            "template_tag_uuid": "a27a3397aed87dd0d06014eb0d31",
+                                            "updated_at": "2021-02-10 20:16:08"
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ],
+            "related_databases": [
+                {
+                    "internal_id": 1,
+                    "name": "RRUFF Reference",
+                    "description": "asdf",
+                    "template_uuid": "6ace005ed08d11fdad40e87a7788",
+                    "updated_at": "2021-06-04 19:27:38",
+                    "render_plugin": "References Plugin",
+                    "metadata_for_uuid": "",
+                    "_database_metadata": {
+                        "_create_date": "2021-02-10 20:04:46",
+                        "_create_auth": "Alex Pires",
+                        "_public_date": "2021-06-04 19:27:38",
+                        "_master_published_version": "0",
+                        "_master_revision": "0",
+                        "_tracking_master_version": "0"
+                    },
+                    "fields": [
+                        {
+                            "internal_id": 1,
+                            "name": "Authors",
+                            "description": "The authors of this article.",
+                            "fieldtype": "Paragraph Text",
+                            "template_field_uuid": "090eefb4da378eeec83f97ef8b6a",
+                            "updated_at": "2021-06-04 19:27:43",
+                            "_field_metadata": {
+                                "_create_date": "2021-02-10 20:04:56",
+                                "_create_auth": "Alex Pires",
+                                "_public_date": "2021-06-04 19:27:43",
+                                "_master_published_version": "0",
+                                "_master_revision": "0",
+                                "_tracking_master_version": "0"
+                            }
+                        },
+                        {
+                            "internal_id": 2,
+                            "name": "Article Title",
+                            "description": "The title of this article.",
+                            "fieldtype": "Paragraph Text",
+                            "template_field_uuid": "804e4a4eacfc6905351ad56676c2",
+                            "updated_at": "2021-06-04 19:27:43",
+                            "render_plugin": "Chemistry Field",
+                            "_field_metadata": {
+                                "_create_date": "2021-02-10 20:04:56",
+                                "_create_auth": "Alex Pires",
+                                "_public_date": "2021-06-04 19:27:43",
+                                "_master_published_version": "0",
+                                "_master_revision": "0",
+                                "_tracking_master_version": "0"
+                            }
+                        },
+                        {
+                            "internal_id": 3,
+                            "name": "Journal",
+                            "description": "The name of the journal in which this article was published.",
+                            "fieldtype": "Paragraph Text",
+                            "template_field_uuid": "513f0930b98cb86c5d0c8dc190cb",
+                            "updated_at": "2021-06-04 19:27:43",
+                            "_field_metadata": {
+                                "_create_date": "2021-02-10 20:04:56",
+                                "_create_auth": "Alex Pires",
+                                "_public_date": "2021-06-04 19:27:43",
+                                "_master_published_version": "0",
+                                "_master_revision": "0",
+                                "_tracking_master_version": "0"
+                            }
+                        },
+                        {
+                            "internal_id": 4,
+                            "name": "Year",
+                            "description": "What year the article was published.",
+                            "fieldtype": "Short Text",
+                            "template_field_uuid": "71fa194ed9b1c339b26e29e30144",
+                            "updated_at": "2021-06-04 19:27:43",
+                            "_field_metadata": {
+                                "_create_date": "2021-02-10 20:04:56",
+                                "_create_auth": "Alex Pires",
+                                "_public_date": "2021-06-04 19:27:43",
+                                "_master_published_version": "0",
+                                "_master_revision": "0",
+                                "_tracking_master_version": "0"
+                            }
+                        },
+                        {
+                            "internal_id": 5,
+                            "name": "Month",
+                            "description": "What month the article was published.",
+                            "fieldtype": "Short Text",
+                            "template_field_uuid": "651ab84df116efff9d4a1430e590",
+                            "updated_at": "2021-06-04 19:27:43",
+                            "_field_metadata": {
+                                "_create_date": "2021-02-10 20:04:56",
+                                "_create_auth": "Alex Pires",
+                                "_public_date": "2021-06-04 19:27:43",
+                                "_master_published_version": "0",
+                                "_master_revision": "0",
+                                "_tracking_master_version": "0"
+                            }
+                        },
+                        {
+                            "internal_id": 6,
+                            "name": "Volume",
+                            "description": "The volume number of the journal the article was published in.",
+                            "fieldtype": "Short Text",
+                            "template_field_uuid": "24ccd752f02127754322cf22633e",
+                            "updated_at": "2021-06-04 19:27:43",
+                            "_field_metadata": {
+                                "_create_date": "2021-02-10 20:04:56",
+                                "_create_auth": "Alex Pires",
+                                "_public_date": "2021-06-04 19:27:43",
+                                "_master_published_version": "0",
+                                "_master_revision": "0",
+                                "_tracking_master_version": "0"
+                            }
+                        },
+                        {
+                            "internal_id": 7,
+                            "name": "Issue",
+                            "description": "The issue number of the journal the article was published in.",
+                            "fieldtype": "Short Text",
+                            "template_field_uuid": "01ad50f65a98f19f2bde0360e605",
+                            "updated_at": "2021-06-04 19:27:43",
+                            "_field_metadata": {
+                                "_create_date": "2021-02-10 20:04:56",
+                                "_create_auth": "Alex Pires",
+                                "_public_date": "2021-06-04 19:27:43",
+                                "_master_published_version": "0",
+                                "_master_revision": "0",
+                                "_tracking_master_version": "0"
+                            }
+                        },
+                        {
+                            "internal_id": 8,
+                            "name": "Book Title",
+                            "description": "The title of this book.",
+                            "fieldtype": "Long Text",
+                            "template_field_uuid": "8ef48c555da95499324c92bd8753",
+                            "updated_at": "2021-06-04 19:27:43",
+                            "_field_metadata": {
+                                "_create_date": "2021-02-10 20:04:56",
+                                "_create_auth": "Alex Pires",
+                                "_public_date": "2021-06-04 19:27:43",
+                                "_master_published_version": "0",
+                                "_master_revision": "0",
+                                "_tracking_master_version": "0"
+                            }
+                        },
+                        {
+                            "internal_id": 9,
+                            "name": "Publisher",
+                            "description": "The publisher of this book.",
+                            "fieldtype": "Long Text",
+                            "template_field_uuid": "daa40f5625cf8284f8bee20c9a3a",
+                            "updated_at": "2021-06-04 19:27:43",
+                            "_field_metadata": {
+                                "_create_date": "2021-02-10 20:04:56",
+                                "_create_auth": "Alex Pires",
+                                "_public_date": "2021-06-04 19:27:43",
+                                "_master_published_version": "0",
+                                "_master_revision": "0",
+                                "_tracking_master_version": "0"
+                            }
+                        },
+                        {
+                            "internal_id": 10,
+                            "name": "Publisher Location",
+                            "description": "Where the publisher of this book is located.",
+                            "fieldtype": "Long Text",
+                            "template_field_uuid": "eb26cbd5f5b1748dca6362f1094d",
+                            "updated_at": "2021-06-04 19:27:43",
+                            "_field_metadata": {
+                                "_create_date": "2021-02-10 20:04:56",
+                                "_create_auth": "Alex Pires",
+                                "_public_date": "2021-06-04 19:27:43",
+                                "_master_published_version": "0",
+                                "_master_revision": "0",
+                                "_tracking_master_version": "0"
+                            }
+                        },
+                        {
+                            "internal_id": 11,
+                            "name": "Annotation",
+                            "description": "?",
+                            "fieldtype": "Long Text",
+                            "template_field_uuid": "375ffc6663fa7edcac2dd9172f55",
+                            "updated_at": "2021-06-04 19:27:43",
+                            "_field_metadata": {
+                                "_create_date": "2021-02-10 20:04:56",
+                                "_create_auth": "Alex Pires",
+                                "_public_date": "2021-06-04 19:27:43",
+                                "_master_published_version": "0",
+                                "_master_revision": "0",
+                                "_tracking_master_version": "0"
+                            }
+                        },
+                        {
+                            "internal_id": 12,
+                            "name": "Pages",
+                            "description": "The pages the article takes up in the journal.",
+                            "fieldtype": "Short Text",
+                            "template_field_uuid": "f13e8ab788d7d3ba310be7d019b2",
+                            "updated_at": "2021-06-04 19:27:43",
+                            "_field_metadata": {
+                                "_create_date": "2021-02-10 20:04:56",
+                                "_create_auth": "Alex Pires",
+                                "_public_date": "2021-06-04 19:27:43",
+                                "_master_published_version": "0",
+                                "_master_revision": "0",
+                                "_tracking_master_version": "0"
+                            }
+                        },
+                        {
+                            "internal_id": 13,
+                            "name": "File",
+                            "description": "A file containing a scan of the physical reference.",
+                            "fieldtype": "File",
+                            "template_field_uuid": "edfdcff60f342500f7c6aa7ca478",
+                            "updated_at": "2021-06-04 19:27:43",
+                            "_field_metadata": {
+                                "_create_date": "2021-02-10 20:04:56",
+                                "_create_auth": "Alex Pires",
+                                "_public_date": "2021-06-04 19:27:43",
+                                "_master_published_version": "0",
+                                "_master_revision": "0",
+                                "_tracking_master_version": "0"
+                            }
+                        },
+                        {
+                            "internal_id": 14,
+                            "name": "URL",
+                            "description": "A URL that points to an online copy of the reference.",
+                            "fieldtype": "Long Text",
+                            "template_field_uuid": "5167078ae484d2acea1c8fcb077d",
+                            "updated_at": "2021-06-04 19:27:43",
+                            "_field_metadata": {
+                                "_create_date": "2021-02-10 20:04:56",
+                                "_create_auth": "Alex Pires",
+                                "_public_date": "2021-06-04 19:27:43",
+                                "_master_published_version": "0",
+                                "_master_revision": "0",
+                                "_tracking_master_version": "0"
+                            }
+                        },
+                        {
+                            "internal_id": 15,
+                            "name": "reference_id",
+                            "description": "Field description.",
+                            "fieldtype": "Integer",
+                            "template_field_uuid": "04344b8d4b560dd6a65f015f2a4f",
+                            "updated_at": "2021-06-04 19:27:43",
+                            "is_unique": 1,
+                            "_field_metadata": {
+                                "_create_date": "2021-02-10 20:05:05",
+                                "_create_auth": "Alex Pires",
+                                "_public_date": "2021-06-04 19:27:43",
+                                "_master_published_version": "0",
+                                "_master_revision": "0",
+                                "_tracking_master_version": "0"
+                            }
+                        }
+                    ],
+                    "related_databases": []
+                }
+            ]
+        }
+    ]
+}
