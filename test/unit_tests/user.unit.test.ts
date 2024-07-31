@@ -2,7 +2,7 @@ var request = require("supertest");
 
 var src_path = '../../src';
 var { app, init: appInit, close: appClose } = require(src_path + '/app');
-var HelperClass = require('./common_test_operations')
+var HelperClass = require('../common_test_operations')
 var Helper = new HelperClass(app);
 const jwt = require('jsonwebtoken');
 

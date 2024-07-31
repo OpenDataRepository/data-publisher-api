@@ -1,4 +1,4 @@
-var src_path = '../src'
+var src_path = '../../src'
 const Util = require(src_path + '/lib/util');
 
 

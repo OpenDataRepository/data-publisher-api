@@ -66,29 +66,26 @@ exports.uploadFileDirect = async function(req, res, next) {
     if (!uploads[uuid])
       uploads[uuid] = {};
 
-    let upload = uploads[uuid]; //Bytes of file already present
+    let upload = uploads[uuid]; // Bytes of file already present
 
     let fileStream;
 
-    //checking bytes of file uploaded and sending to server
-    if (!startByte) {
-      upload.bytesReceived = 0;
-      fileStream = fs.createWriteStream(file_path, {
-        flags: 'w' //with "w"(write stream ) it keeps on adding data
-      });
-    } else {
-      if (upload.bytesReceived != startByte) {//if same file is sent with different size it will not upload
+    if(startByte) {
+      if (upload.bytesReceived != startByte) { //if same file is sent with different size it will not upload
         res.status(400).send(`Wrong start byte. Expected ${upload.bytesReceived}`);
         return;
       }
-      // append to existing file
-      fileStream = fs.createWriteStream(file_path, {
-        flags: 'a'
-      });
+    } else {
+      upload.bytesReceived = 0;
     }
 
+    const operation = startByte ? 'a' : 'w';
+    fileStream = fs.createWriteStream(file_path, {
+      flags: operation
+    });
+
     req.on('data', function (data) {
-      upload.bytesReceived += data.length; //adding length of data we are adding
+      upload.bytesReceived += data.length; // adding length of data we are adding
     });
 
     req.pipe(fileStream);

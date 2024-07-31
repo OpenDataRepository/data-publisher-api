@@ -6,7 +6,7 @@ var finalhandler = require('finalhandler')
 var http = require('http')
 var serveStatic = require('serve-static')
 import { AddressInfo } from 'net'
-const src_path = '../../src'
+const src_path = '../src'
 const MongoDB = require(src_path + '/lib/mongoDB');
 const ElasticDB = require(src_path +  '/lib/elasticDB');
 var { PermissionTypes } = require(src_path +  '/models/permission');
@@ -1152,6 +1152,291 @@ export = class Helper {
       .send({records})
       .set('Accept', 'application/json');
   }
+
+
+  immportTestTemplateFieldsEqual = async (before, after, uuid_mapper) => {
+    if(before.template_field_uuid in uuid_mapper) {
+      expect(after.uuid).toEqual(uuid_mapper[before.template_field_uuid]);
+    } else {
+      uuid_mapper[before.template_field_uuid] = after.uuid;
+    }
+    this.testTemplateFieldsEqual(before, after);
+  }
+
+  importTestTemplatesEqual = async (before, after, uuid_mapper) => {
+    if(before.template_uuid in uuid_mapper) {
+      expect(after.uuid).toEqual(uuid_mapper[before.template_uuid]);
+    } else {
+      uuid_mapper[before.template_uuid] = after.uuid;
+    }
+    if(!before.fields) {
+      before.fields = [];
+    }
+    if(!before.related_databases) {
+      before.related_databases = [];
+    }
+    if(before.name) {
+      expect(after.name).toEqual(before.name);
+    }
+    if(before.description) {
+      expect(after.description).toEqual(before.description);
+    }
+    if(before.name) {
+      expect(after.name).toEqual(before.name);
+    }
+    expect(after.fields.length).toBe(before.fields.length);
+    expect(after.related_templates.length + after.subscribed_templates.length).toBe(before.related_databases.length);
+    before.fields.sort(this.sortArrayByNameProperty);
+    after.fields.sort(this.sortArrayByNameProperty);
+    for(let i = 0; i < before.fields.length; i++) {
+      this.immportTestTemplateFieldsEqual(before.fields[i], after.fields[i], uuid_mapper);
+    }
+    let all_linked_templates = after.related_templates.concat(after.subscribed_templates);
+    before.related_databases.sort(this.sortArrayByNameProperty);
+    all_linked_templates.sort(this.sortArrayByNameProperty);
+    for(let i = 0; i < before.related_databases.length; i++) {
+      this.importTestTemplatesEqual(before.related_databases[i], all_linked_templates[i], uuid_mapper);
+    }
+  }
+
+  importTemplateDatasetTest = async (template) => {
+    let response = await this.importTemplateDataset(template);
+    expect(response.statusCode).toBe(200);
+    let template_uuid = response.body.template_uuid;
+    let dataset_uuid = response.body.dataset_uuid;
+    let new_template = await this.templateLatestPersistedAndTest(template_uuid);
+    let new_dataset = await this.datasetDraftGetAndTest(dataset_uuid);
+    this.importTestTemplatesEqual(template, new_template, {});
+    return [new_template, new_dataset];
+  }
+
+  importTemplateDatasetPersistTest = async (template) => {
+    let new_template, dataset_draft;
+    [new_template, dataset_draft] = await this.importTemplateDatasetTest(template);
+    let new_dataset = await this.datasetPersistAndFetch(dataset_draft.uuid);
+    return [new_template, new_dataset];
+  }
+
+  extractRecordsWithDatabaseUuidFromRecord = async (record, database_uuid, result_records) => {
+    if(record.database_uuid == database_uuid) {
+      result_records.push(record);
+    }
+    for(let related_record of record.records) {
+      this.extractRecordsWithDatabaseUuidFromRecord(related_record, database_uuid, result_records);
+    }
+  }
+  extractRecordsWithDatabaseUuidfromRecords = async (records, database_uuid) => {
+    let result_records = [];
+    for(let record of records) {
+      this.extractRecordsWithDatabaseUuidFromRecord(record, database_uuid, result_records);
+    }
+    return result_records
+  }
+
+  reformatInputRecordField = (input_field) => {
+    input_field.name = input_field.field_name;
+    // delete input_field.field_name;
+    if(!input_field.name) {
+      input_field.name = "";
+    }
+  
+    input_field.uuid = input_field.field_uuid;
+    // delete input_field.field_uuid;
+  }
+  
+  reformatInputRecord = (input_record) => {
+    input_record.name = input_record.record_name;
+    // delete input_record.record_name;
+    if(!input_record.name) {
+      input_record.name = "";
+    }
+  
+    input_record.related_records = input_record.records;
+    // delete input_record.records;
+    if(!input_record.related_records) {
+      input_record.related_records = [];
+    }
+  
+    if(!input_record.fields) {
+      input_record.fields = [];
+    }
+  
+    input_record.uuid = input_record.record_uuid;
+    // delete input_record.record_uuid;
+  
+    input_record.dataset_uuid = input_record.database_uuid;
+    // delete input_record.database_uuid;
+  
+    for(let field of input_record.fields) {
+      this.reformatInputRecordField(field);
+    }
+    for(let related_record of input_record.related_records) {
+      this.reformatInputRecord(related_record);
+    }
+  }
+
+  testOldAndNewFieldEqual = (old_field, new_field, uuid_mapper) => {
+    if(old_field.uuid in uuid_mapper) {
+      expect(new_field.uuid).toEqual(uuid_mapper[old_field.uuid])
+    } else {
+      uuid_mapper[old_field.uuid] = new_field.uuid
+    }
+    expect(new_field.name).toEqual(old_field.name);
+    // Special case if field type is a file
+    if(old_field.files) {
+      // I don't think this needs to be tested
+      return;
+    }
+    // Normal case - single value
+    if(typeof(old_field.value) == 'string') {
+      expect(new_field.value).toEqual(old_field.value);
+      return;
+    } 
+    //  Normal case: array of values
+    if(Array.isArray(old_field.value)) {
+      for(let i = 0; i < old_field.value.length; i++) {
+        expect(new_field.values[i].name).toEqual(old_field.value[i].name);
+      }
+    } else if(!old_field.value) {
+      expect(new_field.value).toBeFalsy();
+    } else {
+      expect(new_field.value).toEqual(old_field.value);
+    }
+    
+  }
+  
+  testOldAndNewRecordEqual = (old_record, new_record, uuid_mapper) => {
+    // Check record_uuid
+    if(old_record.uuid in uuid_mapper) {
+      expect(new_record.uuid).toEqual(uuid_mapper[old_record.uuid]);
+    } else {
+      uuid_mapper[old_record.uuid] = new_record.uuid;
+    }
+    // Check dataset uuid
+    if(old_record.dataset_uuid in uuid_mapper) {
+      expect(new_record.dataset_uuid).toEqual(uuid_mapper[old_record.dataset_uuid]);
+    } else {
+      uuid_mapper[old_record.dataset_uuid] = new_record.dataset_uuid;
+    }
+  
+    if(!old_record.fields) {
+      old_record.fields = []
+    }
+    if(!old_record.records) {
+      old_record.records = []
+    }
+  
+    expect(typeof(old_record.fields)).toEqual(typeof(new_record.fields));
+    // the case where the input record doesn't include a field the template requires and thus inserts automatically
+    expect(new_record.fields.length).toBeGreaterThanOrEqual(old_record.fields.length);
+    expect(new_record.related_records.length).toBe(old_record.related_records.length);
+  
+    // Create a map of new field uuid -> new field
+    let new_record_field_map = {};
+    for(let field of new_record.fields) {
+      new_record_field_map[field.name] = field;
+    }
+    for(let old_field of old_record.fields) {
+      this.testOldAndNewFieldEqual(old_field, new_record_field_map[old_field.name], uuid_mapper);
+    }
+  
+    let old_uuid_to_new_record_map = {};
+    for(let related_record of new_record.related_records) {
+      old_uuid_to_new_record_map[related_record.old_system_uuid] = related_record;
+    }
+  
+    for(let old_related_record of old_record.related_records) {
+      let new_related_record = old_uuid_to_new_record_map[old_related_record.uuid];
+      expect(new_related_record).toBeTruthy();
+      this.testOldAndNewRecordEqual(old_related_record, old_uuid_to_new_record_map[old_related_record.uuid], uuid_mapper)
+    }
+  }
+
+  uploadFilesForRecordRecursor = async(record, promise_list, uploaded_uuids) => {
+    for(let field of record.fields) {
+      if(field.file && field.file.import_url) {
+        let uuid = field.file.uuid;
+        if(!uploaded_uuids.has(uuid)) {
+          promise_list.push(this.uploadFileFromUrl(uuid, field.file.import_url));
+          uploaded_uuids.add(uuid);
+        }
+      }
+      if(field.images) {
+        for(let image of field.images) {
+          if(image.import_url) {
+            let uuid = image.uuid;
+            if(!uploaded_uuids.has(uuid)) {
+              promise_list.push(this.uploadFileFromUrl(uuid, image.import_url));
+              uploaded_uuids.add(uuid);
+            }
+          }
+        }
+      }
+    }
+    for(let related_record of record.related_records) {
+      this.uploadFilesForRecordRecursor(related_record, promise_list, uploaded_uuids);
+    }
+  };
+  
+  uploadFilesForRecord = async (record, uploaded_uuids) => {
+    // Create a giant list of all promises from all files and then wait for them all
+  
+    let promises = [];
+  
+    // Upload all files in this record. uploaded_uuids is the files already uploaded. Don't do it twice!
+    this.uploadFilesForRecordRecursor(record, promises, uploaded_uuids);
+  
+    return await Promise.all(promises);
+  }
+  
+  importRecordsTest = async (records, testUploads?) => {
+  
+    let uuid_mapper = {};
+    let response = await this.importRecords(records);
+    expect(response.statusCode).toBe(200);
+    let record_uuids = response.body.record_uuids;
+    expect(record_uuids.length).toBe(records.length);
+  
+    for(let record of records) {
+      this.reformatInputRecord(record);
+    }
+    
+    let uploaded_uuids = new Set(); // So we don't upload the same file uuid multiple times
+    for(let i = 0; i < records.length; i++) {
+  
+      let new_record_uuid = record_uuids[i];
+      let new_record = await this.recordDraftGetAndTest(new_record_uuid);
+      let old_record = records[i];
+  
+      let promiseValues: any = await this.uploadFilesForRecord(new_record, uploaded_uuids);
+      if(testUploads) {
+        for(let value of promiseValues) {
+          if(value.statusCode != 200) {
+            console.log(value.text);
+          }
+          expect(value.statusCode).toBe(200);
+        }
+      }
+  
+      this.testOldAndNewRecordEqual(old_record, new_record, uuid_mapper);
+    }
+  
+    return record_uuids;
+  }
+  
+  importRecordsPersistTest = async (records) => {
+  
+    let record_uuids = await this.importRecordsTest(records, true);
+    // remove duplciates
+    record_uuids = [...new Set(record_uuids)];
+    let persisted_records: any = [];
+    for(let record_uuid of record_uuids) {
+      persisted_records.push(await this.recordPersistAndFetch(record_uuid));
+    }
+    return persisted_records;
+  }
+  
+  
 
   // serving files
 
