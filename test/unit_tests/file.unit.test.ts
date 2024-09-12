@@ -1,14 +1,14 @@
-var fs = require('fs');
+import * as fs from 'fs';
 const fsPromises = fs.promises;
-const path = require('path');
-const { v4: uuidv4 } = require('uuid');
+import * as path from 'path';
+import { v4 as uuidv4 } from 'uuid';
 
-var src_path = '../../src';
-var { app, init: appInit, close: appClose } = require(src_path + '/app');
-var FieldTypes = require(src_path + '/models/template_field').FieldTypes;
+const src_path = '../../src';
+const { app, init: appInit, close: appClose } = require(src_path + '/app');
+const FieldTypes = require(src_path + '/models/template_field').FieldTypes;
 
-var HelperClass = require('../common_test_operations')
-var Helper = new HelperClass(app);
+const HelperClass = require('../common_test_operations')
+const Helper = new HelperClass(app);
 
 var server;
 var serverUrl;
@@ -93,9 +93,7 @@ describe("direct upload", () => {
     
       let response = await Helper.getFile(uuid);
       expect(response.statusCode).toBe(200);
-      let newFileBuffer = response.body;
-      let newFileContents = newFileBuffer.toString();
-      expect(newFileContents).toEqual(originalFileContents);
+      expect(response.text).toEqual(originalFileContents);
     });
     
     test("Upload a large file directly (and fetch it)", async () => {
@@ -112,8 +110,7 @@ describe("direct upload", () => {
     
       let response = await Helper.getFile(uuid);
       expect(response.statusCode).toBe(200);
-      let newFileBuffer = response.body;
-      expect(newFileBuffer.toString()).toEqual(raw_data.toString());
+      expect(response.text).toEqual(raw_data.toString());
     });
 
     test("Upload a file in multiple parts", async () => {
@@ -140,9 +137,9 @@ describe("direct upload", () => {
       expect(result).toHaveProperty('status');
       expect(result.status).toEqual('file is present');
     
-      let newFileBuffer = await Helper.testAndExtract(Helper.getFile, uuid);
-      let newFileContents = newFileBuffer.toString();
-      expect(newFileContents).toEqual(originalFileContents);
+      let response = await Helper.getFile(uuid);
+      expect(response.statusCode).toBe(200);
+      expect(response.text).toEqual(originalFileContents);
     });
   
   });
@@ -212,9 +209,7 @@ describe("from url", () => {
     
       response = await Helper.getFile(uuid);
       expect(response.statusCode).toBe(200);
-      let newFileBuffer = response.body;
-      let newFileContents = newFileBuffer.toString();
-      expect(newFileContents).toEqual(originalFileContents);
+      expect(response.text).toEqual(originalFileContents);
     });
     
     test("Upload a large file from url (and fetch it)", async () => {
@@ -233,8 +228,7 @@ describe("from url", () => {
     
       response = await Helper.getFile(uuid);
       expect(response.statusCode).toBe(200);
-      let newFileBuffer = response.body;
-      expect(newFileBuffer.toString()).toEqual(raw_data.toString());
+      expect(response.text).toEqual(raw_data.toString());
     });
   });
 

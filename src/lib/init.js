@@ -9,8 +9,9 @@ const datasetPublishModel = require('../models/datasetPublish');
 const userModel = require('../models/user');
 const ElasticDB = require('./elasticDB');
 const elasticSearchModel = require('../models/elasticsearch');
+const s3 = require('./s3')
 
-module.exports = async function(mongoDb_uri) {
+module.exports = async function(mongoDb_uri, use_s3=false) {
     await MongoDB.connect(mongoDb_uri);
     await templateModel.init();
     await datasetModel.init();
@@ -23,4 +24,5 @@ module.exports = async function(mongoDb_uri) {
     const elasticsearchUri = process.env.elasticsearchUri;
     await ElasticDB.connect(elasticsearchUri);
     await elasticSearchModel.init();
+    s3.init(use_s3);
 }

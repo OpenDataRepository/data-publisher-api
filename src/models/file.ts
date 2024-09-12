@@ -1,5 +1,7 @@
 import * as fs from 'fs';
+import { DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { BasicAbstractDocument } from './basic_abstract_document';
+import { getS3Client, shouldUseS3 } from '../lib/s3';
 const fsPromises = fs.promises;
 const path = require('path');
 const { v4: uuidv4} = require('uuid');
@@ -38,6 +40,10 @@ const Schema = Object.freeze({
     persisted: {
       bsonType: "bool",
       description: "identifies whether or not the record containing this file has been persisted. If so, the file cannot be deleted"
+    },
+    location: {
+      bsonType: "string",
+      description: "the location where the file is stored. if 'local', then on the server. Otherwise, specifies the s3 bucket"
     }
   },
   additionalProperties: false
@@ -45,7 +51,7 @@ const Schema = Object.freeze({
 
 var File;
 
-var Upload_Destination;
+var LocalFileStorageLocation;
 
 // Returns a reference to the permissions Mongo Collection
 async function collection() {
@@ -64,13 +70,13 @@ async function collection() {
 function collectionExport() {
   return File;
 }
-function uploadDestination() {
-  return Upload_Destination;
+function localFileStorageLocation() {
+  return LocalFileStorageLocation;
 }
 
 async function init() {
   File = await collection();
-  Upload_Destination = path.resolve(process.env.uploads_folder as string);
+  LocalFileStorageLocation = path.resolve(process.env.local_file_storage_location as string);
 }
 
 class Model extends BasicAbstractDocument {
@@ -90,7 +96,9 @@ class Model extends BasicAbstractDocument {
       record_uuid,
       template_field_uuid,
       uploaded: false,
-      persisted: false
+      persisted: false,
+      // TODO: support uploading files to a private_bucket as well
+      location: shouldUseS3() ? process.env.s3_public_bucket : "local"
     }
   
     let response = await this.collection.insertOne(
@@ -152,8 +160,13 @@ class Model extends BasicAbstractDocument {
     }
     
     if(file_metadata.uploaded) {
-      let file_path = path.join(Upload_Destination, uuid);
-      await fsPromises.unlink(file_path);
+      if(file_metadata.location == "local") {
+        let file_path = path.join(localFileStorageLocation(), uuid);
+        await fsPromises.unlink(file_path);
+      } else {
+        const deleteCommand = new DeleteObjectCommand({Bucket: file_metadata.location, Key: uuid});
+        await getS3Client().send(deleteCommand);
+      }
     }
     let response = await this.collection.deleteMany(
       {uuid},
@@ -191,6 +204,6 @@ class Model extends BasicAbstractDocument {
 export {
   collectionExport as collection,
   init,
-  uploadDestination,
+  localFileStorageLocation,
   Model as model
 };

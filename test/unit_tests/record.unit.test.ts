@@ -2667,9 +2667,9 @@ describe("with files", () => {
     
     await Helper.testAndExtract(Helper.uploadFileDirect, file_uuid, file_name);
 
-    let newFileBuffer = await Helper.testAndExtract(Helper.getFile, file_uuid);
-    let newFileContents = newFileBuffer.toString();
-    expect(newFileContents).toEqual(file_contents);
+    let response = await Helper.getFile(file_uuid);
+    expect(response.statusCode).toBe(200);
+    expect(response.text).toEqual(file_contents);
 
     return [template, dataset, record, file_uuid];
   };
@@ -2729,17 +2729,17 @@ describe("with files", () => {
       await Helper.testAndExtract(Helper.uploadFileDirect, file_uuid_2, file_name_2);
 
       // test that we can get the second file
-      let newFileBuffer = await Helper.testAndExtract(Helper.getFile, file_uuid_2);
-      let newFileContents = newFileBuffer.toString();
-      expect(newFileContents).toEqual(file_contents);
+      let response = await Helper.getFile(file_uuid_2);
+      expect(response.statusCode).toBe(200);
+      expect(response.text).toEqual(file_contents);
 
       // Publish second record with second file
       record = await Helper.recordPersistAndTest(record);
 
       // Can still get the old file with the old uuid
-      newFileBuffer = await Helper.testAndExtract(Helper.getFile, file_uuid);
-      newFileContents = newFileBuffer.toString();
-      expect(newFileContents).toEqual("Hello World!");
+      response = await Helper.getFile(file_uuid);
+      expect(response.statusCode).toBe(200);
+      expect(response.text).toEqual("Hello World!");
 
     });
 
@@ -2825,13 +2825,13 @@ describe("with files", () => {
       
       await Helper.testAndExtract(Helper.uploadFileDirect, image_1_uuid, image_1_name);
       await Helper.testAndExtract(Helper.uploadFileDirect, image_2_uuid, image_2_name);
-  
-      let newFileBuffer = await Helper.testAndExtract(Helper.getFile, image_1_uuid);
-      let newFileContents = newFileBuffer.toString();
-      expect(newFileContents).toEqual(image_1_contents);
-      newFileBuffer = await Helper.testAndExtract(Helper.getFile, image_2_uuid);
-      newFileContents = newFileBuffer.toString();
-      expect(newFileContents).toEqual(image_2_contents);
+
+      let response = await Helper.getFile(image_1_uuid);
+      expect(response.statusCode).toBe(200);
+      expect(response.text).toEqual(image_1_contents);
+      response = await Helper.getFile(image_2_uuid);
+      expect(response.statusCode).toBe(200);
+      expect(response.text).toEqual(image_2_contents);
 
       await Helper.recordPersistAndTest(record);
     });

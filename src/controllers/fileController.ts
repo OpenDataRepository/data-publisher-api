@@ -1,4 +1,7 @@
 import * as fs from 'fs';
+import { GetObjectCommand } from "@aws-sdk/client-s3";
+import { Upload } from "@aws-sdk/lib-storage";
+import { getS3Client, shouldUseS3 } from '../lib/s3';
 import { InputError } from '../lib/util';
 const fsPromises = fs.promises;
 const path = require('path');
@@ -45,10 +48,15 @@ async function updateFileName(uuid, file_name) {
   await RecordModel.updateFileName(record_uuid, field_uuid, uuid, file_name);
 }
 
+// TODO: support uploading direct files to S3
+// I think the steps would be:
+// 1. complete uploading the current way
+// 2. add the file to a queue, which then moves files to S3 instead
+// 3. if the file is sufficiently large, use multipart upload
 exports.uploadFileDirect = async function(req, res, next) {
   try {
     let uuid = req.params.uuid;
-    const file_path = path.join(FileModel.uploadDestination(), uuid);
+    const file_path = path.join(FileModel.localFileStorageLocation(), uuid);
 
     let startByte = parseInt(req.headers['x-start-byte'], 10);
     if(isNaN(startByte)) {
@@ -125,7 +133,7 @@ exports.directUploadStatus = async function(req, res, next) {
       return;
     }
     try {
-      const file_path = path.join(FileModel.uploadDestination(), uuid);
+      const file_path = path.join(FileModel.localFileStorageLocation(), uuid);
       let stats = fs.statSync(file_path);
   
       if (stats.isFile()) {
@@ -152,94 +160,70 @@ exports.directUploadStatus = async function(req, res, next) {
   }
 };
 
+
 // maybe at some point it would be a good idea to downoad to a different file first,
 // and then move that file to the correct location. That way we don't write half of a bad file and then delete it
 // Reference: https://stackoverflow.com/questions/11944932/how-to-download-a-file-with-node-js-without-using-third-party-libraries
 
 exports.uploadFileFromUrl = async function(req, res, next) {
   try {
-    let uuid = req.params.uuid;
-    let downloadUrl = req.body.url;
-    if(!downloadUrl) {
+    const uuid = req.params.uuid;
+    const download_url = req.body.url;
+    if(!download_url) {
       throw new Util.InputError(`Download url not provided`);
     }
+    // Solution from here: https://stackoverflow.com/questions/55374755/node-js-axios-download-file-stream-and-writefile
+    let download_response
+    try {
+       download_response = await axios({
+        method: "get",
+        url: download_url,
+        responseType: "stream"
+      })
+    } catch (err: any) {
+      throw new Util.InputError(`Fetching the file from the given url failed with the given message:
+        URL: ${download_url}
+        Message: ${err.message}`);
+    } 
 
+    if(download_response.status != 200) {
+      throw new Util.InputError(`Download from url failed: ${download_response.err}`);
+    }
+    const download_stream = download_response.data;
     const file_model = new FileModel.model();
 
-    let httpGetPromisified = async () => {
-      return new Promise((resolve, reject) => {
-        http.get(downloadUrl, function(response) {
-          if(response.statusCode != 200) {
-            reject(new Util.InputError(`Download from url failed. Status Code: ${response.statusCode}`));
-            return;
-          }
-          try {
-            let file_destination = path.join(FileModel.uploadDestination(), uuid);
-            var writeStream = fs.createWriteStream(file_destination);
-            response.pipe(writeStream);
-      
-            writeStream.on("finish", () => {
-              writeStream.close();
-              file_model.markUploaded(uuid)
-              .then(() => {
-                resolve(true);
-              });
-            });
-          } catch(err) {
-            reject(err);
-          }
-        }).on('error', (err) => {
-          reject(err);
-        });
-      });
-    };
-    // await httpGetPromisified();
-    // res.sendStatus(200);
-
-    let file_destination = path.join(FileModel.uploadDestination(), uuid);
-    var writeStream = fs.createWriteStream(file_destination);
-
-    // Solution from here: https://stackoverflow.com/questions/55374755/node-js-axios-download-file-stream-and-writefile
-    try {
-      await axios({
-        method: "get",
-        url: downloadUrl,
-        responseType: "stream"
-      }).then((response) => {
-  
-        if(response.status != 200) {
-          Promise.reject(new Util.InputError(`Download from url failed: ${response.err}`));
-        }
-        //ensure that the user can call `then()` only when the file has
-        //been downloaded entirely.
-  
-        return new Promise((resolve, reject) => {
-          response.data.pipe(writeStream);
+    if(shouldUseS3()) {
+      const upload = new Upload({
+        client: getS3Client(),
+        // TODO: add logic to use either the public or private bucket
+        params: {Bucket: process.env.s3_public_bucket, Key: uuid, Body: download_stream}
+      })
+      await upload.done();
+    } else {
+      const file_destination = path.join(FileModel.localFileStorageLocation(), uuid);
+      const write_stream = fs.createWriteStream(file_destination);
+      try {
+        await new Promise((resolve, reject) => {
+          download_stream.pipe(write_stream);
           let error: any = null;
-          writeStream.on('error', err => {
+          write_stream.on('error', err => {
             error = err;
-            writeStream.close();
+            write_stream.close();
             reject(err);
           });
-          writeStream.on('close', () => {
+          write_stream.on('close', () => {
             if (!error) {
               resolve(true);
             }
-            //no need to call the reject here, as it will have been called in the
-            //'error' stream;
+            //no need to call the reject here, as it will have been called in the 'error' stream;
           });
         });
-      });
-    } catch (err: any) {
-      await fsPromises.unlink(file_destination);
-      if(err.isAxiosError) {
-        throw new Util.InputError(`Fetching the file from the given url failed with the given message:
-        URL: ${downloadUrl}
-        Message: ${err.message}`);
-      } else {
+      } catch (err: any) {
+        await fsPromises.unlink(file_destination);
         throw err;
       }
     }
+
     await file_model.markUploaded(uuid);
     res.sendStatus(200);    
 
@@ -250,7 +234,7 @@ exports.uploadFileFromUrl = async function(req, res, next) {
 
 exports.getFile = async function(req, res, next) {
   try {
-    let uuid = req.params.uuid;
+    const uuid = req.params.uuid;
     let state = Util.initializeState(req);
     const file_model = await (new FileModel.model(state))
     if(!(await file_model.exists(uuid))) {
@@ -273,8 +257,19 @@ exports.getFile = async function(req, res, next) {
     if(!file_metadata.uploaded) {
       throw new Util.NotFoundError(`Uuid ${uuid} exists but no file for it has been uploaded.`);
     }
-    const file = path.join(FileModel.uploadDestination(), req.params.uuid);
-    res.sendFile(file);
+    let stream;
+    if(file_metadata.location == "local") {
+      const file_path = path.join(FileModel.localFileStorageLocation(), req.params.uuid);
+      stream = fs.createReadStream(file_path);
+    } else {
+      const getCommand = new GetObjectCommand({
+        Bucket: file_metadata.location,
+        Key: uuid,
+      });
+      const response = await getS3Client().send(getCommand);
+      stream = response.Body;
+    }
+    stream.pipe(res);
   } catch(err) {
     next(err);
   }

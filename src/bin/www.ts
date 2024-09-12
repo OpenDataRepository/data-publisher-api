@@ -25,7 +25,7 @@ var server = http.createServer(app);
  * Listen on provided port, on all network interfaces.
  */
 
-appInit(process.env.DB).then(() => {
+appInit(process.env.DB, process.env.use_s3 && process.env.use_s3 != "false").then(() => {
   server.listen(port);
   server.on('error', onError);
   server.on('listening', onListening);

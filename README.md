@@ -25,8 +25,19 @@
       - Can be left blank for now as email confirmation for registration has not been fully implemented
     - EMAIL_PASSWORD=""
       - Can be left blank for now as email confirmation for registration has not been fully implemented
-    - uploads_folder=folder_name_of_your_choice_to_store_file_uploads
-      - Eventually this folder should be removed and files should upload to some cloud storage service.
+    - use_s3=false
+      - Set to true if you want files to be stored on s3, false otherwise
+    - local_file_storage_location=folder_name_of_your_choice_to_store_file_uploads
+      - Location which files should be stored on the machine. Even if you opt to use s3 exclusively, a location for temporary file storage is required.
+    - aws_region="us-east-1"
+      - The location of your aws account.
+    - s3_public_bucket="public_bucket_name"
+      - where publicly-accessible files should be stored.
+    - s3_private_bucket="private_bucket_name"
+      - where private files should be stored.
+    - s3_accessKeyId="s3_access_key_id"
+    - s3_secretAccessKey="your_s3_secret_access_key"
+    
 I haven't attempted it, but it might be possible to run the tests without installling mongo or setting up the .env file
 
 ### Running the Server
@@ -723,7 +734,7 @@ I mostly try to use camelCase for functions and under_scores for variables, but 
 ### Documentation
 
 Sections of the code have few comments. Some helpful resources to understand the code are:
-- The integration tests are fairly expansive and can often be used to understand the gist of which behavior is being supported.
+- The unit tests are fairly expansive and can often be used to understand the gist of which behavior is being supported.
 - The schema in each of the files in the models folder can be used to see the format of the data in mongodb.
 
 ### Testing
@@ -735,17 +746,17 @@ Note there are a couple tests which always fail as they are dependent on externa
 
 ### Front End
 This repo is intended to be the back end to a web application for flexible data creation and management. 
-The front end which this repo is intended to serve is https://github.com/OpenDataRepository/odr-frontend
+The primary front end which this repo is intended to serve is https://github.com/OpenDataRepository/odr-frontend
 The last commmit on this repo which was tested somewhat extensively with the frontend is commit 982d9aac23dfcde2d6bb8337686ebe12059c887f. 
 With that in mind, I did my best to de-couple the two, and this repo should be able to be used independently.
 
 ### TODOs
 This project had limited funding and never reached alpha. There is a lot of work left to be completed:
-- The front-end has a lot more work to be done and should be prioritized before working on this repo further
-- There are a couple tests which are dependent on external resources. Those tests need to be reworked.
+- The front-end has a lot more work to be done and should be prioritized before working on this repo further.
+- There are a few integration tests which are dependent on external resources. Those tests need to be reworked.
 - The repo was not built for efficiency and speed. Profiling will need to be done for efficiency. 
 - Integration with elastic search is currently both very minor and not functioning correctly.
-- Generally the code in the models folder is simillar from one model to another and trying to share more code would probably be beneficial.
+- Generally the code in the models folder is similar from one model to another and trying to share more code would probably be beneficial.
 - There are many other TODOs sprinkled throughout the code
 
 ### Contact Information
